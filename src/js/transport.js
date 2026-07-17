@@ -334,12 +334,18 @@ function sendCabParamWrite(paramLo, v127) {
 }
 
 // ── CMD 0x36 — To Amp volume (global). slot: 0x02=ToAmp1, 0x03=ToAmp2.
-// Confirmed 7/14/2026.
+// Confirmed wire format 7/17/2026 from send/echo analysis:
+//   F0 13 0B 0F 00 36 [slot] [v0] 00 00 00 00 F7
+// slot goes directly at byte[6] — no extra fixed byte before it.
+// HW was reading the extra 0x02 byte as slot (always To Amp 1) and
+// our slot byte as v0, causing both knobs to control To Amp 1.
+// v0 = raw 0x00–0x7F (direct, no formula).
 function sendToAmpVolume(slot, v127) {
   const v0 = ((v127 + 64) % 128) & 0x7F;
-  const hex = 'F0 13 0B 0F 00 36 04 '
+  const hex = 'F0 13 0B 0F 00 36 '
     + slot.toString(16).padStart(2,'0').toUpperCase() + ' '
-    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 04 00 00 00 05 F7';
+    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+  appLog('sendToAmpVolume: slot=0x' + slot.toString(16).padStart(2,'0') + ' v127=' + v127 + ' v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase());
   return sendHex(hex);
 }
 

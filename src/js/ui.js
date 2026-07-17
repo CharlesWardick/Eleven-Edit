@@ -81,6 +81,14 @@ function valAmpOut(v127) {
   return (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
 }
 
+// To Amp 1/2 Volume: 0-127 maps -12dB to +12dB. v0=0x00 = MUTE.
+// Confirmed from Avid editor display 7/17/2026.
+function valToAmpVol(v127) {
+  if (v127 === 0) return 'MUTE';
+  const db = -12 + (v127 / 127) * 24;
+  return (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
+}
+
 // ════════════════════════════════════════════════════════════════════
 // STARTUP
 // ════════════════════════════════════════════════════════════════════
@@ -202,6 +210,24 @@ function updateAmpOutReadout(v) {
     document.getElementById('amp-out-val').textContent = valAmpOut(v);
   }
   appLog('Amp Out readout updated — ' + valAmpOut(v));
+}
+
+// ── To Amp 1 & 2 volume readout update (from TFX decode on patch load) ──
+function updateToAmpVolumeReadouts(vols) {
+  if (!vols) return;
+  const w1 = document.getElementById('toamp1-vol-wrap');
+  if (w1) {
+    w1.dataset.value = vols.amp1V;
+    drawKnob(w1.querySelector('canvas'), vols.amp1V);
+    document.getElementById('toamp1-vol-val').textContent = valToAmpVol(vols.amp1V);
+  }
+  const w2 = document.getElementById('toamp2-vol-wrap');
+  if (w2) {
+    w2.dataset.value = vols.amp2V;
+    drawKnob(w2.querySelector('canvas'), vols.amp2V);
+    document.getElementById('toamp2-vol-val').textContent = valToAmpVol(vols.amp2V);
+  }
+  appLog('To Amp volumes from TFX: amp1=' + valToAmpVol(vols.amp1V) + '  amp2=' + valToAmpVol(vols.amp2V));
 }
 
 // ── Push decoded tone knob values into the tone knob UI on patch load ──
@@ -584,8 +610,27 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
 // ════════════════════════════════════════════════════════════════════
 // TO AMP 1 & 2 — CMD 0x36 volume knobs, CMD 0x37 source dropdowns
 // ════════════════════════════════════════════════════════════════════
-initKnob('toamp1-vol-wrap', 'toamp1-vol-val', valAmpOut, function(v) { sendToAmpVolume(0x02, v); });
-initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valAmpOut, function(v) { sendToAmpVolume(0x03, v); });
+// Drag flags — readback handler checks these and skips display update
+// while the user is actively dragging, preventing HW broadcasts from
+// fighting the drag in progress.
+var toAmp1Dragging = false;
+var toAmp2Dragging = false;
+
+(function() {
+  var w1 = document.getElementById('toamp1-vol-wrap');
+  var w2 = document.getElementById('toamp2-vol-wrap');
+  if (w1) {
+    w1.addEventListener('mousedown', function() { toAmp1Dragging = true; });
+    window.addEventListener('mouseup', function() { toAmp1Dragging = false; });
+  }
+  if (w2) {
+    w2.addEventListener('mousedown', function() { toAmp2Dragging = true; });
+    window.addEventListener('mouseup', function() { toAmp2Dragging = false; });
+  }
+})();
+
+initKnob('toamp1-vol-wrap', 'toamp1-vol-val', valToAmpVol, function(v) { sendToAmpVolume(0x02, v); });
+initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valToAmpVol, function(v) { sendToAmpVolume(0x03, v); });
 
 document.getElementById('toamp1-src').addEventListener('change', function(e) {
   sendToAmpSource(0x00, parseInt(e.target.value));

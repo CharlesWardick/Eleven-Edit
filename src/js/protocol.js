@@ -753,6 +753,27 @@ function decodeAmpOutValue(body, ampMarkerPos) {
   } catch(e) { appLog('decodeAmpOutValue error: ' + e.message); return null; }
 }
 
+// ── Decode To Amp 1 & 2 volume from TFX body ──
+// Offsets confirmed 7/17/2026 by diffing Avid-exported TFX files
+// (raw 1016-byte body — Avid exports are NOT 7-bit encoded):
+//   Amp 1 volume: body[52–55] — signed LE32, standard gateRawToV127
+//   Amp 2 volume: body[60–63] — signed LE32, standard gateRawToV127
+// MUTE = INT32_MIN (0x80000000) -> v=0; MAX = INT32_MAX (0x7FFFFFFF) -> v=127.
+// Returns {amp1V, amp2V} (0-127 each) or null on error.
+const TOAMP1_VOL_OFFSET = 52;
+const TOAMP2_VOL_OFFSET = 60;
+function decodeToAmpVolumes(body) {
+  try {
+    const s1 = readSignedLE32(body, TOAMP1_VOL_OFFSET);
+    const s2 = readSignedLE32(body, TOAMP2_VOL_OFFSET);
+    if (s1 === null || s2 === null) return null;
+    const amp1V = gateRawToV127(s1);
+    const amp2V = gateRawToV127(s2);
+    appLog('decodeToAmpVolumes: amp1Raw=' + s1 + ' (v=' + amp1V + ')  amp2Raw=' + s2 + ' (v=' + amp2V + ')');
+    return { amp1V, amp2V };
+  } catch(e) { appLog('decodeToAmpVolumes error: ' + e.message); return null; }
+}
+
 // ── Decode tone knob values from a decoded bulk body ──
 // Searches for each sldX key by name starting after the 6dls marker.
 // Returns an array parallel to AMP_TONE_PARAMS[ampKey].knobs (knob-type
