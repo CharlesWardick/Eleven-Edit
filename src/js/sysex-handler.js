@@ -310,6 +310,42 @@ async function parseSysEx(data) {
     return;
   }
 
+  // CMD 0x3A — To Amp source query response
+  // Format: F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7  (10 bytes)
+  // data[6]=0x07, data[7]=slot, data[8]=currentVal
+  // Fires after our CMD 0x3A REQU. If a pendingToAmpSource matches this
+  // slot, send the queued CMD 0x37 now that HW has confirmed readiness.
+  // Confirmed 7/17/2026 — Avid always queries before writing; skipping caused assert.
+  if (cmd === 0x3A && data.length >= 10) {
+    const slot = data[7];
+    const currentVal = data[8];
+    appLog('CMD 0x3A ToAmp' + (slot === 0x00 ? '1' : '2') + ' source query resp: currentVal=0x' + currentVal.toString(16).padStart(2,'0').toUpperCase());
+    if (pendingToAmpSource !== null && pendingToAmpSource.slot === slot) {
+      const pending = pendingToAmpSource;
+      pendingToAmpSource = null;
+      appLog('CMD 0x3A response received — now sending CMD 0x37 slot=0x' + pending.slot.toString(16).padStart(2,'0') + ' val=0x' + pending.val.toString(16).padStart(2,'0'));
+      sendToAmpSource(pending.slot, pending.val);
+    }
+    return;
+  }
+
+  // CMD 0x37 — To Amp source broadcast
+  // Format: F0 13 0B 0F 02 37 07 [slot] [val] F7
+  // slot: 0x00=ToAmp1, 0x01=ToAmp2.
+  // val:  0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output.
+  // Confirmed 7/17/2026 from Avid editor capture.
+  if (cmd === 0x37 && data.length >= 9) {
+    const slot = data[6];
+    const val  = data[7];
+    const selId = (slot === 0x00) ? 'toamp1-src' : (slot === 0x01) ? 'toamp2-src' : null;
+    if (selId) {
+      const sel = document.getElementById(selId);
+      if (sel) sel.value = String(val);
+      appLog('CMD 0x37 ToAmp' + (slot+1) + ' source: val=0x' + val.toString(16).padStart(2,'0').toUpperCase());
+    }
+    return;
+  }
+
   // CMD 0x3D — Input selector broadcast
   if (cmd === 0x3D) {
     const inputVal = data[6];

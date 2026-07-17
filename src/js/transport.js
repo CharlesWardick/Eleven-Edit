@@ -349,13 +349,41 @@ function sendToAmpVolume(slot, v127) {
   return sendHex(hex);
 }
 
-// ── CMD 0x37 — To Amp source (global). slot: 0x00=ToAmp1, 0x01=ToAmp2.
+// ── CMD 0x3A — To Amp source query. slot: 0x00=ToAmp1, 0x01=ToAmp2.
+// Avid editor always sends this REQU before changing the source via CMD 0x37.
+// Confirmed 7/17/2026 from Avid editor capture — skipping this caused HW assert.
+// Format: F0 13 0B 0F 01 3A [slot] F7
+// Response: F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7
+function sendToAmpSourceQuery(slot) {
+  const hex = 'F0 13 0B 0F 01 3A '
+    + slot.toString(16).padStart(2,'0').toUpperCase() + ' F7';
+  appLog('sendToAmpSourceQuery: slot=0x' + slot.toString(16).padStart(2,'0'));
+  return sendHex(hex);
+}
+
+// ── Query-then-write pattern for CMD 0x37.
+// Stores the pending slot+val, sends CMD 0x3A query.
+// CMD 0x3A response handler in sysex-handler.js then fires CMD 0x37.
+var pendingToAmpSource = null; // { slot, val } or null
+function sendToAmpSourceQueried(slot, val) {
+  if (!bridgeMidiReady) {
+    appLog('sendToAmpSourceQueried: bridge not ready');
+    return;
+  }
+  pendingToAmpSource = { slot: slot, val: val };
+  appLog('sendToAmpSourceQueried: queuing slot=0x' + slot.toString(16).padStart(2,'0') + ' val=0x' + val.toString(16).padStart(2,'0') + ' — sending CMD 0x3A query first');
+  sendToAmpSourceQuery(slot);
+}
 // val: 0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output.
-// Confirmed 7/14/2026.
+// Confirmed wire format 7/17/2026 from Avid editor capture (USB framing stripped):
+//   F0 13 0B 0F 00 37 07 [slot] [val] F7
+// Hardware echoes back with dir=0x02, same format.
+// Global setting — not per-patch, not in TFX body.
 function sendToAmpSource(slot, val) {
   const hex = 'F0 13 0B 0F 00 37 07 '
     + slot.toString(16).padStart(2,'0').toUpperCase() + ' '
     + (val & 0x7F).toString(16).padStart(2,'0').toUpperCase() + ' F7';
+  appLog('sendToAmpSource: slot=0x' + slot.toString(16).padStart(2,'0') + ' val=0x' + (val & 0x7F).toString(16).padStart(2,'0').toUpperCase());
   return sendHex(hex);
 }
 

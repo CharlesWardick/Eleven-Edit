@@ -1,0 +1,81 @@
+ELEVEN EDIT — SESSION LOG (append-only scratchpad)
+===================================================================
+Purpose: the ONE place provisional, unconfirmed, or in-progress findings
+live during a work session. Newest entry on top. Safe to be messy and even
+contradictory — nothing here is treated as truth until it is promoted.
+
+TRUTH LIVES ELSEWHERE:
+  ElevenEdit_Technical_Reference.txt — confirmed protocol/hardware facts
+  ElevenEdit_Primer.txt              — project orientation & app state
+Confirmed facts are EDITED IN PLACE in those two docs. This log is never a
+substitute for them and is never superseded by a dated copy.
+
+HOW AN ENTRY GRADUATES:
+  1. Add findings here as you work (any state: idea, tried-X-got-Y, confirmed).
+  2. When a finding is CONFIRMED, promote it: edit the value directly into the
+     Technical Reference (or Primer), then mark the log entry [FOLDED IN].
+  3. [FOLDED IN] entries can be deleted once the merge is verified. The log
+     should trend back toward empty.
+
+A FACT IS EITHER:
+  - confirmed  -> lives in a main doc, edited in place, not here; or
+  - provisional -> lives here.
+Never both. Never a third dated file.
+
+ENTRY FORMAT (copy this block):
+-------------------------------------------------------------------
+DATE:        YYYY-MM-DD
+STATUS:      provisional | confirmed | [FOLDED IN: <doc + section>]
+AREA:        (e.g. Sync selector / CMD 0x11 / TFX keys / UI)
+FINDING:     what was observed, in plain terms
+EVIDENCE:    capture file, byte sequence, test result, or "inferred — unverified"
+CONFLICTS:   any main-doc value this would change (cite section), or "none"
+NEXT:        what would confirm it, or what to do with it
+-------------------------------------------------------------------
+
+
+===================================================================
+ENTRIES (newest first)
+===================================================================
+
+-------------------------------------------------------------------
+DATE:        2026-07-17
+STATUS:      [FOLDED IN: Technical Reference Sec 18, 20, 21, 23; Primer]
+AREA:        Phase 8 — To Amp 1/2 volume knobs + source dropdowns
+FINDING:     All Phase 8 findings confirmed and promoted. See Tech Ref
+             Section 18 for complete CMD 0x36 and CMD 0x37 protocol.
+             Key confirmed items:
+             - CMD 0x36 format: F0 13 0B 0F [dir] 36 [slot] [v0] 00 00 00 00 F7
+             - v0 encoding: (v127+64)%128, same as CMD 0x11
+             - TFX offsets: Amp1=body[52], Amp2=body[60], gateRawToV127
+             - CMD 0x3A required before CMD 0x37 (assert without it)
+             - CMD 0x37 format confirmed; SW sends don't move HW source
+             - Source dropdowns removed from GUI; code preserved
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-16
+STATUS:      confirmed  [FOLDED IN: Technical Reference — all sections; Primer]
+AREA:        Documentation baseline
+FINDING:     Six source docs consolidated into one Technical Reference + one
+             Primer. Conflicts C2 (driver v1.1.12) and C4 (Mic Axis On=0x3F)
+             resolved; C3 (7/15 Wireshark per-amp table) adopted.
+EVIDENCE:    Cross-referenced all six source files; confirmations from Charlie.
+CONFLICTS:   Superseded the six source docs (safe to retire).
+NEXT:        Use this log going forward. No new dated reference copies.
+-------------------------------------------------------------------
+
+(add new entries above this line)
+FINDING:     1. valAmpOut (-60 to +18 dB) is wrong for To Amp knobs.
+                Confirmed range: -12 to +12 dB. v0=0x00 = MUTE (hardware
+                display confirmed by Charlie 7/17/2026).
+             2. HW broadcasts during SW drag were fighting the knob —
+                drag suppression flags added (toAmp1Dragging/toAmp2Dragging).
+EVIDENCE:    Round 2 test session 7/17; Avid editor display observation.
+CONFLICTS:   None in Technical Reference (scale was listed as unconfirmed).
+NEXT:        Build and test. If SW drag moves HW audibly and HW knob updates
+             SW display cleanly, promote both CMD 0x36 entries to Tech Ref
+             Section 18.
+-------------------------------------------------------------------
+
+(add new entries above this line)

@@ -747,21 +747,39 @@ Volume knob is absent from the front panel on Tweed and some other models but
 exists in the editor for all; CC 17 changes it on hardware regardless.
 
 TO AMP 1 / 2 VOLUME (CMD 0x36):
-  F0 13 0B 0F 00 36 04 [slot] [v0] 00 04 00 00 00 05 F7
-  To Amp 1 slot=0x02, To Amp 2 slot=0x03. Standard (v127+64)%128 encoding.
-  STATUS: SW sends confirmed in log; no audible HW response observed; HW-knob
-  readback not implemented. Possible scale mismatch — needs HW knob capture.
-  (Raw-USB research notes outSel 0x00=Main, 0x04=Unit Vol, 0x06=query, and a
-  v0-at-byte-9 quirk on that path; the MIDI-layer format above is what the
-  app uses.)
+  Confirmed wire format 7/17/2026 from HW knob capture + Avid USB capture
+  analysis. SEND and RECEIVE use the same structure:
+    F0 13 0B 0F [dir] 36 [slot] [v0] 00 00 00 00 F7
+  dir: 0x00=send, 0x02=HW broadcast. slot: 0x02=ToAmp1, 0x03=ToAmp2.
+  v0 encoding: standard (v127+64)%128 — same as CMD 0x11.
+    v0=0x40=MUTE, v0=0x00=0dB, v0=0x3F=+12dB, v0=0x41=-12dB.
+  Display range: MUTE at v127=0, -12dB to +12dB across v127=1–127.
+  TFX body offsets (confirmed from Avid-exported TFX diff 7/17/2026):
+    To Amp 1 volume: body[52–55] — signed LE32, standard gateRawToV127.
+    To Amp 2 volume: body[60–63] — signed LE32, standard gateRawToV127.
+    MUTE = INT32_MIN (0x80000000) -> v=0; MAX = INT32_MAX (0x7FFFFFFF) -> v=127.
+  Global setting — not per-patch. Persists across patch navigation.
+  STATUS: SW send + HW readback + TFX initial readback all working (7/17).
+  HW knob -> SW display tracking confirmed working.
 
-TO AMP SOURCE (CMD 0x37): *** DANGER — DO NOT SEND ***
-  F0 13 0B 0F 00 37 07 [slot] [val] F7 ; slot 0x00=ToAmp1, 0x01=ToAmp2 ;
-  val 0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output.
-  Caused a firmware hang and factory reset on 7/14 — all 33 test patches
-  lost. Format appears correct from captures; root cause unknown. Dropdowns
-  exist in the UI but must NOT send until root cause is confirmed via an Avid
-  editor capture. Recovery: factory reset (Section: Primer safety).
+TO AMP SOURCE (CMD 0x37):
+  Confirmed wire format 7/17/2026 from Avid editor USB capture:
+    F0 13 0B 0F 00 37 07 [slot] [val] F7
+  slot: 0x00=ToAmp1, 0x01=ToAmp2.
+  val:  0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output.
+  HW also has additional options beyond Avid's 4 (Rig Out No Cab, RESO toggle)
+  with unknown val bytes — not yet captured.
+  HW echoes back with dir=0x02, same format.
+  Global setting — not per-patch, not stored in TFX body.
+  REQUIRED: Send CMD 0x3A query for the slot FIRST, wait for response, then
+  send CMD 0x37. Skipping the query causes firmware assert (7/17/2026 x2).
+  CMD 0x3A REQU: F0 13 0B 0F 01 3A [slot] F7
+  CMD 0x3A RESP: F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7  (10 bytes)
+    data[6]=0x07, data[7]=slot, data[8]=currentVal.
+  STATUS: Query+write sequence confirmed — no assert. HW source does not
+  visibly change in response to SW sends — root cause unknown. Dropdowns
+  removed from GUI 7/17; code preserved for future investigation.
+  Factory reset recovery: hold FX Loop + Mod + Reverb at power on.
 
 
 ===================================================================
@@ -859,7 +877,8 @@ CHAIN / DANGER:
   Amp/cab bypass click with chain reorder — sends to the wrong block,
     corrupts the patch. Bypass display/handlers are DISABLED until per-block
     paramHi (chain-map typeA identification) is implemented.
-  Sending CMD 0x37 (To Amp Source) — caused firmware hang + factory reset.
+  Sending CMD 0x37 without CMD 0x3A query first — causes firmware assert.
+    Always query with CMD 0x3A, wait for response, then send CMD 0x37.
 
 
 ===================================================================
@@ -871,12 +890,14 @@ NEXT / IMMEDIATE:
     set — one capture clicking through all Sync positions.
   Chain-map typeA identification for every block type — prerequisite for
     amp/cab bypass toggle and for chain reorder.
-  To Amp source (CMD 0x37) root-cause investigation before any re-enable —
-    capture the Avid editor changing source, compare bytes exactly.
-  To Amp volume scale verification (HW knob capture).
+  To Amp source (CMD 0x37) — SW sends don't move HW source. Root cause
+    unknown. Additional HW options (Rig Out No Cab, RESO toggle) have unknown
+    val bytes. Dropdowns removed from GUI pending investigation.
   Stereo/Mono: send path (currently receive-only).
   Save-to-different-slot (slot picker); patch rename from software.
   Bank backup/restore UI (EHB — protocol known, Section 17).
+  To Amp source: query current state on connect (CMD 0x3A for both slots)
+    to initialize dropdowns when they are re-enabled.
 
 RESEARCH / COSMETIC:
   Amp Out display has ~0.2–0.4 dB nonlinearity at midrange — likely log-pot
@@ -938,6 +959,15 @@ C9 — TRUE Z "AUTO" VALUE. Live CMD 0x34 broadcast uses 0x00 (older) / 0x7E
 ===================================================================
 23. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-17 — Phase 8 complete. To Amp 1/2 volume knobs fully working:
+  CMD 0x36 format confirmed (HW knob capture + Avid USB capture analysis);
+  v0 encoding confirmed as (v127+64)%128; TFX body offsets confirmed (52/60);
+  HW knob -> SW display tracking; SW drag -> HW response; TFX initial readback.
+  CMD 0x37 (To Amp source): format confirmed from Avid capture; CMD 0x3A
+  query-first requirement discovered (assert without it); query+write sequence
+  implemented; no assert with query. SW sends do not move HW source — root
+  cause unknown; dropdowns removed from GUI pending investigation.
 
 2026-07-16 — This consolidation. Merged six source documents into one
   reference. Adopted Reference 07-14 as the structural backbone; folded in

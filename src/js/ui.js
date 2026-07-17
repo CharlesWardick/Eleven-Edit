@@ -402,15 +402,15 @@ function updateToneKnobs(key) {
 // ── Volume knobs (Rig Vol / Amp Out) — plain CC sends, no amp-model
 // dependency, so these only need the bridge connected ──
 function setVolumeControlsEnabled(enabled) {
-  ['amp-out-knob','rig-vol-knob'].forEach(id => {
+  ['amp-out-knob','rig-vol-knob','toamp1-knob','toamp2-knob'].forEach(id => {
     document.getElementById(id).classList.toggle('knob-disabled', !enabled);
   });
   if (!enabled) {
-    ['amp-out-val','rig-vol-val'].forEach(id => {
+    ['amp-out-val','rig-vol-val','toamp1-vol-val','toamp2-vol-val'].forEach(id => {
       document.getElementById(id).textContent = '--';
     });
   } else {
-    ['amp-out-wrap','rig-vol-wrap'].forEach(id => {
+    ['amp-out-wrap','rig-vol-wrap','toamp1-vol-wrap','toamp2-vol-wrap'].forEach(id => {
       const w = document.getElementById(id);
       if (w) drawKnob(w.querySelector('canvas'), parseInt(w.dataset.value)||0);
     });
@@ -632,9 +632,6 @@ var toAmp2Dragging = false;
 initKnob('toamp1-vol-wrap', 'toamp1-vol-val', valToAmpVol, function(v) { sendToAmpVolume(0x02, v); });
 initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valToAmpVol, function(v) { sendToAmpVolume(0x03, v); });
 
-document.getElementById('toamp1-src').addEventListener('change', function(e) {
-  sendToAmpSource(0x00, parseInt(e.target.value));
-});
-document.getElementById('toamp2-src').addEventListener('change', function(e) {
-  sendToAmpSource(0x01, parseInt(e.target.value));
-});
+// To Amp source dropdown listeners removed 7/17/2026 — dropdowns removed
+// from GUI pending full CMD 0x37 implementation. Code in transport.js and
+// sysex-handler.js preserved for future use.

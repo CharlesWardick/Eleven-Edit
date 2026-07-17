@@ -1,0 +1,162 @@
+ELEVEN EDIT — PROJECT PRIMER
+===================================================================
+Updated: 2026-07-17
+Author: Charles Wardick (charles.wardick@gmail.com)
+Status: Active development — Phase 8 complete
+
+READ THIS FIRST, THEN ONE OTHER DOCUMENT:
+  ElevenEdit_Technical_Reference.txt — the single authoritative protocol,
+  hardware, encoding, TFX, and dead-ends reference. It replaces all the older
+  Protocol_Research / USB_Protocol / Protocol_Findings / prior-Reference
+  files. Do not re-research anything confirmed there.
+
+This Primer is orientation only: what the project is, how to work with
+Charlie, current build state, code map, environment, and safety.
+
+
+HOW UPDATES WORK (read before adding any findings)
+--------------------------------------------------
+Three files, one direction of flow. Do NOT create new dated copies of any
+reference doc to hold updates.
+
+  ElevenEdit_Technical_Reference.txt  TRUTH — confirmed protocol/hardware facts
+  ElevenEdit_Primer.txt (this file)   TRUTH — orientation & current app state
+  ElevenEdit_Session_Log.txt          SCRATCH — provisional/in-progress findings
+
+A fact is either confirmed (lives in a main doc, EDITED IN PLACE) or
+provisional (lives in the session log). Never both, never a third dated file.
+During a session, put findings in the log. When one is CONFIRMED, edit the
+value directly into the Technical Reference (or this Primer) and mark the log
+entry [FOLDED IN]. The log trends back toward empty; the two main docs are
+always current. This is what prevents the six-overlapping-documents problem.
+
+
+WHAT THIS PROJECT IS
+--------------------
+Eleven Edit is a full patch editor and bank manager for the Avid Eleven Rack
+guitar processor. It replaces the Avid editor entirely — no iLok, no Avid
+software needed. Built on the confirmed Java-bridge architecture below.
+
+
+HOW TO WORK WITH CHARLIE
+------------------------
+Non-developer, Pascal/Delphi background; no JavaScript, Electron, or Java.
+He defines requirements, reviews mockups, tests builds, and reports what he
+sees; he cannot write or debug code himself and won't fill in gaps.
+  - Agree on the approach before writing any code. All decisions need his
+    confirmation before implementation.
+  - Be concise. Keep explanations outcome-focused, not technical.
+  - Conclude internally; present the solution or finding, not the reasoning.
+  - Always build the EXE for testing — npm start has never worked here.
+  - Old eyes: amber-on-dark, readable fonts, generous sizing.
+
+
+CONFIRMED ARCHITECTURE (brief)
+------------------------------
+  ElevenRackBridge.jar (Java, javax.sound.midi) <-> ws://localhost:57121
+  <-> Electron UI.
+  IN  port: "Eleven Rack No details available" (Vendor Specific interface)
+  OUT port: "Eleven Rack External MIDI Port"
+  Java sees the Vendor Specific port that node-midi / Web MIDI cannot.
+  App-visible SysEx is clean: F0 13 0B 0F [dir] [cmd] ... F7 (no 0x04 framing).
+  Do NOT suggest Zadig, node-usb, node-midi, or Web MIDI — all confirmed dead
+  ends (Technical Reference, Section 20). Full wire details: Technical
+  Reference, Sections 1–2.
+
+
+CURRENT APP STATE (Phase 8 complete)
+------------------------------------
+Build: electron-builder --win --x64 -> EXE.
+
+WORKING:
+  Patch navigation — SW controls and HW front panel (both update all displays)
+  Current patch display: slot, name, amp model, effect-chain graphic
+  Amp identification from TFX body ('6dls' marker scan)
+  Gate Threshold / Release — SW send + TFX readback + live HW readback
+  Amp Out — SW send + TFX readback + live HW readback
+  Rig Volume — CC17 send + CMD 0x07 live readback
+  Amp Select dropdown — CMD 0x11 send + readback
+  Tone stack — all 33 amps: SW drag, TFX initial readback, live HW readback
+  Bright toggle — SW button, TFX + live HW readback (12 amps)
+  Tuner button — SW send (CC69) + CMD 0x40 HW state readback
+  To Amp 1/2 volume knobs — SW send + TFX readback + live HW readback (Phase 8)
+  Cab Type / Mic Type dropdowns — SW send + TFX + live HW readback
+  Mic Axis toggle — SW send + TFX + live HW readback
+  Speaker Breakup slider — SW send + TFX + live HW readback
+  Stereo/Mono indicator — TFX readback + CMD 0x0D live broadcast (read-only)
+  TFX capture to disk on hardware save
+  Load TFX (memory load) and Save to Current Slot (commit) — round-trip verified
+  Auto-advance (roller) with configurable interval; bank scan
+
+NOT YET IMPLEMENTED:
+  Sync selector dropdown (paramLo 0x12 known; needs valid-value capture)
+  Amp/Cab bypass toggle — DISABLED pending chain-reorder support
+  Chain block reorder (future phase)
+  To Amp source dropdowns — code present, GUI removed. SW sends don't move
+    HW source; root cause unknown. CMD 0x3A+0x37 sequence confirmed safe.
+  Stereo/Mono send path (receive-only)
+  Save-to-different-slot; patch rename from SW
+  Bank backup/restore (EHB — protocol known)
+
+
+DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
+-------------------------------------------------------------------
+  Zadig / node-usb / node-midi / Web MIDI for the Vendor Specific port
+  Sending CMD 0x37 WITHOUT CMD 0x3A query first — firmware assert
+  Amp/cab bypass click while chain reorder is possible — corrupts patch
+  Hardcoding paramHi — it is a runtime handle from the chain map
+  Deriving paramLo from sldX letters, or tfxKey from paramLo, above 9
+  ElevenHack's encode7bit — use the protocol.js version
+  Standard (v+64)%128 for cab/mic type — use the lookup tables
+
+
+CODE FILE MAP
+-------------
+  main.js              Electron main process, bridge launch, IPC
+  preload.js           Electron preload, exposes electronAPI
+  index.html           Full UI (HTML + CSS + script tags)
+  state.js             Shared mutable state
+  protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders
+  transport.js         Send functions, CAB/MIC v0 lookup tables
+  sysex-handler.js     Incoming message routing
+  ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers
+  app-init.js          Startup wiring
+  patch-nav.js         Patch navigation logic
+  capture-scan.js      TFX capture and bank scan
+  ElevenRackBridge.java  Java bridge source
+  tfx-inspect.js       CLI: decode a TFX file
+  tfx-diff.js          CLI: diff two TFX files
+
+KEY STATE VARIABLES (state.js):
+  currentParamHi          runtime CMD 0x11 handle, -1 if unset
+  currentAmpKey           e.g. 'tweed_lux', 'dc_mod_od'
+  currentSlot             current patch slot 0–103
+  brightOn                Bright toggle state (ui.js)
+  hasReceivedAmpOutValue  guard against premature Amp Out send
+  currentMonoState        null / true / false (Stereo/Mono indicator)
+
+
+ENVIRONMENT
+-----------
+  Windows 10; two Avid Eleven Rack units; Focusrite Scarlett 18i10.
+  Electron ^25.0.0; electron-builder --win --x64 (npm start never works).
+  Java: bridge is Java 8 compatible; JDK 21 (Temurin) to compile, JRE at runtime.
+  Avid driver: v1.1.12 (confirmed working, current, fully featured). The older
+  v1.0.11 was only needed by the abandoned node-usb path.
+
+
+HARDWARE SAFETY
+---------------
+  Always back up patches before any SW-send testing session.
+  Never send CMD 0x37 (To Amp Source) — it caused a factory reset (all
+    patches lost) on 7/14.
+  Do not run the Avid Editor and Eleven Edit in active concurrent use —
+    BSOD risk.
+  Factory reset (loses all patches): hold FX Loop + Mod + Reverb at power on,
+    wait for the logo with no scroll bar, power off, then power on normally.
+  After a firmware assert (MAudioFW...): power-cycle the hardware.
+
+
+CREDIT
+------
+Protocol foundation: Guillaume Schmid — ElevenHack (2013), Apache License 2.0.
