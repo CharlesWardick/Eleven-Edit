@@ -896,10 +896,10 @@ C1 — 0x04 FRAMING (RESOLVED). Old raw-USB research (node-usb / Wireshark)
   data[6] of CMD 0x11 FORMAT B is real SysEx, unrelated to USB framing.
 
 C2 — REQUIRED DRIVER VERSION (RESOLVED). v1.1.12 is confirmed as the working
-  driver for the Java-bridge build. The v1.0.11 requirement (and the v1.1.16
-  "locks hard" note) came from the abandoned node-usb path, which claimed the
-  raw USB interface; the Java-bridge path goes through the OS MIDI layer and
-  works on the newer, fully featured v1.1.12. Use v1.1.12.
+  driver for the Java-bridge build. The v1.0.11 requirement came from the 
+  abandoned node-usb path, which claimed the raw USB interface; the Java-bridge
+  path goes through the OS MIDI layer and works on the newer, fully featured
+  v1.1.12. Use v1.1.12.
 
 C3 — paramLo VALUES ABOVE 0x0F (RESOLVED, newer wins). The June research
   derived paramIds from Avid XML sldX letters (sldF=0x0F, sldG=0x10), which is
