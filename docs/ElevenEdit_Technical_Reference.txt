@@ -1,0 +1,964 @@
+ELEVEN EDIT — TECHNICAL REFERENCE
+===================================================================
+Consolidated: 2026-07-16
+Author: Charles Wardick (charles.wardick@gmail.com)
+Foundation: Guillaume Schmid — ElevenHack (2013), Apache License 2.0
+
+STATUS: SINGLE authoritative protocol/hardware reference. This document
+replaces the following six source documents for all protocol facts:
+    ElevenRack_Protocol_Research.txt      (June 2026 — MIDI/Focusrite era)
+    ElevenRack_USB_Protocol_3.txt         (Jul 5  — node-usb era)
+    ElevenEdit_Reference_2026-07-14.txt   (Jul 14 — prior consolidation)
+    Protocol_Findings_2026-07-14.txt      (Jul 14)
+    Protocol_Findings_2026-07-15-1800.txt (Jul 15)
+    Protocol_Findings_2026-07-16-1700.txt (Jul 16)
+
+CONFLICT POLICY: Every value here is the most-recent CONFIRMED value.
+Where an older document stated something different, the newer confirmed
+value is used and the discrepancy is recorded in Section 22 (FLAGGED
+CONFLICTS). Nothing was silently dropped. Where a genuine unresolved
+conflict remains, it is marked *** UNRESOLVED *** and listed in Section 22.
+
+This is a statement of confirmed facts, not a build guide. For project
+orientation, current app state, code map, and build steps, see the Primer.
+
+
+TABLE OF CONTENTS
+===================================================================
+1.  Architecture & Transport
+2.  SysEx Wire Format
+3.  CMD 0x11 — Live Parameter Read/Write (Format A / Format B / SEND)
+4.  currentParamHi — Runtime Handle (and chain-reorder hazard)
+5.  Confirmed REQU Commands
+6.  Full Command Reference (0x00–0x50)
+7.  Value Encodings
+8.  Cab / Mic / Axis / Speaker Breakup
+9.  Tuner
+10. Stereo / Mono
+11. Tone Stack — All 33 Amps (authoritative paramLo table)
+12. Amp Model Tables (three numbering schemes + 32-bit integer map)
+13. TFX Binary Format
+14. TFX Field Offsets & Keys
+15. Save Protocol (software-initiated)
+16. Load TFX Protocol (file -> hardware memory)
+17. Bank Backup / Restore (EHB format)
+18. Rig Volume & To Amp Controls
+19. CC Map (legacy DIN/CC path — reference only)
+20. Confirmed Dead Ends (do not retry)
+21. Open Questions & Pending Work
+22. FLAGGED CONFLICTS
+23. Change / Consolidation Log
+
+
+===================================================================
+1. ARCHITECTURE & TRANSPORT
+===================================================================
+
+CONFIRMED WORKING ARCHITECTURE (supersedes all earlier transport designs):
+
+  ElevenRackBridge.jar  <->  ws://localhost:57121  <->  Electron UI
+         |
+   javax.sound.midi
+         |
+   Eleven Rack USB
+     IN:  "Eleven Rack No details available"  (Vendor Specific interface)
+     OUT: "Eleven Rack External MIDI Port"    (standard MIDI interface)
+
+WHY JAVA: The Eleven Rack's "Vendor Specific" USB interface carries all
+SysEx traffic. Java's javax.sound.midi sees ALL Windows MIDI ports,
+including the "No details available" Vendor Specific port. node-midi,
+Web MIDI, and MIDI-OX see only 3 standard ports and miss it. Confirmed by
+direct testing. ElevenHack (2013) uses this same javax.sound.midi approach.
+
+PORT AUTO-DETECT (case-insensitive):
+  IN  = name contains "Eleven" AND "No detail"
+  OUT = name contains "Eleven" AND "External"
+Typical Windows enumeration: IN=port 7, OUT=port 5 (do not hardcode indices;
+match by name).
+
+BRIDGE PROTOCOL (JSON over WebSocket):
+  CLIENT -> BRIDGE: {"cmd":"connect","inPort":7,"outPort":5}
+                    {"cmd":"send","hex":"F0 13 0B 0F 01 01 F7"}
+  BRIDGE -> CLIENT: {"type":"midi_in","hex":"F0 13...","bytes":[...]}
+  First byte auto-detects SysEx (0xF0) vs short message (CC/PC).
+  Shutdown: write "SHUTDOWN\n" to bridge stdin. A forceful kill
+  (taskkill /F) skips JVM shutdown hooks on Windows and can leave orphan
+  processes.
+
+FRAMING — IMPORTANT: On this MIDI-layer path the app sees clean SysEx:
+  F0 13 0B 0F [dir] [cmd] ... F7  — pure 7-bit, NO 0x04 framing.
+  The 0x04 device-address byte and the "0x04 per 3 bytes" framing described
+  in old raw-USB (node-usb / Wireshark) research apply ONLY to the raw
+  Vendor Specific endpoint. javax.sound.midi handles that layer for us.
+  Never insert or strip 0x04 framing in application code. (See Section 22
+  conflict C1 for how this reconciles the two research eras.)
+
+ENVIRONMENT:
+  Electron ^25.0.0, build with electron-builder --win --x64.
+  No node-midi, no electron-rebuild, no node-usb dependency.
+  Java: bridge source is Java 8 compatible (compile --release 8);
+  JDK 21 (Temurin) used for compile, JRE sufficient at runtime.
+  Windows 10. npm start has never worked in this environment — always
+  build the EXE for testing.
+
+REQUIRED AVID DRIVER: v1.1.12 (confirmed). Solid, current, fully featured,
+  and what the working Java-bridge build runs on. The older v1.0.11 requirement
+  came from the abandoned node-usb research and does NOT apply to this path.
+  (See Section 22 conflict C2.)
+
+SLOT MATRIX: 26 letters x 4 = 104 user slots (A1–Z4, slot index 0–103).
+  bank = Math.floor(slot/4), num = slot%4, label letter = BANKS[bank].
+  (Note: one source uses slot/24 for a different bank grouping — see C7.)
+  After Z4: factory presets (read-only).
+
+
+===================================================================
+2. SYSEX WIRE FORMAT
+===================================================================
+
+All messages:  F0 13 0B 0F [dir] [cmd] [data...] F7
+  Manufacturer ID: 0x13 0x0B (Avid/Digidesign)
+  Device ID:       0x0F  (0x0E occasionally noted in ElevenHack source)
+
+DIRECTION BYTE:
+  0x00 = SNDSET  — we write/command to hardware
+  0x01 = REQU    — we request data from hardware
+  0x02 = ASYNC   — hardware sends an unsolicited state update
+  0x12 = RESPOND — hardware responds to one of our REQU queries
+
+REQU LENGTH (confirmed 7/9, 18 commands in real Avid traffic):
+  Every bare REQU is exactly 7 bytes: F0 13 0B 0F 01 [cmd] F7. No trailing
+  bytes. (CMD 0x11 REQU is the exception: it carries paramLo — see Sec 3.)
+
+RESP vs ASYNC PAYLOAD OFFSET (confirmed 7/9):
+  RESP to our own REQU (dir=0x12) has NO slot byte; payload starts at
+  byte 6. An ASYNC broadcast (dir=0x02, e.g. hardware save) has a slot byte
+  at position 6; payload starts at position 7. This offset difference is
+  handled by the SEND_PATCH decode path.
+
+
+===================================================================
+3. CMD 0x11 — LIVE PARAMETER READ/WRITE
+===================================================================
+
+The single most important command. Reads/writes any parameter on the amp
+block in real time. TWO receive formats + one send format (resolved 7/16).
+
+FORMAT A — ASYNC broadcast (hardware -> us, spontaneous):
+  F0 13 0B 0F [dir] 11 [currentParamHi] [paramLo] [v0] 00 00 00 00 F7
+    data[6]=currentParamHi, data[7]=paramLo, data[8]=v0
+  Fires when: any parameter changes from any source (HW knob turned, or the
+  hardware echoing a value we just sent). Used for tone knobs, gate, amp out,
+  amp select, cab/mic/axis/breakup live updates, bypass changes.
+
+FORMAT B — RESP to our explicit REQU:
+  F0 13 0B 0F 12 11 04 [currentParamHi] [paramLo] [v0] 00 00 00 00 F7
+    data[6]=0x04 (fixed), data[7]=currentParamHi, data[8]=paramLo, data[9]=v0
+  Fires when: we send a REQU query for a specific parameter.
+  NOTE: This 0x04 at data[6] is REAL SysEx content, not USB framing. Earlier
+  research confused it with the USB 0x04 framing byte (see C1).
+
+SEND (our app -> hardware):
+  F0 13 0B 0F 00 11 [currentParamHi] [paramLo] [v0] 00 00 00 00 F7
+  Hardware accepts Format A (no 0x04) for ALL params including cab/mic, then
+  echoes back as Format A ASYNC. v1–v4 = 0x00 confirmed for all writes.
+
+REQU (query one parameter):
+  F0 13 0B 0F 01 11 07 [paramLo] F7
+  The 0x07 here is a broadcast/wildcard instance the firmware resolves to
+  the current block; hardware replies as Format B with the real
+  currentParamHi filled in.
+
+UNIVERSAL paramLo VALUES (identical for all 33 amps, all sessions):
+  0x03 = Amp Out Level
+  0x04 = Gate Threshold
+  0x05 = Gate Release
+  0x06 = Amp Bypass        (live only; v0 check: 0x40=active, 0x3F=bypassed)
+  0x0E = Bright toggle     (live: v0=127=ON, v0=0=OFF)
+  0x0F = Amp Select        (raw v0 — NOT run through the (v+64)%128 formula)
+  0x14 = Cab Bypass        (v0: 0x40=active, 0x3F=bypassed)
+  0x15 = Cab Type          (non-standard v0 — lookup table, Section 8)
+  0x16 = Mic Type          (non-standard v0 — lookup table, Section 8)
+  0x17 = Mic Axis          (v0: 0x3F=On-Axis, 0x40=Off-Axis — see C4)
+  0x18 = Speaker Breakup   (standard continuous 0–127)
+
+Tone knob paramLo values are PER-AMP — see Section 11.
+
+CRITICAL — paramLo is NOT derived from the Avid XML sldX key name above
+0x09. sldF -> paramLo 0x10, sldG -> paramLo 0x11 (NOT 0x0F/0x10 as the
+letter positions would imply). Wireshark is the source of truth for
+paramLo; XML is the source of truth for knob labels and tfxKey names only.
+(This corrects the June research; see C3.)
+
+DO NOT send CMD 0x11 before currentParamHi is set (<=0): causes a HW assert.
+
+
+===================================================================
+4. currentParamHi — RUNTIME HANDLE
+===================================================================
+
+currentParamHi is a runtime handle the firmware assigns to the amp block on
+each patch load. It IS the instance byte in every CMD 0x11 message for that
+patch. It changes every firmware session and varies by slot position. It
+CANNOT be predicted, hardcoded, or read from the TFX body.
+
+SOURCE: data[i+2] — the third byte of the typeA=0x07 triplet in the CMD 0x21
+chain map. Triplet structure at data[6+]: [typeA][mid][third]. typeA=0x07 =
+amp block; its third byte = currentParamHi. DO NOT change the data[i+2]
+offset — confirmed correct across many captures.
+
+Confirmed via round-robin capture (single session):
+  A2: typeA=0x07 third=0x10 -> CMD 0x11 instance=0x10
+  A1: typeA=0x07 third=0x1E -> CMD 0x11 instance=0x1E
+  J2: typeA=0x07 third=0x2C -> CMD 0x11 instance=0x2C
+Same patch across different sessions: 0x03, 0x74, 0x21, 0x2B — varies each time.
+
+IMPLEMENTATION:
+  Read from CMD 0x21 on EVERY patch navigation; store as currentParamHi.
+  Use as the instance byte in all CMD 0x11 sends.
+  Filter incoming CMD 0x11 by instance === currentParamHi.
+  Reset to -1 on disconnect.
+
+*** CHAIN-REORDER HAZARD ***
+  currentParamHi is POSITION-DEPENDENT. Moving the amp (or cab) block to a
+  different chain position makes the firmware assign a new handle on next
+  load. Sends using a stale handle hit whatever block now sits at that
+  position — confirmed to corrupt gate parameters when the amp was moved.
+  All CMD 0x11 sends assume the DEFAULT chain order. Amp/Cab bypass toggle
+  is disabled for exactly this reason (see Section 20 / C5).
+
+  FUTURE FIX (prerequisite for bypass toggle and chain reorder):
+  The CMD 0x21 chain map contains a triplet for EVERY block, not just the
+  amp. Identify the typeA value for each block type (dist, cab, mod, delay,
+  fx1, fx2, ...) with one capture, store each block's paramHi per patch nav,
+  then send to any block with its correct handle regardless of position.
+  The CMD 0x21 parsing infrastructure already exists.
+
+
+===================================================================
+5. CONFIRMED REQU COMMANDS
+===================================================================
+
+  REQU SEND_PATCH:  F0 13 0B 0F 01 01 F7   pull full TFX body from hardware
+  REQU CHAIN_MAP:   F0 13 0B 0F 01 21 F7   effect chain + currentParamHi
+  REQU PATCH_NAME:  F0 13 0B 0F 01 05 F7   current patch name
+  REQU CURR_RIG:    F0 13 0B 0F 01 02 F7   current slot number
+  REQU RIG_VOL:     F0 13 0B 0F 01 07 F7   rig volume
+  REQU PARAM:       F0 13 0B 0F 01 11 07 [paramLo] F7   query one parameter
+
+
+===================================================================
+6. FULL COMMAND REFERENCE (0x00–0x50)
+===================================================================
+
+Legend: [SEND]=we can send it, [RECV]=hardware broadcasts it,
+[DEAD]=receive-only, no send path exists on any known interface.
+
+CMD 0x00 — Bulk TFX (patch body). Hardware broadcasts full 7-bit-encoded
+  patch body on hardware-initiated save. Auto-captured to disk. [RECV]
+CMD 0x01 — SEND_PATCH / bulk write. Send = load body to HW memory
+  (Section 16). REQU (dir=0x01) = pull current slot's body back. [SEND/RECV]
+CMD 0x02 — Current Rig Number. Send selects a slot; broadcast/RESP reports
+  current slot. Used in save + navigation. [SEND/RECV]
+CMD 0x03 — Save Rig (commit to slot). Part of save sequence (Section 15). [SEND]
+CMD 0x04 — Rig Get/Set Name (address-based). Used in save; also a cheap
+  names-only bank scan path. [SEND/RECV]
+CMD 0x05 — Patch Name. Broadcast = null-terminated ASCII name; send = set
+  current rig name (plain ASCII, no 7-bit encoding, no framing, max 16
+  chars). [SEND/RECV]
+CMD 0x07 — Rig Volume knob broadcast. F0 13 0B 0F 02 07 [v0] 00 00 00 00 F7.
+  v0 decoded as CMD 0x11. Range val=0 -> -24.0 dB, val=127 -> 0.0 dB.
+  REQU form reads current value. [SEND via CC17 / RECV via 0x07]
+CMD 0x0D — Stereo/Mono broadcast. F0 13 0B 0F 02 0D 06 [val] F7,
+  val 0x01=Stereo, 0x00=Mono. HW front panel only, no MIDI send path. [DEAD-send]
+CMD 0x11 — Live parameter read/write. See Section 3. [SEND/RECV]
+CMD 0x20 — Effect Description (per-effect query). Effect string ID at byte 7,
+  name at byte 25. [SEND/RECV]
+CMD 0x21 — Chain Map / Rig Description. F0 13 0B 0F 01 21 F7 -> triplets
+  [typeA][mid][third]. typeA=0x07=amp block; third=currentParamHi. Fires on
+  every patch load and on chain changes. [SEND/RECV]
+CMD 0x22 — Effect Count. [SEND/RECV]
+CMD 0x34 — True Z impedance broadcast. Global, front-panel only. Auto-
+  broadcasts on amp/cab model change (val=0x7E=Auto in that context). [DEAD-send]
+CMD 0x36 — Output Volume. F0 13 0B 0F [dir] 36 [outSel]... See Section 18.
+  outSel 0x00=Main, 0x02=To Amp1, 0x03=To Amp2, 0x04=Unit Vol, 0x06=query.
+CMD 0x37 — To Amp Source. *** DANGER — factory reset. Do NOT send. Sec 18/20 ***
+CMD 0x38 — Global Cabinet Bypass. Global override. Front-panel only. [DEAD-send]
+CMD 0x3B — Global Mute. F0 13 0B 0F 02 3B 01 [val] F7. Front-panel only. [DEAD-send]
+CMD 0x3D — Input Selector broadcast. F0 13 0B 0F 02 3D [val] F7 (value at
+  data[6], NOT data[7]=F7). Values: 0x00=Guitar, 0x02=Mic, 0x03=Line L,
+  0x04=Line R, 0x05=Line L+R, 0x06=Dig L, 0x07=Dig R, 0x08=Dig L+R,
+  0x12=Re-Amp. Broadcast on input change only (not startup/patch change).
+CMD 0x40 — Tuner. See Section 9. [SEND/RECV]
+CMD 0x41 — Tuner companion broadcast. Safe to ignore.
+CMD 0x50 — Version/capabilities query. Request data=0x05; response
+  04 03 14 29 (likely firmware version). [SEND/RECV]
+
+Startup commands seen only in Avid editor USB capture (purpose unknown,
+not required by Eleven Edit): 0x08, 0x0A, 0x35, 0x39, 0x3A, 0x3C.
+
+
+===================================================================
+7. VALUE ENCODINGS
+===================================================================
+
+CONTINUOUS KNOBS (CMD 0x11, 0x07, 0x36) — single-byte offset binary:
+  DECODE: if v0 >= 0x40 -> val = v0 - 0x40   (range 0–63)
+          if v0 <  0x40 -> val = v0 + 64     (range 64–127)
+  ENCODE: v0 = (targetV127 + 64) % 128
+  val 0–127 maps to 0.0–10.0 on display.
+  Sentinels: min = 0x40 00 00 00 (val 0); max = 0x3F 7F 7F 7F (val 127).
+
+TOGGLES (Bright, live) — do NOT use the continuous decode:
+  Live CMD 0x11: v0=127=ON, v0=0=OFF.
+  In TFX body: raw 0=OFF, 1=ON (see Section 13 toggle note).
+
+BYPASS (amp & cab, live) — check v0 DIRECTLY, do not decode:
+  v0=0x40 = active,  v0=0x3F = bypassed.
+
+MIC AXIS (live) — check v0 directly:
+  v0=0x3F = On-Axis,  v0=0x40 = Off-Axis.   (Corrected 7/16 — see C4.)
+
+AMP SELECT (paramLo 0x0F): raw v0 used directly (NOT the (v+64)%128 formula).
+  Full v0->amp table is AMP_SELECT_LIST in protocol.js (Section 12 scheme B).
+
+CAB TYPE / MIC TYPE: non-standard, require lookup tables. See Section 8.
+
+32-BIT VALUES in TFX body (amp model, cab type raw): signed int32,
+  little-endian in the body's 8-byte key/value pairs. Amp model also appears
+  as a 32-bit selector in some CMD 0x11 contexts assembled big-endian
+  (v0<<24|v1<<16|v2<<8|v3). Use the integer maps in Section 12.
+
+
+===================================================================
+8. CAB / MIC / AXIS / SPEAKER BREAKUP
+===================================================================
+
+All use currentParamHi (same block as tone stack). paramLos (all amps):
+  0x14 = Cab Bypass       (v0 0x40=active, 0x3F=bypassed)
+  0x15 = Cab Type         (non-standard v0 — table below)
+  0x16 = Mic Type         (non-standard v0 — table below)
+  0x17 = Mic Axis         (v0 0x3F=On-Axis, 0x40=Off-Axis)
+  0x18 = Speaker Breakup  (standard continuous 0–127)
+
+CAB TYPE v0 ENCODING (confirmed from full walk 7/16). NOT (index+64)%128.
+Steps by 9 in raw v0 space, skipping 0x7F. Implemented as CAB_INDEX_TO_V0 /
+CAB_V0_TO_INDEX in transport.js.
+  idx  v0     name
+   0   0x40   1x8 Custom
+   1   0x49   1x12 Black Panel Lux
+   2   0x52   1x12 Tweed Lux
+   3   0x5B   1x15 Open Back
+   4   0x64   2x12 AC Blue
+   5   0x6D   2x12 Black Panel Duo
+   6   0x76   2x12 B30
+   7   0x00   2x12 Silver Cone
+   8   0x09   4x10 Tweed Bass
+   9   0x12   4x10 Black SR
+  10   0x1B   4x12 Classic 30
+  11   0x24   4x12 65W
+  12   0x2D   4x12 Green 25W
+  13   0x36   4x12 Green 20W
+  14   0x3F   8x10 Blue Line
+
+MIC TYPE v0 ENCODING (confirmed 7/16). Steps by 18, skipping 0x7F.
+MIC_INDEX_TO_V0 / MIC_V0_TO_INDEX in transport.js.
+  idx  v0     name
+   0   0x40   Dynamic 7
+   1   0x52   Dynamic 57
+   2   0x64   Dynamic 409
+   3   0x76   Dynamic 421
+   4   0x09   Condenser 67
+   5   0x1B   Condenser 87
+   6   0x2D   Condenser 414
+   7   0x3F   Ribbon 121
+
+LIVE READBACK LIMITATION: When the Avid editor changes cab/mic via its own
+UI, it uses the USB-bulk path and the ASYNC echo does NOT appear on the MIDI
+layer our bridge monitors. Changes made from OUR software DO echo back as
+ASYNC Format A. Hardware front-panel changes also broadcast on MIDI.
+
+
+===================================================================
+9. TUNER
+===================================================================
+
+SOFTWARE SEND: CC 69 (0x45).  ON = B0 45 7F   OFF = B0 45 00.
+
+HARDWARE READBACK: the hardware does NOT echo CC 69. It responds with a
+SysEx CMD 0x40 broadcast (corrected 7/15):
+  F0 13 0B 0F 02 40 [state] F7      state: 0x01=ON, 0x00=OFF
+CMD 0x41 fires as a companion broadcast — safe to ignore.
+Handler lives in sysex-handler.js. (Reconciles with C6.)
+
+(Raw-USB research also documented a tuner-data polling path — REQU 0x41/0x42
+returning note/cents — used by the Avid editor's tuner graphic. Not used by
+Eleven Edit; retained here for completeness. Tuner reading: RESP
+F0 13 0B 04 0F 12 42 07 [note] [tune] F7; note low-nibble=note 0=C..11=B,
+high-nibble=octave; tune 0=in tune.)
+
+
+===================================================================
+10. STEREO / MONO
+===================================================================
+
+TFX key: RMno (global section). 0=Stereo, 1=Mono.
+Live broadcast: CMD 0x0D — F0 13 0B 0F 02 0D 06 [val] F7,
+  val 0x01=Stereo, 0x00=Mono  (NOTE: inverted from the RMno TFX value).
+HW front-panel toggle only — no MIDI send path. Receive-only display.
+UI: indicator badge on the chain row; dim when Stereo, lit amber when Mono.
+
+
+===================================================================
+11. TONE STACK — ALL 33 AMPS (authoritative paramLo table)
+===================================================================
+
+Tone knobs use CMD 0x11 with currentParamHi. paramLo differs per amp but is
+consistent across sessions. Gate/AmpOut (0x03/0x04/0x05) are universal and
+omitted from the per-amp rows. This table is Wireshark-confirmed and
+SUPERSEDES the earlier XML-derived table (see C3).
+
+AMP_TONE_PARAMS entry: { lo, tfxKey, label, type }; type = knob | selector |
+toggle. Selectors are excluded from knob UI. Toggles render as buttons.
+
+New/shared paramLos used below:
+  0x07=sld7  0x08=sld8  0x09=sld9 (Master)  0x0A=sldA  0x0B=sldB
+  0x0C=sldC  0x0D=sldD  0x0E=sldE (Bright toggle)  0x10=sldF (Intensity/Depth)
+  0x11=sldG (Speed)     0x12=Sync (selector)       0x19=sldO (Mid Freq)
+
+Amp numbering below = hardware panel order 01–33 (scheme C, Section 12).
+
+--- TWEED ---
+01 59 Tweed Lux (3):        Tone 0x0A, Inst Vol 0x07, Mic Vol 0x08
+02 59 Tweed Bass (6):       Presence 0x0D, Mid 0x0B, Bass 0x0C, Treble 0x0A,
+                            Vol Bright 0x07, Vol Norm 0x08
+
+--- LUX ---
+03 64 Lux Vib (5 + Sync):   Volume 0x07, Treble 0x0A, Bass 0x0C, Speed 0x11,
+                            Sync 0x12 (selector), Intensity 0x10
+04 64 Lux Nor:              identical to Lux Vib (XML diff confirmed)
+
+--- BLACK ---
+05 64 Black Vib (6 + Bright): Volume 0x07, Treble 0x0A, Mid 0x0B, Bass 0x0C,
+                            Speed 0x11, Sync 0x12 (selector), Intensity 0x10,
+                            Bright 0x0E (toggle)
+06 65 Black SR:             identical to Black Vib
+07 65 Black Mini:           Volume 0x07, Treble 0x0A, Bass 0x0C, Speed 0x11,
+                            Sync 0x12 (selector), Intensity 0x10
+                            (no Mid, no Bright)
+08 67 Black Duo:            identical to Black Vib
+
+--- J45 / AC / PLEXI ---
+09 65 J45 (6):              Presence 0x0D, Bass 0x0C, Mid 0x0B, Treble 0x0A,
+                            Vol 1 0x07, Vol 2 0x08
+10 66 AC Hi Boost (7+Sync): Speed 0x11, Sync 0x12 (selector), Depth 0x10,
+                            Normal Vol 0x07, Brill Vol 0x08, Treble 0x0A,
+                            Bass 0x0C, Cut 0x0D
+11 67 Plexi Vari (6):       Presence 0x0D, Bass 0x0C, Mid 0x0B, Treble 0x0A,
+                            Vol 1 0x07, Vol 2 0x08
+12 68 Plexi 50W:            identical to Plexi Vari
+13 69 Plexi 100W:           identical to Plexi Vari
+
+--- BLUE LINE ---
+14 69 Blue Line Bass (7+Bright): Volume 0x07, Treble 0x0A, Mid 0x0B,
+                            Bass 0x0C, Ultra-Hi 0x0D, Ultra-Low 0x08,
+                            Mid Freq 0x19 (sldO — unique to this amp),
+                            Bright 0x0E (toggle)
+
+--- LEAD ---
+15 82 Lead 800 (6):         Presence 0x0D, Bass 0x0C, Middle 0x0B, Treble 0x0A,
+                            Master 0x09, Pre Amp 0x07
+16 85 M-2 Lead (7+Bright):  Volume 0x07, Treble 0x0A, Bass 0x0C, Middle 0x0B,
+                            Drive 0x08, Master 0x09, Presence 0x0D,
+                            Bright 0x0E (toggle)
+
+--- SL100 ---
+17 89 SL100 Drive (6+MOD):  Preamp 0x07, Bass 0x0C, Middle 0x0B, Treble 0x0A,
+                            Presence 0x0D, Master 0x09,
+                            MOD 0x0E (toggle — named MOD here, Bright below)
+18 89 SL100 Crunch:         identical (toggle named Bright)
+19 89 SL100 Clean:          identical (toggle named Bright)
+
+--- TREADPLATE ---
+20 92 Tread Mod (6):        Master 0x09, Presence 0x0D, Bass 0x0C,
+                            Middle 0x0B, Treble 0x0A, Gain 0x07
+21 92 Tread Vint:           identical
+
+--- MS-30 ---
+22 93 MS-30 (5):            Volume 0x07, Bass 0x0C, Treble 0x0A, Cut 0x0D,
+                            Master 0x09
+
+--- RB-01b ---
+23 97 RB-01b Red (7+Bright): Presence 0x0D, Volume 0x09, Treble 0x0A,
+                            Middle 0x0B, Bass 0x0C, Gain 0x07, Boost 0x08,
+                            Bright 0x0E (toggle)
+24 97 RB-01b Blue:          identical
+25 97 RB-01b Green:         identical
+
+--- DC FAMILY (8 knobs + Sync + Bright; identical order/paramLos) ---
+26 DC Modern OD   27 DC Modern SOD   28 DC Modern 800   29 DC Modern Cln
+30 DC Vint Crunch 31 DC Vint OD      32 DC Vint Clean   33 DC Bass
+                            Gain 0x07, Bass 0x0C, Middle 0x0B, Treble 0x0A,
+                            Presence 0x0D, Speed 0x11, Sync 0x12 (selector),
+                            Depth 0x10, Master 0x09, Bright 0x0E (toggle)
+
+BRIGHT TOGGLE applies to: Black Vib/SR/Duo, Blue Line, M-2 Lead, SL100
+(Drive=MOD / Crunch/Clean=Bright), RB-01b Red/Blue/Green, all DC.
+  paramLo 0x0E, tfxKey sldE. Live: 127=ON / 0=OFF. TFX body: raw 0/1.
+  UI: BRIGHT button below the knob row; shown only when the amp table has a
+  type:'toggle' entry. Send: sendParamWrite(0x0E, on ? 127 : 0).
+
+SYNC SELECTOR (paramLo 0x12, tfxKey Sync) appears on Lux Vib, Black
+Vib/SR/Mini/Duo, AC Hi Boost, and all DC. type='selector', currently
+excluded from UI. Dropdown UI + valid-value list still pending (one capture
+of clicking through all Sync positions will confirm the value set).
+
+
+===================================================================
+12. AMP MODEL TABLES (three numbering schemes)
+===================================================================
+
+Three DIFFERENT numbering systems exist for the same 33 amps. Do not confuse.
+
+A) TFX INTERNAL ID (from the 'sld6'/'6dls' key in the TFX body):
+   0–15 are sequential (original firmware); values above 15 are 32-bit
+   identifiers (later firmware). Used by decodeAmpKey() and AMP_ID_TO_KEY.
+     0  tweed_lux          1095980628 blueline
+     1  tweed_bass         1112764530 black_sr
+     2  lux_vib            1112957526 black_vib
+     3  lux_norm           1128428337 dc_bass
+     4  ac_hi              1128940365 dc_mod800
+     5  black_duo          1129136945 dc_mod_clean
+     6  plexi100           1129726769 dc_vint_clean
+     7  lead800            1145261362 dc_mod_sod
+     8  m2lead             1145263666 dc_vint_od
+     9  sl100drive         1247032373 j45
+    10  sl100crunch        1296315184 ms30
+    11  sl100clean         1345663095 plexi50
+    12  treadmod           1349277298 plexivari
+    13  treadvint          1447258221 black_mini
+    14  dc_mod_od          1481917250 rb01b_blue
+    15  dc_vint_crunch     1481917255 rb01b_green
+                           1481917266 rb01b_red
+
+   FULL 32-BIT SIGNED INTEGER MAP (as seen in patch data / EffectAmpCab.java;
+   negative values are the Java-signed form of the same identifiers):
+    -2147483648 59 Tweed Lux        1095980628 69 Blue Line Bass
+    -1861152495 59 Tweed Bass       1112764530 65 Black SR
+    -1574821342 64 Lux Vib          1112957526 64 Black Vib
+    -1288490189 64 Lux Norm         1128428337 DC Bass
+    -1002159036 66 AC Hi Boost      1128940365 DC Modern 800
+    -715827883  67 Black Duo        1129136945 DC Modern Clean
+    -429496730  69 Plexi 100W       1129726769 DC Vintage Clean
+    -143165577  82 Lead 800         1145261362 DC Modern SOD
+     143165576  85 M-2 Lead         1145263666 DC Vintage OD
+     429496729  89 SL-100 Drive     1247032373 65 J45
+     715827882  89 SL-100 Crunch    1288490188 92 Treadplate Modern
+     1002159035 89 SL-100 Clean     1296315184 93 MS-30
+                                    1345663095 68 Plexi 50W
+                                    1349277298 67 Plexi Vari
+                                    1447258221 65 Black Mini
+                                    1481917250 97 RB-01b Blue
+                                    1481917255 97 RB-01b Green
+                                    1481917266 97 RB-01b Red
+                                    1574821341 92 Treadplate Vintage
+                                    1861152494 DC Modern Overdrive
+                                    2147483647 DC Vintage Crunch
+   (RB-01b Red was called "Bogner Red" in early research — same amp.)
+
+B) AMP SELECT v0 (CMD 0x11 paramLo=0x0F — position in the on-screen list):
+   Confirmed 7/10 via full walk. NOT the same as the TFX internal ID. Raw v0
+   used directly. Full table = AMP_SELECT_LIST in protocol.js.
+
+C) HARDWARE PANEL DISPLAY NUMBER (01–33 on the front panel):
+   Sequential display order, used in patch names and in the Section 11 table.
+   Not used in any protocol — display only.
+
+
+===================================================================
+13. TFX BINARY FORMAT
+===================================================================
+
+A .tfx file = [56-byte header] + [body]. Body == decode7bit(SEND_PATCH
+payload). A 968-byte body -> 1024-byte file. All sources (Avid Editor,
+ElevenHack, Eleven Edit, HW save) produce SHA-256 identical files for the
+same patch content.
+
+56-BYTE HEADER:
+  bytes 0–3   total file size, big-endian uint32 (e.g. 0x00000400 = 1024)
+  bytes 4–7   zeros
+  bytes 8–23  magic "DigiElvRELVhRig " (16 bytes, space-padded)
+  bytes 24–55 zeros
+  Load compatibility check: magic begins "DigiElv" at offset 8.
+
+BODY LAYOUT:
+  bytes 0–3   version quadlet
+  bytes 4–7   signature/headerCode (changes when content changes)
+  bytes 8–35  rig name, 7 quadlets (reversed byte order per quadlet)
+  byte 36+    TOC / global params, then per-effect sections
+
+KEY ENCODING ("quadToKey"): read 4 raw bytes, reverse to get the key name.
+  e.g. raw 0x36 0x64 0x6C 0x73 reversed = "6dls" (amp model marker);
+       raw 0x37 0x64 0x6C 0x73 reversed = "sld7".
+  Every key is immediately followed by its 4-byte little-endian value
+  (8-byte pairs). Key search scans the whole body, so it is position-
+  independent and works regardless of chain order.
+
+VALUE ENCODING (continuous knobs — gate, amp out, rig vol, tone, breakup):
+  Signed 32-bit int, linear across the full int32 range.
+  INT32_MIN (0x80000000) = 0% ; INT32_MAX (0x7FFFFFFF) = 100%.
+  To 0–127: Math.round((signed - (-2147483648)) / 4294967295 * 127).
+  Helper gateRawToV127(signed) does this.
+
+TOGGLES in TFX body (e.g. Bright): raw 0=OFF, 1=ON. Do NOT run through
+gateRawToV127 (which would map 0 to the midpoint 64). Use: signed !== 0 ? 127 : 0.
+
+7-BIT DECODE (protocol.js — the trusted version):
+  function decode7bit(enc){
+    const res=[]; let begin=0,shift=1,i=0,len=enc.length;
+    while(begin+i<len-1){
+      let v=(((enc[begin+i]&0xFF)<<shift)&0xFF)+(((enc[begin+i+1]&0xFF)>>(7-shift))&0xFF);
+      res.push(v&0xFF); shift++;
+      if(shift===8){shift=1;begin++;} i++;
+    }
+    res.push(((enc[len-1]&0xFF)<<shift)&0xFF);
+    return res;
+  }
+7-BIT ENCODE: use ONLY the encode7bit in protocol.js. encode7bit(968-byte
+body) must produce exactly 1107 bytes. ElevenHack's encode7bit does NOT
+correctly invert this decode — do not use it (causes "Bad Patch Data").
+
+
+===================================================================
+14. TFX FIELD OFFSETS & KEYS
+===================================================================
+
+GLOBAL SECTION (fixed body offset; unchanged across chain reorder):
+  Key   Offset  Description
+  RVol  0x28    Rig Volume
+  Vol1  0x30    To Amp 1 level
+  Vol2  0x38    To Amp 2 level
+  RMno  0x40    Mono/Stereo (0=Stereo, 1=Mono)
+  Tmpo  0x48    Tempo (ms x 1000; 120000 = 120 BPM)
+  PIGI  0x58    True Z (125=Auto, 0–11 per impedance)  [see C8]
+  ExpT  0x68    Expression Pedal target
+  WorB  0x98    Input Selector (60=Guitar, 61=Mic, ...)
+
+AMP SECTION (chain-position-relative; find relative to the '6dls' marker at
+raw 0x36 0x64 0x6C 0x73). j = body index where '6dls' bytes start.
+decodeAmpKey() returns { key, markerPos=j }.
+  Key   Position          Description
+  sld2  j-96 (val j-92)   Amp Out Level
+  sld3  j-88 (val j-84)   Gate Threshold
+  sld4  j-80 (val j-76)   Gate Release
+  sld6  j = search target Amp Model ID
+
+TONE KNOBS on patch load are decoded by scanning the TFX body for each amp's
+tfxKey (sld7..sldO etc.), then reading the following 4-byte LE value. This is
+key-search based (position-independent), NOT fixed offsets. tfxKey and
+paramLo are INDEPENDENT — never derive one from the other above 0x09.
+
+CAB / MIC SECTION KEYS (confirmed 7/16 via TFX binary diffs):
+  sldK = Cab Type         (raw int32 — NOT a sequential index; table below)
+  sldL = Mic Type         (sequential int32, 0–7)
+  sldM = Mic Axis         (0=Off-Axis, 1=On-Axis — inverted vs live v0)
+  sldN = Speaker Breakup  (same INT32 scale as gate/tone)
+  sldJ = Cab Bypass       (0=active, 1=bypassed)
+  RMno = Mono/Stereo      (global; 0=Stereo, 1=Mono)
+
+CAB TYPE raw int32 -> name (Avid internal cab IDs, not sequential; stored as
+CAB_TYPE_LIST / CAB_RAW_TO_INDEX in protocol.js):
+  1246976077 1x8 Custom            876827731  4x10 Black SR
+  0          1x12 Black Panel Lux  5          4x12 Classic 30
+  1          1x12 Tweed Lux        880293429  4x12 65W
+  1127298382 1x15 Open Back        6          4x12 Green 25W
+  2          2x12 AC Blue          880292400  4x12 Green 20W
+  3          2x12 Black Panel Duo  944985684  8x10 Blue Line
+  846738224  2x12 B30
+  1247902330 2x12 Silver Cone
+  4          4x10 Tweed Bass
+
+AMP BYPASS — NO TFX KEY EXISTS. The 'bypa' key appears in every effect
+section (0=active, 1=bypassed) but the amp section has no 'bypa' before sld6.
+Do NOT search for 'bypa' before sld6 — it finds other chain effects. Amp
+bypass is live-only via CMD 0x11 paramLo 0x06, and paramLo 0x06 REQU returns
+NO response. Amp bypass initial state cannot be read on patch load — default
+to active (green). Cab bypass DOES read on load via sldJ.
+
+
+===================================================================
+15. SAVE PROTOCOL (software-initiated commit to slot)
+===================================================================
+
+STATUS: implemented ("Save to Current Slot"). Each step uses a DIFFERENT
+addressing format:
+  Step  Cmd     Format                          Example (slot 4 = B1)
+  1     0x05    name (plain ASCII)              F0 13 0B 0F 00 05 [name] 00 F7
+  2     0x03    [raw_slot] [0x00]               F0 13 0B 0F 00 03 04 00 F7
+  3     0x04    [bank] [num] [name] [00]        F0 13 0B 0F 00 04 01 00 [name] 00 F7
+  4     0x02    [0x00] [raw_slot]               F0 13 0B 0F 00 02 00 04 F7
+  raw_slot = 0–103, bank = floor(slot/4), num = slot%4.
+
+Hardware responds with dirty-flag clear, slot confirm, full bulk broadcast.
+SAFETY NOTE: software save does NOT trigger the hardware-save auto-export
+(the CMD 0x04 echo arrives AFTER the bulk broadcast in software save, but
+auto-export detection needs it BEFORE).
+NOT YET: save-to-different-slot (slot picker), rename-on-save.
+
+
+===================================================================
+16. LOAD TFX PROTOCOL (file -> hardware memory)
+===================================================================
+
+STATUS: implemented ("Load TFX"), round-trip verified.
+  Step 1 — bulk write (memory only, does NOT commit to a slot):
+    F0 13 0B 0F 00 01 [encode7bit(body)] F7
+    body = TFX file minus the 56-byte header. encode7bit(968) -> 1107 bytes.
+  Step 2 — name write:
+    F0 13 0B 0F 00 05 [ASCII name] 00 F7
+Hardware echoes bulk data back as ASYNC (dir=0x02, cmd=0x01); the SEND_PATCH
+handler decodes it (payload at position 6). Load accepts any file with
+"DigiElv" magic at offset 8. Round-trip: capture -> save -> load -> capture
+-> SHA-256 matches.
+
+
+===================================================================
+17. BANK BACKUP / RESTORE (EHB format)
+===================================================================
+
+Not yet implemented; protocol fully known. EHB = a standard ZIP of 104 TFX
+files, one per slot. No proprietary format, no encryption.
+  Filename inside ZIP: [Letter][Number]-[PatchName].tfx (e.g. A1-DC Vintage
+  Crunc.tfx). Unused slots: "-unused-.tfx" (default empty patch).
+BANK SAVE (HW -> file): for each slot: CURR_RIG to slot -> REQU SEND_PATCH ->
+  hardware streams body back -> strip, decode7bit, prepend 56-byte header ->
+  write .tfx. (RIG_GETNAME via CMD 0x04 is a cheaper names-only scan.)
+BANK RESTORE (file -> HW): per slot, run the Load (Section 16) + Save
+  (Section 15) sequence. ~104 cycles; several minutes with per-slot verify.
+
+
+===================================================================
+18. RIG VOLUME & TO AMP CONTROLS
+===================================================================
+
+RIG VOLUME: CC 17 sends (all amps). CMD 0x07 live readback. REQU RIG_VOL
+reads current. Range val=0 -> -24.0 dB, val=127 -> 0.0 dB. Note: the Rig
+Volume knob is absent from the front panel on Tweed and some other models but
+exists in the editor for all; CC 17 changes it on hardware regardless.
+
+TO AMP 1 / 2 VOLUME (CMD 0x36):
+  F0 13 0B 0F 00 36 04 [slot] [v0] 00 04 00 00 00 05 F7
+  To Amp 1 slot=0x02, To Amp 2 slot=0x03. Standard (v127+64)%128 encoding.
+  STATUS: SW sends confirmed in log; no audible HW response observed; HW-knob
+  readback not implemented. Possible scale mismatch — needs HW knob capture.
+  (Raw-USB research notes outSel 0x00=Main, 0x04=Unit Vol, 0x06=query, and a
+  v0-at-byte-9 quirk on that path; the MIDI-layer format above is what the
+  app uses.)
+
+TO AMP SOURCE (CMD 0x37): *** DANGER — DO NOT SEND ***
+  F0 13 0B 0F 00 37 07 [slot] [val] F7 ; slot 0x00=ToAmp1, 0x01=ToAmp2 ;
+  val 0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output.
+  Caused a firmware hang and factory reset on 7/14 — all 33 test patches
+  lost. Format appears correct from captures; root cause unknown. Dropdowns
+  exist in the UI but must NOT send until root cause is confirmed via an Avid
+  editor capture. Recovery: factory reset (Section: Primer safety).
+
+
+===================================================================
+19. CC MAP (legacy DIN/CC path — reference only)
+===================================================================
+
+Eleven Edit controls most parameters via SysEx (CMD 0x11) over the Java
+bridge, but some CC values remain in active use (e.g. CC 69 Tuner, CC 17 Rig
+Volume, and gate-related CCs) — the move to SysEx was not total. The map below
+is confirmed data, kept as an active reference and for any physical-MIDI use.
+Full sheet: ElevenRack_CC_Reference.xlsx.
+
+BYPASS & GLOBAL (bypass CCs: 0–63=Off, 64–127=On):
+  CC4 Wah Pos   CC7 Vol Pos   CC11 MultiFX Ctrl   CC17 Rig Volume
+  CC19 Loop Send   CC25 Dist Byp   CC28 Delay Byp   CC36 Reverb Byp
+  CC43 Wah Byp   CC50 Mod Byp   CC63 FX1 Byp   CC64 Tap Tempo(64–127=tap)
+  CC65 Input Guitar(0)/Mic(127)   CC66 Line L+R(127)   CC67 Digital L+R(127)
+  CC69 Tuner   CC71 Cab Byp   CC75 Vol Byp   CC86 FX2 Byp   CC88 Loop Mix
+  CC92 Amp Out Level   CC107 Loop Byp   CC108 Loop Return   CC111 Amp Byp
+  Input: send only the selected CC; hardware handles mutual exclusivity.
+
+PER-AMP CC MAP (from the Amp CC Map sheet):
+  Tweed Bass:  CC3 GateRel, CC10 NormVol, CC13 Presence, CC14 Middle,
+               CC15 Bass, CC16 Treble, CC21 BrightVol, CC112 GateThr
+  Tweed Lux:   CC13 Tone, CC14 InstVol, CC15 MicVol, CC16 GateThr, CC21 GateRel
+  Lux Vib/Nor/Mini: CC3 GateThr, CC10 VibIntensity, CC13 Volume, CC14 Treble,
+               CC15 Bass, CC16 VibSpeed, CC84 GateRel, CC112 VibOnOff
+  AC Hi Boost: CC3 TremDepth, CC10 TremSpeed, CC13 NormVol, CC14 BrilVol,
+               CC15 Bass, CC16 Treble, CC21 Cut, CC22 TremOnOff, CC24 GateRel,
+               CC84 GateThr, CC112 TremSync
+  Black Duo/SR/Vib: CC3 VibDepth, CC10 VibSpeed, CC13 Volume, CC14 Treble,
+               CC15 Middle, CC16 Bass, CC22 VibOnOff, CC24 GateRel,
+               CC84 GateThr, CC112 Bright
+  Plexi/J45:   CC3 GateRel, CC10 Vol2, CC13 Presence, CC14 Bass, CC15 Middle,
+               CC16 Treble, CC21 Vol1, CC24 GateRel(alt), CC112 GateThr
+  Lead 800:    CC3 GateRel, CC10 PreampVol, CC13 Presence, CC14 Bass,
+               CC15 Middle, CC16 Middle, CC21 Treble, CC112 GateThr
+  M-2 Lead:    CC3 Presence, CC10 Master, CC13 Volume, CC14 Treble, CC15 Bass,
+               CC16 Middle, CC21 Drive, CC84 GateThr, CC112 Bright
+  SL100 Drive: CC3 GateThr, CC10 Master, CC13 Preamp, CC14 Bass, CC15 Middle,
+               CC16 Treble, CC21 Presence, CC84 GateThr, CC112 Mod
+  SL100 Crunch/Clean: as Drive but CC112 Bright
+  Treadplate Mod/Vin: CC3 GateRel, CC10 Gain, CC13 Master, CC14 Presence,
+               CC15 Bass, CC16 Middle, CC21 Treble, CC24 GateRel(alt), CC112 GateThr
+  MS30:        CC10 GateThr, CC13 Vol, CC14 Bass, CC15 Treble, CC16 Cut,
+               CC21 Master, CC112 GateRel
+  RB01b R/B/G: CC3 Boost, CC10 U-Lo, CC13 Presence, CC14 Vol, CC15 Treble,
+               CC16 Middle, CC21 Bass, CC84 GateThr, CC112 Bright
+  Blue Line:   CC3 MidFreq, CC10 Master, CC13 Volume, CC14 Bass, CC15 Middle,
+               CC16 Treble, CC21 UHigh, CC84 GateThr, CC112 Bright/Normal
+
+  NOTE: These per-amp CC assignments predate the SysEx paramLo work and were
+  not all reverified against the current CMD 0x11 tables. Where both exist for
+  the same control, prefer the CMD 0x11 paramLo tables (Sections 3, 8, 11).
+  The global CCs above (tuner, rig volume, gate, bypasses) remain in use.
+
+
+===================================================================
+20. CONFIRMED DEAD ENDS (do not retry)
+===================================================================
+
+TRANSPORT / DRIVER:
+  Zadig replacing the Avid driver — kills all interfaces (MIDI, audio,
+    Vendor Specific). Work WITH the Avid driver.
+  node-usb — LIBUSB_ERROR_NOT_FOUND; the Avid driver blocks interface claim.
+  node-midi / Web MIDI / MIDI-OX — see only 3 ports; miss the Vendor Specific
+    "No details available" port. Use the Java bridge (javax.sound.midi).
+  Sending SysEx for patch load via the standard MIDI DIN port — silently ignored.
+  Avid Editor on Win11 — BSOD (driver incompatibility).
+  Avid Editor + Eleven Edit active concurrent write — BSOD risk. Passive
+    coexistence survived one 6-min Win10 test but is NOT proven safe.
+
+CMD 0x11 / PARAMS:
+  Hardcoding paramHi per amp — wrong; it is a runtime handle.
+  Sending CMD 0x11 with instId=0x04 hardcoded — wrong; use currentParamHi.
+  Sending CMD 0x11 before currentParamHi is set (<=0) — causes HW assert.
+  Treating CMD 0x11 as a two-byte paramId — wrong interpretation.
+  Deriving paramLo from the sldX letter position — breaks above sld9.
+  Deriving tfxKey from paramLo via toString(16) — breaks above 0x09.
+  Old per-amp Gate CC number table (GATE_CC) — obsolete; use CMD 0x11.
+
+ENCODING:
+  ElevenHack's encode7bit — does NOT invert our decode7bit; use protocol.js.
+  parseInt(value) || default for knob init — falsy trap makes value 0 jump
+    to 64; use an explicit undefined/'' check (fixed 7/15).
+  Standard (v+64)%128 for cab/mic type — wrong; use the lookup tables.
+  FORMAT B for ASYNC receives — ASYNC uses Format A; only RESP uses Format B.
+
+TUNER / BYPASS:
+  Looking for a CC 69 echo for tuner state — hardware uses CMD 0x40 SysEx.
+  Querying amp/cab bypass via REQU 0x06/0x14 — hardware does not respond.
+  Searching for 'bypa' before sld6 to find amp bypass — finds other effects.
+
+CHAIN / DANGER:
+  Amp/cab bypass click with chain reorder — sends to the wrong block,
+    corrupts the patch. Bypass display/handlers are DISABLED until per-block
+    paramHi (chain-map typeA identification) is implemented.
+  Sending CMD 0x37 (To Amp Source) — caused firmware hang + factory reset.
+
+
+===================================================================
+21. OPEN QUESTIONS & PENDING WORK
+===================================================================
+
+NEXT / IMMEDIATE:
+  Sync selector dropdown UI (paramLo 0x12, tfxKey Sync). Need the valid value
+    set — one capture clicking through all Sync positions.
+  Chain-map typeA identification for every block type — prerequisite for
+    amp/cab bypass toggle and for chain reorder.
+  To Amp source (CMD 0x37) root-cause investigation before any re-enable —
+    capture the Avid editor changing source, compare bytes exactly.
+  To Amp volume scale verification (HW knob capture).
+  Stereo/Mono: send path (currently receive-only).
+  Save-to-different-slot (slot picker); patch rename from software.
+  Bank backup/restore UI (EHB — protocol known, Section 17).
+
+RESEARCH / COSMETIC:
+  Amp Out display has ~0.2–0.4 dB nonlinearity at midrange — likely log-pot
+    response; underlying values are correct.
+  True Z representation differs by path (see C8).
+
+
+===================================================================
+22. FLAGGED CONFLICTS
+===================================================================
+
+C1 — 0x04 FRAMING (RESOLVED). Old raw-USB research (node-usb / Wireshark)
+  shows a 0x04 device byte in the header (F0 13 0B 04 0F) and a 0x04 marker
+  before every 3 payload bytes. The Java-bridge MIDI path does NOT: the app
+  sees clean F0 13 0B 0F with no framing. Both are correct for their own
+  layer. Application code must never add/strip 0x04. Separately, the 0x04 at
+  data[6] of CMD 0x11 FORMAT B is real SysEx, unrelated to USB framing.
+
+C2 — REQUIRED DRIVER VERSION (RESOLVED). v1.1.12 is confirmed as the working
+  driver for the Java-bridge build. The v1.0.11 requirement (and the v1.1.16
+  "locks hard" note) came from the abandoned node-usb path, which claimed the
+  raw USB interface; the Java-bridge path goes through the OS MIDI layer and
+  works on the newer, fully featured v1.1.12. Use v1.1.12.
+
+C3 — paramLo VALUES ABOVE 0x0F (RESOLVED, newer wins). The June research
+  derived paramIds from Avid XML sldX letters (sldF=0x0F, sldG=0x10), which is
+  WRONG above sld9. Wireshark (7/15) confirms sldF=0x10 and sldG=0x11. Several
+  per-amp assignments in the June table were also wrong (e.g. Lead 800 and DC
+  family Master/Gain/PreAmp swaps). Section 11 (Wireshark-confirmed) is
+  authoritative; the June per-amp paramId table is superseded in full.
+
+C4 — MIC AXIS v0 DIRECTION (RESOLVED). On-Axis=0x3F, Off-Axis=0x40 — confirmed
+  from the Avid editor walk capture AND working in the current build. The 7/14
+  value (On-Axis=0x40) was inferred before a real capture existed and was wrong.
+  Document and code agree. (TFX key sldM is separately 0=Off-Axis, 1=On-Axis.)
+
+C5 — AMP BYPASS paramLo. June research: 0x01 (from the wrong XML derivation).
+  Confirmed value: 0x06 (live only; REQU returns nothing). Use 0x06.
+
+C6 — AMP TYPE / AMP SELECT paramLo. June research: 0x03 = amp/cab type
+  selector. Confirmed: 0x03 = Amp Out Level; Amp Select = 0x0F (raw v0). Use
+  0x0F for selecting the amp, 0x03 for Amp Out.
+
+C7 — TUNER READBACK. Reference 07-14 implied a CC-based tuner confirm
+  (0x40/0x3F). 7/15 confirmed the hardware does NOT echo CC 69; it broadcasts
+  CMD 0x40 SysEx (01=ON/00=OFF). Send is still CC 69. Use CMD 0x40 for readback.
+
+C8 — SLOT/BANK ARITHMETIC. Most docs: bank=floor(slot/4), num=slot%4 (4 slots
+  per bank, 26 banks). Primer note gives bank=floor(slot/24), rig=slot%24.
+  The /4 grouping matches the A1–Z4 labeling used everywhere else and the save
+  protocol; treat /4 as authoritative unless a specific feature proves otherwise.
+
+C9 — TRUE Z "AUTO" VALUE. Live CMD 0x34 broadcast uses 0x00 (older) / 0x7E
+  (raw-USB capture) for Auto; the TFX PIGI field uses 125. These are different
+  representations on different paths, not a single value. True Z is receive-
+  only and non-core; note but no action needed.
+
+
+===================================================================
+23. CHANGE / CONSOLIDATION LOG
+===================================================================
+
+2026-07-16 — This consolidation. Merged six source documents into one
+  reference. Adopted Reference 07-14 as the structural backbone; folded in
+  Findings 07-14/15/16 (all 33 amp tone tables, cab/mic/axis/breakup wiring,
+  Bright toggle, stereo/mono, bypass findings, CMD 0x11 Format A/B) and the
+  still-valid low-level facts from the June MIDI-era and July node-usb-era
+  research (patch load/save, 7-bit codec, EHB bank format, rename, CC map).
+  All conflicts recorded in Section 22 rather than silently resolved.
+
+Prior milestones (condensed from source change logs):
+  7/16 — Cab/mic/axis/breakup wired; stereo/mono indicator; bypass findings;
+         CMD 0x11 Format A/B distinction resolved.
+  7/15 — All 33 amp tone tables (Wireshark); TFX tone decode on load; Bright
+         toggle; tuner CMD 0x40 readback; HW nav -> SW display fix; zero-value
+         knob drag bug fixed.
+  7/14 — CMD 0x11 format resolved ([currentParamHi][paramLo][v0]); GATE_CC
+         removed; tone stack + To Amp added; CMD 0x37 factory-reset incident;
+         app renamed to Eleven Edit.
+  7/12 — TFX encode/decode fixes; SHA-256 cross-source identical; Java 8.
+  7/11 — Save + Load TFX protocols; tuner CC 69.
+  7/9  — Bare REQU = 7 bytes; RESP payload offset = position 6.
+  7/8  — Chain-position-relative amp offsets (sld2/3/4/6).
+  Jul 5 — Direct-USB (node-usb) research era (transport later superseded).
+  June — MIDI/Focusrite era; ElevenHack reverse-engineering foundation.
