@@ -46,6 +46,8 @@ function connectBridgeWs() {
       setVolumeControlsEnabled(false);
       setGateControlsEnabled(false);
       currentAmpKey = null; currentAmpName = null; currentParamHi = -1; hasReceivedAmpOutValue = false;
+      currentChain = []; currentChainInput = null;  // handles are per-session, never reuse across a disconnect
+      blockBypass = {}; cabBypassActive = undefined;
       document.getElementById('amp-name-display').textContent = '';
       clearTimeout(bridgeReconnectTimer);
       bridgeReconnectTimer = setTimeout(connectBridgeWs, 3000);
@@ -106,6 +108,8 @@ function handleBridgeMsg(msg) {
       setVolumeControlsEnabled(false);
       setGateControlsEnabled(false);
       currentAmpKey = null; currentAmpName = null; currentParamHi = -1; hasReceivedAmpOutValue = false;
+      currentChain = []; currentChainInput = null;  // handles are per-session, never reuse across a disconnect
+      blockBypass = {}; cabBypassActive = undefined;
       document.getElementById('amp-name-display').textContent = '';
       break;
     case 'midi_in':
@@ -385,6 +389,121 @@ function sendToAmpSource(slot, val) {
     + (val & 0x7F).toString(16).padStart(2,'0').toUpperCase() + ' F7';
   appLog('sendToAmpSource: slot=0x' + slot.toString(16).padStart(2,'0') + ' val=0x' + (val & 0x7F).toString(16).padStart(2,'0').toUpperCase());
   return sendHex(hex);
+}
+
+// ── CMD 0x0D — Stereo/Mono set command.
+// Confirmed 2026-07-18 from Avid Diag5 capture (not a toggle — it IS a set).
+// Format: F0 13 0B 0F 00 0D [val] F7
+// The 0x04 / 0x06 bytes visible in USB captures are USB-MIDI packet framing
+// (one per 4-byte group), NOT part of the message. Including 0x06 literally
+// made the hardware read it as the value on every send.
+// val: 0x01=Mono, 0x00=Stereo.
+// Echo suppressed via suppressMonoEcho — echo is not a reliable state indicator.
+// Unsolicited HW front panel broadcast: F0 13 0B 0F 02 0D [val] F7
+//   broadcast val: 0x00=Stereo, 0x01=Mono.
+var suppressMonoEcho = false;
+function sendMonoStereo(isMono) {
+  if (!bridgeMidiReady) { appLog('sendMonoStereo: bridge not ready'); return; }
+  const val = isMono ? 0x01 : 0x00;
+  const hex = 'F0 13 0B 0F 00 0D ' + val.toString(16).padStart(2,'0').toUpperCase() + ' F7';
+  appLog('sendMonoStereo: ' + (isMono ? 'MONO' : 'STEREO') + ' val=0x' + val.toString(16).padStart(2,'0').toUpperCase());
+  suppressMonoEcho = true;
+  sendHex(hex);
+}
+
+// ── Chain reorder — CMD 0x21 sent back with dir=0x00 (Tech Ref Sec 4).
+// There is no dedicated reorder command: you send a COMPLETE chain map
+// describing the order you want, re-using each block's existing model id and
+// handle, and re-linking the back-links to describe the new sequence.
+//
+//   F0 13 0B 0F 00 21 [11 triplets] [trailing] F7          41 bytes
+//   triplet = [backLink][mid][handle]
+//   backLink of triplet N = slot ID of triplet N-1
+//   triplet 0 is the input block and back-links to ITSELF (head marker)
+//   trailing byte = slot ID of the LAST block
+//
+// The hardware replies with a dir=0x02 broadcast of the arrangement it
+// actually adopted, which may differ from what we sent — it recomputes
+// mono/stereo propagation and re-instantiates any block whose channel
+// configuration changed, giving those blocks new model ids and handles.
+// ADOPT THE BROADCAST. Do not assume our send stuck; renderChainRow() runs
+// off the broadcast, so the row is always drawing what the hardware has.
+function sendChainOrder(newOrder) {
+  if (!bridgeMidiReady) { appLog('sendChainOrder: bridge not ready'); return false; }
+  if (!currentChainInput) { appLog('sendChainOrder: no input block yet'); return false; }
+  if (!newOrder || newOrder.length !== 10) {
+    appLog('sendChainOrder: expected 10 blocks, got ' + (newOrder ? newOrder.length : 0));
+    return false;
+  }
+  const b = [0xF0,0x13,0x0B,0x0F,0x00,0x21];
+  b.push(SLOT_INPUT, currentChainInput.modelId, currentChainInput.handle);
+  for (let i = 0; i < 10; i++) {
+    const backLink = (i === 0) ? SLOT_INPUT : newOrder[i-1].slotId;
+    b.push(backLink, newOrder[i].modelId, newOrder[i].handle);
+  }
+  b.push(newOrder[9].slotId, 0xF7);
+  const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  appLog('sendChainOrder: ' + newOrder.map(x => x.name).join(' > '));
+  sendHex(hex);
+  return true;
+}
+
+// ── Bypass — CMD 0x11 on the block's OWN handle (Tech Ref Sec 3, 4).
+//   normal block  paramLo 0x01
+//   amp           paramLo 0x06
+//   cab           paramLo 0x14   (same handle as the amp — one block, two flags)
+//   v0 0x40 = active, 0x3F = bypassed
+// Wire format is the standard param write:
+//   F0 13 0B 0F 00 11 [handle] [paramLo] [v0] 00 00 00 00 F7
+//
+// NOTE the handle MUST come from the chain map. Addressing a fixed handle is
+// what kept amp/cab bypass broken until 2026-07-19 — see sysex-handler.js.
+function sendBypassWrite(handle, paramLo, isActive) {
+  if (!bridgeMidiReady) { appLog('sendBypassWrite: bridge not ready'); return false; }
+  if (handle === undefined || handle === null || handle < 0) {
+    appLog('sendBypassWrite: no handle, not sending');
+    return false;
+  }
+  const v0 = isActive ? BYPASS_V0_ACTIVE : BYPASS_V0_BYPASSED;
+  const hex = 'F0 13 0B 0F 00 11 '
+    + handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+  appLog('sendBypassWrite: handle=0x' + handle.toString(16).padStart(2,'0').toUpperCase()
+    + ' paramLo=0x' + paramLo.toString(16).padStart(2,'0').toUpperCase()
+    + ' -> ' + (isActive ? 'ACTIVE' : 'BYPASSED'));
+  sendHex(hex);
+  return true;
+}
+
+function ampBlockHandle() {
+  const b = currentChain.find(x => x.slotId === SLOT_AMP);
+  return b ? b.handle : -1;
+}
+
+function sendAmpBypass(isActive) {
+  return sendBypassWrite(ampBlockHandle(), BYPASS_PARAMLO_AMP, isActive);
+}
+function sendCabBypass(isActive) {
+  return sendBypassWrite(ampBlockHandle(), BYPASS_PARAMLO_CAB, isActive);
+}
+
+// ── Read bypass state from the hardware.
+// REQU PARAM: F0 13 0B 0F 01 11 [handle] [paramLo] F7
+// The handle is the block's own handle from the chain map. An older revision
+// of the reference doc showed a literal 0x07 here, which silently fails on any
+// patch where that is not the block you want — do not reintroduce it.
+//
+// Needed because the TFX carries no amp-bypass key: without this the amp
+// always displays as active. Called once after each chain map arrives.
+function requestAmpCabBypass() {
+  if (!bridgeMidiReady) return;
+  const h = ampBlockHandle();
+  if (h < 0) { appLog('requestAmpCabBypass: no amp handle yet'); return; }
+  const hh = h.toString(16).padStart(2,'0').toUpperCase();
+  appLog('requestAmpCabBypass: querying amp/cab bypass on handle 0x' + hh);
+  sendHex('F0 13 0B 0F 01 11 ' + hh + ' 06 F7');
+  sendHex('F0 13 0B 0F 01 11 ' + hh + ' 14 F7');
 }
 
 // Same wire format as sendGateParamWrite, but takes the raw byte to send

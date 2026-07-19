@@ -54,9 +54,157 @@ const REQU_PATCH_NAME = 'F0 13 0B 0F 01 05 F7';
 const REQU_RIG_VOL    = 'F0 13 0B 0F 01 07 F7';
 const REQU_CURR_RIG   = 'F0 13 0B 0F 01 02 F7';
 
+// ── Model display names, indexed by the chain map's mid (CMD 0x20 index).
+// Complete: all 65 indices, captured from the editor's startup enumeration.
+// Used for the chain slot hover text so the user can see what is loaded in a
+// slot without opening its panel.
+const MODEL_NAMES = {
+  0x00: 'Eleven',
+  0x01: 'C1 Chorus/Vibrato',
+  0x02: 'C1 Chorus/Vibrato',
+  0x03: 'C1 Chorus/Vibrato',
+  0x04: 'MultiChorus',
+  0x05: 'Multi Chorus',
+  0x06: 'Multi Chorus',
+  0x07: 'Flanger',
+  0x08: 'Flanger',
+  0x09: 'Vibe Phaser',
+  0x0A: 'Vibe Phaser',
+  0x0B: 'Orange Phaser',
+  0x0C: 'Orange Phaser',
+  0x0D: 'Roto Speaker',
+  0x0E: 'Roto Speaker',
+  0x0F: 'Roto Speaker',
+  0x10: 'Graphic EQ',
+  0x11: 'Graphic EQ',
+  0x12: 'Parametric EQ',
+  0x13: 'Parametric EQ',
+  0x14: 'Gray Compressor',
+  0x15: 'Dyn3 Compressor',
+  0x16: 'Dyn3 Compressor',
+  0x17: 'Tri-Knob Fuzz',
+  0x18: 'Black Op Distortion',
+  0x19: 'Green JRC Overdrive',
+  0x1A: 'White Boost',
+  0x1B: 'DC Distortion',
+  0x1C: 'EP Tape Echo',
+  0x1D: 'EP Tape Echo',
+  0x1E: 'BBD Delay',
+  0x1F: 'BBD Delay',
+  0x20: 'Dyn Delay',
+  0x21: 'Dyn Delay',
+  0x22: 'Dyn Delay',
+  0x23: 'Shine Wah',
+  0x24: 'Black Wah',
+  0x25: 'Tuner',
+  0x26: 'Blackpanel Spring Reverb',
+  0x27: 'Blackpanel Spring Reverb',
+  0x28: 'Eleven SR',
+  0x29: 'Eleven SR',
+  0x2A: 'Eleven SR',
+  0x2B: 'Volume Pedal',
+  0x2C: 'Volume Pedal',
+  0x2D: 'FX Loop',
+  0x2E: 'FX Loop',
+  0x2F: 'FX Loop',
+  0x30: 'FX Loop',
+  0x31: 'FX Loop',
+  0x32: 'FX Loop',
+  0x33: 'FX Loop',
+  0x34: 'DSP2 Copier',
+  0x35: 'Dummy',
+  0x36: 'Mute',
+  0x37: 'Guitar In',
+  0x38: 'Mic In',
+  0x39: 'FakeStereo In',
+  0x3A: 'PtLeGuitar In',
+  0x3B: 'LineL In',
+  0x3C: 'LineR In',
+  0x3D: 'LineS In',
+  0x3E: 'DigitalL In',
+  0x3F: 'DigitalR In',
+  0x40: 'DigitalS In'
+};
+
+// ── Does this model OUTPUT stereo?
+// Drives the chain row connectors: the connector AFTER a block is stereo
+// exactly when that block's output is stereo.
+//
+// RULE (holds across every one of the 30 direct observations, no exceptions):
+//   the LOWEST variant in a model family outputs MONO;
+//   every other variant in that family outputs STEREO.
+// It follows from there being no stereo-in/mono-out variant anywhere in the
+// unit — see Tech Ref Sec 4. Entries marked [derived] come from that rule;
+// the rest were observed directly.
+//
+// EXCEPTION — FX Loop. Its send and return are independent, so variant order
+// says nothing about its output (0x31 is mono-out despite not being lowest).
+// Loop variants must be observed one at a time; 0x2E, 0x2F and 0x33 are the
+// only models in the unit still unknown.
+//
+// A mid missing from this table draws a DASHED connector, not a mono one, and
+// logs a warning — unknown must never look like a confident answer.
+const MODEL_OUT_STEREO = {
+  0x00: false, // Eleven
+  0x01: false, // C1 Chorus/Vibrato   [derived]
+  0x02: true,  // C1 Chorus/Vibrato
+  0x03: true,  // C1 Chorus/Vibrato
+  0x04: false, // MultiChorus
+  0x05: true,  // Multi Chorus
+  0x06: true,  // Multi Chorus
+  0x07: false, // Flanger
+  0x08: true,  // Flanger   [derived]
+  0x09: false, // Vibe Phaser   [derived]
+  0x0A: true,  // Vibe Phaser
+  0x0B: false, // Orange Phaser
+  0x0C: true,  // Orange Phaser   [derived]
+  0x0D: false, // Roto Speaker
+  0x0E: true,  // Roto Speaker   [derived]
+  0x0F: true,  // Roto Speaker   [derived]
+  0x10: false, // Graphic EQ
+  0x11: true,  // Graphic EQ
+  0x12: false, // Parametric EQ
+  0x13: true,  // Parametric EQ
+  0x14: false, // Gray Compressor
+  0x15: false, // Dyn3 Compressor   [derived]
+  0x16: true,  // Dyn3 Compressor
+  0x17: false, // Tri-Knob Fuzz   [derived]
+  0x18: false, // Black Op Distortion   [derived]
+  0x19: false, // Green JRC Overdrive
+  0x1A: false, // White Boost
+  0x1B: false, // DC Distortion   [derived]
+  0x1C: false, // EP Tape Echo
+  0x1D: true,  // EP Tape Echo   [derived]
+  0x1E: false, // BBD Delay
+  0x1F: true,  // BBD Delay   [derived]
+  0x20: false, // Dyn Delay
+  0x21: true,  // Dyn Delay   [derived]
+  0x22: true,  // Dyn Delay
+  0x23: false, // Shine Wah
+  0x24: false, // Black Wah
+  0x25: false, // Tuner   [derived]
+  0x26: false, // Blackpanel Spring Reverb   [derived]
+  0x27: true,  // Blackpanel Spring Reverb
+  0x28: false, // Eleven SR   [derived]
+  0x29: true,  // Eleven SR
+  0x2A: true,  // Eleven SR
+  0x2B: false, // Volume Pedal
+  0x2C: true,  // Volume Pedal
+  0x2D: false, // FX Loop
+  0x30: true,  // FX Loop
+  0x31: false, // FX Loop
+  0x32: true,  // FX Loop
+};
+
 // ── Per-amp tone knob paramLo table — confirmed via Wireshark 7/14/2026.
-// paramLo values only — paramHi is read at runtime from the CMD 0x21 chain
-// map (third byte of typeA=0x07 triplet) and stored as currentParamHi.
+// paramLo values only — paramHi is the AMP BLOCK'S HANDLE, read at runtime
+// from the CMD 0x21 chain map and stored as currentParamHi. The amp block is
+// the one whose SLOT ID is 0x00; see the CMD 0x21 handler in sysex-handler.js.
+// (An earlier comment here described it as "the third byte of the typeA=0x07
+// triplet". There is no typeA field — byte 1 of a triplet is a back-link to
+// the previous block's slot ID, and 0x07 is DIST. That description produced a
+// real bug: the amp handle was wrong on any patch where the amp did not
+// immediately follow the distortion. Fixed 2026-07-19.)
 // Gate and Amp Out paramLo are consistent across ALL amps:
 //   Gate Threshold = 0x04, Gate Release = 0x05, Amp Out = 0x03
 // knobs: hardware panel order. type 'knob'=continuous, 'selector'=discrete(deferred).
@@ -884,9 +1032,11 @@ function decodeCabMicValues(body) {
     const axisOn     = axisRaw !== null ? (axisRaw !== 0) : null;
     const breakupV   = brkRaw  !== null ? gateRawToV127(brkRaw) : null;
     const cabActive  = sldJRaw !== null ? (sldJRaw === 0) : null;
-    // Amp bypass has no TFX key — default to active (true) on patch load.
-    // Live CMD 0x11 paramLo 0x06 will update if amp is actually bypassed.
-    const ampActive  = true;
+    // Amp bypass has no TFX key. Previously defaulted to true here, which made
+    // a bypassed amp display as active until something happened to correct it.
+    // Now returned as null (= unknown) and resolved by querying the hardware
+    // once the chain map arrives — see requestAmpCabBypass() in transport.js.
+    const ampActive  = null;
 
     appLog('decodeCabMicValues: cabRaw=' + cabRaw + '(idx=' + cabIndex + ')'
       + ' mic=' + micIndex + ' axis=' + axisOn + ' breakup=' + breakupV

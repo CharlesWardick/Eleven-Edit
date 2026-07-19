@@ -323,7 +323,17 @@ function updateCabMicReadouts(cabMic) {
   updateMicTypeDisplay(cabMic.micIndex);
   updateAxisDisplay(cabMic.axisOn);
   updateBreakupDisplay(cabMic.breakupV);
-  // Amp/cab bypass display disabled until chain reorder is supported
+  // Cab bypass comes from the TFX key sldJ, so it is known at patch load.
+  // Amp bypass has no TFX key and arrives as null here — it is resolved by
+  // requestAmpCabBypass() once the chain map gives us a handle. Show it as
+  // unknown until then rather than guessing.
+  if (cabMic.cabActive !== null && cabMic.cabActive !== undefined) {
+    cabBypassActive = cabMic.cabActive;
+  }
+  updateCabBypassDisplay(cabMic.cabActive);
+  blockBypass[SLOT_AMP] = (cabMic.ampActive === null || cabMic.ampActive === undefined)
+    ? undefined : cabMic.ampActive;
+  updateAmpBypassDisplay(cabMic.ampActive);
 }
 
 function updateMonoIndicator(isMono) {
@@ -338,20 +348,308 @@ function updateMonoIndicator(isMono) {
   appLog('Stereo/Mono: ' + (isMono ? 'MONO' : 'STEREO'));
 }
 
-// Amp/Cab bypass chain row highlight
+// Click handler for Stereo/Mono badge — wired up once DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  var monoBtn = document.getElementById('mono-indicator');
+  if (monoBtn) {
+    var monoLocked = false;
+    monoBtn.addEventListener('click', function() {
+      if (!bridgeMidiReady || monoLocked) return;
+      monoLocked = true;
+      setTimeout(function() { monoLocked = false; }, 300);
+      var newMono = !currentMonoState;
+      updateMonoIndicator(newMono);   // optimistic display
+      sendMonoStereo(newMono);        // toggle hardware
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// CHAIN ROW — reorder, hover text, stereo connectors
+// ════════════════════════════════════════════════════════════════════
+//
+// The row is TEN FIXED SLOTS, always all present, re-ordered to match the
+// patch. Slots are MOVED, never rebuilt: each slot div carries its own
+// data-slot / data-panel and its own listeners, so relocating the div takes
+// its identity and behaviour with it. That is why the ▼ panel mapping keeps
+// working with no extra code once a block moves.
+//
+// Called on every CMD 0x21, which covers patch load, stereo/mono toggle and
+// reorder.
+// ════════════════════════════════════════════════════════════════════
+// CHAIN ROW — drag to reorder
+// ════════════════════════════════════════════════════════════════════
+//
+// FX LOOP PLACEMENT RULE (Tech Ref Sec 4): the loop has only FOUR legal
+// positions — first, immediately left of AMP-CAB, immediately right of it, or
+// last. Both the Avid editor and the hardware front panel resolve this before
+// anything is sent: the editor SNAPS a dropped loop to the nearest legal spot
+// rather than refusing it. We do the same, so an illegal arrangement is never
+// transmitted. Dragging the AMP can also strand the loop, so the loop is
+// re-validated after every move, not just when the loop itself is dragged.
+//
+// Returns a reordered copy of currentChain, loop legality already resolved.
+function computeReorder(fromSlotId, toIndex) {
+  const rest = currentChain.filter(b => b.slotId !== fromSlotId);
+  const moved = currentChain.find(b => b.slotId === fromSlotId);
+  if (!moved) return null;
+  let idx = Math.max(0, Math.min(toIndex, rest.length));
+  rest.splice(idx, 0, moved);
+  return enforceLoopPlacement(rest);
+}
+
+function legalLoopIndices(withoutLoop) {
+  const a = withoutLoop.findIndex(b => b.slotId === SLOT_AMP);
+  if (a < 0) return [0];
+  // indices are insertion points into the 9-block list
+  return Array.from(new Set([0, a, a + 1, withoutLoop.length])).sort((x,y) => x-y);
+}
+
+function enforceLoopPlacement(order) {
+  const cur = order.findIndex(b => b.slotId === SLOT_LOOP);
+  if (cur < 0) return order;
+  const loop = order[cur];
+  const without = order.filter(b => b.slotId !== SLOT_LOOP);
+  const legal = legalLoopIndices(without);
+  // where the loop currently sits, expressed as an insertion index into `without`
+  const desired = cur;
+  if (legal.includes(desired)) return order;
+  let best = legal[0];
+  for (const k of legal) if (Math.abs(k - desired) < Math.abs(best - desired)) best = k;
+  const snapped = without.slice();
+  snapped.splice(best, 0, loop);
+  appLog('Chain drag: FX Loop snapped from position ' + (desired+1) + ' to ' + (best+1)
+         + ' (only first / either side of AMP-CAB / last are legal)');
+  return snapped;
+}
+
+function sameOrder(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].slotId !== b[i].slotId) return false;
+  return true;
+}
+
+let chainDragSlot = null;      // slot ID being dragged
+let chainDragActive = false;   // suppresses the click that follows a drag
+
+function clearDropMarks() {
+  document.querySelectorAll('#chainstrip .drop-before, #chainstrip .drop-after')
+    .forEach(el => el.classList.remove('drop-before','drop-after'));
+}
+
+function wireChainDrag() {
+  const strip = document.getElementById('chainstrip');
+  if (!strip || strip.dataset.dragWired) return;
+  strip.dataset.dragWired = '1';
+
+  strip.addEventListener('dragstart', function(ev) {
+    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
+    if (!cont || !strip.contains(cont)) return;
+    const blk = currentChain.find(b => containerForSlot(b.slotId) === cont);
+    if (!blk) return;
+    chainDragSlot = blk.slotId;
+    chainDragActive = true;
+    cont.classList.add('dragging');
+    ev.dataTransfer.effectAllowed = 'move';
+    ev.dataTransfer.setData('text/plain', String(blk.slotId));   // Firefox needs a payload
+  });
+
+  strip.addEventListener('dragover', function(ev) {
+    if (chainDragSlot === null) return;
+    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
+    if (!cont || !strip.contains(cont)) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'move';
+    const r = cont.getBoundingClientRect();
+    const after = ev.clientX > r.left + r.width / 2;
+    clearDropMarks();
+    cont.classList.add(after ? 'drop-after' : 'drop-before');
+  });
+
+  strip.addEventListener('dragleave', function(ev) {
+    if (!strip.contains(ev.relatedTarget)) clearDropMarks();
+  });
+
+  strip.addEventListener('drop', function(ev) {
+    if (chainDragSlot === null) return;
+    ev.preventDefault();
+    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
+    clearDropMarks();
+    if (cont && strip.contains(cont)) {
+      const target = currentChain.find(b => containerForSlot(b.slotId) === cont);
+      if (target && target.slotId !== chainDragSlot) {
+        const r = cont.getBoundingClientRect();
+        const after = ev.clientX > r.left + r.width / 2;
+        // index within the list that excludes the dragged block
+        const rest = currentChain.filter(b => b.slotId !== chainDragSlot);
+        let ti = rest.findIndex(b => b.slotId === target.slotId);
+        if (after) ti += 1;
+        const next = computeReorder(chainDragSlot, ti);
+        if (next && !sameOrder(next, currentChain)) {
+          sendChainOrder(next);   // hardware replies with a map; renderChainRow adopts it
+        }
+      }
+    }
+    chainDragSlot = null;
+  });
+
+  strip.addEventListener('dragend', function() {
+    clearDropMarks();
+    document.querySelectorAll('#chainstrip .dragging')
+      .forEach(el => el.classList.remove('dragging'));
+    chainDragSlot = null;
+    setTimeout(() => { chainDragActive = false; }, 0);   // let the stray click pass first
+  });
+}
+
+// Map a chain slot ID to its (movable) container div in the chain row.
+function containerForSlot(slotId) {
+  if (slotId === SLOT_AMP) {
+    const el = document.getElementById('chain-amp');
+    return el ? el.closest('.chain-slot-stack') : null;
+  }
+  const dom = SLOT_ID_TO_DOM[slotId];
+  if (!dom) return null;
+  const el = document.getElementById('chain-' + dom);
+  return el ? el.closest('.chain-slot') : null;
+}
+
+function renderChainRow() {
+  const strip = document.getElementById('chainstrip');
+  if (!strip || !currentChain.length) return;
+
+  // Collect the movable pieces before touching anything.
+  const arrows = Array.from(strip.querySelectorAll('.chain-arr'));
+  const hint   = strip.querySelector('.chain-drag-hint');
+  const mono   = document.getElementById('mono-indicator');
+
+  const containerFor = containerForSlot;
+
+  let arrowIdx = 0;
+  currentChain.forEach((blk, i) => {
+    const cont = containerFor(blk.slotId);
+    if (!cont) return;
+    strip.appendChild(cont);                       // move, do not clone
+    cont.setAttribute('draggable', 'true');
+
+    // Hover text on BOTH the label and the ▼, for a bigger target.
+    const model = MODEL_NAMES[blk.modelId];
+    const label = model || ('unknown model 0x' + blk.modelId.toString(16).padStart(2,'0'));
+    const tip   = blk.name + ' — ' + label;
+    cont.querySelectorAll('.chain-name, .chain-open').forEach(el => { el.title = tip; });
+
+    // Connector after this block: double arrow when this block outputs stereo.
+    if (i < currentChain.length - 1 && arrowIdx < arrows.length) {
+      const arr = arrows[arrowIdx++];
+      const st  = MODEL_OUT_STEREO[blk.modelId];
+      // Stacked horizontal lines, fixed width: one = mono, two = stereo.
+      // An unknown model gets a single DASHED line, never a solid one — an
+      // unknown must not be indistinguishable from a confident "mono".
+      arr.classList.remove('arr-unknown');
+      if (st === undefined) {
+        arr.innerHTML = '<i></i>';
+        arr.classList.add('arr-unknown');
+        arr.title = 'channel count unknown for ' + label;
+        appLog('Chain row: no output-channel entry for ' + blk.name
+               + ' model 0x' + blk.modelId.toString(16).padStart(2,'0')
+               + ' (' + label + ') — drawn as unknown');
+      } else {
+        arr.innerHTML = st ? '<i></i><i></i>' : '<i></i>';
+        arr.title = st ? 'stereo' : 'mono';
+      }
+      strip.appendChild(arr);
+    }
+  });
+
+  // Trailing items stay at the end.
+  arrows.slice(arrowIdx).forEach(a => { a.style.display = 'none'; });
+  if (hint) strip.appendChild(hint);
+  if (mono) strip.appendChild(mono);
+
+  refreshBlockBypassDisplays();
+  wireChainDrag();
+}
+
+// Paint every non-amp slot from the stored bypass state.
+// Amp and cab have their own display functions and are not touched here.
+function refreshBlockBypassDisplays() {
+  currentChain.forEach(blk => {
+    if (blk.slotId === SLOT_AMP) return;
+    const dom = SLOT_ID_TO_DOM[blk.slotId];
+    if (!dom) return;
+    const el = document.getElementById('chain-' + dom);
+    if (!el) return;
+    const st = blockBypass[blk.slotId];
+    el.classList.remove('slot-on','slot-off','slot-unknown');
+    if (st === undefined) el.classList.add('slot-unknown');
+    else el.classList.add(st ? 'slot-on' : 'slot-off');
+  });
+}
+
+// Click a slot label = real bypass toggle.
+// Replaces an inline handler in index.html that only flipped the colour and
+// sent nothing — that made every non-amp slot lie about its state.
+// No optimistic update: the hardware broadcast is what repaints, so a failed
+// send leaves the display truthful.
+document.addEventListener('DOMContentLoaded', function() {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) return;
+  strip.addEventListener('click', function(ev) {
+    const lbl = ev.target.closest('.chain-name');
+    if (!lbl || !strip.contains(lbl)) return;
+    if (chainDragActive) return;      // ignore the click that trails a drag
+    if (!bridgeMidiReady) return;
+    const dom = lbl.id.replace(/^chain-/, '');
+    const blk = currentChain.find(b => SLOT_ID_TO_DOM[b.slotId] === dom);
+    if (!blk) { appLog('Bypass click: ' + dom + ' not in chain map yet'); return; }
+    const cur = blockBypass[blk.slotId];
+    if (cur === undefined) { appLog('Bypass click: ' + blk.name + ' state unknown yet'); return; }
+    sendBypassWrite(blk.handle, BYPASS_PARAMLO_BLOCK, !cur);
+  });
+});
+
+// Amp/Cab bypass chain row highlight.
+// isOn: true = active, false = bypassed, null/undefined = not yet known.
 function updateAmpBypassDisplay(isOn) {
   const el = document.getElementById('chain-amp');
   if (!el) return;
   el.classList.remove('slot-on','slot-off','slot-unknown');
-  el.classList.add(isOn ? 'slot-on' : 'slot-off');
+  if (isOn === null || isOn === undefined) el.classList.add('slot-unknown');
+  else el.classList.add(isOn ? 'slot-on' : 'slot-off');
 }
 
 function updateCabBypassDisplay(isOn) {
   const el = document.getElementById('chain-cab');
   if (!el) return;
   el.classList.remove('slot-on','slot-off','slot-unknown');
-  el.classList.add(isOn ? 'slot-on' : 'slot-off');
+  if (isOn === null || isOn === undefined) el.classList.add('slot-unknown');
+  else el.classList.add(isOn ? 'slot-on' : 'slot-off');
 }
+
+// Click to toggle amp / cab bypass.
+// Both live on the AMP-CAB block's single handle with different paramLos, so
+// they work wherever that block sits in the chain.
+// No optimistic display: the hardware broadcasts the new state immediately and
+// that broadcast is what updates the UI. If a send fails the display correctly
+// stays put rather than lying about it.
+document.addEventListener('DOMContentLoaded', function() {
+  const ampEl = document.getElementById('chain-amp');
+  if (ampEl) {
+    ampEl.addEventListener('click', function() {
+      if (!bridgeMidiReady) return;
+      if (blockBypass[SLOT_AMP] === undefined) { appLog('Amp bypass state unknown yet, ignoring click'); return; }
+      sendAmpBypass(!blockBypass[SLOT_AMP]);
+    });
+  }
+  const cabEl = document.getElementById('chain-cab');
+  if (cabEl) {
+    cabEl.addEventListener('click', function() {
+      if (!bridgeMidiReady) return;
+      if (cabBypassActive === undefined) { appLog('Cab bypass state unknown yet, ignoring click'); return; }
+      sendCabBypass(!cabBypassActive);
+    });
+  }
+});
 
 // ── Update amp display and gate knob CCs when amp changes ──
 function syncAmpSelectDropdown(key) {

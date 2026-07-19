@@ -39,43 +39,272 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-18
+STATUS:      [FOLDED IN: Technical Reference Sec 2, 4, 6, 10, 22 (C10), 23;
+             Primer header / WORKING / NOT YET / working-practice notes]
+AREA:        Phase 7a-1 — Stereo/Mono two-way control
+FINDING:     Complete and working. See Technical Reference Section 10 for the
+             full protocol and Section 2 for the USB-MIDI framing rule that
+             was the root cause of the day's failed builds.
+             Headline items now in the main docs:
+             - Send: F0 13 0B 0F 00 0D [val] F7, val 0x01=Mono / 0x00=Stereo
+             - The 0x06 in old captures was USB CIN framing, not payload
+             - Echo after our own send is always 0x01 — suppressed, not decoded
+             - Front-panel broadcast decodes normally, same shape as the send
+             - Each accepted 0x0D reassigns post-amp chain handles (Sec 4)
+             - Partial chain-map typeA table captured en route (Sec 4)
+             All superseded 0x0D entries from this session (toggle theory,
+             rapid-click lockout theory, the 0x07 and 0x04 format attempts)
+             have been deleted — they were wrong, and Section 10 replaces them.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-07-17
 STATUS:      [FOLDED IN: Technical Reference Sec 18, 20, 21, 23; Primer]
 AREA:        Phase 8 — To Amp 1/2 volume knobs + source dropdowns
 FINDING:     All Phase 8 findings confirmed and promoted. See Tech Ref
              Section 18 for complete CMD 0x36 and CMD 0x37 protocol.
-             Key confirmed items:
-             - CMD 0x36 format: F0 13 0B 0F [dir] 36 [slot] [v0] 00 00 00 00 F7
-             - v0 encoding: (v127+64)%128, same as CMD 0x11
-             - TFX offsets: Amp1=body[52], Amp2=body[60], gateRawToV127
-             - CMD 0x3A required before CMD 0x37 (assert without it)
-             - CMD 0x37 format confirmed; SW sends don't move HW source
-             - Source dropdowns removed from GUI; code preserved
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
-DATE:        2026-07-16
-STATUS:      confirmed  [FOLDED IN: Technical Reference — all sections; Primer]
-AREA:        Documentation baseline
-FINDING:     Six source docs consolidated into one Technical Reference + one
-             Primer. Conflicts C2 (driver v1.1.12) and C4 (Mic Axis On=0x3F)
-             resolved; C3 (7/15 Wireshark per-amp table) adopted.
-EVIDENCE:    Cross-referenced all six source files; confirmations from Charlie.
-CONFLICTS:   Superseded the six source docs (safe to retire).
-NEXT:        Use this log going forward. No new dated reference copies.
+DATE:        2026-07-18
+STATUS:      provisional
+AREA:        Chain map — effect model ID ranges per block category
+FINDING:     mid appears to be an index into a global effect-model list, with
+             each dedicated slot occupying a tight contiguous range (see the
+             table in Tech Ref Sec 4). Ranges are from 8 patches only and are
+             almost certainly incomplete — treat as lower bounds, not limits.
+             FX1/FX2 overlap the MOD range because they are generic hosts;
+             identify those two by chain position, not by mid.
+             The confirmed parts of this work (handle arithmetic, AMP=0x00,
+             LOOP side encoding, bypass-not-in-map, allocIdx meaningless) are
+             already folded into Tech Ref Sec 4.
+EVIDENCE:    session-2026-07-18-161842.log, 8 patches A1-A4 / B1-B4 with
+             editor chain order recorded per patch.
+CONFLICTS:   none
+NEXT:        Widen the ranges opportunistically as more patches are seen.
+             Not blocking bypass toggle.
 -------------------------------------------------------------------
 
-(add new entries above this line)
-FINDING:     1. valAmpOut (-60 to +18 dB) is wrong for To Amp knobs.
-                Confirmed range: -12 to +12 dB. v0=0x00 = MUTE (hardware
-                display confirmed by Charlie 7/17/2026).
-             2. HW broadcasts during SW drag were fighting the knob —
-                drag suppression flags added (toAmp1Dragging/toAmp2Dragging).
-EVIDENCE:    Round 2 test session 7/17; Avid editor display observation.
-CONFLICTS:   None in Technical Reference (scale was listed as unconfirmed).
-NEXT:        Build and test. If SW drag moves HW audibly and HW knob updates
-             SW display cleanly, promote both CMD 0x36 entries to Tech Ref
-             Section 18.
+-------------------------------------------------------------------
+DATE:        2026-07-18
+STATUS:      provisional
+AREA:        CMD 0x20 model table — duplicate display names
+FINDING:     Several model indices share a display name (three "Roto Speaker",
+             three "Dyn Delay", three "Eleven SR", seven "FX Loop"). The
+             3-char variant key in the response distinguishes them and the
+             FX Loop keys clearly encode mono/stereo send/return, so the
+             others are probably mono/stereo instantiations of the same model.
+             NOT confirmed. Also indices 0x18, 0x19, 0x26, 0x27 return no
+             response at all — reserved or removed models.
+EVIDENCE:    B2_Dist_Click_ON__CLick_OFF.pcapng, editor startup enumeration.
+             Full table folded into Tech Ref Sec 23.
+CONFLICTS:   none
+NEXT:        Confirm by loading a patch with a known stereo vs mono effect and
+             comparing the mid. Not blocking anything.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-18
+STATUS:      [FOLDED IN: Technical Reference Sec 4, 23, 24]
+AREA:        FX1 vs FX2 slot identity — RESOLVED, question closed
+FINDING:     Resolved by TFX cross-check. Chain map field 1 is a back-link
+             carrying the previous block's SLOT ID, and slot IDs are fixed
+             per block type. FX1 = 0x08, FX2 = 0x09. Full detail in Tech Ref
+             Sec 4. Supersedes the earlier "open question" entry and the
+             earlier claim that field 1 was a meaningless allocation index.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-19
+STATUS:      [FOLDED IN: Technical Reference Sec 4, 24; code shipped]
+AREA:        CMD 0x21 handler rewritten; amp handle was wrong on most patches
+FINDING:     The old handler searched the chain map for a first byte of 0x07
+             and took that triplet's handle as the amp, on the (documented,
+             wrong) belief that field 1 was a type tag. Field 1 is a BACK-LINK
+             carrying the PREVIOUS block's slot ID, and 0x07 is DIST's slot ID
+             — so it actually found "the block after DIST". That coincides
+             with the amp only when the amp immediately follows the
+             distortion. Checked against 14 real patches: WRONG on 11.
+             On those it addressed FX2, LOOP or REVERB instead, so every amp
+             write (tone, gate, amp out, cab, mic, amp select) went to the
+             wrong block, and incoming amp broadcasts were discarded by the
+             instId guard as "not ours".
+             Survived because the test patch set all had AMP after DIST.
+FIX:         Handler now decodes back-links to recover slot IDs and stores the
+             whole chain (position, slotId, name, modelId, handle) in
+             currentChain. currentParamHi is derived from the block whose slot
+             ID is 0x00. No call sites changed — currentParamHi keeps its name
+             and meaning, it simply gets the right value now.
+VERIFIED:    Decoder logic replayed over all 42 unique chain maps in the
+             session logs: amp handle correct 42/42, all slots recognised.
+AUDIT:       Other TFX decoders checked for the same fixed-position hazard.
+             decodeAmpKey / tone / gate / ampOut anchor off a searched 6dls
+             marker; decodeCabMicValues and decodeMonoStereo search by key —
+             all safe. decodeToAmpVolumes uses fixed body offsets 52/60, which
+             appear to be in the fixed global header rather than the variable
+             keyed region, but this was NOT fully verifiable (decoded bulk body
+             is not byte-identical to a saved TFX). Confirm when To Amp work
+             resumes — note To Amp is already on the known-broken list.
+TESTED:      Build test 2026-07-19 PASSED. session-2026-07-19-091431.log —
+             8 chain maps, amp handle correct 8/8, all slots recognised, amp
+             control working on B2 Singtall (previously dead) and A1 unchanged.
+             The log also captured six live reorders, all tracked correctly,
+             with the amp handle preserved throughout — an independent
+             confirmation of the reorder handle-preservation finding.
+             Stale comment in protocol.js repeating the old "typeA" model also
+             corrected, to stop it re-infecting future work.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-19
+STATUS:      [FOLDED IN: Technical Reference Sec 3, 24; Primer; code shipped]
+AREA:        Bypass implemented — amp, cab, and per-block state capture
+SCOPE:       Amp and cab bypass are now clickable and live. Per-block bypass
+             is CAPTURED AS STATE ONLY, deliberately with no UI: the chain row
+             is still fixed-order HTML, so wiring clicks to chain-dist,
+             chain-fxloop etc. would address whichever block happens to sit in
+             that position — exactly the defect fixed earlier today, but in the
+             UI layer. Per-block UI waits for a chain row rebuilt from
+             currentChain.
+CHANGES:     transport.js  sendBypassWrite / sendAmpBypass / sendCabBypass and
+                           requestAmpCabBypass (first use of REQU PARAM).
+             sysex-handler.js  bypass routing for paramLo 0x01/0x06/0x14 on ANY
+                           handle, placed BEFORE the amp-only instId guard;
+                           the four "disabled until chain reorder" stubs
+                           removed; requestAmpCabBypass fired after each map.
+             state.js      blockBypass{} keyed by slot ID, cabBypassActive,
+                           bypass paramLo/v0 constants; cleared on disconnect.
+             ui.js         click handlers on chain-amp / chain-cab; the two
+                           previously-DEAD display functions now called, and
+                           extended to render an unknown state.
+             protocol.js   KLUDGE REMOVED — decodeCabMicValues no longer
+                           hard-codes ampActive=true. It returns null (unknown)
+                           and the real value is queried once a handle exists.
+             index.html    tooltips corrected (they claimed "read only"),
+                           pointer cursor only when state is known.
+NOTE:        No optimistic display on click. The hardware broadcasts the new
+             state immediately and that is what updates the UI, so a failed
+             send leaves the display truthful rather than lying. Different
+             choice from the Stereo/Mono badge, which had to be optimistic
+             because its echo is unreliable.
+NOTE:        The real REQU response is FORMAT A shaped (data[6]=handle), not
+             the data[6]=0x04 "FORMAT B" this file's older comments describe.
+             The bypass router handles both, but FORMAT B's provenance is
+             doubtful and may itself be a USB-framing misread. Worth revisiting
+             before relying on it elsewhere.
+TESTED:      Build test 2026-07-19 PASSED — session-2026-07-19-100225.log.
+             - First ever parameter REQU from this app succeeded:
+                 OUT F0 13 0B 0F 01 11 51 06 F7
+                 IN  F0 13 0B 0F 12 11 51 06 40 00 00 00 00 F7
+             - All ELEVEN bypass targets (ten blocks + cab) observed in the
+               BYPASSED state, proving nothing defaults to active any more.
+             - Amp/cab bypass worked on six different amp handles (0x04, 0x12,
+               0x21, 0x51, 0x60, 0x75) and at chain positions including LAST.
+             - Ignored CMD 0x11 lines fell from 104 to 14; the remainder are
+               non-bypass params from other handles, correctly dropped.
+             - Zero errors, zero unknown-handle bypass events.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-19
+STATUS:      [FOLDED IN: Technical Reference Sec 4, 23; Primer; code shipped]
+AREA:        Chain row — true order, hover text, stereo connectors, real bypass
+FOUND:       index.html contained an inline click handler on every chain label
+             that flipped slot-on/slot-off LOCALLY and sent nothing ("TODO
+             Phase 5+: send bypass when wired"). So any slot could be clicked
+             into a colour that did not match the hardware, and on amp/cab it
+             briefly lied before our real broadcast corrected it. REMOVED, with
+             a comment warning against reinstating a cosmetic toggle.
+CHANGES:     protocol.js  MODEL_NAMES (all 65 mids, for hover text) and
+                          MODEL_OUT_STEREO (30 mids, for the connectors).
+             state.js     SLOT_ID_TO_DOM mapping.
+             ui.js        renderChainRow() — MOVES the existing slot divs into
+                          chain order rather than rebuilding, so each div keeps
+                          its data-panel and its listeners and the ▼ mapping
+                          follows the block for free. Sets hover text on BOTH
+                          the label and the ▼ for a larger target. Sets each
+                          connector to a double arrow when the preceding block
+                          outputs stereo. Plus refreshBlockBypassDisplays() and
+                          a delegated click handler doing REAL per-block bypass.
+             sysex-handler.js  calls renderChainRow() after every chain map and
+                          repaints slots when block bypass state arrives.
+             index.html   fake handler removed.
+DESIGN:      Ten fixed slots, always all present, reordered — not a variable
+             list. Slots are moved, never rebuilt. No optimistic repaint on
+             click; the hardware broadcast repaints, so a failed send leaves
+             the display truthful.
+KNOWN GAP:   MODEL_OUT_STEREO covers 30 of ~52 usable models. An unknown mid
+             draws a SINGLE connector and logs a warning naming the mid and
+             model, so gaps surface during use rather than being drawn wrong.
+             Simulated over real chain maps: most rows fully resolved, a few
+             show one or two unknown connectors as expected.
+TESTED:      Build test 2026-07-19 PASSED (session-2026-07-19-133235.log +
+             screenshot). Order matches the Avid editor across ~30 chain
+             states including many live reorders made in the Avid editor while
+             our app was running; hover text correct; per-block bypass real and
+             audible on all ten blocks.
+SECOND PASS: Two issues found and fixed the same session.
+             (a) Connectors used one/two arrow GLYPHS, so the row re-flowed as
+                 patches changed. Replaced with stacked horizontal lines at a
+                 FIXED 16px width, matching the Avid editor's look.
+             (b) An unknown model drew a SINGLE SOLID line — indistinguishable
+                 from a confident "mono". That was a real honesty flaw, and it
+                 is what made the feature read as broken. Unknown now draws a
+                 DASHED line.
+             Coverage raised 30 -> 49 of 52 models by applying the lowest-
+             variant rule (Tech Ref Sec 23). The rule was validated by it
+             independently producing EP Tape Echo 0x1D = STEREO, matching the
+             Avid rendering in a screenshot taken BEFORE the rule was applied.
+             Only FX Loop variants 0x2E/0x2F/0x33 remain unresolved.
+CAUTION:     19 of the 49 entries are DERIVED, not observed. If a connector
+             disagrees with the Avid editor, report the block and model id —
+             it is more likely the rule meeting an uncovered case than a
+             rendering bug.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-19
+STATUS:      [FOLDED IN: Technical Reference Sec 4; Primer; code shipped]
+AREA:        Chain row drag-to-reorder
+CHANGES:     transport.js  sendChainOrder(newOrder) — builds a complete 41-byte
+                           CMD 0x21 with dir=0x00, re-using each block's model
+                           id and handle and re-linking the back-links.
+             ui.js         HTML5 drag on the slot containers, drop indicator,
+                           computeReorder(), enforceLoopPlacement(),
+                           wireChainDrag(); bypass click suppressed for the
+                           synthetic click that trails a drag.
+             index.html    grab/grabbing cursors, drag opacity, drop-edge
+                           marker; hint text now "drag blocks to reorder".
+VERIFIED BEFORE BUILD:
+             - Message construction reproduces ALL FOUR real Avid reorder sends
+               from Drag_Test_1.pcapng BYTE FOR BYTE.
+             - Loop snapping reproduces Avid's observed result on the one case
+               we captured (VOL dropped between AMP-CAB and LOOP lands to the
+               RIGHT of the loop).
+             - Loop placement legal in all edge cases tried.
+DESIGN:      No optimistic reorder. We send, the hardware broadcasts what it
+             actually adopted, renderChainRow() draws that. Necessary because
+             the firmware may return different model ids and handles than we
+             sent when a move changes a block's channel configuration.
+TESTED:      Build test 2026-07-19 PASSED — session-2026-07-19-141945.log.
+             21 drags performed in our app, all adopted correctly; 8 FX Loop
+             snaps, all landing legal; 12 further chain renders from moves made
+             in the Avid editor while our app was running, all tracked.
+             Zero errors. Zero accidental bypass toggles — 8 deliberate bypass
+             writes, none within a second of a drag, so the guard against the
+             synthetic post-drag click works.
+NOTE:        Our drags are identifiable in a log by the sendChainOrder line;
+             moves made in the Avid editor or on the front panel produce a
+             chain render with no preceding send.
+RESOLVED:    The stranded-loop question. Avid drags the loop ALONG WITH the amp
+             when adjacent (so the amp cannot pass position 9 with the loop on
+             its right until the loop is parked elsewhere). We deliberately do
+             NOT copy that — dragging the amp leaves the loop, snapping it if
+             stranded. Charlie prefers the freer behaviour. Recorded in Sec 4
+             as an intentional divergence.
 -------------------------------------------------------------------
 
 (add new entries above this line)

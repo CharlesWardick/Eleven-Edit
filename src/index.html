@@ -137,19 +137,35 @@
     display: flex; align-items: center; padding: 0 16px; gap: 5px;
     height: 62px; flex-shrink: 0; overflow-x: hidden;
   }
-  .chain-arr  { color: #777; font-size: 11px; flex-shrink: 0; }
+  /* Connector between blocks. FIXED WIDTH regardless of mono/stereo so the row
+     never re-flows when a patch changes — stacked horizontal lines, like the
+     Avid editor, rather than one or two arrow glyphs of different widths. */
+  .chain-arr {
+    flex-shrink: 0; width: 16px; height: 100%;
+    display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  }
+  .chain-arr i { display: block; height: 2px; border-radius: 1px; background: #777; }
+  /* unknown channel count must NOT look like a confident mono line */
+  .chain-arr.arr-unknown i { background: transparent; border-top: 2px dashed #6a5a2a; height: 0; }
   .chain-drag-hint { font-size: 10px; color: #555; margin-left: auto; white-space: nowrap; font-style: italic; align-self: center; }
   #mono-indicator {
     font-size: 11px; font-weight: bold; letter-spacing: 1px;
     padding: 3px 8px; border-radius: 3px; align-self: center;
     border: 1px solid; white-space: nowrap; flex-shrink: 0;
-    cursor: default;
+    cursor: pointer;
   }
+  #mono-indicator:hover         { border-color: #a07010; color: #c08010; }
   #mono-indicator.mono-active   { color: #e0a020; border-color: #a07010; background: #2a1f00; }
+  #mono-indicator.mono-active:hover { background: #3a2f00; }
   #mono-indicator.mono-inactive { color: #555; border-color: #333; background: transparent; }
 
   /* Standard slot: label on top, ▼ underneath */
   .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; }
+  /* drag to reorder */
+  .chain-slot[draggable="true"], .chain-slot-stack[draggable="true"] { cursor: grab; }
+  .chain-slot.dragging, .chain-slot-stack.dragging { opacity: 0.35; cursor: grabbing; }
+  .chain-slot.drop-before, .chain-slot-stack.drop-before { box-shadow: -3px 0 0 0 var(--accent); }
+  .chain-slot.drop-after,  .chain-slot-stack.drop-after  { box-shadow:  3px 0 0 0 var(--accent); }
   .chain-name {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
     border-radius: 4px 4px 0 0; border-bottom: none;
@@ -177,6 +193,9 @@
     border-radius: 4px; padding: 4px 13px; font-size: 13px; font-weight: bold;
     white-space: nowrap; text-align: center; transition: all 0.15s;
   }
+  /* clickable only once the real state is known — unknown keeps the default cursor */
+  .chain-name-stack.slot-on,
+  .chain-name-stack.slot-off { cursor: pointer; }
   .chain-name-stack.slot-on  { background: #1a2a1a; border-color: #3a7a3a; color: #70c070; }
   .chain-name-stack.slot-off { background: #2a1a1a; border-color: #884444; color: #884444; text-decoration: line-through; }
   .chain-name-stack.slot-on:hover  { border-color: var(--green); }
@@ -506,8 +525,8 @@
 
   <!-- AMP + CAB stacked — bypass only, no ▼ -->
   <div class="chain-slot-stack">
-    <div class="chain-name-stack slot-unknown" id="chain-amp" title="Amp bypass state (read only)">AMP</div>
-    <div class="chain-name-stack slot-unknown" id="chain-cab" title="Cab bypass state (read only)">CAB</div>
+    <div class="chain-name-stack slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
+    <div class="chain-name-stack slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
   </div>
   <div class="chain-arr">▶</div>
 
@@ -540,8 +559,8 @@
     <div class="chain-open"              id="copen-reverb" data-panel="reverb">▼</div>
   </div>
 
-  <div class="chain-drag-hint">future: drag to reorder</div>
-  <div id="mono-indicator" class="mono-inactive" title="Stereo/Mono — set from hardware front panel only">STEREO</div>
+  <div class="chain-drag-hint">drag blocks to reorder</div>
+  <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
 </div>
 
 <!-- ══ MAIN ══ -->
@@ -865,19 +884,11 @@
 // CHAIN STRIP INTERACTION
 // ════════════════════════════════════════════════════════════════════
 
-// Label click = bypass toggle (visual only until bypass wiring is done)
-document.querySelectorAll('.chain-name, .chain-name-stack').forEach(function(lbl) {
-  lbl.addEventListener('click', function() {
-    // Only toggle if state is known (on or off) — unknown slots show no state yet
-    if (lbl.classList.contains('slot-unknown')) return;
-    if (lbl.classList.contains('slot-off')) {
-      lbl.classList.remove('slot-off'); lbl.classList.add('slot-on');
-    } else {
-      lbl.classList.remove('slot-on'); lbl.classList.add('slot-off');
-    }
-    // TODO Phase 5+: send bypass CC/SysEx when wired
-  });
-});
+// Label click = bypass toggle — handled in ui.js, which sends to the hardware
+// and repaints from the resulting broadcast.
+// REMOVED 2026-07-19: an earlier handler here flipped slot-on/slot-off locally
+// and sent nothing, so every chain slot could be clicked into a colour that did
+// not match the hardware. Do not reinstate a cosmetic toggle.
 
 // ▼ click = open/close effect panel, hide/show AMP+CAB cards
 document.querySelectorAll('.chain-open').forEach(function(btn) {

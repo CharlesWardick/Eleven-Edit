@@ -40,7 +40,52 @@ let wasStopped    = true; // true at launch and after Stop — forces jump to FR
 // other entry — those remain as originally researched, unverified
 // against real hardware. If another amp shows the same crossed behavior,
 // fix that specific entry the same way, don't assume the whole table.
-let currentParamHi = -1;  // runtime paramHi from CMD 0x21 chain map (typeA=0x07 third byte)
+// ── Chain map state (CMD 0x21) ──
+// Slot IDs are fixed per block type in every patch — Tech Ref Sec 4.
+const SLOT_AMP = 0x00, SLOT_LOOP = 0x01, SLOT_VOL = 0x02, SLOT_WAH = 0x03,
+      SLOT_MOD = 0x04, SLOT_REVERB = 0x05, SLOT_DELAY = 0x06, SLOT_DIST = 0x07,
+      SLOT_FX1 = 0x08, SLOT_FX2 = 0x09, SLOT_INPUT = 0x0B;
+
+const SLOT_ID_TO_NAME = {
+  0x00: 'AMP', 0x01: 'LOOP',  0x02: 'VOL',   0x03: 'WAH',
+  0x04: 'MOD', 0x05: 'REVERB',0x06: 'DELAY', 0x07: 'DIST',
+  0x08: 'FX1', 0x09: 'FX2',   0x0B: 'INPUT'
+};
+
+// Slot ID -> the suffix used in the chain row element ids (chain-xxx / copen-xxx).
+// AMP-CAB is deliberately absent: it is one block drawn as a stacked pair with
+// its own markup, and is handled separately everywhere.
+const SLOT_ID_TO_DOM = {
+  0x01: 'fxloop', 0x02: 'vol',   0x03: 'wah',  0x04: 'mod',
+  0x05: 'reverb', 0x06: 'delay', 0x07: 'dist', 0x08: 'fx1', 0x09: 'fx2'
+};
+
+// Full chain in left-to-right order, rebuilt from every CMD 0x21.
+// Each entry: { position, slotId, name, modelId, handle }
+// Not yet consumed by the UI — foundation for the chain row, per-block
+// bypass and reorder. Handles change on patch load, stereo/mono toggle and
+// (for affected blocks only) reorder, so never cache these across events.
+let currentChain = [];
+let currentChainInput = null;   // { slotId, modelId, handle } for the input block
+
+// Bypass state per block, keyed by SLOT ID (stable across patches).
+// true = active, false = bypassed, undefined = not yet known.
+// AMP-CAB is one block with TWO independent flags, so it gets two entries:
+//   blockBypass[SLOT_AMP]  — the amp   (CMD 0x11 paramLo 0x06)
+//   cabBypassActive        — the cab   (CMD 0x11 paramLo 0x14)
+// Every other block uses paramLo 0x01 on its own handle.
+let blockBypass = {};
+let cabBypassActive;            // undefined until read from hardware
+
+// Bypass paramLo values — Tech Ref Sec 3.
+const BYPASS_PARAMLO_BLOCK = 0x01;   // every non-amp chain block
+const BYPASS_PARAMLO_AMP   = 0x06;
+const BYPASS_PARAMLO_CAB   = 0x14;
+// v0 encoding for bypass: active vs bypassed.
+const BYPASS_V0_ACTIVE   = 0x40;
+const BYPASS_V0_BYPASSED = 0x3F;
+
+let currentParamHi = -1;  // amp block's handle, derived from currentChain (slot 0x00)
 let currentAmpKey  = null;
 let currentAmpName = null;
 

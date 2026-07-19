@@ -1,8 +1,8 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-17
+Updated: 2026-07-19
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 8 complete
+Status: Active development — Phase 8 complete; Phase 7a-1 complete
 
 READ THIS FIRST, THEN ONE OTHER DOCUMENT:
   ElevenEdit_Technical_Reference.txt — the single authoritative protocol,
@@ -49,6 +49,18 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - Conclude internally; present the solution or finding, not the reasoning.
   - Always build the EXE for testing — npm start has never worked here.
   - Old eyes: amber-on-dark, readable fonts, generous sizing.
+  - THE OUTPUTS FOLDER IS CANONICAL DURING A SESSION. Project files are read
+    ONCE at the start; after that, always base edits on the files you last
+    presented, never re-copy from the project mid-session or you will silently
+    revert earlier fixes. Charlie folds the final outputs back into the project
+    at end of day.
+  - TWO FAILED FIXES = STOP AND RE-DERIVE. If two consecutive changes produce
+    no change in observed behaviour, the problem is a wrong assumption, not a
+    wrong value. Go back to the raw evidence and re-derive from scratch rather
+    than adjusting bytes. On 7/18 this rule would have saved roughly a dozen
+    build cycles: every "fix" was a guess downstream of one unexamined
+    assumption (that USB CIN framing bytes were payload data).
+  - Update the session log in the SAME turn you present files, not later.
 
 
 CONFIRMED ARCHITECTURE (brief)
@@ -64,8 +76,8 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 8 complete)
-------------------------------------
+CURRENT APP STATE (Phase 8 + Phase 7a-1 complete)
+-------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
 
 WORKING:
@@ -83,20 +95,37 @@ WORKING:
   Cab Type / Mic Type dropdowns — SW send + TFX + live HW readback
   Mic Axis toggle — SW send + TFX + live HW readback
   Speaker Breakup slider — SW send + TFX + live HW readback
-  Stereo/Mono indicator — TFX readback + CMD 0x0D live broadcast (read-only)
+  Stereo/Mono — clickable badge: SW send + TFX readback + live HW broadcast
+    (Phase 7a-1; send echo is unreliable and deliberately suppressed)
+  Chain map — full chain stored on every CMD 0x21 (order, block identity,
+    model, handle). Amp handle now correct at any chain position.
+  Amp and Cab bypass — clickable, position independent, state read from HW.
+  Per-block bypass — all ten blocks clickable, addressed by handle so it works
+    at any chain position.
+  Chain row — true per-patch order, model name on hover, stereo shown as
+    stacked double connector lines (49 of 52 models resolved).
+  Chain reorder — drag and drop, with FX Loop placement enforced client-side.
+    Note: unlike Avid, dragging the amp does NOT drag an adjacent loop with it
+    (intentional, see Tech Ref Sec 4).
   TFX capture to disk on hardware save
   Load TFX (memory load) and Save to Current Slot (commit) — round-trip verified
   Auto-advance (roller) with configurable interval; bank scan
 
-NOT YET IMPLEMENTED:
-  Sync selector dropdown (paramLo 0x12 known; needs valid-value capture)
-  Amp/Cab bypass toggle — DISABLED pending chain-reorder support
-  Chain block reorder (future phase)
-  To Amp source dropdowns — code present, GUI removed. SW sends don't move
-    HW source; root cause unknown. CMD 0x3A+0x37 sequence confirmed safe.
-  Stereo/Mono send path (receive-only)
-  Save-to-different-slot; patch rename from SW
+NOT YET IMPLEMENTED (largest first):
+  Effect panels for the nine non-amp blocks — clicking the chain row's arrow
+    still shows a "coming soon" placeholder. Parameter NAMES are known for ~20
+    models from the TFX work (Tech Ref Sec 23), but the paramLo NUMBERS are
+    not; those need one capture per model family. This is the biggest
+    remaining chunk of work in the app.
+  Sync selector dropdown (paramLo 0x12 known; needs a valid-value capture)
+  To Amp source dropdowns — code present, GUI removed. SW sends don't move the
+    HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
+    defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
+    slot argument and never used currentParamHi. Do not assume it is fixed.
+  Save-to-different-slot; patch rename from SW (both buttons disabled)
   Bank backup/restore (EHB — protocol known)
+  FX Loop connector variants 0x2E, 0x2F, 0x33 — the only three models with no
+    output-channel entry; they draw a dashed connector until observed.
 
 
 DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
@@ -160,3 +189,51 @@ HARDWARE SAFETY
 CREDIT
 ------
 Protocol foundation: Guillaume Schmid — ElevenHack (2013), Apache License 2.0.
+
+GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
+-------------------------------------------------------------------
+  NEVER BUNDLE AVID'S ARTWORK. The app reads images from the user's existing
+  Avid editor installation. The repo contains our mapping table and loader and
+  none of Avid's assets — this keeps the project clean to open-source and
+  avoids the question entirely rather than arguing it. Consequences:
+    - path discovery, with a manual "point at your install" fallback
+    - graphics are an ENHANCEMENT; the text-only UI stays the baseline and
+      must look deliberate, not broken, for users without the editor installed
+    - the loader fails quietly if Avid's file layout differs by version
+
+  CHAIN ROW: pedal thumbnail ABOVE our existing text label — not instead of
+  it. Avid's row has a tiny image with a tiny label and is hard to scan, which
+  is the whole reason this app exists. Thumbnail plus our larger label beats
+  either app alone. Keep the hover text too: it costs nothing and covers users
+  without the graphics. Row grows from 62px to roughly 110px.
+
+  EFFECT PANELS: pedal image in the panel HEADER only, for recognition, with
+  real sliders and labelled values below — the way our amp panel already
+  works. Do NOT make the pedal image the interactive surface: that is what
+  forces Avid's small unlabelled knobs, and it would need a hand-positioned
+  hitbox map for ~26 panels.
+
+  Scope if built: ~27 distinct effect graphics (note the firmware spells
+  MultiChorus two ways), ~34 amps, one cab. Key the lookup by MID, not by
+  name — names contain slashes and inconsistent spellings that make bad
+  filenames. Bypassed blocks dim via a CSS filter, no second image set.
+
+
+NEXT SESSION — DISTORTION PANEL PROOF OF CONCEPT
+-------------------------------------------------------------------
+  Goal: one working effect panel, to establish the pattern for the other 25.
+  DIST is a good choice — only 3 or 4 controls and five models sharing two
+  parameter layouts (Tech Ref Sec 23).
+
+  WHAT WE ALREADY HAVE: the block's handle (from the chain map), its model id,
+  its parameter NAMES and their order, and a working bypass on the same block.
+
+  WHAT IS MISSING — the paramLo NUMBERS. Nothing else blocks this.
+  CAPTURE RECIPE: with our app running and Wireshark on, open the DIST panel
+  in the Avid editor and move ONE control at a time, pausing between each, in
+  the order the parameters are listed. Each move sends
+  CMD 0x11 [handle] [paramLo] [v0]; the handle is already known, so the paramLo
+  falls straight out. One capture covers a 3-knob model; repeat once for a
+  4-knob model (White Boost or DC Distortion).
+  Note the model in the slot when capturing — paramLo may or may not be shared
+  across models in a family, and one capture cannot tell us which.

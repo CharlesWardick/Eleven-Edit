@@ -47,7 +47,8 @@ TABLE OF CONTENTS
 20. Confirmed Dead Ends (do not retry)
 21. Open Questions & Pending Work
 22. FLAGGED CONFLICTS
-23. Change / Consolidation Log
+23. Effect Model Table (CMD 0x20) — complete
+24. Change / Consolidation Log
 
 
 ===================================================================
@@ -136,6 +137,26 @@ RESP vs ASYNC PAYLOAD OFFSET (confirmed 7/9):
   at position 6; payload starts at position 7. This offset difference is
   handled by the SEND_PATCH decode path.
 
+*** USB-MIDI FRAMING — READ BEFORE DERIVING ANY FORMAT FROM A CAPTURE ***
+  (confirmed 7/18, after a full day lost to this)
+  A raw USB capture of the Avid editor is NOT the message. USB-MIDI packs
+  SysEx into 4-byte groups, each led by a Code Index Number (CIN) framing
+  byte. Those framing bytes are transport, not data, and our Java bridge
+  strips them. Regroup every capture in fours before reading it:
+
+    f0 13 0b 04 0f 00 0d 06 00 f7
+      -> [04] f0 13 0b | [04] 0f 00 0d | [06] 00 f7
+      -> actual message: F0 13 0B 0F 00 0D 00 F7   (8 bytes, not 10)
+
+  Common CINs: 0x04 = SysEx starts/continues (3 data bytes follow),
+  0x05/0x06/0x07 = SysEx ends with 1/2/3 data bytes. The SAME framing byte
+  appears at different offsets in different captures depending on payload
+  length, which makes it look like a meaningful per-command value. It is not.
+
+  SANITY CHECK: a send and its matching broadcast should be the same shape.
+  If your derived send format is longer than the hardware's own broadcast of
+  the same command, you have almost certainly kept a framing byte.
+
 
 ===================================================================
 3. CMD 0x11 — LIVE PARAMETER READ/WRITE
@@ -164,7 +185,13 @@ SEND (our app -> hardware):
   echoes back as Format A ASYNC. v1–v4 = 0x00 confirmed for all writes.
 
 REQU (query one parameter):
-  F0 13 0B 0F 01 11 07 [paramLo] F7
+  F0 13 0B 0F 01 11 [handle] [paramLo] F7
+  *** [handle] IS THE BLOCK HANDLE FROM THE CHAIN MAP, NOT A LITERAL 0x07. ***
+  Earlier revisions of this doc showed 0x07 hardcoded — a stale artifact from
+  early captures where the amp happened to be allocated handle 0x07. Querying
+  with a fixed 0x07 silently fails on any patch where the amp sits elsewhere.
+  This single wrong byte is what blocked amp/cab bypass from Phase 7 until
+  7/18. Confirmed against Avid traffic: it queries every block this way.
   The 0x07 here is a broadcast/wildcard instance the firmware resolves to
   the current block; hardware replies as Format B with the real
   currentParamHi filled in.
@@ -173,7 +200,9 @@ UNIVERSAL paramLo VALUES (identical for all 33 amps, all sessions):
   0x03 = Amp Out Level
   0x04 = Gate Threshold
   0x05 = Gate Release
-  0x06 = Amp Bypass        (live only; v0 check: 0x40=active, 0x3F=bypassed)
+  0x01 = Block Bypass      (EVERY non-amp chain block, on its own handle;
+                            v0: 0x40=active, 0x3F=bypassed. Confirmed 7/18.)
+  0x06 = Amp Bypass        (v0: 0x40=active, 0x3F=bypassed)
   0x0E = Bright toggle     (live: v0=127=ON, v0=0=OFF)
   0x0F = Amp Select        (raw v0 — NOT run through the (v+64)%128 formula)
   0x14 = Cab Bypass        (v0: 0x40=active, 0x3F=bypassed)
@@ -225,7 +254,25 @@ IMPLEMENTATION:
   load. Sends using a stale handle hit whatever block now sits at that
   position — confirmed to corrupt gate parameters when the amp was moved.
   All CMD 0x11 sends assume the DEFAULT chain order. Amp/Cab bypass toggle
-  is disabled for exactly this reason (see Section 20 / C5).
+  is disabled for exactly this reason (see Section 20 / C5). NOTE: as of the
+  7/18 chain map work below, the handle problem is solved — a block's handle
+  is arithmetic from its chain position. Only the bypass COMMAND is still
+  unknown.
+
+*** STEREO/MONO ALSO REASSIGNS HANDLES *** (confirmed 7/18)
+  Every accepted CMD 0x0D rebuilds the post-amp half of the chain and fires
+  a fresh CMD 0x21 with NEW handles for those blocks. The amp handle and all
+  pre-amp handles are unaffected.
+
+    Same patch, consecutive toggles:
+      Stereo: amp 0x30, post-amp blocks 0x31–0x36
+      Mono:   amp 0x30, post-amp blocks 0x3A–0x3F
+      Stereo: amp 0x30, post-amp blocks 0x43–0x48
+
+  No consequence today — every wired control (amp, tone, gate, cab, mic) sits
+  at or before the amp. But any future post-amp block control MUST re-read the
+  chain map after a 0x0D send. The Avid editor does exactly this: after each
+  toggle it re-queries every parameter it displays.
 
   FUTURE FIX (prerequisite for bypass toggle and chain reorder):
   The CMD 0x21 chain map contains a triplet for EVERY block, not just the
@@ -234,6 +281,218 @@ IMPLEMENTATION:
   then send to any block with its correct handle regardless of position.
   The CMD 0x21 parsing infrastructure already exists.
 
+  *** FX LOOP PLACEMENT RULE (confirmed 7/18 by Charlie, definitive) ***
+  The FX Loop block has only FOUR legal chain positions:
+    1. First in chain
+    2. Immediately left of AMP-CAB
+    3. Immediately right of AMP-CAB
+    4. Last in chain
+  No other placement is possible. Every other block may go anywhere.
+  NOTE: both sample patches captured 7/18 have LOOP immediately RIGHT of
+  AMP-CAB — the same case twice. The other three positions are unsampled,
+  so reorder captures must exercise all four deliberately.
+
+  THE FOUR POSITIONS BEHAVE AS AN ORDERED LIST (observed 7/18, both UIs):
+      START  <->  left-of-AMP  <->  right-of-AMP  <->  END
+  On the hardware front panel, highlighting the loop and scrolling moves it
+  one step along this list, skipping every illegal position in between. In
+  the Avid editor, dragging the loop and releasing snaps it to the nearest
+  legal position rather than refusing the drop. Neither UI ever presents an
+  illegal placement to the protocol.
+  IMPLICATIONS:
+   - The rule is almost certainly enforced in firmware, not just in the
+     editor. Mirror it; do not invent our own policy.
+   - We cannot learn the hardware's tolerance for an illegal placement
+     through either UI, and deliberately sending one to a working unit is
+     not worth the risk. Assume it is rejected.
+   - Our chain row must treat the loop differently from other blocks:
+     four discrete stops, not free placement. Design this in from the start.
+   - AVID DRAGS THE LOOP ALONG WITH THE AMP when the two are adjacent, which
+     is why the amp cannot be pushed past position 9 in the Avid editor while
+     the loop sits to its right — you must park the loop elsewhere first.
+     OUR APP DELIBERATELY DOES NOT DO THIS (agreed 7/19): dragging the amp
+     leaves the loop where it is and, if that strands it, snaps the loop to
+     its nearest legal position. Charlie prefers the freer behaviour. This is
+     an intentional divergence from the Avid editor, not a defect.
+   - Because both UIs resolve legality before sending, the reorder command
+     most likely carries a resolved destination rather than a raw drop
+     position. Expect a clean capture.
+
+  CHAIN MAP STRUCTURE — SOLVED 7/18 (8 patches + TFX cross-check)
+
+  MESSAGE:  F0 13 0B 0F [dir] 21 [11 triplets] [trailing] F7   (41 bytes)
+  Triplet = [backLink][mid][handle]
+
+  IT IS A LINKED LIST. [backLink] is the SLOT ID OF THE PREVIOUS BLOCK, not
+  a type and not an allocation index. The trailing byte is the LAST block's
+  own slot ID. Triplet 1 (the input block) back-links to itself as the head
+  marker. Read it as:
+
+    slotID(triplet N) = backLink(triplet N+1)     for N = 1..10
+    slotID(triplet 11) = trailing byte
+
+  *** SLOT IDs ARE FIXED PER BLOCK TYPE, IN EVERY PATCH *** (8/8, and
+  independently confirmed against TFX Wst keys — see below)
+
+    0x00  AMP-CAB        0x05  REVERB
+    0x01  FX LOOP        0x06  DELAY
+    0x02  VOLUME         0x07  DIST
+    0x03  WAH            0x08  FX 1
+    0x04  MOD            0x09  FX 2
+                         0x0B  INPUT  (triplet 1; 0x0A unused)
+
+  This is the correct and only reliable way to identify a block. Do NOT
+  identify blocks by mid ranges — mid is the effect MODEL (Sec 23), and the
+  generic FX slots host models from other categories, so ranges overlap.
+  Slot ID says WHICH BLOCK; mid says WHICH MODEL is loaded in it.
+  In particular FX 1 and FX 2 are distinguishable ONLY by slot ID: they can
+  hold the same model (B2 has Parametric EQ 0x12 in both) and their chain
+  order is not fixed (A3 has FX1 first, A4 has FX2 first).
+
+  MAP ORDER = CHAIN ORDER (left to right as shown in the Avid editor).
+  Triplet 1 is the INPUT block (mid 0x37 "Guitar In"; other input models
+  0x38-0x40). Skip it — that leaves 10 triplets for the 10 chain blocks.
+
+  AMP-CAB IS ONE BLOCK in the protocol, with two independent bypass flags.
+
+  *** HANDLES ARE SEQUENTIAL IN CHAIN ORDER *** (8/8 patches)
+    handle(position N) = handle(position 1) + N - 1        [N = 1..10]
+    input block handle = handle(position 1) + 10
+  Examples: A1 blocks 0x0E-0x17, input 0x18.  B1 blocks 0x46-0x4F, input 0x50.
+  The base shifts on every reload and after every stereo/mono toggle, so the
+  map must still be re-read — but triplets need no individual parsing.
+
+  TFX CROSS-CHECK (this is what settled the field-1 question):
+    Keys WorB..WorL / WstB..WstL, 11 slots, 8 bytes each from offset 208.
+    Wst[letter] = SLOT ID — matches the chain map exactly.
+    Letters run B..L in CHAIN ORDER: B = input, C..L = the 10 blocks.
+    Per-block parameters follow the bypa[letter] keys later in the body;
+    the amp block uses sld* keys instead of a bypa* key.
+
+  BYPASS IS NOT IN THE CHAIN MAP. Patches B2/B3/B4 (same rig, same order,
+  different on/off states) produce byte-identical maps apart from handles.
+  Bypass is CMD 0x11 on the block's handle — see Section 3.
+
+  *** CHAIN REORDER — SOLVED 7/19 ***
+  THERE IS NO SEPARATE REORDER COMMAND. To reorder, send a COMPLETE CHAIN MAP
+  back with dir=0x00, in the same 41-byte format the hardware broadcasts:
+
+      F0 13 0B 0F 00 21 [11 triplets] [trailing] F7
+
+  Build it by taking the current map and re-linking it into the desired order:
+  keep each block's existing [mid] and [handle], and rewrite the back-links so
+  they describe the new sequence (backLink of triplet N+1 = slotID of triplet
+  N; trailing byte = last block's slotID). Triplet 1 remains the input block.
+  Confirmed over four consecutive moves in one capture, every one decoding to
+  exactly the move performed.
+
+  HARDWARE RESPONSE: a dir=0x02 broadcast of the resulting map, then a
+  CMD 0x03 dirty flag (F0 13 0B 0F 02 03 [slot] 01 F7).
+  *** THE BROADCAST IS AUTHORITATIVE — ADOPT IT, DO NOT ASSUME OUR SEND STUCK.
+  The hardware may return different [mid] and [handle] values than we sent.
+
+  *** FX LOOP MODE IS GLOBAL, NOT PER-PATCH *** (confirmed 7/19)
+  CMD 0x3C (Sec 6) selects Mono (L) / Mono-Stereo / Stereo. It lives in the
+  editor's USER OPTIONS panel, alongside other global settings.
+   - The mode is NOT stored in the TFX. Saving the same rig under all three
+     modes changes only the checksum and three model ids (the loop and the two
+     blocks after it) — there is no mode field anywhere in the file.
+   - THE GLOBAL SETTING OVERRIDES THE PATCH. Uploading a TFX that was saved
+     under Mono (L) while the unit is set to Stereo yields a Stereo loop. All
+     three uploads in the test produced the same loop model.
+   - The loop's model id is therefore a CONSEQUENCE of the mode, not a store
+     of it. Observed: Mono(L) -> 0x2D (key LMMM), Mono-Stereo -> 0x30 (LYMS),
+     Stereo -> 0x32 (LSMS). The first key character tracks the mode (M/Y/S).
+     Three of the seven loop variants sampled; the rest are unexplained.
+   - PRACTICAL: our app can infer the current mode from the loop block's mid
+     in any chain map. No REQU for CMD 0x3C was observed — the editor never
+     queries it — so whether one exists is untested.
+
+  *** CHANNEL CONFIGURATION — WHAT THE MODEL VARIANTS MEAN *** (7/19)
+  The variant index within a model family selects a CHANNEL CONFIGURATION —
+  but the set of configurations a model supports is PER MODEL and CANNOT be
+  inferred from how many variants it has.
+
+  THE RULE (7/19, holds across all 30 direct observations, no exceptions):
+      the LOWEST variant in a model family outputs MONO;
+      every other variant in that family outputs STEREO.
+  It follows directly from there being no stereo-in/mono-out variant anywhere:
+  once a block must produce mono it must also accept mono, so only the bottom
+  variant of a family can be mono-out.
+
+  *** RETRACTED — a "correction" recorded earlier the same day *** An earlier
+  revision of this section claimed C1 Chorus/Vibrato broke the pattern by being
+  stereo-out in BOTH variants, and concluded that capability cannot be inferred
+  from variant position. That conclusion was itself the product of incomplete
+  data: C1 Chorus/Vibrato has THREE variants (mid 0x01/0x02/0x03) and only the
+  upper two had ever been seen. With 0x01 included it is an ordinary
+  three-variant family and the rule above holds. The lesson repeats the one
+  from the chain-map defect — a pattern inferred from a partial family looks
+  exactly like a broken pattern.
+
+  EXCEPTION — FX LOOP. Its send and return are independent, so variant order
+  carries no information about its output (0x31 is mono-out despite not being
+  the lowest). Loop variants must each be observed.
+
+  *** THERE IS NO STEREO-IN / MONO-OUT VARIANT. *** This single fact drives
+  the whole propagation behaviour: the moment a block must produce mono it
+  must also accept mono, which forces the block feeding it to produce mono,
+  and so on BACKWARDS to the stereo source.
+  CONSEQUENCE: placing a mono-only block (wah, distortion, volume...) anywhere
+  in the post-amp section collapses EVERYTHING UPSTREAM of it to mono.
+  Verified: moving WAH to the very end of the chain took LOOP 0x11->0x0F,
+  ParamEQ 0x4F->0x4E, MultiChorus 0x5A->0x58, DynDelay 0x52->0x50 and
+  Eleven SR 0x35->0x33 — the entire post-amp chain, in one move.
+  Downstream is unaffected, because mono-in/stereo-out DOES exist: inserting
+  mono DIST between MOD and DELAY left REVERB stereo (DELAY simply became
+  mono-in/stereo-out 0x22->0x21).
+
+  Pre-amp blocks are always mono because the amp is a mono device; stereo can
+  only originate at or after the amp/cab (or at a stereo FX Loop return).
+
+  UI IMPLICATION: dragging a mono-only block into the post-amp section is an
+  audible change the user did not explicitly request. Warn, or at minimum
+  reflect the resulting mono state in the chain row immediately.
+
+  CHAIN ROW RENDERING SPEC (from Avid editor reference screenshots, 7/19):
+   - Block ORDER comes from the chain map, not a fixed layout. Our current row
+     uses the default order with FX1/FX2 hardcoded, which is wrong for most
+     patches — this is the visible symptom of the old "assume default chain"
+     limitation.
+   - STEREO IS SHOWN PER CONNECTION: Avid draws a DOUBLE connector line
+     between blocks where the signal is stereo and a SINGLE line where it is
+     mono. The connector after block N is stereo exactly when block N's OUTPUT
+     is stereo.
+     Use the OUTPUT CHANNEL TABLE in Section 23 — 30 models resolved. It
+     cannot be derived from variant rank (two models with the same variant
+     count can differ), so anything not in that table gets a single line plus
+     a logged warning naming the mid, rather than a guess.
+   - AMP and CAB render as ONE block with two stacked labels, matching the
+     protocol (one handle, two independent bypass flags at paramLo 0x06/0x14).
+   - Bypassed blocks are drawn dimmed; active blocks lit.
+   - ACCEPTANCE TEST: load a patch with a stereo post-amp section, then drag a
+     mono-only block (e.g. WAH) to the very end. Every connector in the row
+     must collapse to single-line. If it does, the variant decoding is right.
+
+  WHY IT MAY DIFFER — CHANNEL RECONFIGURATION:
+  The firmware recomputes mono/stereo propagation through the chain on every
+  reorder and RE-INSTANTIATES any block whose input/output configuration
+  changed, giving it a different model variant and a new handle. Observed:
+  moving mono-only DIST in between MOD and DELAY changed MOD 0x05->0x04 and
+  DELAY 0x22->0x21, both with new handles. The other three moves in the same
+  capture changed nothing at all.
+  So handles are NOT reassigned wholesale on reorder (unlike a stereo/mono
+  toggle, which reassigns the whole post-amp group) — only affected blocks
+  move. Re-read the broadcast either way.
+
+  LEGALITY IS RESOLVED BEFORE SENDING. The editor never transmits an illegal
+  arrangement: dropping VOL between AMP-CAB and LOOP resulted in a map with
+  VOL placed on the FAR SIDE of LOOP. Our UI must do the same resolution
+  before building the map (see the FX Loop placement rule above).
+
+  CAPTURES NO LONGER NEED MOVE NOTES: consecutive maps fully describe what
+  moved, since slot IDs name the blocks. Verified by reconstructing four
+  documented moves from the data alone.
 
 ===================================================================
 5. CONFIRMED REQU COMMANDS
@@ -244,7 +503,13 @@ IMPLEMENTATION:
   REQU PATCH_NAME:  F0 13 0B 0F 01 05 F7   current patch name
   REQU CURR_RIG:    F0 13 0B 0F 01 02 F7   current slot number
   REQU RIG_VOL:     F0 13 0B 0F 01 07 F7   rig volume
-  REQU PARAM:       F0 13 0B 0F 01 11 07 [paramLo] F7   query one parameter
+  REQU PARAM:       F0 13 0B 0F 01 11 [handle] [paramLo] F7
+  *** [handle] IS THE BLOCK HANDLE FROM THE CHAIN MAP, NOT A LITERAL 0x07. ***
+  Earlier revisions of this doc showed 0x07 hardcoded — a stale artifact from
+  early captures where the amp happened to be allocated handle 0x07. Querying
+  with a fixed 0x07 silently fails on any patch where the amp sits elsewhere.
+  This single wrong byte is what blocked amp/cab bypass from Phase 7 until
+  7/18. Confirmed against Avid traffic: it queries every block this way.   query one parameter
 
 
 ===================================================================
@@ -269,8 +534,19 @@ CMD 0x05 — Patch Name. Broadcast = null-terminated ASCII name; send = set
 CMD 0x07 — Rig Volume knob broadcast. F0 13 0B 0F 02 07 [v0] 00 00 00 00 F7.
   v0 decoded as CMD 0x11. Range val=0 -> -24.0 dB, val=127 -> 0.0 dB.
   REQU form reads current value. [SEND via CC17 / RECV via 0x07]
-CMD 0x0D — Stereo/Mono broadcast. F0 13 0B 0F 02 0D 06 [val] F7,
-  val 0x01=Stereo, 0x00=Mono. HW front panel only, no MIDI send path. [DEAD-send]
+CMD 0x3C — FX Loop mode. GLOBAL setting, not per-patch.
+  Send:      F0 13 0B 0F 00 3C [mode] F7
+  Broadcast: F0 13 0B 0F 02 3C [mode] F7   (echo carries the real value,
+             unlike CMD 0x0D — decode it normally)
+  mode: 0x01 = Mono-Stereo, 0x02 = Stereo, 0x00 = Mono (L) (INFERRED — the
+        capture only ever moved up from Mono, so 0x00 was never observed).
+        The editor's label "Mono (L)" implies a "Mono (R)" exists; not seen.
+  See Section 4 for what it does to the chain. [SEND/RECV]
+
+CMD 0x0D — Stereo/Mono. Send: F0 13 0B 0F 00 0D [val] F7. Broadcast:
+  F0 13 0B 0F 02 0D [val] F7. val 0x01=Mono, 0x00=Stereo (both directions).
+  Echo after our own send is always 0x01 — acknowledgement only, do not
+  decode. Global, not per-patch. See Section 10. [SEND/RECV]
 CMD 0x11 — Live parameter read/write. See Section 3. [SEND/RECV]
 CMD 0x20 — Effect Description (per-effect query). Effect string ID at byte 7,
   name at byte 25. [SEND/RECV]
@@ -402,11 +678,46 @@ high-nibble=octave; tune 0=in tune.)
 10. STEREO / MONO
 ===================================================================
 
-TFX key: RMno (global section). 0=Stereo, 1=Mono.
-Live broadcast: CMD 0x0D — F0 13 0B 0F 02 0D 06 [val] F7,
-  val 0x01=Stereo, 0x00=Mono  (NOTE: inverted from the RMno TFX value).
-HW front-panel toggle only — no MIDI send path. Receive-only display.
-UI: indicator badge on the chain row; dim when Stereo, lit amber when Mono.
+Global setting, not per-patch. FULLY BIDIRECTIONAL (confirmed 7/18/2026).
+Earlier docs called this receive-only; that was wrong — the send path exists,
+it is just not exposed on the Eleven Rack front panel in an obvious way. The
+Avid editor drives it from a small button on its chain graphic.
+
+SOFTWARE SEND (confirmed 7/18 from Avid USB capture + working build):
+  F0 13 0B 0F 00 0D [val] F7
+  val: 0x01 = Mono,  0x00 = Stereo
+  8 bytes. No query-first, no preamble, no length byte.
+
+  *** Do NOT insert a 0x06 (or 0x04, or 0x07) before [val]. *** Those bytes
+  appear in USB captures as CIN framing and are stripped by our bridge. A
+  literal 0x06 in the payload is read by the hardware AS the value, so every
+  send resolves to the same state (Mono) and Stereo becomes unreachable.
+  See the USB-MIDI FRAMING block in Section 2.
+
+HARDWARE BROADCAST (front-panel or Avid-editor change):
+  F0 13 0B 0F 02 0D [val] F7
+  val: 0x01 = Mono,  0x00 = Stereo   (same sense as send; message is the
+  same shape as the send with only the direction byte differing)
+
+ECHO AFTER OUR OWN SEND — UNRELIABLE, DO NOT DECODE:
+  The hardware answers our send with F0 13 0B 0F 02 0D 01 F7 regardless of
+  the value sent or the resulting state. It is an acknowledgement, not a
+  state report. Decoding it drives the UI to the wrong state.
+  Handling: transport.js sets suppressMonoEcho before each send;
+  sysex-handler.js drops exactly one incoming CMD 0x0D and clears the flag.
+  Unsolicited broadcasts (front panel) are never suppressed and decode
+  normally. Our own display is set optimistically at click time.
+
+TFX: key RMno (global section), body byte 124. 0=Stereo, 1=Mono.
+  Matches the wire value sense. Read on patch load.
+
+CHAIN-MAP SIDE EFFECT: every accepted 0x0D reassigns the runtime handles of
+  all post-amp chain blocks and fires a fresh CMD 0x21. See Section 4.
+
+UI: clickable badge on the chain row; dim when Stereo, lit amber when Mono.
+  300 ms click lockout to prevent accidental double-fires (the hardware
+  itself has no minimum interval — it accepted machine-gun toggling from the
+  Avid editor without complaint).
 
 
 ===================================================================
@@ -870,7 +1181,9 @@ ENCODING:
 
 TUNER / BYPASS:
   Looking for a CC 69 echo for tuner state — hardware uses CMD 0x40 SysEx.
-  Querying amp/cab bypass via REQU 0x06/0x14 — hardware does not respond.
+  [WITHDRAWN 7/18] "Querying amp/cab bypass via REQU 0x06/0x14 — hardware
+    does not respond." FALSE. The hardware responds correctly; our REQU had
+    the handle hardcoded to 0x07. Use the real handle from the chain map.
   Searching for 'bypa' before sld6 to find amp bypass — finds other effects.
 
 CHAIN / DANGER:
@@ -950,6 +1263,14 @@ C8 — SLOT/BANK ARITHMETIC. Most docs: bank=floor(slot/4), num=slot%4 (4 slots
   The /4 grouping matches the A1–Z4 labeling used everywhere else and the save
   protocol; treat /4 as authoritative unless a specific feature proves otherwise.
 
+C10 — STEREO/MONO SEND PATH (RESOLVED 7/18). Every doc prior to this one
+  said CMD 0x0D was receive-only / front-panel-only / [DEAD-send]. Wrong. A
+  send path exists and is now working in the build. The claim survived
+  because the Avid editor's control for it is an easily-missed button on its
+  chain graphic, so no capture of a software-initiated change existed until
+  7/18. Section 10 is authoritative. Related: the 0x06 seen in old captures
+  was USB CIN framing, not a payload byte — see Section 2.
+
 C9 — TRUE Z "AUTO" VALUE. Live CMD 0x34 broadcast uses 0x00 (older) / 0x7E
   (raw-USB capture) for Auto; the TFX PIGI field uses 125. These are different
   representations on different paths, not a single value. True Z is receive-
@@ -957,8 +1278,376 @@ C9 — TRUE Z "AUTO" VALUE. Live CMD 0x34 broadcast uses 0x00 (older) / 0x7E
 
 
 ===================================================================
-23. CHANGE / CONSOLIDATION LOG
+23. EFFECT MODEL TABLE (CMD 0x20) — COMPLETE
 ===================================================================
+
+Captured 7/18 from Avid editor startup enumeration. The editor queries
+CMD 0x20 for every model index at launch; CMD 0x22 returns the count.
+
+  MODEL COUNT:  F0 13 0B 0F 01 22 F7  ->  ... 12 22 41 F7   (0x41 = 65)
+  MODEL INFO:   F0 13 0B 0F 01 20 [idx] F7
+    Response:   12 20 [idx] "Digi" [4-char type][3-char variant]
+                [3 bytes] [category?] [display name, NUL-terminated]
+
+These indices ARE the chain map "mid" field. NOTE: mid identifies the MODEL
+loaded in a block, NOT which block it is. To identify the block itself use
+the slot ID (Section 4). Use this table for display names only.
+
+RECORD LAYOUT (after "Digi" + 4-char type + 4-char variant):
+  6 bytes, two little-endian 3-byte fields, then NUL-terminated display name.
+    field 1 = category  (0x010000 = input source, 0x020000 = internal)
+    field 2 = SLOT LEGALITY BITMASK — which chain slots may host this model
+
+  BITMASK -> SLOT.  bit = (slotID - 4) mod 12, i.e.
+    bit0  MOD      bit3  DIST     bit8   AMP      bit10  VOL
+    bit1  REVERB   bit4  FX 1     bit9   LOOP     bit11  WAH
+    bit2  DELAY    bit5  FX 2
+  Common values: 0x031 = MOD+FX1+FX2   0x030 = FX1+FX2 only
+                 0x008 = DIST   0x004 = DELAY   0x002 = REVERB
+                 0x800 = WAH    0x400 = VOL     0x200 = LOOP   0x100 = AMP
+  This is the authoritative source for populating a model dropdown per slot.
+  Confirmed against the editor's own dropdown contents.
+
+  idx    mask   name
+  0x00   0x100  Eleven                (AMP — mid is 0x00 for every amp model;
+                                       amp selection is separate, see Sec 8)
+  0x01-03 0x031 C1 Chorus/Vibrato
+  0x04-06 0x031 MultiChorus / Multi Chorus
+  0x07-08 0x031 Flanger
+  0x09-0A 0x031 Vibe Phaser
+  0x0B-0C 0x031 Orange Phaser
+  0x0D-0F 0x031 Roto Speaker
+  0x10-11 0x030 Graphic EQ
+  0x12-13 0x030 Parametric EQ
+  0x14    0x030 Gray Compressor
+  0x15-16 0x030 Dyn3 Compressor
+  0x17    0x008 Tri-Knob Fuzz
+  0x18    0x008 Black Op Distortion
+  0x19    0x008 Green JRC Overdrive
+  0x1A    0x008 White Boost
+  0x1B    0x008 DC Distortion
+  0x1C-1D 0x004 EP Tape Echo
+  0x1E-1F 0x004 BBD Delay
+  0x20-22 0x004 Dyn Delay
+  0x23    0x800 Shine Wah
+  0x24    0x800 Black Wah
+  0x25    0x100 Tuner
+  0x26-27 0x002 Blackpanel Spring Reverb
+  0x28-2A 0x002 Eleven SR
+  0x2B-2C 0x400 Volume Pedal
+  0x2D-33 0x200 FX Loop       (7 routing variants — internal keys LMMM LMSS
+                               LYMM LYMS LSMM LSMS LSSS = mono/stereo
+                               send+return combinations)
+  0x34    ---   DSP2 Copier   (internal, category 0x020000)
+  0x35    0x000 Dummy         (internal)
+  0x36    0x93F Mute          (internal; legal almost everywhere)
+  0x37    ---   Guitar In     <- chain map triplet 1
+  0x38    ---   Mic In
+  0x39    ---   FakeStereo In
+  0x3A    ---   PtLeGuitar In
+  0x3B-3D ---   LineL / LineR / LineS In
+  0x3E-40 ---   DigitalL / DigitalR / DigitalS In
+  (0x37-0x40 all category 0x010000 = input sources)
+
+NOTE: multiple indices share a display name (e.g. three "Roto Speaker").
+The 3-char variant key distinguishes them; the difference is believed to be
+mono/stereo instantiation, matching the FX Loop pattern. Not yet confirmed.
+All 65 indices return a valid record — an earlier revision of this section
+listed 0x18/0x19/0x26/0x27 as "no response", which was a parser fault on our
+side, not hardware behaviour.
+
+ALSO CAPTURED (not yet used): CMD 0x04 enumerates every patch name.
+  F0 13 0B 0F 01 04 [bank] [slot] F7 -> 12 04 [bank] [slot] [name] 00 F7
+  Bank 0x00 and 0x01, slots 0x00-0x67. Would give a full patch browser
+  without loading each rig.
+
+
+-------------------------------------------------------------------
+TFX BLOCK PARAMETER SETS  (from 9 patch files, 7/18)
+-------------------------------------------------------------------
+A TFX carries all 10 blocks, so each saved patch yields up to 10 model
+parameter sets for free. No capture needed.
+
+TFX LAYOUT: 4-byte key stored REVERSED, followed by its 4-byte value.
+  Slot table at offset 208: 11 x 16 bytes = Wor[letter]+value, Wst[letter]+value.
+    Wst value = SLOT ID (see Sec 4).   Wor value = MODEL ID (TFX numbering).
+  Block parameters follow the bypa[letter] marker for that slot. The bypa key
+  is 5 chars, which breaks the 8-byte stride — re-anchor after it.
+  The AMP block has NO bypa marker; it uses sld* keys and sits in chain order.
+
+*** TFX MODEL ID IS A DIFFERENT NUMBERING FROM THE CMD 0x20 MODEL INDEX. ***
+  They are not offset by a constant. Do not convert between them by arithmetic;
+  correlate by parameter set / block type. (MultiChorus: CMD 0x20 0x04-0x06,
+  TFX 0x58-0x5A. Parametric EQ: CMD 0x20 0x12-0x13, TFX 0x4E-0x4F.)
+
+*** MODEL ID ENCODES MONO vs STEREO INSTANTIATION *** (confirmed 7/18)
+  The same patch saved in mono and again in stereo keeps identical model IDs
+  for every PRE-amp block and changes the ID of every POST-amp block:
+    800 EchoScream  post-amp  0F 26 4E 50 33  ->  11 48 4F 52 35
+    Big Blue        post-amp  0F 58 1B 55 4E 33 -> 11 5A 30 56 4F 35
+  Pre-amp blocks unchanged in both. Confirmed on two independent file pairs.
+  Known mono/stereo pairs: 0F/11 (FX Loop), 26/48 (Volume), 4E/4F (Param EQ),
+  50/52 (Dyn Delay), 33/35 (Eleven SR), 58/5A (MultiChorus), 1B/30 (BBD Delay).
+  THIS EXPLAINS two earlier observations: the duplicate display names in the
+  CMD 0x20 table (Sec 23) are mono/stereo variants, and a stereo/mono toggle
+  reassigns exactly the post-amp handles (Sec 4) because those blocks are
+  genuinely re-instantiated as different models.
+
+CONSOLIDATED MODEL TABLE — COMPLETE (7/19)
+TFX id, CMD 0x20 mid, name, parameters. Every effect model in the unit.
+
+HOW THE NAMES WERE OBTAINED (repeat this for any future gap):
+  A patch's CHAIN MAP gives [slotID, mid] per block; the same patch's TFX
+  gives [slotID, TFX model id]. Join on slotID -> mid <-> TFX id. CMD 0x20
+  then supplies the name for that mid (Sec 23 table above).
+  So: one session log + the matching TFX files names every block
+  automatically. Patch filenames are NOT needed.
+  src column: bridge = derived this way; filename = confirmed by patch name;
+  param-match = same parameter set as a confirmed sibling, so a variant of it.
+
+  TFX       mid       model                     src          parameters
+  --------------------------------------------------------------------------------------------------
+  0C        00        Eleven (AMP)              bridge       (amp block, sld* keys — see Sec 8)
+  27/28     02/03     C1 Chorus/Vibrato         bridge       ChIn, VbDp, VbRt, Mode, Sync
+  58/59/5A  04/05/06  MultiChorus               bridge       Rate, Sync, Dpth, Mix, PDly, Voic, LoCt, Wdth, Wave
+  45        07        Flanger                   bridge       Sped, Dpth, Fdbk, PDly, Sync
+  2E        0A        Vibe Phaser               bridge       Sped, Intn, Levl, Chor, Sync
+  23        09?       Vibe Phaser (variant)     param-match  Sped, Intn, Levl, Chor, Sync
+  22        0B        Orange Phaser             bridge       Sped, Sync
+  4B        0D        Roto Speaker              bridge       Sped, Type, Blnc
+  4D        0E/0F?    Roto Speaker (variant)    param-match  Sped, Type, Blnc
+  21/32     10/11     Graphic EQ                bridge       LwSh, LMGn, MGn, HMGn, HiSh, Out
+  4E/4F     12/13     Parametric EQ             bridge       B1-B4 Gn/Fr/Q + B1Ty B4Ty, Out  (15)
+  20        14        Gray Compressor           bridge       Sust, Levl
+  55/56     16        Dyn3 Compressor           bridge       sldC, sld1, sld3, sld2, sldG, sldD
+  1D        17        Tri-Knob Fuzz             filename     Driv, Tone, Levl
+  1E        18        Black Op Distortion       filename     Driv, Tone, Levl
+  1F        19        Green JRC Overdrive       bridge+file  Driv, Tone, Levl
+  57        1A        White Boost               bridge+file  Driv, Treb, Bass, Levl
+  5B        1B        DC Distortion             filename     Driv, Treb, Bass, Levl
+  1C        1C        EP Tape Echo              bridge       Vol, Sust, EDly, Sync, Rec, Wow, Tilt, 4X, Hiss
+  1B/30     1E/1F     BBD Delay                 bridge       Blnd, Fdbk, Dly, Sync, InLv, Dpth, ChVb, 4X, Nois
+  50/51/52  20/21/22  Dyn Delay                 bridge       DMix, Fdbk, Dly, Sync, Mode, Rtio, Wdth, HiCt, LoCt, EnRt, EnFb, EnMx
+  24        23        Shine Wah                 bridge       Filt, VxCr
+  37        24        Black Wah                 bridge       Filt, VxCr
+  2F        26/27     Blackpanel Spring Reverb  bridge       Dcay, Tone, RMix
+  33/34/35  28/29/2A  Eleven SR                 bridge       Dcay, Tone, RMix, Type, PDly
+  26/48     2B/2C     Volume Pedal              bridge       Vol, Min, Tapr
+  0F/11/49  2D-33     FX Loop                   bridge       send, rtrn, wetp
+
+-------------------------------------------------------------------
+OUTPUT CHANNEL TABLE — mid -> mono or stereo out  (7/19)
+-------------------------------------------------------------------
+Needed for the chain row's double-arrow connectors: the connector AFTER a
+block is stereo exactly when that block's OUTPUT is stereo.
+
+*** THIS TABLE CANNOT BE EXTENDED BY INFERENCE. *** Families do not follow a
+common pattern — C1 Chorus/Vibrato has two variants and BOTH are stereo-out,
+while Parametric EQ has two variants and only the higher one is. Same variant
+count, different capability. Every row must be observed.
+
+HOW IT WAS DERIVED (repeat this to fill gaps):
+  Within any chain, out(block N) == in(block N+1). Anchor with: the first
+  block's input is mono (guitar in), the amp's input is mono, and any chain
+  the user has explicitly identified as stereo from a given point on.
+  Solve as a union-find over (modelId,'in') / (modelId,'out') nodes.
+  Do this in TFX-model-id space, then translate to mid via the bridge — the
+  same solve run directly in mid space collapsed, because the "everything
+  pre-amp is mono" anchor is unsafe there (a stereo FX Loop can sit pre-amp).
+  Run over 35 TFX files + 109 logged chain maps: NO CONTRADICTIONS, which is
+  also the evidence that in/out are FIXED per model id rather than contextual.
+
+  mid  tfx  model                     output
+  ---  ---  ------------------------  ------
+  00   0C   Eleven (AMP-CAB)          MONO      <- stereo never originates at
+  02   27   C1 Chorus/Vibrato         STEREO       the cab in any patch on file
+  03   28   C1 Chorus/Vibrato         STEREO
+  04   58   MultiChorus               MONO
+  05   59   MultiChorus               STEREO
+  06   5A   MultiChorus               STEREO
+  07   45   Flanger                   MONO
+  0A   2E   Vibe Phaser               STEREO
+  0B   22   Orange Phaser             MONO
+  0D   4B   Roto Speaker              MONO
+  10   21   Graphic EQ                MONO
+  11   32   Graphic EQ                STEREO
+  12   4E   Parametric EQ             MONO
+  13   4F   Parametric EQ             STEREO
+  16   56   Dyn3 Compressor           STEREO
+  19   1F   Green JRC Overdrive       MONO
+  1A   57   White Boost               MONO
+  1C   1C   EP Tape Echo              MONO
+  1E   1B   BBD Delay                 MONO
+  20   50   Dyn Delay                 MONO
+  22   52   Dyn Delay                 STEREO
+  23   24   Shine Wah                 MONO
+  24   37   Black Wah                 MONO
+  27   2F   Blackpanel Spring Reverb  STEREO
+  29   34   Eleven SR                 STEREO
+  2A   35   Eleven SR                 STEREO
+  2B   26   Volume Pedal              MONO
+  2C   48   Volume Pedal              STEREO
+  31   0F   FX Loop                   MONO
+  32   11   FX Loop                   STEREO
+
+COVERAGE: 49 of 52 usable models. 30 observed directly; the remainder derived
+  from the lowest-variant rule above, which was validated when it independently
+  produced EP Tape Echo 0x1D = STEREO, matching the Avid editor's own rendering
+  in a screenshot taken before the rule was applied.
+  THE ONLY REMAINING UNKNOWNS ARE FX LOOP VARIANTS 0x2E, 0x2F and 0x33 — the
+  one family the rule cannot cover. Observe each by setting the loop to the
+  matching mode and reading the block after it.
+
+UI GUIDANCE: draw a single line for any mid not in this table AND log a
+  warning naming the unresolved mid. Gaps then surface during normal use and
+  each is a one-line addition rather than an investigation. Do NOT guess from
+  variant rank — see the warning at the top of this table.
+
+MONO/STEREO PAIRS: where two or three TFX ids share a row they are the same
+  model instantiated mono vs stereo. The lowest id is mono. Pre-amp blocks
+  always use the mono form. See the mono/stereo note above.
+
+STATUS: every effect model is named and every parameter set is known. The two
+  param-match rows are variants of a confirmed model (same controls), so their
+  exact mid is unconfirmed but their identity is not in doubt. Nothing further
+  is needed here. Amp models are separate — see Section 8.
+
+NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
+  are not in the TFX. Test whether paramLo follows this key order on the first
+  block implemented before assuming it does for the rest.
+
+
+===================================================================
+24. CHANGE / CONSOLIDATION LOG
+===================================================================
+
+2026-07-19 (code, bypass) — Bypass shipped and tested. Amp and cab are now
+  clickable and address the AMP-CAB block by its handle, so they work at any
+  chain position (verified at six different handles, including the amp last in
+  the chain). Per-block bypass is captured as state for all ten blocks but has
+  no UI yet — deliberately, because the chain row is still fixed-order markup
+  and wiring clicks to it would reintroduce the position bug in the UI layer.
+  The hard-coded ampActive=true in decodeCabMicValues is GONE; amp bypass state
+  is now queried from the hardware once the chain map supplies a handle. This
+  was the app's first use of REQU PARAM and it worked first time.
+  DOC CORRECTION: the RESP to a parameter REQU is FORMAT A shaped
+  (data[6] = handle, data[7] = paramLo, data[8] = v0), NOT the data[6]=0x04
+  "FORMAT B" described in older comments. Observed directly:
+    OUT F0 13 0B 0F 01 11 51 06 F7  ->  IN F0 13 0B 0F 12 11 51 06 40 ... F7
+  FORMAT B's provenance is now doubtful and may be another USB-framing misread
+  of the same kind that cost a day on CMD 0x0D. Verify before relying on it.
+
+2026-07-19 (code) — CMD 0x21 handler rewritten and shipped. The app now
+  decodes back-links, stores the full chain (currentChain: position, slotId,
+  name, modelId, handle) and derives the amp handle from the slot-0x00 block.
+  This FIXED A LIVE DEFECT: the old handler searched for a first byte of 0x07
+  and so found "the block after DIST", which matched the amp only when the amp
+  followed the distortion — wrong on 11 of 14 real patches, sending every amp
+  write to the wrong block. It survived because the test patch set all shared
+  that layout. Build test passed 8/8. Other TFX decoders audited for the same
+  fixed-position hazard and found safe, except decodeToAmpVolumes (fixed body
+  offsets 52/60) which could not be fully verified — confirm when To Amp work
+  resumes.
+  LESSON RECORDED: a fact that holds across a self-consistent sample looks
+  exactly like a law. When a fact rests on a pattern, deliberately choose a
+  sample that BREAKS the pattern.
+
+2026-07-19 (loop mode + output table) — FX Loop mode found to be CMD 0x3C and
+  GLOBAL, not per-patch: it is absent from the TFX, and loading a patch saved
+  under a different mode does not change it. Corrected a same-day claim that
+  two-variant models are always mono/mono + stereo/stereo — C1 Chorus/Vibrato
+  is stereo-out in BOTH variants, so capability cannot be inferred from variant
+  count. Section 23 gained an empirically solved OUTPUT CHANNEL TABLE (30
+  models) for the chain row's stereo connectors, derived from 35 TFX files and
+  109 chain maps with no contradictions.
+
+2026-07-19 (later still) — Channel configuration decoded. The variant index
+  within a model family encodes mono/stereo in and out, and there is no
+  stereo-in/mono-out variant — which is why a single mono-only block placed
+  post-amp collapses the entire chain upstream of it to mono. Proven by a
+  purpose-built patch pair (all-mono-left/all-stereo-right, then the same
+  patch with WAH dragged to the end) and independently consistent with the
+  drag-test capture. Section 4.
+
+2026-07-19 (later) — CHAIN REORDER SOLVED, the last unknown in the chain
+  work. There is no reorder command: the editor sends a complete chain map
+  back with dir=0x00 and the hardware broadcasts the resulting arrangement.
+  Also found that the firmware recomputes mono/stereo propagation on reorder
+  and re-instantiates only the blocks whose channel config changed — which
+  corrects a same-week prediction that reorder would reassign handles
+  wholesale as a stereo/mono toggle does. Details in Section 4.
+
+2026-07-19 — Five more patches (log + matching TFX) proved the last four
+  inferred models: Vibe Phaser 0x2E, Roto Speaker 0x4B, Graphic EQ 0x21/0x32,
+  Blackpanel Spring Reverb 0x2F. Three of the four inferences were correct;
+  the exception was Vibe Phaser, which I had pencilled as TFX 0x23 by
+  elimination — 0x23 is a Vibe Phaser VARIANT, not the primary id. Also
+  confirmed C1 Chorus/Vibrato 0x27/0x28 and found the stereo Graphic EQ 0x32.
+  The Section 23 model table is now COMPLETE. The mid<->TFX bridge method has
+  now named 30+ models across 13 patches without a single Wireshark capture.
+
+2026-07-18 (final+) — Eight more TFX files matching the nav-pass session log
+  produced a mid <-> TFX-model-id bridge, which names 26 models automatically
+  from the CMD 0x20 table. Section 23 now carries a consolidated model table
+  covering every effect in the unit; only four rows remain inferred rather
+  than confirmed. Method note recorded: patch filenames are unnecessary — a
+  session log plus matching TFX files is sufficient and self-naming.
+  Corrections from the bridge: TFX 0x22 is Orange Phaser (previously listed as
+  a Roto Speaker candidate); TFX 0x55/0x56 confirmed as Dyn3 Compressor, fully
+  vindicating the earlier retraction of the "parser artifact" flag.
+
+2026-07-18 (final) — Five more TFX files (Fuchs series) completed the
+  distortion set: 1D Tri-Knob Fuzz, 1E Black Op, 1F Green JRC, 57 White Boost,
+  5B DC Distortion — all confirmed by patch filename. Also added Flanger (45)
+  and two EQ/compressor sets. Corrected an earlier caveat: FX model 55/56 is
+  real, not a parser artifact (verified against raw hex). A MultiChorus was
+  observed in an FX slot, positively confirming the Sec 23 slot-legality mask.
+
+2026-07-18 (last) — Nine TFX files parsed. Section 23 gained a TFX block
+  parameter-set table (~15 models) and the finding that the TFX model ID
+  encodes mono vs stereo instantiation — which explains both the duplicate
+  names in the CMD 0x20 table and the post-amp handle reassignment on a
+  stereo/mono toggle. TFX model numbering is NOT the CMD 0x20 numbering.
+
+2026-07-18 (latest) — Chain map fully decoded after a TFX cross-check.
+  Field 1 of each triplet is a BACK-LINK holding the previous block's SLOT ID,
+  and slot IDs are fixed per block type in every patch (AMP 0x00, LOOP 0x01,
+  VOL 0x02, WAH 0x03, MOD 0x04, REVERB 0x05, DELAY 0x06, DIST 0x07, FX1 0x08,
+  FX2 0x09, INPUT 0x0B). This closes the FX1-vs-FX2 identification gap and
+  replaces mid-range guessing as the way to identify blocks. It also REVERSES
+  the same-day instruction "field 1 is a meaningless allocation index, do not
+  use it" — it is the most useful field in the message.
+  THIRD correction to Section 4 in one day (after the "rig container" and FX
+  Loop position claims). All three had the same cause: inferring structure
+  from too few samples without checking an independent source. The TFX Wst
+  keys were available throughout and settled it immediately. LESSON: when a
+  structure is inferred from one data source, check a second before writing
+  it into this document as fact.
+
+2026-07-18 (earlier) — Bypass solved, and a long-standing blocker found to be
+  our own bug. CMD 0x11 paramLo 0x01 is per-block bypass; 0x06/0x14 remain
+  amp/cab. The reason amp/cab bypass never worked is that our REQU format had
+  the block handle hardcoded as 0x07 (Sec 3) — the DO-NOT-RETRY entry claiming
+  the hardware ignores those queries has been WITHDRAWN as false. New Section
+  23 holds the complete 65-entry effect model table from CMD 0x20, which also
+  corrected two Section 4 claims made earlier the same day: chain map triplet 1
+  is the INPUT block (mid 0x37 = "Guitar In"), not a rig container, and the FX
+  Loop mid values are routing variants, not a pre/post-amp position code.
+
+2026-07-18 — Phase 7a-1 complete. Stereo/Mono is now a working two-way
+  control, not a read-only indicator. Send format confirmed
+  (F0 13 0B 0F 00 0D [val] F7, val 0x01=Mono / 0x00=Stereo); echo confirmed
+  unreliable and suppressed; front-panel broadcast decode confirmed; badge
+  made clickable with a 300 ms lockout. Sections 6 and 10 rewritten, C10
+  added. New USB-MIDI FRAMING block added to Section 2 — the root cause of
+  a full day of failed builds was treating CIN framing bytes as payload, and
+  that trap applies to every future command derived from a USB capture.
+  Section 4 gained the stereo/mono handle-reassignment hazard, the FX Loop
+  four-position placement rule, and — from an 8-patch nav pass with editor
+  chain order recorded for each — the solved chain map structure: handles are
+  sequential in chain order, mid is the effect model ID (AMP always 0x00),
+  LOOP mid encodes side of amp, bypass state is NOT in the map, and the field
+  we called "typeA" is a meaningless allocation index (renamed allocIdx).
 
 2026-07-17 — Phase 8 complete. To Amp 1/2 volume knobs fully working:
   CMD 0x36 format confirmed (HW knob capture + Avid USB capture analysis);

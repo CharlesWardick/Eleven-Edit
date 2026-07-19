@@ -226,21 +226,80 @@ async function parseSysEx(data) {
     return;
   }
 
-  // CMD 0x21 — Chain map — extract currentParamHi for CMD 0x11 sends.
-  // Confirmed 7/14/2026: the THIRD byte (data[i+2]) of the typeA=0x07
-  // triplet is the runtime handle used as instId in all CMD 0x11 messages.
-  // It changes every session (firmware assigns it at load time) so must be
-  // read fresh from each chain map response.
+  // CMD 0x21 — Chain map.
+  //
+  // Message: F0 13 0B 0F [dir] 21 [11 triplets] [trailing] F7   (41 bytes)
+  // Triplet = [backLink][mid][handle], 3 bytes each, starting at data[6].
+  //
+  // The FIRST byte is a BACK-LINK holding the PREVIOUS block's slot ID —
+  // it is not a type tag. Slot IDs are recovered by shifting:
+  //     slotId(triplet N) = backLink(triplet N+1)
+  //     slotId(last)      = trailing byte
+  // Triplet 0 is the input block (slot 0x0B), not a chain block.
+  //
+  // Slot IDs are FIXED per block type in every patch (Tech Ref Sec 4):
+  //   0x00 AMP-CAB  0x03 WAH   0x06 DELAY  0x09 FX2
+  //   0x01 LOOP     0x04 MOD   0x07 DIST   0x0B INPUT
+  //   0x02 VOL      0x05 REVERB 0x08 FX1
+  //
+  // HISTORY — this handler previously searched for a first byte of 0x07 and
+  // treated that triplet as the amp, on the belief that the field was a type
+  // tag and 0x07 meant "amp". Because 0x07 is DIST's slot ID, that actually
+  // found "the block AFTER dist". It agreed with the amp only on patches
+  // where the amp immediately follows the distortion — true of the small set
+  // of test patches, false for 11 of 14 real patches checked on 2026-07-19.
+  // On the rest it addressed FX2, LOOP or REVERB, so every amp write (tone,
+  // gate, amp out, cab, mic, amp select) went to the wrong block and every
+  // incoming amp broadcast was discarded as "not ours".
   if (cmd === 0x21) {
-    let i = 6;
-    while (i + 2 < data.length - 1) {
-      const typeA = data[i];
-      if (typeA === 0x07) {
-        currentParamHi = data[i+2];
-        appLog('CMD 0x21 AMP paramHi: 0x' + currentParamHi.toString(16).padStart(2,'0').toUpperCase());
-        syncAmpSelectDropdown(currentAmpKey);
-      }
-      i += 3;
+    const TRIPLETS = 11;
+    const base = 6;
+    if (data.length < base + TRIPLETS * 3 + 2) {
+      appLog('CMD 0x21: short chain map (' + data.length + 'b), ignored');
+      return;
+    }
+
+    const trip = [];
+    for (let n = 0; n < TRIPLETS; n++) {
+      const i = base + n * 3;
+      trip.push({ backLink: data[i], mid: data[i+1], handle: data[i+2] });
+    }
+    const trailing = data[base + TRIPLETS * 3];
+
+    // Recover each triplet's own slot ID from the following triplet's back-link.
+    const slotIds = [];
+    for (let n = 0; n < TRIPLETS; n++) {
+      slotIds.push(n < TRIPLETS - 1 ? trip[n+1].backLink : trailing);
+    }
+
+    // Chain blocks are triplets 1..10; triplet 0 is the input block.
+    currentChain = [];
+    for (let n = 1; n < TRIPLETS; n++) {
+      currentChain.push({
+        position: n,                       // 1..10, left to right
+        slotId:   slotIds[n],
+        name:     SLOT_ID_TO_NAME[slotIds[n]] || ('slot0x' + slotIds[n].toString(16)),
+        modelId:  trip[n].mid,             // effect model — see Tech Ref Sec 23
+        handle:   trip[n].handle           // instId for CMD 0x11 on this block
+      });
+    }
+    currentChainInput = { slotId: slotIds[0], modelId: trip[0].mid, handle: trip[0].handle };
+
+    // Amp handle = the block whose slot ID is 0x00. Position independent.
+    const ampBlock = currentChain.find(b => b.slotId === SLOT_AMP);
+    if (ampBlock) {
+      currentParamHi = ampBlock.handle;
+      appLog('CMD 0x21 chain: ' + currentChain.map(b => b.name).join(' > '));
+      appLog('CMD 0x21 AMP paramHi: 0x' + currentParamHi.toString(16).padStart(2,'0').toUpperCase()
+             + ' (chain position ' + ampBlock.position + ')');
+      syncAmpSelectDropdown(currentAmpKey);
+      // The TFX carries no amp-bypass key, so ask the hardware directly.
+      // Handles are only valid once the chain map has arrived, which is now.
+      requestAmpCabBypass();
+      renderChainRow();          // reorder slots, hover text, stereo connectors
+    } else {
+      // Should not happen — every rig has an amp block.
+      appLog('CMD 0x21: no AMP block (slot 0x00) found in chain map, paramHi unchanged');
     }
     return;
   }
@@ -267,11 +326,18 @@ async function parseSysEx(data) {
     return;
   }
 
-  // CMD 0x0D — Stereo/Mono broadcast (hardware front panel only, no send path)
-  // Format: F0 13 0B 0F 02 0D 06 [val] F7
-  // val: 0x01=Stereo, 0x00=Mono
-  if (cmd === 0x0D && data.length >= 8) {
-    const isMono = (data[7] === 0x00);
+  // CMD 0x0D — Stereo/Mono echo/broadcast.
+  // Hardware echo after SW send is always 02 0D 01 regardless of direction —
+  // not a reliable state indicator. Suppress it for one cycle after a SW send.
+  // Unsolicited front-panel broadcasts are passed through normally.
+  if (cmd === 0x0D) {
+    if (suppressMonoEcho) {
+      suppressMonoEcho = false;
+      appLog('CMD 0x0D echo suppressed (SW send in progress)');
+      return;
+    }
+    const val = (data.length >= 9) ? data[7] : data[6];
+    const isMono = (val === 0x01);
     updateMonoIndicator(isMono);
     return;
   }
@@ -355,9 +421,46 @@ async function parseSysEx(data) {
   }
 
   // CMD 0x11 — Parameter readback. Two formats on MIDI layer:
-  // FORMAT A — ASYNC broadcasts: data[6]=currentParamHi, data[7]=paramLo, data[8]=v0
-  // FORMAT B — RESP to explicit REQU: data[6]=0x04, data[7]=currentParamHi, data[8]=paramLo, data[9]=v0
+  // FORMAT A — ASYNC broadcasts: data[6]=instId, data[7]=paramLo, data[8]=v0
+  // FORMAT B — RESP to explicit REQU: data[6]=0x04, data[7]=instId, data[8]=paramLo, data[9]=v0
   if (cmd === 0x11 && data.length >= 9) {
+
+    // ── BYPASS ROUTING — handled for EVERY block, not just the amp.
+    // Bypass lives on each block's own handle, so it must be processed before
+    // the amp-only instId guard below (which exists because all the other amp
+    // parameters are meaningless coming from another block).
+    //   paramLo 0x01 = block bypass   0x06 = amp bypass   0x14 = cab bypass
+    //   v0 0x40 = active, 0x3F = bypassed
+    {
+      let bInst, bLo, bV0;
+      if (data[6] === 0x04 && data.length >= 10) {      // FORMAT B
+        bInst = data[7]; bLo = data[8]; bV0 = data[9];
+      } else {                                          // FORMAT A
+        bInst = data[6]; bLo = data[7]; bV0 = data[8];
+      }
+      if (bLo === BYPASS_PARAMLO_BLOCK || bLo === BYPASS_PARAMLO_AMP || bLo === BYPASS_PARAMLO_CAB) {
+        const isActive = (bV0 !== BYPASS_V0_BYPASSED);
+        const blk = currentChain.find(x => x.handle === bInst);
+        const who = blk ? blk.name : ('handle 0x' + bInst.toString(16).padStart(2,'0'));
+
+        if (bLo === BYPASS_PARAMLO_CAB) {
+          cabBypassActive = isActive;
+          updateCabBypassDisplay(isActive);
+          appLog('Bypass: CAB -> ' + (isActive ? 'ACTIVE' : 'BYPASSED'));
+        } else if (bLo === BYPASS_PARAMLO_AMP) {
+          blockBypass[SLOT_AMP] = isActive;
+          updateAmpBypassDisplay(isActive);
+          appLog('Bypass: AMP -> ' + (isActive ? 'ACTIVE' : 'BYPASSED'));
+        } else if (blk) {
+          blockBypass[blk.slotId] = isActive;
+          refreshBlockBypassDisplays();
+          appLog('Bypass: ' + who + ' -> ' + (isActive ? 'ACTIVE' : 'BYPASSED'));
+        } else {
+          appLog('Bypass: unknown ' + who + ' (not in chain map), state not stored');
+        }
+        return;
+      }
+    }
 
     // FORMAT B check
     if (data[6] === 0x04 && currentParamHi >= 0 && data[7] === currentParamHi && data.length >= 10) {
@@ -365,9 +468,8 @@ async function parseSysEx(data) {
       const v0      = data[9];
       const val     = (v0 >= 0x40) ? (v0 - 0x40) : (v0 + 64);
       appLog('CMD 0x11 FORMAT-B paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' v0=0x' + v0.toString(16).padStart(2,'0'));
-      // Amp/cab bypass disabled until chain reorder supported
-      if (paramLo === 0x06) { return; }
-      if (paramLo === 0x14) { return; }
+      // paramLo 0x06 / 0x14 (amp / cab bypass) are handled by the bypass
+      // routing block above, for every handle — they never reach here.
       if (paramLo === 0x15) { const idx = CAB_V0_TO_INDEX[v0]; if (idx !== undefined) updateCabTypeDisplay(idx); return; }
       if (paramLo === 0x16) { const idx = MIC_V0_TO_INDEX[v0]; if (idx !== undefined) updateMicTypeDisplay(idx); return; }
       if (paramLo === 0x17) { updateAxisDisplay(v0 === 0x3F); return; }
@@ -388,9 +490,8 @@ async function parseSysEx(data) {
       return;
     }
 
-    // Amp/cab bypass disabled until chain reorder supported
-    if (paramLo === 0x06) { return; }
-    if (paramLo === 0x14) { return; }
+    // paramLo 0x06 / 0x14 (amp / cab bypass) handled by the bypass routing
+    // block above — they never reach here.
     if (paramLo === 0x15) {
       const idx = CAB_V0_TO_INDEX[v0];
       if (idx !== undefined) updateCabTypeDisplay(idx);
