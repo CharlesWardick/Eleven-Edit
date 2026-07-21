@@ -1065,3 +1065,61 @@ function decodeMonoStereo(body) {
 }
 
 // ── Push decoded Gate Threshold/Release into the knob UI ──
+
+// ════════════════════════════════════════════════════════════════════
+// DIST EFFECT MODELS — paramLo numbers confirmed 7/21/2026 via Wireshark
+// (Distorion_Captures_1.pcapng, Black Op sequential capture + 4 other patches)
+//
+// paramLos: all wire paramLos for this model — used by requestDistParams.
+// rows: 2-D visual layout [ row [ {label, lo} | null ] ]
+//   null = invisible spacer holding column alignment.
+//   Labels match Avid editor names exactly (confirmed 7/21/2026).
+// Encoding: standard (v127+64)%128, same as amp tone knobs.
+// paramLo 0x01 = bypass (all blocks — handled globally, not listed here).
+// ════════════════════════════════════════════════════════════════════
+const DIST_MODELS = [
+  // ── 1 row · 3 knobs
+  { mid: 0x17, name: 'Tri-Knob Fuzz',
+    paramLos: [0x02, 0x03, 0x04],
+    rows: [
+      [ {label:'Volume',  lo:0x02},
+        {label:'Sustain', lo:0x03},
+        {label:'Tone',    lo:0x04} ]
+    ]
+  },
+  // ── 1 row · 3 knobs
+  { mid: 0x18, name: 'Black Op Distortion',
+    paramLos: [0x02, 0x03, 0x04],
+    rows: [
+      [ {label:'Distortion', lo:0x02},
+        {label:'Cut',        lo:0x03},
+        {label:'Volume',     lo:0x04} ]
+    ]
+  },
+  // ── 2 rows · triangle: Overdrive & Level top (cols 0 & 2), Tone centred below (col 1)
+  { mid: 0x19, name: 'Green JRC Overdrive',
+    paramLos: [0x02, 0x03, 0x04],
+    rows: [
+      [ {label:'Overdrive', lo:0x02}, null,                  {label:'Level', lo:0x04} ],
+      [ null,               {label:'Tone', lo:0x03}, null ]
+    ]
+  },
+  // ── 2 rows · 2×2 grid: Gain/Volume top, Bass/Treble bottom
+  { mid: 0x1A, name: 'White Boost',
+    paramLos: [0x02, 0x03, 0x04, 0x05],
+    rows: [
+      [ {label:'Gain',   lo:0x02}, {label:'Volume', lo:0x05} ],
+      [ {label:'Bass',   lo:0x04}, {label:'Treble', lo:0x03} ]
+    ]
+  },
+  // ── 2 rows · Level/Treble/Bass top, Distortion centred below (col 1)
+  { mid: 0x1B, name: 'DC Distortion',
+    paramLos: [0x02, 0x03, 0x04, 0x05],
+    rows: [
+      [ {label:'Level',      lo:0x05}, {label:'Treble',      lo:0x03}, {label:'Bass', lo:0x04} ],
+      [ null,                {label:'Distortion', lo:0x02}, null ]
+    ]
+  },
+];
+const DIST_MODEL_BY_MID = {};
+DIST_MODELS.forEach(function(m) { DIST_MODEL_BY_MID[m.mid] = m; });

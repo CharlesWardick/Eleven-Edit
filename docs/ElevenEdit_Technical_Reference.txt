@@ -1,6 +1,6 @@
 ELEVEN EDIT — TECHNICAL REFERENCE
 ===================================================================
-Consolidated: 2026-07-16   Last swept: 2026-07-20 (late)
+Consolidated: 2026-07-16   Last swept: 2026-07-21   Archive split: 2026-07-21
 Author: Charles Wardick (charles.wardick@gmail.com)
 Foundation: Guillaume Schmid — ElevenHack (2013), Apache License 2.0
 
@@ -97,10 +97,47 @@ FRAMING — IMPORTANT: On this MIDI-layer path the app sees clean SysEx:
 ENVIRONMENT:
   Electron ^25.0.0, build with electron-builder --win --x64.
   No node-midi, no electron-rebuild, no node-usb dependency.
-  Java: bridge source is Java 8 compatible (compile --release 8);
-  JDK 21 (Temurin) used for compile, JRE sufficient at runtime.
-  Windows 10. npm start has never worked in this environment — always
-  build the EXE for testing.
+  npm start has never worked in this environment — always build the EXE.
+  Java: bridge source is Java 8 compatible (compile --release 8).
+  Compiled under JDK 25; JDK 21 was used earlier and the --release 8 target
+  makes the compiler version largely immaterial. Runtimes verified: 21, 25, 26.
+
+PLATFORM MATRIX (consolidated 7/21/2026 — supersedes all earlier scattered
+Windows notes). Avid USB driver v1.1.12 throughout.
+
+  Platform            Eleven Edit   Avid Editor
+  ─────────────────────────────────────────────────────────────────────
+  Windows 10          WORKS         RUNS (VM and physical, several driver
+   (VM + physical)                  versions)
+  Windows 11 22H2     WORKS         INSTALLS BUT MUST NOT BE RUN — BSOD
+   (VM, JDK 25)                     observed
+  Windows 11 26H1     WORKS         UNTESTED — assume same as 22H2, do not
+   (VM, JDK 26)                     run it
+
+  Windows 11 26H1 was stood up 7/21/2026 specifically to check whether the
+  revised Microsoft MIDI stack (MIDI 2.0 era) disturbed the bridge. It did
+  not — javax.sound.midi still enumerates the Vendor Specific port and every
+  feature behaves as on Windows 10.
+
+  CONCURRENT USE (Windows 10, the only platform where both can run):
+  Running both applications SIMULTANEOUSLY caused several BSODs during early
+  development and the standing rule remains: never have both live at once.
+  However, no BSOD has occurred in roughly the last week despite both being
+  open, with use alternating between them rather than overlapping. Two
+  plausible reasons, neither confirmed: the contention that caused the crashes
+  was simultaneous ACCESS rather than mere coexistence, and/or the move to the
+  Java bridge changed which USB interface Eleven Edit rides on compared with
+  the earlier RigRoller variants that used whatever Windows presented.
+  PRACTICE: keep the rule. Alternate between them; never drive both at once.
+
+  GRAPHICS WITHOUT RUNNING THE EDITOR (7/21/2026) — this is what makes the
+  planned graphics enhancement viable on Windows 11:
+    The Avid Editor may be INSTALLED on Windows 11 and its image assets used,
+    provided it is never launched. After installing on Windows 10 or 11,
+    manually delete everything except:
+        C:\Users\<username>\Documents\Eleven Rack Editor\Plug-In Settings
+    That folder holds the graphic images. Nothing else is needed, and removing
+    the rest also removes any temptation (or accident) of launching it.
 
 REQUIRED AVID DRIVER: v1.1.12 (confirmed). Solid, current, fully featured,
   and what the working Java-bridge build runs on. The older v1.0.11 requirement
@@ -1223,9 +1260,13 @@ TRANSPORT / DRIVER:
   node-midi / Web MIDI / MIDI-OX — see only 3 ports; miss the Vendor Specific
     "No details available" port. Use the Java bridge (javax.sound.midi).
   Sending SysEx for patch load via the standard MIDI DIN port — silently ignored.
-  Avid Editor on Win11 — BSOD (driver incompatibility).
-  Avid Editor + Eleven Edit active concurrent write — BSOD risk. Passive
-    coexistence survived one 6-min Win10 test but is NOT proven safe.
+  RUNNING the Avid Editor on Windows 11 — BSOD (observed on 22H2; 26H1
+    untested, assume the same). It may be INSTALLED on Win11 for its image
+    assets, but never launched. See the platform matrix in Section 1.
+  Running the Avid Editor and Eleven Edit SIMULTANEOUSLY on Windows 10 —
+    caused several BSODs in early development. Coexistence with alternating
+    use has been clean for about a week (Sec 1), but the rule stands: never
+    drive both at once.
 
 CMD 0x11 / PARAMS:
   Hardcoding paramHi per amp — wrong; it is a runtime handle.
@@ -1347,6 +1388,18 @@ C10 — STEREO/MONO SEND PATH (RESOLVED 7/18). Every doc prior to this one
   chain graphic, so no capture of a software-initiated change existed until
   7/18. Section 10 is authoritative. Related: the 0x06 seen in old captures
   was USB CIN framing, not a payload byte — see Section 2.
+
+C12 — ENVIRONMENT: WINDOWS 11 AND JDK VERSIONS (RESOLVED 7/21/2026).
+  Both parts were apparent conflicts between statements about DIFFERENT
+  things, not disagreements about the same thing.
+  (a) WINDOWS 11. "Windows 11 confirmed compatible" referred to ELEVEN EDIT;
+      "Avid Editor on Win11 — BSOD" referred to the AVID EDITOR. Both are
+      true. Eleven Edit works on 22H2 and 26H1; the Avid Editor BSODs on
+      22H2 and is assumed to do the same on 26H1. Full matrix in Section 1.
+  (b) JDK. The toolchain moved and the older line was simply not updated.
+      Compiled under JDK 25 (JDK 21 earlier); runtimes verified on 21, 25
+      and 26. The --release 8 target means the compiler version is largely
+      immaterial, which is why nothing broke while the two lines disagreed.
 
 C11 — CMD 0x11 "FORMAT B" PROVENANCE. *** STILL UNRESOLVED, narrowed 7/20 ***
   UPDATE 7/20: a real bug confirmed that data[6]===0x04 cannot by itself mean
@@ -1514,11 +1567,11 @@ HOW THE NAMES WERE OBTAINED (repeat this for any future gap):
   4E/4F     12/13     Parametric EQ             bridge       B1-B4 Gn/Fr/Q + B1Ty B4Ty, Out  (15)
   20        14        Gray Compressor           bridge       Sust, Levl
   55/56     16        Dyn3 Compressor           bridge       sldC, sld1, sld3, sld2, sldG, sldD
-  1D        17        Tri-Knob Fuzz             filename     Driv, Tone, Levl
-  1E        18        Black Op Distortion       filename     Driv, Tone, Levl
-  1F        19        Green JRC Overdrive       bridge+file  Driv, Tone, Levl
-  57        1A        White Boost               bridge+file  Driv, Treb, Bass, Levl
-  5B        1B        DC Distortion             filename     Driv, Treb, Bass, Levl
+  1D        17        Tri-Knob Fuzz             filename     Driv, Tone, Levl        [UI labels + paramLo below]
+  1E        18        Black Op Distortion       filename     Driv, Tone, Levl        [UI labels + paramLo below]
+  1F        19        Green JRC Overdrive       bridge+file  Driv, Tone, Levl        [UI labels + paramLo below]
+  57        1A        White Boost               bridge+file  Driv, Treb, Bass, Levl  [UI labels + paramLo below]
+  5B        1B        DC Distortion             filename     Driv, Treb, Bass, Levl  [UI labels + paramLo below]
   1C        1C        EP Tape Echo              bridge       Vol, Sust, EDly, Sync, Rec, Wow, Tilt, 4X, Hiss
   1B/30     1E/1F     BBD Delay                 bridge       Blnd, Fdbk, Dly, Sync, InLv, Dpth, ChVb, 4X, Nois
   50/51/52  20/21/22  Dyn Delay                 bridge       DMix, Fdbk, Dly, Sync, Mode, Rtio, Wdth, HiCt, LoCt, EnRt, EnFb, EnMx
@@ -1528,6 +1581,75 @@ HOW THE NAMES WERE OBTAINED (repeat this for any future gap):
   33/34/35  28/29/2A  Eleven SR                 bridge       Dcay, Tone, RMix, Type, PDly
   26/48     2B/2C     Volume Pedal              bridge       Vol, Min, Tapr
   0F/11/49  2D-33     FX Loop                   bridge       send, rtrn, wetp
+
+-------------------------------------------------------------------
+DIST SLOT — CMD 0x11 PARAMETER MAP (confirmed 7/21/2026)
+-------------------------------------------------------------------
+Source: Wireshark capture Distorion_Captures_1.pcapng — 722 CMD 0x11 OUT
+writes across 6 patches covering all 5 DIST models. Black Op sequential
+knob drag (paramLo 0x02→0x03→0x04) confirmed the order matches the Avid
+editor layout. Solo test (Avid editor closed) confirmed 7/21/2026.
+
+Encoding: standard (v127+64)%128 for all knobs. paramLo 0x01 = bypass
+(shared across all effect blocks — not listed here).
+
+*** THE TFX KEY NAME IS NOT THE UI LABEL. *** All five DIST models share the
+same TFX parameter keys (Driv/Tone/Levl, plus Treb/Bass on the 4-knob pair),
+but each model DISPLAYS them under different names:
+    TFX key   paramLo   Tri-Knob Fuzz   Black Op      Green JRC
+    Driv      0x02      Volume          Distortion    Overdrive
+    Tone      0x03      Sustain         Cut           Tone
+    Levl      0x04      Tone            Volume        Level
+  Note Tri-Knob Fuzz: the key called "Levl" is displayed as "Tone", and the
+  key called "Tone" is displayed as "Sustain". Reading the label off the key
+  name gives the wrong knob. This is the same trap as C3 (sldX vs paramLo):
+  the TFX key is storage, the label is presentation, and neither derives from
+  the other. Keep both columns for every effect family.
+  The TFX keys are still needed for reading DIST initial values from the TFX
+  body on patch load (the tfxKey-search mechanism used by the amp tone stack,
+  Sec 14) — do not drop them in favour of paramLo.
+
+*** 4-KNOB Treb/Bass ORDERING IS INFERRED, NOT INDEPENDENTLY OBSERVED. ***
+  0x02 (Driv) and 0x05 (Levl) are confirmed by capture. The assignment of
+  Treb=0x03 / Bass=0x04 comes from the sequential pattern of the 3-knob
+  models, not from a sweep that distinguishes the two. High confidence, not
+  proof — and it is exactly the shape of the amp-handle defect (Sec 24, 7/19):
+  a rule that holds across a self-consistent sample looks like a law.
+  TO CONFIRM: on White Boost or DC Distortion, sweep Treble alone and read the
+  paramLo. One capture settles it. Until then, if a user reports the two knobs
+  swapped on 4-knob models, suspect this line before the renderer.
+
+Model change: send CMD 0x21 (dir=0x00) with the full current chain map,
+new model mid in the DIST slot triplet, handle=0x00. Hardware responds
+with CMD 0x21 broadcast assigning a new handle. Same mechanism as chain
+reorder — existing CMD 0x21 handler already processes the response.
+
+  paramLo  3-knob models           4-knob models
+           (0x17 0x18 0x19)        (0x1A 0x1B)
+  ──────────────────────────────────────────────
+  0x02     Tri-Fuzz:  Volume       White Boost:    Gain
+           Black Op:  Distortion   DC Dist:        [Distortion — see note]
+           Green JRC: Overdrive
+  0x03     Tri-Fuzz:  Sustain      White Boost:    Treble
+           Black Op:  Cut          DC Dist:        Treble
+           Green JRC: Tone
+  0x04     Tri-Fuzz:  Tone         White Boost:    Bass
+           Black Op:  Volume       DC Dist:        Bass
+           Green JRC: Level
+  0x05     (not present)           White Boost:    Volume
+                                   DC Dist:        Level
+
+  Note — DC Distortion display layout differs from paramLo order:
+    UI row 1: Level(0x05), Treble(0x03), Bass(0x04)
+    UI row 2: Distortion(0x02) — centred below Treble
+
+  Note — Green JRC display layout: triangle
+    UI row 1: Overdrive(0x02), [gap], Level(0x04)
+    UI row 2: [gap], Tone(0x03), [gap]
+
+  Note — White Boost display layout: 2×2 grid
+    UI row 1: Gain(0x02), Volume(0x05)
+    UI row 2: Bass(0x04), Treble(0x03)
 
 -------------------------------------------------------------------
 OUTPUT CHANNEL TABLE — mid -> mono or stereo out  (7/19)
@@ -1621,6 +1743,35 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-21 (environment) — Windows and JDK matrix consolidated, closing C12.
+  Scattered platform notes accumulated across five weeks were replaced by a
+  single matrix in Section 1: Eleven Edit works on Win10, Win11 22H2 and Win11
+  26H1; the Avid Editor runs only on Win10 and BSODs on Win11. Win11 26H1 was
+  stood up specifically to test the revised Microsoft MIDI stack against the
+  bridge — no effect. NEW AND USEFUL: the Avid Editor can be installed on
+  Windows 11 for its image assets without ever being launched, and everything
+  except the Plug-In Settings folder can be deleted afterwards — which is what
+  makes the planned graphics enhancement viable on Win11.
+  PROCESS NOTE: neither half of C12 was ever a real contradiction. Both were
+  true statements about different subjects that read as a conflict once
+  compressed into short lines in different sections. Worth remembering before
+  "resolving" a conflict by discarding one side: check first whether the two
+  statements are even about the same thing.
+
+2026-07-21 (code + protocol) — Phase 9: DIST effect panel shipped, the first
+  of the nine non-amp blocks, establishing the pattern for the remaining eight.
+  DIST paramLo map confirmed for all five models from a 722-write capture
+  across six patches, verified solo with the Avid editor closed. Model change
+  works by sending CMD 0x21 (dir=0x00) with the chain map and handle=0x00 —
+  the same mechanism as chain reorder, so the existing handler already
+  processed the response. Section 23 gained the DIST parameter map.
+  ALSO RECORDED THIS PASS: the TFX key name is not the UI label (all five
+  models share Driv/Tone/Levl but display them differently, and on Tri-Knob
+  Fuzz the mapping crosses over) — the DIST rows briefly lost their TFX keys
+  when the UI labels were written in, and both columns are now kept.
+  The 4-knob Treb/Bass ordering is flagged as inferred rather than observed.
+  Environment: Windows 11 26H1 and JDK 25/26 reported working — see C12.
 
 2026-07-20 (code, late) — Bypass Format A/B disambiguation bug fixed. A block
   handle can equal 0x04, making a Format A message from that block look like
@@ -1731,85 +1882,11 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   The Section 23 model table is now COMPLETE. The mid<->TFX bridge method has
   now named 30+ models across 13 patches without a single Wireshark capture.
 
-2026-07-18 (final+) — Eight more TFX files matching the nav-pass session log
-  produced a mid <-> TFX-model-id bridge, which names 26 models automatically
-  from the CMD 0x20 table. Section 23 now carries a consolidated model table
-  covering every effect in the unit; only four rows remain inferred rather
-  than confirmed. Method note recorded: patch filenames are unnecessary — a
-  session log plus matching TFX files is sufficient and self-naming.
-  Corrections from the bridge: TFX 0x22 is Orange Phaser (previously listed as
-  a Roto Speaker candidate); TFX 0x55/0x56 confirmed as Dyn3 Compressor, fully
-  vindicating the earlier retraction of the "parser artifact" flag.
-
-2026-07-18 (final) — Five more TFX files (Fuchs series) completed the
-  distortion set: 1D Tri-Knob Fuzz, 1E Black Op, 1F Green JRC, 57 White Boost,
-  5B DC Distortion — all confirmed by patch filename. Also added Flanger (45)
-  and two EQ/compressor sets. Corrected an earlier caveat: FX model 55/56 is
-  real, not a parser artifact (verified against raw hex). A MultiChorus was
-  observed in an FX slot, positively confirming the Sec 23 slot-legality mask.
-
-2026-07-18 (last) — Nine TFX files parsed. Section 23 gained a TFX block
-  parameter-set table (~15 models) and the finding that the TFX model ID
-  encodes mono vs stereo instantiation — which explains both the duplicate
-  names in the CMD 0x20 table and the post-amp handle reassignment on a
-  stereo/mono toggle. TFX model numbering is NOT the CMD 0x20 numbering.
-
-2026-07-18 (latest) — Chain map fully decoded after a TFX cross-check.
-  Field 1 of each triplet is a BACK-LINK holding the previous block's SLOT ID,
-  and slot IDs are fixed per block type in every patch (AMP 0x00, LOOP 0x01,
-  VOL 0x02, WAH 0x03, MOD 0x04, REVERB 0x05, DELAY 0x06, DIST 0x07, FX1 0x08,
-  FX2 0x09, INPUT 0x0B). This closes the FX1-vs-FX2 identification gap and
-  replaces mid-range guessing as the way to identify blocks. It also REVERSES
-  the same-day instruction "field 1 is a meaningless allocation index, do not
-  use it" — it is the most useful field in the message.
-  THIRD correction to Section 4 in one day (after the "rig container" and FX
-  Loop position claims). All three had the same cause: inferring structure
-  from too few samples without checking an independent source. The TFX Wst
-  keys were available throughout and settled it immediately. LESSON: when a
-  structure is inferred from one data source, check a second before writing
-  it into this document as fact.
-
-2026-07-18 (earlier) — Bypass solved, and a long-standing blocker found to be
-  our own bug. CMD 0x11 paramLo 0x01 is per-block bypass; 0x06/0x14 remain
-  amp/cab. The reason amp/cab bypass never worked is that our REQU format had
-  the block handle hardcoded as 0x07 (Sec 3) — the DO-NOT-RETRY entry claiming
-  the hardware ignores those queries has been WITHDRAWN as false. New Section
-  23 holds the complete 65-entry effect model table from CMD 0x20, which also
-  corrected two Section 4 claims made earlier the same day: chain map triplet 1
-  is the INPUT block (mid 0x37 = "Guitar In"), not a rig container, and the FX
-  Loop mid values are routing variants, not a pre/post-amp position code.
-
-2026-07-18 — Phase 7a-1 complete. Stereo/Mono is now a working two-way
-  control, not a read-only indicator. Send format confirmed
-  (F0 13 0B 0F 00 0D [val] F7, val 0x01=Mono / 0x00=Stereo); echo confirmed
-  unreliable and suppressed; front-panel broadcast decode confirmed; badge
-  made clickable with a 300 ms lockout. Sections 6 and 10 rewritten, C10
-  added. New USB-MIDI FRAMING block added to Section 2 — the root cause of
-  a full day of failed builds was treating CIN framing bytes as payload, and
-  that trap applies to every future command derived from a USB capture.
-  Section 4 gained the stereo/mono handle-reassignment hazard, the FX Loop
-  four-position placement rule, and — from an 8-patch nav pass with editor
-  chain order recorded for each — the solved chain map structure: handles are
-  sequential in chain order, mid is the effect model ID (AMP always 0x00),
-  LOOP mid encodes side of amp, bypass state is NOT in the map, and the field
-  we called "typeA" is a meaningless allocation index (renamed allocIdx).
-
-2026-07-17 — Phase 8 complete. To Amp 1/2 volume knobs fully working:
-  CMD 0x36 format confirmed (HW knob capture + Avid USB capture analysis);
-  v0 encoding confirmed as (v127+64)%128; TFX body offsets confirmed (52/60);
-  HW knob -> SW display tracking; SW drag -> HW response; TFX initial readback.
-  CMD 0x37 (To Amp source): format confirmed from Avid capture; CMD 0x3A
-  query-first requirement discovered (assert without it); query+write sequence
-  implemented; no assert with query. SW sends do not move HW source — root
-  cause unknown; dropdowns removed from GUI pending investigation.
-
-2026-07-16 — This consolidation. Merged six source documents into one
-  reference. Adopted Reference 07-14 as the structural backbone; folded in
-  Findings 07-14/15/16 (all 33 amp tone tables, cab/mic/axis/breakup wiring,
-  Bright toggle, stereo/mono, bypass findings, CMD 0x11 Format A/B) and the
-  still-valid low-level facts from the June MIDI-era and July node-usb-era
-  research (patch load/save, 7-bit codec, EHB bank format, rename, CC map).
-  All conflicts recorded in Section 22 rather than silently resolved.
+[ARCHIVED] The detailed 7/16-7/18 entries — the chain-map decode narrative,
+  the TFX cross-check that produced it, the Phase 7a-1 stereo/mono work, the
+  Phase 8 To Amp work, and the original six-document consolidation — are in
+  ElevenEdit_Archive.txt, Part 1. Every FACT from them lives in Sections 1-23;
+  what moved is the account of how it was arrived at. Condensed list follows.
 
 Prior milestones (condensed from source change logs):
   7/16 — Cab/mic/axis/breakup wired; stereo/mono indicator; bypass findings;

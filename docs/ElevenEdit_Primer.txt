@@ -1,8 +1,8 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-20
+Updated: 2026-07-21
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
+Status: Active development — Phase 9 complete (DIST effect panel); Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
 
 SESSION START — DO THIS BEFORE ANY WORK
 --------------------------------------------------
@@ -14,7 +14,7 @@ day of silently reverted work.
      build folder. A new chat reads the project fresh, so it is exactly as
      current as his last end-of-day fold-back, and no more.
 
-  2. RESUMED / OLDER CHAT — always ask him to re-upload the three docs plus
+  2. RESUMED / OLDER CHAT — always ask him to re-upload the live docs plus
      any code files being touched, and treat those uploads as superseding
      ANYTHING earlier in the thread. A chat holds whatever copy it was given
      for its whole life. This is not optional and does not depend on how
@@ -51,6 +51,8 @@ reference doc to hold updates.
   ElevenEdit_Technical_Reference.txt  TRUTH — confirmed protocol/hardware facts
   ElevenEdit_Primer.txt (this file)   TRUTH — orientation & current app state
   ElevenEdit_Session_Log.txt          SCRATCH — provisional/in-progress findings
+  ElevenEdit_Archive.txt              DRAIN — superseded history, never read
+                                      during normal work
 
 A fact is either confirmed (lives in a main doc, EDITED IN PLACE) or
 provisional (lives in the session log). Never both, never a third dated file.
@@ -58,6 +60,16 @@ During a session, put findings in the log. When one is CONFIRMED, edit the
 value directly into the Technical Reference (or this Primer) and mark the log
 entry [FOLDED IN]. The log trends back toward empty; the two main docs are
 always current. This is what prevents the six-overlapping-documents problem.
+
+THE ARCHIVE (added 7/21). Promoted log entries and superseded narrative move
+to ElevenEdit_Archive.txt, one direction only — things go in, nothing comes
+back out. You do not need it to work; the Primer and Technical Reference are
+complete without it. Each block that moved left a one-line pointer behind.
+  DO NOT ARCHIVE anything that stops a future session repeating work, however
+  historical it reads: Section 20's dead ends, the retraction notes in Sec 6
+  and Sec 23, any WITHDRAWN block quoted in place, and unresolved conflicts.
+  Test: does it change what I would DO next? If it only explains WHY, it can
+  be archived. If it would stop someone repeating a mistake, it stays.
 
 
 WHAT THIS PROJECT IS
@@ -110,7 +122,7 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE (Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
 
@@ -151,13 +163,19 @@ WORKING:
   Settings panel — gear ⚙ button opens panel in amp panel slot:
     Captures folder (set + open), Avid Editor folder (set), Open Logs Folder.
     Paths persisted in userData/settings.json.
+  DIST effect panel (Phase 9) — all five models: Tri-Knob Fuzz, Black Op
+    Distortion, Green JRC Overdrive, White Boost, DC Distortion. Model
+    dropdown (pre-loaded from chain map), model switching via CMD 0x21,
+    knobs with Avid-correct labels and per-model 2D layout, SW drag sends
+    CMD 0x11, live HW readback, ✕ close button. Confirmed solo 7/21/2026.
+    Pattern established for remaining eight effect slots.
 
 NOT YET IMPLEMENTED (largest first):
-  Effect panels for the nine non-amp blocks — clicking the chain row's arrow
-    still shows a "coming soon" placeholder. Parameter NAMES are known for ~20
-    models from the TFX work (Tech Ref Sec 23), but the paramLo NUMBERS are
-    not; those need one capture per model family. This is the biggest
-    remaining chunk of work in the app.
+  Effect panels for the eight remaining non-amp, non-DIST blocks — clicking
+    the chain row's arrow still shows a "coming soon" placeholder. The DIST
+    panel (Phase 9) established the full pattern: paramLo capture, rows-based
+    layout in DIST_MODELS, renderDistKnobs, CMD 0x21 model change. Replicate
+    per slot. paramLo numbers still needed for all non-DIST families.
   Sync selector dropdown (paramLo 0x12 known; needs a valid-value capture)
   To Amp source dropdowns — code present, GUI removed. SW sends don't move the
     HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
@@ -194,11 +212,20 @@ CODE FILE MAP
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
                        Settings panel, SAVE ▾ dropdown, name-prompt modal.
-  state.js             Shared mutable state
-  protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders
-  transport.js         Send functions, CAB/MIC v0 lookup tables
-  sysex-handler.js     Incoming message routing
-  ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers
+                       Phase 9: #panel-dist HTML, model dropdown, ✕ close button,
+                       chain-open handler updated for DIST slot.
+  state.js             Shared mutable state.
+                       Phase 9: distPanelOpen flag.
+  protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders.
+                       Phase 9: DIST_MODELS (rows layout, Avid labels) + DIST_MODEL_BY_MID.
+  transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       Phase 9: sendDistModelChange, requestDistParams, sendDistParamWrite.
+  sysex-handler.js     Incoming message routing.
+                       Phase 9: DIST paramLo routing in CMD 0x11 handler;
+                       refreshDistPanelAfterChainMap called from CMD 0x21 handler.
+  ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       Phase 9: openDistPanel, renderDistKnobs, updateDistKnob,
+                       refreshDistPanelAfterChainMap, DIST knob drag handler.
   app-init.js          Startup wiring
   patch-nav.js         Patch navigation logic
   capture-scan.js      TFX capture, bank scan, load/save.
@@ -209,19 +236,30 @@ CODE FILE MAP
   tfx-diff.js          CLI: diff two TFX files
 
 KEY STATE VARIABLES (state.js):
-  currentParamHi          runtime CMD 0x11 handle, -1 if unset
+  currentParamHi          runtime CMD 0x11 handle for AMP block, -1 if unset
   currentAmpKey           e.g. 'tweed_lux', 'dc_mod_od'
   currentSlot             current patch slot 0–103
   brightOn                Bright toggle state (ui.js)
   hasReceivedAmpOutValue  guard against premature Amp Out send
   currentMonoState        null / true / false (Stereo/Mono indicator)
+  distPanelOpen           true when DIST panel is visible; gates CMD 0x11 DIST routing
 
 
 ENVIRONMENT
 -----------
-  Windows 10; two Avid Eleven Rack units; Focusrite Scarlett 18i10.
+  Two Avid Eleven Rack units; Focusrite Scarlett 18i10.
   Electron ^25.0.0; electron-builder --win --x64 (npm start never works).
-  Java: bridge is Java 8 compatible; JDK 21 (Temurin) to compile, JRE at runtime.
+  Java: bridge is Java 8 compatible (--release 8). Compiled under JDK 25;
+  runtimes verified on 21, 25 and 26. JRE sufficient at runtime.
+
+  PLATFORM MATRIX (7/21/2026) — Avid USB driver v1.1.12 throughout.
+    Windows 10 (VM + physical)  Eleven Edit WORKS   Avid Editor RUNS
+    Windows 11 22H2 (VM)        Eleven Edit WORKS   Avid Editor BSODs
+    Windows 11 26H1 (VM)        Eleven Edit WORKS   Avid Editor untested,
+                                                    assume it BSODs
+  26H1 was stood up 7/21 to check the revised Microsoft MIDI stack against
+  the bridge — no effect, everything behaves as on Win10.
+  Full detail and the concurrency history: Tech Ref Section 1.
   Avid driver: v1.1.12 (confirmed working, current, fully featured). The older
   v1.0.11 was only needed by the abandoned node-usb path.
 
@@ -234,8 +272,11 @@ HARDWARE SAFETY
     (all patches lost) on 7/14. With the query first the sequence is safe and
     asserts no longer occur — but the GUI dropdowns stay removed because SW
     sends still do not move the HW source. See Tech Ref Sec 18.
-  Do not run the Avid Editor and Eleven Edit in active concurrent use —
-    BSOD risk.
+  NEVER run the Avid Editor on Windows 11 — BSOD. It may be installed there
+    for its graphics, but never launched (see GRAPHICS below).
+  Never drive the Avid Editor and Eleven Edit at the same time. Several BSODs
+    early in development; roughly the last week has been clean with both open
+    but use ALTERNATING, never overlapping. The rule stands regardless.
   Factory reset (loses all patches): hold FX Loop + Mod + Reverb at power on,
     wait for the logo with no scroll bar, power off, then power on normally.
   After a firmware assert (MAudioFW...): power-cycle the hardware.
@@ -247,6 +288,14 @@ Protocol foundation: Guillaume Schmid — ElevenHack (2013), Apache License 2.0.
 
 GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
 -------------------------------------------------------------------
+  THE EDITOR NEED NOT BE RUNNABLE, ONLY INSTALLED (confirmed 7/21/2026). This
+  is what makes graphics viable on Windows 11, where the editor BSODs. After
+  installing on Win10 or Win11, delete everything except:
+      C:\Users\<username>\Documents\Eleven Rack Editor\Plug-In Settings
+  That folder holds the images. Deleting the rest also removes any chance of
+  launching it by accident. Worth stating plainly in any user instructions:
+  install, harvest, delete, never run.
+
   NEVER BUNDLE AVID'S ARTWORK. The app reads images from the user's existing
   Avid editor installation. The repo contains our mapping table and loader and
   none of Avid's assets — this keeps the project clean to open-source and
@@ -274,21 +323,31 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
   filenames. Bypassed blocks dim via a CSS filter, no second image set.
 
 
-NEXT SESSION — DISTORTION PANEL PROOF OF CONCEPT
+NEXT SESSION — EFFECT PANELS FOR REMAINING EIGHT SLOTS
 -------------------------------------------------------------------
-  Goal: one working effect panel, to establish the pattern for the other 25.
-  DIST is a good choice — only 3 or 4 controls and five models sharing two
-  parameter layouts (Tech Ref Sec 23).
+  The DIST panel (Phase 9, 7/21/2026) established the full pattern. Eight
+  non-amp slots remain: WAH, MOD, FX1, FX2, REVERB, DELAY, LOOP, VOLUME.
 
-  WHAT WE ALREADY HAVE: the block's handle (from the chain map), its model id,
-  its parameter NAMES and their order, and a working bypass on the same block.
+  WHAT IS ALREADY DONE:
+    - DIST_MODELS rows-based layout in protocol.js (label, lo, 2D position)
+    - renderDistKnobs / updateDistKnob / drag handler in ui.js (keyed on
+      data-dist-lo, no index arithmetic)
+    - CMD 0x21 model-change send in transport.js (sendDistModelChange pattern)
+    - Panel open/close, chain-open handler routing, ✕ close button in index.html
 
-  WHAT IS MISSING — the paramLo NUMBERS. Nothing else blocks this.
-  CAPTURE RECIPE: with our app running and Wireshark on, open the DIST panel
-  in the Avid editor and move ONE control at a time, pausing between each, in
-  the order the parameters are listed. Each move sends
-  CMD 0x11 [handle] [paramLo] [v0]; the handle is already known, so the paramLo
-  falls straight out. One capture covers a 3-knob model; repeat once for a
-  4-knob model (White Boost or DC Distortion).
-  Note the model in the slot when capturing — paramLo may or may not be shared
-  across models in a family, and one capture cannot tell us which.
+  WHAT EACH NEW SLOT NEEDS:
+    1. A Wireshark capture: with our app running, open the effect panel in the
+       Avid editor and sweep each knob in order. One capture per model family
+       (3-knob, 4-knob etc.) is sufficient. Supply the .pcapng file.
+    2. A model table entry (like DIST_MODELS) in protocol.js.
+    3. A panel div and chain-open routing in index.html (copy DIST pattern).
+    4. Open/close/refresh functions in ui.js (copy openDistPanel pattern).
+    5. CMD 0x11 routing in sysex-handler.js (copy DIST routing block).
+    6. sendModelChange / requestParams / sendParamWrite in transport.js
+       (copy DIST functions, parameterised for the new slot ID).
+
+  RECOMMENDED ORDER (by capture simplicity):
+    WAH and VOLUME — single model each, simplest captures.
+    MOD / REVERB / DELAY — multi-model families, need one capture per layout.
+    FX1 / FX2 — generic slots; model population varies by patch.
+    LOOP — minimal controls; protocol known from TFX work.

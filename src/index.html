@@ -790,6 +790,29 @@
        the effect panel appears below it — which is what it used to do. -->
   <div id="panel-other" style="display:none;" class="placeholder">Select an effect slot to edit</div>
 
+  <!-- DIST EFFECT PANEL — shown when DIST ▼ is clicked -->
+  <div id="panel-dist" style="display:none;" class="scard">
+    <div class="scard-hdr" style="flex-wrap:wrap;gap:10px;">
+      <span class="scard-title">DIST</span>
+      <div class="ctrl-dd">
+        <label>Model</label>
+        <select id="dist-model-select" style="min-width:200px;">
+          <option value="23">Tri-Knob Fuzz</option>
+          <option value="24">Black Op Distortion</option>
+          <option value="25">Green JRC Overdrive</option>
+          <option value="26">White Boost</option>
+          <option value="27">DC Distortion</option>
+        </select>
+      </div>
+      <button id="btn-dist-close" title="Close"
+        style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 6px;"
+        onmouseover="this.style.color='var(--fg)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+    </div>
+    <div id="dist-knob-row" style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;padding:14px 16px;">
+      <!-- knobs injected dynamically by renderDistKnobs() -->
+    </div>
+  </div>
+
   <!-- SETTINGS PANEL — shares the amp panel slot, toggled by gear button -->
   <div id="panel-settings">
     <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1010,20 +1033,49 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
     if (isOpen) {
       document.getElementById('panel-ampcab').style.display = '';
       document.getElementById('panel-other').style.display = 'none';
+      document.getElementById('panel-dist').style.display = 'none';
+      if (typeof closeDistPanel === 'function') closeDistPanel();
     } else {
       btn.classList.add('panel-open');
       var panel = btn.dataset.panel;
-      // Match the amp panel's rendered height before hiding it, so swapping
-      // the two does not resize the column and shift everything below.
       var ampPanel = document.getElementById('panel-ampcab');
-      var other    = document.getElementById('panel-other');
       var h = ampPanel.offsetHeight;
-      if (h) other.style.minHeight = h + 'px';
       ampPanel.style.display = 'none';
-      other.style.display = '';
-      other.textContent = panel.toUpperCase() + ' — effect controls (coming soon)';
+      // Hide all effect panel slots before showing the right one
+      document.getElementById('panel-other').style.display = 'none';
+      document.getElementById('panel-dist').style.display = 'none';
+      if (typeof closeDistPanel === 'function') closeDistPanel();
+
+      if (panel === 'dist') {
+        var dp = document.getElementById('panel-dist');
+        if (h) dp.style.minHeight = h + 'px';
+        dp.style.display = '';
+        if (typeof openDistPanel === 'function') openDistPanel();
+      } else {
+        var other = document.getElementById('panel-other');
+        if (h) other.style.minHeight = h + 'px';
+        other.style.display = '';
+        other.textContent = panel.toUpperCase() + ' — effect controls (coming soon)';
+      }
     }
   });
+});
+
+// DIST model dropdown — switch model on hardware and re-render knobs
+document.getElementById('dist-model-select').addEventListener('change', function() {
+  var newMid = parseInt(this.value, 10);
+  if (isNaN(newMid)) return;
+  if (typeof renderDistKnobs === 'function') renderDistKnobs(newMid);
+  if (typeof sendDistModelChange === 'function') sendDistModelChange(newMid);
+  // refreshDistPanelAfterChainMap fires from the CMD 0x21 response and re-queries params
+});
+
+// DIST panel close button — same effect as clicking ▼ again
+document.getElementById('btn-dist-close').addEventListener('click', function() {
+  document.querySelectorAll('.chain-open').forEach(function(b) { b.classList.remove('panel-open'); });
+  document.getElementById('panel-dist').style.display = 'none';
+  document.getElementById('panel-ampcab').style.display = '';
+  if (typeof closeDistPanel === 'function') closeDistPanel();
 });
 
 // Patch name box click = open slot matrix
@@ -1276,6 +1328,9 @@ document.getElementById('breakup-slider').addEventListener('change', function() 
     // Close any open effect panel first
     document.querySelectorAll('.chain-open').forEach(function(b) { b.classList.remove('panel-open'); });
     panelOther.style.display = 'none';
+    var panelDist = document.getElementById('panel-dist');
+    if (panelDist) panelDist.style.display = 'none';
+    if (typeof closeDistPanel === 'function') closeDistPanel();
     // Match amp panel height so layout doesn't shift
     var h = panelAmp.offsetHeight;
     if (h) panelSettings.style.minHeight = h + 'px';

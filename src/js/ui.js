@@ -933,3 +933,160 @@ initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valToAmpVol, function(v) { sendToA
 // To Amp source dropdown listeners removed 7/17/2026 — dropdowns removed
 // from GUI pending full CMD 0x37 implementation. Code in transport.js and
 // sysex-handler.js preserved for future use.
+
+// ════════════════════════════════════════════════════════════════════
+// DIST EFFECT PANEL
+// ════════════════════════════════════════════════════════════════════
+
+// Called when ▼ opens the DIST slot — populate dropdown, render knobs,
+// query hardware for current values.
+function openDistPanel() {
+  distPanelOpen = true;
+  const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
+  if (!distBlk) {
+    document.getElementById('dist-knob-row').innerHTML =
+      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
+    appLog('openDistPanel: no DIST block in chain map yet');
+    return;
+  }
+  // Sync dropdown to current model
+  const sel = document.getElementById('dist-model-select');
+  if (sel) sel.value = String(distBlk.modelId);
+  // Render knobs for current model
+  renderDistKnobs(distBlk.modelId);
+  // Query hardware for current values
+  requestDistParams();
+  appLog('openDistPanel: mid=0x' + distBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + distBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+// Called when DIST panel is hidden.
+function closeDistPanel() {
+  distPanelOpen = false;
+}
+
+// Build the knob row DOM for the given model mid.
+// Called on open and when user changes model via dropdown.
+// Build the knob area for a given model mid.
+// Each model defines a rows array: [ row [ {label,lo} | null ] ]
+// null = invisible spacer that holds column alignment (e.g. triangle layout).
+// All rows are wrapped in a single dark framed group matching the gate/amp-out
+// style. Knob IDs are dist-w-{loHex} / dist-v-{loHex} so updateDistKnob can
+// look them up directly by paramLo without tracking array indices.
+function renderDistKnobs(mid) {
+  const container = document.getElementById('dist-knob-row');
+  if (!container) return;
+  const model = DIST_MODEL_BY_MID[mid];
+  if (!model) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
+    return;
+  }
+  container.innerHTML = '';
+
+  // Outer dark group — same background/border treatment as .gate-group
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
+    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+
+  model.rows.forEach(function(rowCells) {
+    const rowDiv = document.createElement('div');
+    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+
+    rowCells.forEach(function(cell) {
+      if (!cell) {
+        // Spacer: invisible, same width as a ctrl-knob so columns align
+        var sp = document.createElement('div');
+        sp.style.cssText = 'width:80px;flex-shrink:0;';
+        rowDiv.appendChild(sp);
+      } else {
+        var loHex = cell.lo.toString(16).padStart(2,'0');
+        var knobDiv = document.createElement('div');
+        knobDiv.className = 'ctrl-knob';
+        knobDiv.innerHTML =
+          '<label>' + cell.label + '</label>'
+          + '<div class="knob-wrap" id="dist-w-' + loHex + '" data-value="64" data-dist-lo="' + loHex + '">'
+          + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
+          + '<span class="knob-val" id="dist-v-' + loHex + '">--</span>';
+        rowDiv.appendChild(knobDiv);
+        drawKnob(knobDiv.querySelector('canvas'), 64);
+      }
+    });
+
+    wrapper.appendChild(rowDiv);
+  });
+
+  container.appendChild(wrapper);
+}
+
+// Update a single DIST knob from a CMD 0x11 broadcast or REQU response.
+// Looks up by paramLo directly — no index arithmetic needed.
+function updateDistKnob(paramLo, val) {
+  const loHex = paramLo.toString(16).padStart(2,'0');
+  const wrap  = document.getElementById('dist-w-' + loHex);
+  const valEl = document.getElementById('dist-v-' + loHex);
+  if (wrap) {
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) valEl.textContent = valDisplay(val);
+}
+
+// Called from sysex-handler CMD 0x21 handler after currentChain is updated.
+// Re-syncs dropdown (model may have changed on patch nav) and re-queries params.
+function refreshDistPanelAfterChainMap() {
+  if (!distPanelOpen) return;
+  const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
+  if (!distBlk) return;
+  const sel = document.getElementById('dist-model-select');
+  if (sel && parseInt(sel.value) !== distBlk.modelId) {
+    sel.value = String(distBlk.modelId);
+    renderDistKnobs(distBlk.modelId);
+  }
+  // Short delay so firmware handle assignment settles before we query
+  setTimeout(requestDistParams, 150);
+  appLog('refreshDistPanelAfterChainMap: mid=0x' + distBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + distBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+// ── DIST knob drag — delegated, keyed on data-dist-lo (hex paramLo string) ──
+(function() {
+  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+
+  document.addEventListener('mousedown', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-dist-lo]');
+    if (!wrap) return;
+    activeParamLo = parseInt(wrap.dataset.distLo, 16);
+    if (isNaN(activeParamLo)) return;
+    activeWrap = wrap;
+    startVal = parseInt(wrap.dataset.value) || 64;
+    startY = e.clientY;
+    dragging = true;
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging || !activeWrap) return;
+    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    activeWrap.dataset.value = val;
+    drawKnob(activeWrap.querySelector('canvas'), val);
+    var loHex = activeParamLo.toString(16).padStart(2,'0');
+    var vEl = document.getElementById('dist-v-' + loHex);
+    if (vEl) vEl.textContent = valDisplay(val);
+    if (bridgeMidiReady) sendDistParamWrite(activeParamLo, val);
+  });
+
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+
+  document.addEventListener('dblclick', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-dist-lo]');
+    if (!wrap) return;
+    var paramLo = parseInt(wrap.dataset.distLo, 16);
+    if (isNaN(paramLo)) return;
+    wrap.dataset.value = 64;
+    drawKnob(wrap.querySelector('canvas'), 64);
+    var loHex = paramLo.toString(16).padStart(2,'0');
+    var vEl = document.getElementById('dist-v-' + loHex);
+    if (vEl) vEl.textContent = valDisplay(64);
+    if (bridgeMidiReady) sendDistParamWrite(paramLo, 64);
+  });
+})();

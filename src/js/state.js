@@ -129,3 +129,7 @@ let pendingManualCapture = false;
 // Stereo/Mono state — null=unknown, true=Mono, false=Stereo
 // Read from TFX on patch load and from CMD 0x0D live broadcast.
 let currentMonoState = null;
+
+// DIST panel open flag — controls whether CMD 0x11 DIST broadcasts update
+// the panel knobs. False when the panel is hidden (no-op updates).
+let distPanelOpen = false;

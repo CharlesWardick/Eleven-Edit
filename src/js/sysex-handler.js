@@ -297,6 +297,8 @@ async function parseSysEx(data) {
       // Handles are only valid once the chain map has arrived, which is now.
       renderChainRow();          // reorder slots, hover text, stereo connectors
       requestAllBypass();        // AFTER the row exists — needs currentChain populated
+      // If DIST panel is open, update its dropdown/knobs with the new handle
+      if (typeof refreshDistPanelAfterChainMap === 'function') refreshDistPanelAfterChainMap();
     } else {
       // Should not happen — every rig has an amp block.
       appLog('CMD 0x21: no AMP block (slot 0x00) found in chain map, paramHi unchanged');
@@ -490,6 +492,20 @@ async function parseSysEx(data) {
     const paramLo = data[7];
     const v0      = data[8];
     const val     = (v0 >= 0x40) ? (v0 - 0x40) : (v0 + 64);
+
+    // ── DIST parameter routing — handled before the amp-only instId guard
+    // so DIST broadcasts (different handle) are not silently discarded.
+    // Only route when the DIST panel is open; no-op otherwise.
+    if (distPanelOpen) {
+      const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
+      if (distBlk && instId === distBlk.handle) {
+        if (paramLo === 0x02 || paramLo === 0x03 || paramLo === 0x04 || paramLo === 0x05) {
+          if (typeof updateDistKnob === 'function') updateDistKnob(paramLo, val);
+          appLog('CMD 0x11 DIST paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+          return;
+        }
+      }
+    }
 
     // instId matches currentParamHi (runtime handle from chain map)
     if (instId !== currentParamHi || currentParamHi < 0) {
