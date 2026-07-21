@@ -325,7 +325,7 @@ function updateCabMicReadouts(cabMic) {
   updateBreakupDisplay(cabMic.breakupV);
   // Cab bypass comes from the TFX key sldJ, so it is known at patch load.
   // Amp bypass has no TFX key and arrives as null here — it is resolved by
-  // requestAmpCabBypass() once the chain map gives us a handle. Show it as
+  // requestAllBypass() once the chain map gives us handles. Show it as
   // unknown until then rather than guessing.
   if (cabMic.cabActive !== null && cabMic.cabActive !== undefined) {
     cabBypassActive = cabMic.cabActive;

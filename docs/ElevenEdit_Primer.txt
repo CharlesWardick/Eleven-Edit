@@ -1,8 +1,37 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-19
+Updated: 2026-07-20
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 8 complete; Phase 7a-1 complete
+Status: Active development — Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
+
+SESSION START — DO THIS BEFORE ANY WORK
+--------------------------------------------------
+CLAUDE: run this check in your first reply. Do not edit code or docs until
+Charlie has answered. It costs one exchange and has already prevented a full
+day of silently reverted work.
+
+  1. NEW CHAT — ask Charlie to confirm the project files match his local
+     build folder. A new chat reads the project fresh, so it is exactly as
+     current as his last end-of-day fold-back, and no more.
+
+  2. RESUMED / OLDER CHAT — always ask him to re-upload the three docs plus
+     any code files being touched, and treat those uploads as superseding
+     ANYTHING earlier in the thread. A chat holds whatever copy it was given
+     for its whole life. This is not optional and does not depend on how
+     current the project is: a resumed chat is stale by default.
+
+  3. THE LOCAL BUILD FOLDER IS CANONICAL, not the project and not this thread.
+     If they disagree, the build folder wins — it is what the EXE is built
+     from. Project files are a second copy kept correct only by Charlie's
+     end-of-day fold-back.
+
+  4. LINE-COUNT TELL — when handing files back, state the line count of each
+     against what you started from. A document that comes back SHORTER after
+     a session that only ADDED findings has lost something. On 7/20 a returned
+     Technical Reference was 81 lines short and had silently reverted both a
+     sweep and that same day's GUI documentation. Nothing in it was wrong; it
+     was simply older, under the right filename.
+
 
 READ THIS FIRST, THEN ONE OTHER DOCUMENT:
   ElevenEdit_Technical_Reference.txt — the single authoritative protocol,
@@ -61,6 +90,11 @@ sees; he cannot write or debug code himself and won't fill in gaps.
     build cycles: every "fix" was a guess downstream of one unexamined
     assumption (that USB CIN framing bytes were payload data).
   - Update the session log in the SAME turn you present files, not later.
+  - TEST READBACK WITH THE AVID EDITOR CLOSED. Our app adopts any broadcast on
+    the wire, including ones triggered by the editor's own queries. With both
+    running, features that never query anything can appear to work perfectly.
+    This caused a false pass on 7/19 (per-block bypass). If a feature reads
+    state from the hardware, it is not proven until it has run solo.
 
 
 CONFIRMED ARCHITECTURE (brief)
@@ -76,7 +110,7 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 8 + Phase 7a-1 complete)
+CURRENT APP STATE (Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
 
@@ -101,15 +135,22 @@ WORKING:
     model, handle). Amp handle now correct at any chain position.
   Amp and Cab bypass — clickable, position independent, state read from HW.
   Per-block bypass — all ten blocks clickable, addressed by handle so it works
-    at any chain position.
+    at any chain position. State queried for all ten after every chain map.
   Chain row — true per-patch order, model name on hover, stereo shown as
     stacked double connector lines (49 of 52 models resolved).
   Chain reorder — drag and drop, with FX Loop placement enforced client-side.
     Note: unlike Avid, dragging the amp does NOT drag an adjacent loop with it
     (intentional, see Tech Ref Sec 4).
-  TFX capture to disk on hardware save
-  Load TFX (memory load) and Save to Current Slot (commit) — round-trip verified
+  TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
+  Load TFX (memory load) — round-trip verified
+  Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto
+    TFX capture in one operation; see Tech Ref Sec 15)
+  Patch rename — via SAVE ▾ → Save to Rack… name prompt (CMD 0x05 + full
+    save sequence); max 16 chars
   Auto-advance (roller) with configurable interval; bank scan
+  Settings panel — gear ⚙ button opens panel in amp panel slot:
+    Captures folder (set + open), Avid Editor folder (set), Open Logs Folder.
+    Paths persisted in userData/settings.json.
 
 NOT YET IMPLEMENTED (largest first):
   Effect panels for the nine non-amp blocks — clicking the chain row's arrow
@@ -122,7 +163,10 @@ NOT YET IMPLEMENTED (largest first):
     HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
     defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
     slot argument and never used currentParamHi. Do not assume it is fixed.
-  Save-to-different-slot; patch rename from SW (both buttons disabled)
+  Save to Different Slot — slot picker UI not yet built; SAVE ▾ menu item
+    exists but is greyed. Protocol is the same save sequence with a different
+    target slot number. When built, Load TFX + Save to Different Slot will
+    serve as "load file into any slot".
   Bank backup/restore (EHB — protocol known)
   FX Loop connector variants 0x2E, 0x2F, 0x33 — the only three models with no
     output-channel entry; they draw a dashed connector until observed.
@@ -132,8 +176,10 @@ DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
 -------------------------------------------------------------------
   Zadig / node-usb / node-midi / Web MIDI for the Vendor Specific port
   Sending CMD 0x37 WITHOUT CMD 0x3A query first — firmware assert
-  Amp/cab bypass click while chain reorder is possible — corrupts patch
   Hardcoding paramHi — it is a runtime handle from the chain map
+  Caching a block handle across a chain map — re-read after every CMD 0x21
+    and every CMD 0x0D
+  Identifying a chain block by mid range — use its SLOT ID (Tech Ref Sec 4)
   Deriving paramLo from sldX letters, or tfxKey from paramLo, above 9
   ElevenHack's encode7bit — use the protocol.js version
   Standard (v+64)%128 for cab/mic type — use the lookup tables
@@ -141,9 +187,13 @@ DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
 
 CODE FILE MAP
 -------------
-  main.js              Electron main process, bridge launch, IPC
-  preload.js           Electron preload, exposes electronAPI
-  index.html           Full UI (HTML + CSS + script tags)
+  main.js              Electron main process, bridge launch, IPC.
+                       New handlers (Phase 4a): browse-avid-dir, get-avid-dir,
+                       get-logs-dir. Logs now written to userData/logs/ subfolder.
+  preload.js           Electron preload, exposes electronAPI.
+                       New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
+  index.html           Full UI (HTML + CSS + script tags).
+                       Settings panel, SAVE ▾ dropdown, name-prompt modal.
   state.js             Shared mutable state
   protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders
   transport.js         Send functions, CAB/MIC v0 lookup tables
@@ -151,7 +201,9 @@ CODE FILE MAP
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers
   app-init.js          Startup wiring
   patch-nav.js         Patch navigation logic
-  capture-scan.js      TFX capture and bank scan
+  capture-scan.js      TFX capture, bank scan, load/save.
+                       saveCurrentPatchToSlot(nameOverride) — optional rename.
+                       saveToRackAndDisk(name) — rename + commit + auto TFX.
   ElevenRackBridge.java  Java bridge source
   tfx-inspect.js       CLI: decode a TFX file
   tfx-diff.js          CLI: diff two TFX files
@@ -177,8 +229,11 @@ ENVIRONMENT
 HARDWARE SAFETY
 ---------------
   Always back up patches before any SW-send testing session.
-  Never send CMD 0x37 (To Amp Source) — it caused a factory reset (all
-    patches lost) on 7/14.
+  CMD 0x37 (To Amp Source) must ALWAYS be preceded by a CMD 0x3A query for
+    that slot. Sent unqueried it caused a firmware hang and factory reset
+    (all patches lost) on 7/14. With the query first the sequence is safe and
+    asserts no longer occur — but the GUI dropdowns stay removed because SW
+    sends still do not move the HW source. See Tech Ref Sec 18.
   Do not run the Avid Editor and Eleven Edit in active concurrent use —
     BSOD risk.
   Factory reset (loses all patches): hold FX Loop + Mod + Reverb at power on,

@@ -295,8 +295,8 @@ async function parseSysEx(data) {
       syncAmpSelectDropdown(currentAmpKey);
       // The TFX carries no amp-bypass key, so ask the hardware directly.
       // Handles are only valid once the chain map has arrived, which is now.
-      requestAmpCabBypass();
       renderChainRow();          // reorder slots, hover text, stereo connectors
+      requestAllBypass();        // AFTER the row exists — needs currentChain populated
     } else {
       // Should not happen — every rig has an amp block.
       appLog('CMD 0x21: no AMP block (slot 0x00) found in chain map, paramHi unchanged');
@@ -431,11 +431,19 @@ async function parseSysEx(data) {
     // parameters are meaningless coming from another block).
     //   paramLo 0x01 = block bypass   0x06 = amp bypass   0x14 = cab bypass
     //   v0 0x40 = active, 0x3F = bypassed
+    //
+    // FORMAT B DETECTION NOTE: Format B has 0x04 as a literal marker byte at
+    // data[6], NOT a handle. However, a block's runtime handle CAN legitimately
+    // be 0x04 (e.g. MOD in certain chain orders), producing a Format A response
+    // that starts with the same byte. Disambiguate by checking whether 0x04
+    // exists as a real handle in currentChain — if it does, data[6] IS the
+    // handle and this is Format A.
     {
       let bInst, bLo, bV0;
-      if (data[6] === 0x04 && data.length >= 10) {      // FORMAT B
+      const handleAtData6 = currentChain.find(x => x.handle === data[6]);
+      if (data[6] === 0x04 && !handleAtData6 && data.length >= 10) { // FORMAT B
         bInst = data[7]; bLo = data[8]; bV0 = data[9];
-      } else {                                          // FORMAT A
+      } else {                                                         // FORMAT A
         bInst = data[6]; bLo = data[7]; bV0 = data[8];
       }
       if (bLo === BYPASS_PARAMLO_BLOCK || bLo === BYPASS_PARAMLO_AMP || bLo === BYPASS_PARAMLO_CAB) {

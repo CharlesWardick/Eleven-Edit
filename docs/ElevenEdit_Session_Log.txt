@@ -39,6 +39,86 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-20 (late)
+STATUS:      [FOLDED IN: Technical Reference Sec 3, C11, Sec 24; code shipped]
+AREA:        Bypass — Format B false positive when a block handle is 0x04
+FINDING:     MOD bypass state was never stored — "state unknown yet" on every
+             click. Bypass routing detected Format B by testing
+             data[6] === 0x04, but a block's runtime handle CAN be 0x04 (MOD,
+             in certain chain orders). A Format A message from that block was
+             read as Format B, every field parsed one byte off, paramLo 0x01
+             never matched, state never stored.
+FIX:         Before treating data[6] === 0x04 as a Format B marker, check
+             whether 0x04 is a live handle in currentChain. If it is, data[6]
+             IS the handle and the message is Format A. Covers every block,
+             not just MOD — WAH, DIST or any other would have failed the same
+             way once its handle landed on 0x04.
+TESTED:      Build confirmed 2026-07-20 — "Bypass: MOD -> ACTIVE" now appears
+             in the log and the click toggles correctly.
+LESSON:      Same failure mode as C1: treating a byte whose VALUE is 0x04 as a
+             structural marker when 0x04 is also a legal datum. Third time this
+             family of bug has cost us a day. When a constant doubles as data,
+             the discriminator must come from context, never from the value.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-20 (late)
+STATUS:      provisional — process, no protocol content
+AREA:        Document regression during an out-of-date chat session
+FINDING:     The fix above was made in a chat session opened BEFORE the 7/20
+             doc updates, so that session was still working from the 7/19
+             copies. The files it returned in good faith had silently reverted
+             both the 7/20 GUI documentation (Tech Ref Sec 15 rename and
+             save-to-rack, Primer working list, code file map, Phase 4a log
+             entry) and the whole 7/20 sweep (Sec 4, 6, 20, 21, 23, C5, C9,
+             C11). Nothing was wrong in what came back — it was simply older.
+             Caught by diffing the returned files against the last known-good
+             set; only the genuinely new finding was carried forward.
+LESSON:      A chat holds whatever copy it was given, for its whole life.
+             Returning to an older chat without re-uploading the current docs
+             produces a rollback that looks exactly like an update, because
+             the filenames match. Cheapest tell: LINE COUNT. A doc that comes
+             back SHORTER after a session that only ADDED a finding has lost
+             something. This one came back 81 lines shorter.
+NEXT:        Two habits worth adopting: (1) when reopening an old chat, upload
+             the current docs first and say they supersede anything in the
+             thread; (2) prefer a fresh chat for a new day's work, since the
+             three files carry all the state anyway.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-20
+STATUS:      [FOLDED IN: Technical Reference Sec 4, 6, 20, 21, 23, 24,
+             C11; Primer DO NOT RETRY / HARDWARE SAFETY]
+AREA:        Documentation sweep — superseded text removed, no new findings
+FINDING:     A review of the 7/18-7/20 docs found no wrong findings, but
+             seven places where a claim overturned during that week was still
+             standing in a section nobody had reopened. Two were dangerous:
+               - Sec 6's CMD 0x21 entry still described the old
+                 "[typeA][mid][third], typeA=0x07=amp" model. That is the
+                 exact belief that produced the wrong-handle defect; a future
+                 session reading Sec 6 alone would have rebuilt the bug.
+               - Sec 23's output-table header still asserted the C1
+                 Chorus/Vibrato claim that Sec 4 had explicitly retracted,
+                 then contradicted itself by extending the table with the
+                 rule it had just declared unusable.
+             The rest: Sec 4 and Sec 20 still called bypass disabled (shipped
+             7/19); Sec 21 still listed chain-map typeA identification and the
+             Stereo/Mono send path as open (both solved); Sec 6 still flagged
+             CMD 0x37 as never-send and 0x3A/0x3C as unknown; the FORMAT B
+             provenance doubt raised 7/19 had no conflict number.
+ACTION:      All corrected in place. C11 added for FORMAT B. Change-log entries
+             added for the 7/20 GUI work and for this sweep.
+LESSON:      Fast sessions supersede facts faster than they sweep them, and
+             the superseded copy is always in a section you did not open.
+             When a finding overturns something, grep the WHOLE document for
+             the old claim before closing the session.
+NEXT:        The [FOLDED IN] entries below are all verified present in the
+             main docs and are safe to delete whenever Charlie wants the log
+             trimmed. Left in place pending his say-so.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-07-18
 STATUS:      [FOLDED IN: Technical Reference Sec 2, 4, 6, 10, 22 (C10), 23;
              Primer header / WORKING / NOT YET / working-practice notes]
@@ -305,6 +385,152 @@ RESOLVED:    The stranded-loop question. Avid drags the loop ALONG WITH the amp
              NOT copy that — dragging the amp leaves the loop, snapping it if
              stranded. Charlie prefers the freer behaviour. Recorded in Sec 4
              as an intentional divergence.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-19
+STATUS:      provisional — deferred, not started
+AREA:        Chain drag — live reorder preview (Avid's feel)
+FINDING:     Our drag shows a thin insertion marker and only reorders on drop.
+             Avid instead previews LIVE: as you drag, the blocks physically
+             shift to make room, so the row continuously shows the result. That
+             is the whole difference in feel Charlie noticed — it is deliberate
+             and obvious rather than requiring attention to a small marker.
+             THE FX LOOP HAS ITS OWN RULE. Observed: with the loop at position
+             7, dragging it left made ALL SIX blocks before it move right in
+             one step — i.e. the loop JUMPS to its next legal stop and the
+             blocks in between shift as a group. It does not inch through
+             illegal positions and get rejected. This matches the front-panel
+             behaviour (scrolling steps the loop between its four stops,
+             skipping everything between).
+APPROACH:    Reorder the actual divs on dragover using a speculative order —
+             the same move operation renderChainRow already performs, driven by
+             a provisional order instead of the hardware's. Send that order on
+             drop; redraw from currentChain on cancel. Remove the edge marker,
+             since moving blocks are the indicator and both would be noise.
+             Two rules needed: ordinary blocks shift one position at a time;
+             FX Loop jumps between its four legal stops.
+             BONUS: makes the loop's snap visible DURING the drag rather than
+             surprising the user on release — it teaches the rule.
+WATCH FOR:   During a drag we are showing a speculative order, so a broadcast
+             arriving mid-drag (a move made in Avid, or a patch change) must
+             not fight the preview.
+OPEN:        Does AMP-CAB have a special rule too? Avid drags an adjacent loop
+             along with the amp (Tech Ref Sec 4). And what triggers the loop's
+             jump — cursor crossing a threshold, or distance dragged? The
+             latter decides whether the preview feels responsive or twitchy.
+NEXT:        Deferred by agreement 7/19. Current drag behaviour is correct and
+             working; this is feel, not function. Revisit after the effect
+             panel work.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-20
+STATUS:      [FOLDED IN: code shipped]
+AREA:        GUI layout — effect panel opened in the wrong place
+FINDING:     Clicking a chain ▼ hid the amp panel, which let the auto-advance
+             (roller) strip slide UP into the vacated space, and the effect
+             panel then appeared BELOW it. Cause was purely DOM ORDER inside
+             #main:  panel-ampcab > roller-strip > panel-other.
+FIX:         Moved #panel-other to sit immediately AFTER #panel-ampcab and
+             BEFORE the roller strip, so it takes the amp panel's slot. Also
+             copies the amp panel's rendered offsetHeight onto #panel-other
+             before hiding it — the amp panel is content-sized, so without
+             that the column still shrinks and everything below shifts.
+             Comment left in the markup explaining the ordering requirement,
+             since the bug is invisible until a panel is opened.
+TESTED:      Build test 2026-07-20 PASSED — panel occupies the amp panel's
+             slot and the auto-advance strip no longer moves.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-20
+STATUS:      [FOLDED IN: Primer WORKING / NOT YET / CODE FILE MAP;
+             Technical Reference Sec 15; code shipped]
+AREA:        Phase 4a — GUI Redesign Round 2
+FINDING:     Full GUI cleanup pass. All changes confirmed in build tests
+             by Charlie. Details:
+
+  STATUS BAR / TOPBAR:
+    - Bridge connection dot + label removed from topbar; merged into
+      status bar right as "● Eleven Rack (Java bridge) — Connected".
+      midi-label JS updated to show "Connected" not the device name.
+    - Avid Editor status block removed from topbar entirely; avid-status-
+      badge element kept hidden for JS compatibility.
+    - avid-warn ("AVID EDITOR: OPEN") moved to status bar LEFT so it
+      no longer crowds the bridge text on the right.
+    - "Eleven Edit" label, status-msg, and log-path-label all hidden in
+      status bar (elements kept for JS).
+
+  TFX / BANK TOOLBAR:
+    - Scan Bank hidden (code kept). Open Captures Folder hidden (moved
+      to Settings). Change Folder hidden (replaced by Settings).
+    - "Capture Current Patch" + "Save to Current Slot" + "Save to Slot…"
+      + "Rename Patch…" — all four hidden and replaced by single
+      SAVE ▾ dropdown with three items:
+        · Save to Rack… — name-prompt modal (pre-filled, max 16 chars,
+          slot label shown); on confirm: rename via CMD 0x05, commit to
+          current slot (full 4-step sequence), then auto-captures TFX to
+          disk with the new name. Implemented in saveToRackAndDisk(name)
+          in capture-scan.js.
+        · Save to Disk — same name-prompt modal (slot line hidden);
+          on confirm: updates currentPatchName + display, then
+          captureCurrentPatchNow() for TFX only, no slot commit.
+        · Save to Different Slot… — greyed, coming soon.
+    - saveCurrentPatchToSlot() now accepts optional nameOverride param;
+      updates currentPatchName and display before sending so TFX capture
+      picks up the new name. Max 16 chars, trimmed.
+    - About button moved to far right next to ⚙ gear button.
+    - btoolbar font-size now a single line (font-size: 12px on #btoolbar;
+      .bt-btn uses font-size: inherit). Matches roller-strip pattern.
+
+  SETTINGS PANEL (new):
+    - Gear ⚙ button added far right of TFX/Bank toolbar.
+    - Settings panel opens in the amp panel slot (same DOM mechanic as
+      effect panels). ✕ close button top-right; gear highlights amber
+      when open; chain ▼ clicks also close it.
+    - Captures Folder row: Set Folder… (native picker, saves to
+      settings.json 'capturesDir'), Open Folder, path display.
+    - Avid Editor Folder row: Set Folder… (saves to settings.json
+      'avidDir'), path display.
+    - Open Logs Folder button.
+    - Paths populated from disk on each panel open.
+    - New IPC handlers in main.js: browse-avid-dir, get-avid-dir,
+      get-logs-dir. Exposed in preload.js.
+
+  LOGS:
+    - Log files moved from userData root to userData/logs/ subfolder.
+      Folder created automatically. get-logs-dir returns the subfolder.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-20
+STATUS:      [FOLDED IN: Technical Reference Sec 4; Primer; code shipped]
+AREA:        Per-block bypass never queried — yesterday's pass was a FALSE
+             POSITIVE caused by the Avid editor being open alongside
+FINDING:     Clicking any of the nine non-amp chain slots did nothing. Cause:
+             requestAmpCabBypass() only ever queried paramLo 0x06 and 0x14 on
+             the AMP block. Nothing in the app ever asked the other nine blocks
+             for their bypass state, and the hardware does not volunteer it.
+             So blockBypass[slotId] stayed undefined for those nine and the
+             click handler bailed out by design ("state unknown yet").
+             IT LOOKED LIKE IT WORKED on 7/19 because the Avid editor was
+             running at the same time: ITS queries produced broadcasts that we
+             picked up and stored. Verified after the fact — the 7/19 log
+             contains ZERO paramLo 0x01 queries sent by us.
+             Charlie diagnosed this; I had recorded the 7/19 test as passing.
+LESSON:      Running the Avid editor alongside makes our app look more capable
+             than it is, because we adopt broadcasts triggered by ITS queries.
+             ANY readback feature must be tested with the Avid editor CLOSED
+             before it is called working.
+FIX:         requestAmpCabBypass() replaced by requestAllBypass(), which walks
+             currentChain and queries every block: paramLo 0x01 for the nine
+             ordinary blocks plus 0x06 and 0x14 on the amp. Called after
+             renderChainRow() on each chain map, so currentChain is populated.
+             Costs 11 queries per chain map — the same thing the Avid editor
+             does at every patch load.
+TESTED:      Build test 2026-07-20 PASSED. All ten blocks now report state and
+             all nine non-amp slots toggle correctly.
 -------------------------------------------------------------------
 
 (add new entries above this line)

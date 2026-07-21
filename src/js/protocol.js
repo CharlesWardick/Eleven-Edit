@@ -1035,7 +1035,7 @@ function decodeCabMicValues(body) {
     // Amp bypass has no TFX key. Previously defaulted to true here, which made
     // a bypassed amp display as active until something happened to correct it.
     // Now returned as null (= unknown) and resolved by querying the hardware
-    // once the chain map arrives — see requestAmpCabBypass() in transport.js.
+    // once the chain map arrives — see requestAllBypass() in transport.js.
     const ampActive  = null;
 
     appLog('decodeCabMicValues: cabRaw=' + cabRaw + '(idx=' + cabIndex + ')'

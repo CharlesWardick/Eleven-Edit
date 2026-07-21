@@ -73,7 +73,7 @@ function handleBridgeMsg(msg) {
       bridgeMidiReady = true;
       midiOutName = 'Eleven Rack (Java bridge)';
       document.getElementById('midi-dot').classList.add('connected');
-      document.getElementById('midi-label').textContent = midiOutName;
+      document.getElementById('midi-label').textContent = 'Connected';
       setStatus('Ready — ' + midiOutName);
       monitorLog('OUT', 'Bridge MIDI connected — IN=' + msg.inPort + ' OUT=' + msg.outPort);
       appLog('Bridge MIDI connected — IN=' + msg.inPort + ' OUT=' + msg.outPort);
@@ -488,22 +488,39 @@ function sendCabBypass(isActive) {
   return sendBypassWrite(ampBlockHandle(), BYPASS_PARAMLO_CAB, isActive);
 }
 
-// ── Read bypass state from the hardware.
+
+// ── Read bypass state for EVERY chain block from the hardware.
 // REQU PARAM: F0 13 0B 0F 01 11 [handle] [paramLo] F7
 // The handle is the block's own handle from the chain map. An older revision
 // of the reference doc showed a literal 0x07 here, which silently fails on any
 // patch where that is not the block you want — do not reintroduce it.
 //
-// Needed because the TFX carries no amp-bypass key: without this the amp
-// always displays as active. Called once after each chain map arrives.
-function requestAmpCabBypass() {
+// Queries all ten blocks: paramLo 0x01 for the nine ordinary blocks, plus
+// 0x06 and 0x14 on the amp block for its two independent flags.
+//
+// WHY ALL TEN: nothing pushes bypass state to us unprompted. An earlier
+// version asked only for amp and cab, and the other nine slots appeared to
+// work purely because the Avid editor happened to be open alongside and its
+// own queries produced broadcasts we picked up. With our app running alone,
+// those nine stayed 'unknown' forever and their clicks were silently ignored.
+// Called once after each chain map, which covers patch load, stereo/mono
+// toggle and reorder — all the events that can invalidate handles.
+function requestAllBypass() {
   if (!bridgeMidiReady) return;
-  const h = ampBlockHandle();
-  if (h < 0) { appLog('requestAmpCabBypass: no amp handle yet'); return; }
-  const hh = h.toString(16).padStart(2,'0').toUpperCase();
-  appLog('requestAmpCabBypass: querying amp/cab bypass on handle 0x' + hh);
-  sendHex('F0 13 0B 0F 01 11 ' + hh + ' 06 F7');
-  sendHex('F0 13 0B 0F 01 11 ' + hh + ' 14 F7');
+  if (!currentChain.length) { appLog('requestAllBypass: no chain map yet'); return; }
+  let n = 0;
+  currentChain.forEach(blk => {
+    const hh = blk.handle.toString(16).padStart(2,'0').toUpperCase();
+    if (blk.slotId === SLOT_AMP) {
+      sendHex('F0 13 0B 0F 01 11 ' + hh + ' 06 F7');   // amp
+      sendHex('F0 13 0B 0F 01 11 ' + hh + ' 14 F7');   // cab
+      n += 2;
+    } else {
+      sendHex('F0 13 0B 0F 01 11 ' + hh + ' 01 F7');   // block bypass
+      n += 1;
+    }
+  });
+  appLog('requestAllBypass: queried ' + n + ' bypass flags across ' + currentChain.length + ' blocks');
 }
 
 // Same wire format as sendGateParamWrite, but takes the raw byte to send

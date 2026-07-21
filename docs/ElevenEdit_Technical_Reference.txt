@@ -1,6 +1,6 @@
 ELEVEN EDIT — TECHNICAL REFERENCE
 ===================================================================
-Consolidated: 2026-07-16
+Consolidated: 2026-07-16   Last swept: 2026-07-20 (late)
 Author: Charles Wardick (charles.wardick@gmail.com)
 Foundation: Guillaume Schmid — ElevenHack (2013), Apache License 2.0
 
@@ -178,6 +178,23 @@ FORMAT B — RESP to our explicit REQU:
   Fires when: we send a REQU query for a specific parameter.
   NOTE: This 0x04 at data[6] is REAL SysEx content, not USB framing. Earlier
   research confused it with the USB 0x04 framing byte (see C1).
+  See C11 — not every REQU response arrives in this shape.
+
+  *** FORMAT A / FORMAT B DISAMBIGUATION — CONFIRMED BUG, FIXED 2026-07-20 ***
+  data[6]===0x04 is NOT a reliable Format B marker. A block's runtime handle
+  can itself BE 0x04 (observed on MOD in certain chain orders), and a Format A
+  message from that block also has data[6]=0x04. The two are indistinguishable
+  from that byte alone.
+    DETECTION RULE: before treating data[6]===0x04 as a Format B marker, check
+    whether 0x04 exists as a live handle in currentChain. If it does, data[6]
+    IS the handle and the message is FORMAT A. Only if no block in the current
+    chain holds handle 0x04 may it be read as Format B.
+    SYMPTOM IF WRONG: bytes parse one position off, paramLo never matches, and
+    any block whose handle lands on 0x04 reports "state unknown yet" forever.
+    First hit MOD; would equally have hit WAH, DIST or any other block.
+    Fix lives in the sysex-handler.js bypass routing block.
+  This is a second instance of the same failure mode as C1: treating a byte
+  whose VALUE is 0x04 as a structural marker, when 0x04 is also a legal datum.
 
 SEND (our app -> hardware):
   F0 13 0B 0F 00 11 [currentParamHi] [paramLo] [v0] 00 00 00 00 F7
@@ -248,16 +265,17 @@ IMPLEMENTATION:
   Filter incoming CMD 0x11 by instance === currentParamHi.
   Reset to -1 on disconnect.
 
-*** CHAIN-REORDER HAZARD ***
-  currentParamHi is POSITION-DEPENDENT. Moving the amp (or cab) block to a
-  different chain position makes the firmware assign a new handle on next
-  load. Sends using a stale handle hit whatever block now sits at that
-  position — confirmed to corrupt gate parameters when the amp was moved.
-  All CMD 0x11 sends assume the DEFAULT chain order. Amp/Cab bypass toggle
-  is disabled for exactly this reason (see Section 20 / C5). NOTE: as of the
-  7/18 chain map work below, the handle problem is solved — a block's handle
-  is arithmetic from its chain position. Only the bypass COMMAND is still
-  unknown.
+*** CHAIN-REORDER HAZARD — RESOLVED 7/18-7/19, kept for context ***
+  currentParamHi is POSITION-DEPENDENT: moving a block makes the firmware
+  assign it a new handle on next load, and a send using a stale handle hits
+  whatever block now sits at that position (this corrupted gate parameters
+  when the amp was moved). That hazard is REAL but is no longer a limitation:
+  the chain map was solved 7/18 and every block's handle is now read from it
+  on each patch nav, so sends are correct at any chain position. Bypass
+  shipped 7/19 on that basis and is verified at six different amp handles
+  including the amp last in the chain.
+  THE RULE THAT REMAINS: never cache a handle across a chain map. Re-read
+  currentChain after every CMD 0x21, and after every CMD 0x0D (below).
 
 *** STEREO/MONO ALSO REASSIGNS HANDLES *** (confirmed 7/18)
   Every accepted CMD 0x0D rebuilds the post-amp half of the chain and fires
@@ -274,12 +292,11 @@ IMPLEMENTATION:
   chain map after a 0x0D send. The Avid editor does exactly this: after each
   toggle it re-queries every parameter it displays.
 
-  FUTURE FIX (prerequisite for bypass toggle and chain reorder):
-  The CMD 0x21 chain map contains a triplet for EVERY block, not just the
-  amp. Identify the typeA value for each block type (dist, cab, mod, delay,
-  fx1, fx2, ...) with one capture, store each block's paramHi per patch nav,
-  then send to any block with its correct handle regardless of position.
-  The CMD 0x21 parsing infrastructure already exists.
+  [DONE 7/18-7/19] The former "future fix" described here — identify every
+  block in the chain map and store each block's handle per patch nav — is
+  implemented. Blocks are identified by SLOT ID (not by the field once called
+  typeA, which is a back-link), and the full chain is stored in currentChain
+  on every map. See the chain map structure below.
 
   *** FX LOOP PLACEMENT RULE (confirmed 7/18 by Charlie, definitive) ***
   The FX Loop block has only FOUR legal chain positions:
@@ -368,6 +385,20 @@ IMPLEMENTATION:
     Letters run B..L in CHAIN ORDER: B = input, C..L = the 10 blocks.
     Per-block parameters follow the bypa[letter] keys later in the body;
     the amp block uses sld* keys instead of a bypa* key.
+
+  BYPASS MUST BE QUERIED — NOTHING PUSHES IT TO US.
+  After every chain map, query all ten blocks:
+      F0 13 0B 0F 01 11 [handle] 01 F7     the nine ordinary blocks
+      F0 13 0B 0F 01 11 [ampHandle] 06 F7  amp
+      F0 13 0B 0F 01 11 [ampHandle] 14 F7  cab
+  11 queries in total, which is what the Avid editor itself does at each load.
+  *** DO NOT TEST BYPASS READBACK WITH THE AVID EDITOR OPEN. *** Our app adopts
+  broadcasts regardless of who asked for them, so with the editor running
+  alongside, ITS queries make our state look populated when we never asked for
+  anything. This produced a false pass on 7/19: only amp and cab were being
+  queried, yet all ten slots appeared to work. Verified afterwards — that day's
+  log contains zero paramLo 0x01 queries from us. Any readback feature must be
+  tested with the editor CLOSED before it is called working.
 
   BYPASS IS NOT IN THE CHAIN MAP. Patches B2/B3/B4 (same rig, same order,
   different on/off states) produce byte-identical maps apart from handles.
@@ -550,15 +581,30 @@ CMD 0x0D — Stereo/Mono. Send: F0 13 0B 0F 00 0D [val] F7. Broadcast:
 CMD 0x11 — Live parameter read/write. See Section 3. [SEND/RECV]
 CMD 0x20 — Effect Description (per-effect query). Effect string ID at byte 7,
   name at byte 25. [SEND/RECV]
-CMD 0x21 — Chain Map / Rig Description. F0 13 0B 0F 01 21 F7 -> triplets
-  [typeA][mid][third]. typeA=0x07=amp block; third=currentParamHi. Fires on
-  every patch load and on chain changes. [SEND/RECV]
+CMD 0x21 — Chain Map / Rig Description. F0 13 0B 0F 01 21 F7 -> 11 triplets
+  + trailing byte (41 bytes). Triplet = [backLink][mid][handle], where
+  backLink = the PREVIOUS block's SLOT ID (a linked list, NOT a type tag),
+  mid = the effect MODEL, handle = that block's CMD 0x11 instance byte.
+  Identify a block by its SLOT ID, never by mid range. Full structure,
+  slot-ID table and handle arithmetic: Section 4.
+  *** The old reading "[typeA][mid][third], typeA=0x07=amp" is WRONG and
+  caused a live defect — 0x07 is DIST's slot ID, so it found the block
+  AFTER dist. See Sec 24 (7/19). Do not reintroduce it. ***
+  Send with dir=0x00 to REORDER the chain (Section 4). Fires on every patch
+  load and on chain changes. [SEND/RECV]
 CMD 0x22 — Effect Count. [SEND/RECV]
 CMD 0x34 — True Z impedance broadcast. Global, front-panel only. Auto-
   broadcasts on amp/cab model change (val=0x7E=Auto in that context). [DEAD-send]
 CMD 0x36 — Output Volume. F0 13 0B 0F [dir] 36 [outSel]... See Section 18.
   outSel 0x00=Main, 0x02=To Amp1, 0x03=To Amp2, 0x04=Unit Vol, 0x06=query.
-CMD 0x37 — To Amp Source. *** DANGER — factory reset. Do NOT send. Sec 18/20 ***
+CMD 0x37 — To Amp Source. F0 13 0B 0F 00 37 07 [slot] [val] F7.
+  *** MUST be preceded by a CMD 0x3A query for that slot — sending without it
+  causes a firmware assert. *** The 7/14 factory-reset incident was this
+  command sent unqueried. With the query first the sequence is safe, but SW
+  sends still do not move the HW source (cause unknown). See Section 18.
+CMD 0x3A — To Amp Source query. REQU: F0 13 0B 0F 01 3A [slot] F7.
+  RESP: F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7. Required before any
+  CMD 0x37 write. See Section 18. [SEND/RECV]
 CMD 0x38 — Global Cabinet Bypass. Global override. Front-panel only. [DEAD-send]
 CMD 0x3B — Global Mute. F0 13 0B 0F 02 3B 01 [val] F7. Front-panel only. [DEAD-send]
 CMD 0x3D — Input Selector broadcast. F0 13 0B 0F 02 3D [val] F7 (value at
@@ -571,7 +617,9 @@ CMD 0x50 — Version/capabilities query. Request data=0x05; response
   04 03 14 29 (likely firmware version). [SEND/RECV]
 
 Startup commands seen only in Avid editor USB capture (purpose unknown,
-not required by Eleven Edit): 0x08, 0x0A, 0x35, 0x39, 0x3A, 0x3C.
+not required by Eleven Edit): 0x08, 0x0A, 0x35, 0x39.
+  (0x3A and 0x3C were formerly on this list; both are now identified —
+  0x3A = To Amp Source query, 0x3C = FX Loop mode. See above.)
 
 
 ===================================================================
@@ -1001,20 +1049,36 @@ to active (green). Cab bypass DOES read on load via sldJ.
 15. SAVE PROTOCOL (software-initiated commit to slot)
 ===================================================================
 
-STATUS: implemented ("Save to Current Slot"). Each step uses a DIFFERENT
-addressing format:
+STATUS: implemented. Rename-on-save implemented (Phase 4a). Each step
+uses a DIFFERENT addressing format:
   Step  Cmd     Format                          Example (slot 4 = B1)
   1     0x05    name (plain ASCII)              F0 13 0B 0F 00 05 [name] 00 F7
   2     0x03    [raw_slot] [0x00]               F0 13 0B 0F 00 03 04 00 F7
   3     0x04    [bank] [num] [name] [00]        F0 13 0B 0F 00 04 01 00 [name] 00 F7
   4     0x02    [0x00] [raw_slot]               F0 13 0B 0F 00 02 00 04 F7
   raw_slot = 0–103, bank = floor(slot/4), num = slot%4.
+  Name: plain ASCII, max 16 chars, null-terminated in Steps 1 and 3.
+
+RENAME: Step 1 (CMD 0x05) IS the rename. Passing any name string renames
+the patch in hardware memory before committing. saveCurrentPatchToSlot()
+in capture-scan.js accepts an optional nameOverride param; if supplied it
+updates currentPatchName and the display element before sending. Rename
+without a subsequent commit (Steps 2–4) changes the working name only —
+not persisted to the slot until Step 4 fires.
+
+SAVE TO RACK + AUTO TFX (Phase 4a, via SAVE ▾ → Save to Rack…):
+saveToRackAndDisk(name) calls saveCurrentPatchToSlot(name) then waits
+500 ms for the commit to settle before calling captureCurrentPatchNow().
+The TFX file is written with the new name since currentPatchName is
+updated before the capture request fires.
 
 Hardware responds with dirty-flag clear, slot confirm, full bulk broadcast.
 SAFETY NOTE: software save does NOT trigger the hardware-save auto-export
 (the CMD 0x04 echo arrives AFTER the bulk broadcast in software save, but
 auto-export detection needs it BEFORE).
-NOT YET: save-to-different-slot (slot picker), rename-on-save.
+NOT YET: save-to-different-slot (slot picker UI). Protocol is identical to
+current save — only the target slot number changes. When built, Load TFX
+→ Save to Different Slot serves as "copy file into any slot".
 
 
 ===================================================================
@@ -1187,9 +1251,15 @@ TUNER / BYPASS:
   Searching for 'bypa' before sld6 to find amp bypass — finds other effects.
 
 CHAIN / DANGER:
-  Amp/cab bypass click with chain reorder — sends to the wrong block,
-    corrupts the patch. Bypass display/handlers are DISABLED until per-block
-    paramHi (chain-map typeA identification) is implemented.
+  [WITHDRAWN 7/19] "Amp/cab bypass click with chain reorder — sends to the
+    wrong block; handlers DISABLED until per-block paramHi is implemented."
+    OBSOLETE. The chain map was solved 7/18 and bypass shipped 7/19: every
+    block is addressed by its own handle from the chain map, so bypass is
+    correct at any chain position (verified at six handles, amp last in
+    chain included). Do not re-disable it.
+  Identifying a chain block by mid range instead of slot ID — mid is the
+    MODEL, and generic FX slots host models from other categories, so ranges
+    overlap. Use the slot ID (Sec 4).
   Sending CMD 0x37 without CMD 0x3A query first — causes firmware assert.
     Always query with CMD 0x3A, wait for response, then send CMD 0x37.
 
@@ -1201,13 +1271,11 @@ CHAIN / DANGER:
 NEXT / IMMEDIATE:
   Sync selector dropdown UI (paramLo 0x12, tfxKey Sync). Need the valid value
     set — one capture clicking through all Sync positions.
-  Chain-map typeA identification for every block type — prerequisite for
-    amp/cab bypass toggle and for chain reorder.
   To Amp source (CMD 0x37) — SW sends don't move HW source. Root cause
     unknown. Additional HW options (Rig Out No Cab, RESO toggle) have unknown
     val bytes. Dropdowns removed from GUI pending investigation.
-  Stereo/Mono: send path (currently receive-only).
-  Save-to-different-slot (slot picker); patch rename from software.
+  Save-to-different-slot (slot picker UI). Protocol identical to the current
+    save — only the target slot number changes (Section 15).
   Bank backup/restore UI (EHB — protocol known, Section 17).
   To Amp source: query current state on connect (CMD 0x3A for both slots)
     to initialize dropdowns when they are re-enabled.
@@ -1247,8 +1315,12 @@ C4 — MIC AXIS v0 DIRECTION (RESOLVED). On-Axis=0x3F, Off-Axis=0x40 — confirm
   value (On-Axis=0x40) was inferred before a real capture existed and was wrong.
   Document and code agree. (TFX key sldM is separately 0=Off-Axis, 1=On-Axis.)
 
-C5 — AMP BYPASS paramLo. June research: 0x01 (from the wrong XML derivation).
-  Confirmed value: 0x06 (live only; REQU returns nothing). Use 0x06.
+C5 — AMP BYPASS paramLo (RESOLVED). June research: 0x01 (from the wrong XML
+  derivation). Confirmed: amp bypass = 0x06, cab bypass = 0x14, and paramLo
+  0x01 is PER-BLOCK bypass for the nine non-amp blocks — so the June value was
+  a real paramLo, just not the amp's. The old note "REQU returns nothing" is
+  WITHDRAWN (7/18): the hardware answers correctly; our query had the handle
+  hardcoded to 0x07. Query every block after each chain map (Sec 4).
 
 C6 — AMP TYPE / AMP SELECT paramLo. June research: 0x03 = amp/cab type
   selector. Confirmed: 0x03 = Amp Out Level; Amp Select = 0x0F (raw v0). Use
@@ -1263,6 +1335,11 @@ C8 — SLOT/BANK ARITHMETIC. Most docs: bank=floor(slot/4), num=slot%4 (4 slots
   The /4 grouping matches the A1–Z4 labeling used everywhere else and the save
   protocol; treat /4 as authoritative unless a specific feature proves otherwise.
 
+C9 — TRUE Z "AUTO" VALUE. Live CMD 0x34 broadcast uses 0x00 (older) / 0x7E
+  (raw-USB capture) for Auto; the TFX PIGI field uses 125. These are different
+  representations on different paths, not a single value. True Z is receive-
+  only and non-core; note but no action needed.
+
 C10 — STEREO/MONO SEND PATH (RESOLVED 7/18). Every doc prior to this one
   said CMD 0x0D was receive-only / front-panel-only / [DEAD-send]. Wrong. A
   send path exists and is now working in the build. The claim survived
@@ -1271,10 +1348,27 @@ C10 — STEREO/MONO SEND PATH (RESOLVED 7/18). Every doc prior to this one
   7/18. Section 10 is authoritative. Related: the 0x06 seen in old captures
   was USB CIN framing, not a payload byte — see Section 2.
 
-C9 — TRUE Z "AUTO" VALUE. Live CMD 0x34 broadcast uses 0x00 (older) / 0x7E
-  (raw-USB capture) for Auto; the TFX PIGI field uses 125. These are different
-  representations on different paths, not a single value. True Z is receive-
-  only and non-core; note but no action needed.
+C11 — CMD 0x11 "FORMAT B" PROVENANCE. *** STILL UNRESOLVED, narrowed 7/20 ***
+  UPDATE 7/20: a real bug confirmed that data[6]===0x04 cannot by itself mean
+  "Format B", because a block handle can legitimately equal 0x04 (Sec 3
+  disambiguation rule). That fixes the DETECTION problem but does not settle
+  the ORIGINAL question below — whether a genuine 0x04-prefixed Format B
+  exists on the MIDI layer at all, or whether every real RESP is Format A
+  shaped and Format B is a USB-framing artifact. Both remain possible. The
+  handler accepting both shapes is still the safe position.
+
+  Section 3 documents a FORMAT B for RESP messages, with a fixed 0x04 at
+  data[6] shifting handle/paramLo/v0 one byte right. The first real parameter
+  REQU this app ever sent (7/19) came back FORMAT A shaped instead:
+      OUT F0 13 0B 0F 01 11 51 06 F7
+      IN  F0 13 0B 0F 12 11 51 06 40 00 00 00 00 F7
+  i.e. data[6]=handle, no 0x04. FORMAT B may be another USB-CIN-framing
+  misread of the same kind that cost a day on CMD 0x0D (see C1 / Sec 2).
+  CURRENT PRACTICE: the bypass router accepts BOTH shapes, which is safe.
+  ACTION: before relying on FORMAT B anywhere new, capture a RESP on the MIDI
+  layer and confirm whether the 0x04 is ever really present. If it is not,
+  delete FORMAT B from Section 3 rather than leaving both documented.
+
 
 
 ===================================================================
@@ -1441,10 +1535,17 @@ OUTPUT CHANNEL TABLE — mid -> mono or stereo out  (7/19)
 Needed for the chain row's double-arrow connectors: the connector AFTER a
 block is stereo exactly when that block's OUTPUT is stereo.
 
-*** THIS TABLE CANNOT BE EXTENDED BY INFERENCE. *** Families do not follow a
-common pattern — C1 Chorus/Vibrato has two variants and BOTH are stereo-out,
-while Parametric EQ has two variants and only the higher one is. Same variant
-count, different capability. Every row must be observed.
+*** EXTEND THIS TABLE ONLY BY THE LOWEST-VARIANT RULE, NEVER BY GUESSWORK. ***
+The rule (Sec 4): within a model family the LOWEST variant is mono-out and
+every other variant is stereo-out. It follows from there being no
+stereo-in/mono-out variant anywhere.
+  NOTE — an earlier revision of this header claimed the rule was broken by
+  C1 Chorus/Vibrato being stereo-out in both variants, and concluded the table
+  could not be extended by inference at all. That was itself a partial-data
+  error: C1 has THREE variants (mid 0x01/0x02/0x03) and only the upper two had
+  been seen. The claim is RETRACTED and the rule holds. See Sec 4.
+  EXCEPTION: FX Loop — send and return are independent, so variant order says
+  nothing about its output. Loop variants must each be observed.
 
 HOW IT WAS DERIVED (repeat this to fill gaps):
   Within any chain, out(block N) == in(block N+1). Anchor with: the first
@@ -1520,6 +1621,50 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-20 (code, late) — Bypass Format A/B disambiguation bug fixed. A block
+  handle can equal 0x04, making a Format A message from that block look like
+  Format B; detection now checks currentChain for a live 0x04 handle first.
+  Documented in Section 3; C11 narrowed accordingly.
+  DOCUMENT REGRESSION, same session: this fix was made in a chat still holding
+  the 7/19 copy of the docs, so the returned files silently reverted BOTH the
+  7/20 GUI documentation (Sec 15 rename / save-to-rack, Primer working list and
+  code map) and the 7/20 sweep below. Recovered by diffing the returned files
+  against the last known-good set and re-applying only the new finding.
+  PROCESS NOTE: a chat that was opened before a doc update keeps the old copy
+  for its whole life. Re-upload the current docs when returning to an older
+  chat, or the good-faith "updated docs" it hands back are a rollback wearing
+  the right filename. Size is the cheap tell — a doc that comes back SHORTER
+  after a session that only added a finding has lost something.
+
+2026-07-20 (docs) — Sweep pass, no new findings. Removed text superseded by
+  the 7/18-7/19 chain work but left standing in sections nobody revisited:
+  Section 6's CMD 0x21 entry still described the old "[typeA][mid][third],
+  typeA=0x07=amp" model that caused the wrong-handle defect; Section 20 still
+  listed bypass as disabled; Section 21 still listed chain-map typeA
+  identification and the Stereo/Mono send path as open; Section 6 still
+  flagged CMD 0x37 as never-send and 0x3A/0x3C as unknown; Section 23's
+  output-table header still asserted the C1 Chorus claim that Section 4 had
+  already retracted. Added C11 for the FORMAT B provenance doubt raised on
+  7/19 but never given a conflict number.
+  PROCESS NOTE: all of these were correct when written and were superseded
+  the same week. Fast-moving sessions supersede facts faster than they sweep
+  them. When a finding overturns something, grep the whole document for the
+  old claim before closing the session — the dangerous copy is always the one
+  in a section you did not open.
+
+2026-07-20 (code) — Phase 4a GUI Round 2. SAVE dropdown replacing four
+  toolbar buttons; Save to Rack (rename + commit + auto TFX capture in one
+  operation); Save to Disk; rename via CMD 0x05 with 16-char limit; Settings
+  panel (captures folder, Avid editor folder, logs folder) with paths
+  persisted in userData/settings.json; logs moved to userData/logs/; status
+  bar consolidation. Section 15 gained the rename and save-to-rack detail.
+  Also FIXED: per-block bypass was never actually queried — requestAllBypass()
+  now asks all ten blocks after every chain map. The 7/19 pass on this was a
+  FALSE POSITIVE produced by the Avid editor running alongside; our app had
+  adopted ITS query broadcasts. Working practice added to the Primer: any
+  readback feature must be tested with the editor CLOSED before it is called
+  working.
 
 2026-07-19 (code, bypass) — Bypass shipped and tested. Amp and cab are now
   clickable and address the AMP-CAB block by its handle, so they work at any

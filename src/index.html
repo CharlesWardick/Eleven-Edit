@@ -274,11 +274,12 @@
     background: #161616; border-top: 1px solid var(--border-dim);
     display: flex; align-items: center; gap: 8px; padding: 7px 16px;
     flex-shrink: 0; flex-wrap: wrap; min-height: 46px;
+    font-size: 14px;
   }
-  .bt-section-label { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; }
+  .bt-section-label { font-size: 0.92em; color: #777; text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; }
   .bt-btn {
     background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--label);
-    border-radius: 3px; padding: 4px 12px; font-size: 12px; cursor: pointer; white-space: nowrap;
+    border-radius: 3px; padding: 4px 12px; font-size: inherit; cursor: pointer; white-space: nowrap;
   }
   .bt-btn:hover { border-color: var(--accent-dim); color: var(--text); }
   .bt-btn.green { border-color: #2a7a2a; color: var(--green); }
@@ -410,6 +411,63 @@
     cursor: pointer;
   }
   #btn-restart-bridge:hover { border-color: var(--accent-dim); color: var(--accent); }
+
+  /* ══ SETTINGS PANEL ══ */
+  #panel-settings { display: none; flex-direction: column; gap: 18px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; flex-shrink: 0; }
+  .settings-title { color: var(--accent); font-size: 12px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; border-bottom: 1px solid var(--border-dim); padding-bottom: 8px; }
+  .settings-row { display: flex; flex-direction: column; gap: 6px; }
+  .settings-row-label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
+  .settings-row-controls { display: flex; align-items: center; gap: 8px; }
+  .settings-path { font-size: 11px; color: var(--muted); font-family: 'Consolas', monospace; background: #111; border: 1px solid var(--border2); border-radius: 3px; padding: 3px 8px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .settings-btn { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--text); border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #btn-settings.active { border-color: var(--accent); color: var(--accent); background: #1a1200; }
+
+  /* ══ SAVE DROPDOWN ══ */
+  #save-dropdown {
+    position: absolute; bottom: calc(100% + 4px); left: 0;
+    background: #1e1e1e; border: 1px solid var(--accent-dim);
+    border-radius: 5px; display: none; flex-direction: column;
+    z-index: 300; min-width: 220px; box-shadow: 0 -4px 12px rgba(0,0,0,0.5);
+  }
+  #save-dropdown.open { display: flex; }
+  .save-dd-item {
+    padding: 9px 16px; font-size: 13px; color: var(--text);
+    cursor: pointer; white-space: nowrap; border-bottom: 1px solid var(--border2);
+  }
+  .save-dd-item:last-child { border-bottom: none; }
+  .save-dd-item:hover { background: #2a2a2a; color: var(--accent); }
+  .save-dd-disabled { color: var(--muted) !important; cursor: default !important; opacity: 0.5; }
+  .save-dd-disabled:hover { background: none !important; color: var(--muted) !important; }
+
+  /* ══ RACK SAVE MODAL ══ */
+  #rack-save-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65); z-index: 500;
+    align-items: center; justify-content: center;
+  }
+  #rack-save-modal.open { display: flex; }
+  #rack-save-box {
+    background: #1e1e1e; border: 1px solid var(--accent-dim);
+    border-radius: 8px; padding: 22px 26px; min-width: 320px;
+    display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+  }
+  .rack-save-title { color: var(--accent); font-size: 13px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
+  .rack-save-slot-line { font-size: 12px; color: var(--muted); }
+  #rack-save-slot-label { color: var(--text); font-weight: bold; }
+  .rack-save-label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
+  #rack-save-input {
+    background: #111; color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 10px; font-size: 14px; font-family: 'Consolas', monospace;
+    width: 100%; outline: none;
+  }
+  #rack-save-input:focus { border-color: var(--accent); }
+  .rack-save-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .rack-save-btns button { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--text); border-radius: 4px; padding: 5px 18px; font-size: 13px; cursor: pointer; }
+  .rack-save-btns button:hover { border-color: var(--accent); color: var(--accent); }
+  .rack-save-ok-btn { border-color: var(--green) !important; color: var(--green) !important; }
+  .rack-save-ok-btn:hover { background: #0a2a0a !important; }
 </style>
 </head>
 <body>
@@ -419,16 +477,6 @@
   <div>
     <div class="app-title">Eleven Edit</div>
     <div class="app-sub">Patch AUDITION &amp; EDITOR</div>
-  </div>
-  <div class="tdiv"></div>
-
-  <!-- Bridge connection -->
-  <div class="flex-row">
-    <div id="midi-dot"></div>
-    <div style="display:flex;flex-direction:column;gap:1px;">
-      <div id="midi-label" style="font-size:12px;color:#bbb;">Connecting…</div>
-      <div style="font-size:10px;color:#666;">ws://localhost:57121</div>
-    </div>
   </div>
   <div class="tdiv"></div>
 
@@ -456,13 +504,6 @@
   <span id="slot-num"     style="display:none;">Slot 0</span>
   <span id="range-active" style="display:none;"></span>
 
-  <div class="tdiv"></div>
-
-  <!-- Avid Editor status -->
-  <div class="avid-status">
-    <div class="avid-lbl">AVID EDITOR</div>
-    <div id="avid-status-badge" class="active">CLOSED</div>
-  </div>
   <div class="tdiv"></div>
 
   <!-- Right side controls -->
@@ -741,6 +782,46 @@
 
   </div><!-- end panel-ampcab -->
 
+  <!-- Effect panel — OCCUPIES THE AMP PANEL'S SLOT.
+       Must sit immediately after #panel-ampcab and before the roller strip:
+       when a chain ▼ is opened the amp panel hides and this takes its place,
+       so the auto-advance strip below does not move. If this div is placed
+       after the roller strip, opening a panel shunts auto-advance upward and
+       the effect panel appears below it — which is what it used to do. -->
+  <div id="panel-other" style="display:none;" class="placeholder">Select an effect slot to edit</div>
+
+  <!-- SETTINGS PANEL — shares the amp panel slot, toggled by gear button -->
+  <div id="panel-settings">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div class="settings-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0;">⚙ Settings</div>
+      <button id="btn-settings-close" title="Close Settings" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 2px;">✕</button>
+    </div>
+    <div style="height:1px;background:var(--border-dim);margin-top:8px;"></div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">Captures Folder</div>
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-set-captures">Set Folder…</button>
+        <button class="settings-btn" id="settings-btn-open-captures">Open Folder</button>
+        <div class="settings-path" id="settings-captures-path">—</div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">Avid Editor Folder</div>
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-set-avid">Set Folder…</button>
+        <div class="settings-path" id="settings-avid-path">—</div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-open-logs">Open Logs Folder</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ROLLER TRANSPORT STRIP -->
   <div id="roller-strip">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;">
@@ -773,39 +854,65 @@
     </div>
   </div>
 
-  <!-- Effect panel placeholder — shown when a chain ▼ is open -->
-  <div id="panel-other" style="display:none;" class="placeholder">Select an effect slot to edit</div>
-
 </div><!-- end main -->
 
 <!-- ══ BOTTOM TOOLBAR ══ -->
 <div id="btoolbar">
   <span class="bt-section-label">TFX / Bank</span>
-  <button class="bt-btn" id="btn-capture-now"    title="Pull current patch from hardware and save TFX file">Capture Current Patch</button>
-  <button class="bt-btn" id="btn-open-captures"  title="Open the folder where TFX captures are saved">Open Captures Folder</button>
-  <button class="bt-btn" id="btn-change-captures" title="Change the captures folder location">Change Folder</button>
+  <button class="bt-btn" id="btn-capture-now"    title="Pull current patch from hardware and save TFX file" style="display:none;">Capture Current Patch</button>
+  <button class="bt-btn" id="btn-open-captures"  title="Open the folder where TFX captures are saved" style="display:none;">Open Captures Folder</button>
+  <button class="bt-btn" id="btn-change-captures" title="Change the captures folder location" style="display:none;">Change Folder</button>
   <button class="bt-btn" id="btn-load-tfx"       title="Load a TFX file into hardware memory (does not commit to slot)">Load TFX…</button>
-  <button class="bt-btn" id="btn-scan-bank"       title="Walk all 104 slots and cache patch data">Scan Bank</button>
+  <button class="bt-btn" id="btn-scan-bank"       title="Walk all 104 slots and cache patch data" style="display:none;">Scan Bank</button>
   <div class="bt-sep"></div>
-  <button class="bt-btn green" id="btn-save-slot" title="Commit current patch to current slot">Save to Current Slot</button>
-  <button class="bt-btn" id="btn-save-slot-as"    title="Save to a different slot (coming soon)" disabled style="opacity:0.4;">Save to Slot…</button>
+  <!-- SAVE ▾ consolidated button -->
+  <div style="position:relative;">
+    <button class="bt-btn green" id="btn-save-menu">SAVE ▾</button>
+    <div id="save-dropdown">
+      <div class="save-dd-item" id="save-dd-rack">Save to Rack…</div>
+      <div class="save-dd-item" id="save-dd-disk">Save to Disk</div>
+      <div class="save-dd-item save-dd-disabled">Save to Different Slot… (coming soon)</div>
+    </div>
+  </div>
+  <!-- Hidden — kept for JS compatibility -->
+  <button class="bt-btn green" id="btn-save-slot"    style="display:none;">Save to Current Slot</button>
+  <button class="bt-btn"       id="btn-save-slot-as" style="display:none;" disabled>Save to Slot…</button>
+  <button class="bt-btn"       id="btn-rename-patch" style="display:none;" disabled>Rename Patch…</button>
   <div class="bt-sep"></div>
-  <button class="bt-btn" id="btn-rename-patch"    title="Rename patch (coming soon)" disabled style="opacity:0.4;">Rename Patch…</button>
-  <div class="bt-sep"></div>
+  <div style="margin-left:auto;"></div>
   <button class="bt-btn" id="btn-about">About</button>
-  <div id="capture-path-label">Folder: —</div>
+  <button class="bt-btn" id="btn-settings" title="Settings">⚙</button>
+  <div id="capture-path-label" style="display:none;">Folder: —</div>
   <span id="capture-info" style="display:none;"></span>
   <span id="capture-path" style="display:none;"></span>
 </div>
 
+<!-- ══ SAVE TO RACK — NAME PROMPT MODAL ══ -->
+<div id="rack-save-modal">
+  <div id="rack-save-box">
+    <div class="rack-save-title">Save to Rack</div>
+    <div class="rack-save-slot-line">Slot: <span id="rack-save-slot-label">A1</span></div>
+    <label class="rack-save-label" for="rack-save-input">Patch Name <span style="color:var(--muted);font-size:10px;">(max 16 chars)</span></label>
+    <input type="text" id="rack-save-input" maxlength="16" autocomplete="off" spellcheck="false">
+    <div class="rack-save-btns">
+      <button id="rack-save-cancel">Cancel</button>
+      <button id="rack-save-ok" class="rack-save-ok-btn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ STATUS BAR ══ -->
 <div id="statusbar">
-  <span class="sb">Eleven Edit</span>
-  <span class="sb acc" id="status-msg">Initializing…</span>
-  <span class="sb" style="margin-left:auto;" id="sb-bridge-label">Eleven Rack (Java bridge)</span>
+  <span class="sb" style="display:none;">Eleven Edit</span>
+  <span class="sb acc" id="status-msg" style="display:none;">Initializing…</span>
+  <span id="avid-status-badge" class="active" style="display:none;">CLOSED</span>
   <span id="avid-warn" class="sb warn" style="display:none;">AVID EDITOR: OPEN</span>
+  <span class="sb" style="margin-left:auto;display:flex;align-items:center;gap:5px;">
+    <div id="midi-dot"></div>
+    <span id="sb-bridge-label">Eleven Rack (Java bridge) — <span id="midi-label">Connecting…</span></span>
+  </span>
   <button id="btn-restart-bridge" title="Kill and relaunch ElevenRackBridge.jar">Restart Bridge</button>
-  <span id="log-path-label"></span>
+  <span id="log-path-label" style="display:none;"></span>
 </div>
 
 <!-- ══ SLOT MATRIX ══ -->
@@ -895,15 +1002,26 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
   btn.addEventListener('click', function() {
     var isOpen = btn.classList.contains('panel-open');
     document.querySelectorAll('.chain-open').forEach(function(b) { b.classList.remove('panel-open'); });
+    // Close settings panel if open
+    var ps = document.getElementById('panel-settings');
+    if (ps) { ps.style.display = 'none'; }
+    var gs = document.getElementById('btn-settings');
+    if (gs) { gs.classList.remove('active'); }
     if (isOpen) {
       document.getElementById('panel-ampcab').style.display = '';
       document.getElementById('panel-other').style.display = 'none';
     } else {
       btn.classList.add('panel-open');
       var panel = btn.dataset.panel;
-      document.getElementById('panel-ampcab').style.display = 'none';
-      document.getElementById('panel-other').style.display = '';
-      document.getElementById('panel-other').textContent = panel.toUpperCase() + ' — effect controls (coming soon)';
+      // Match the amp panel's rendered height before hiding it, so swapping
+      // the two does not resize the column and shift everything below.
+      var ampPanel = document.getElementById('panel-ampcab');
+      var other    = document.getElementById('panel-other');
+      var h = ampPanel.offsetHeight;
+      if (h) other.style.minHeight = h + 'px';
+      ampPanel.style.display = 'none';
+      other.style.display = '';
+      other.textContent = panel.toUpperCase() + ' — effect controls (coming soon)';
     }
   });
 });
@@ -1057,6 +1175,177 @@ document.getElementById('breakup-slider').addEventListener('change', function() 
 // risks hitting the wrong block. State reflects TFX readback and live
 // CMD 0x11 broadcasts only.
 // ════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════
+// SAVE ▾ DROPDOWN
+// ════════════════════════════════════════════════════════════════════
+(function() {
+  var btnSave  = document.getElementById('btn-save-menu');
+  var dropdown = document.getElementById('save-dropdown');
+  var modal    = document.getElementById('rack-save-modal');
+  var input    = document.getElementById('rack-save-input');
+
+  // Toggle dropdown
+  btnSave.addEventListener('click', function(e) {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+
+  // Close dropdown on outside click
+  document.addEventListener('click', function() {
+    dropdown.classList.remove('open');
+  });
+
+  var saveAction = 'rack'; // 'rack' or 'disk'
+
+  function openSaveModal(action) {
+    saveAction = action;
+    document.querySelector('.rack-save-title').textContent = action === 'rack' ? 'Save to Rack' : 'Save to Disk';
+    input.value = (typeof currentPatchName !== 'undefined' ? currentPatchName : '') || '';
+    var slotLine = document.querySelector('.rack-save-slot-line');
+    if (slotLine) slotLine.style.display = action === 'rack' ? '' : 'none';
+    if (action === 'rack') {
+      var slotLbl = document.getElementById('rack-save-slot-label');
+      if (slotLbl && typeof currentSlot !== 'undefined') {
+        var bank  = Math.floor(currentSlot / 4);
+        var patch = (currentSlot % 4) + 1;
+        slotLbl.textContent = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[bank] + patch;
+      }
+    }
+    modal.classList.add('open');
+    setTimeout(function() { input.focus(); input.select(); }, 50);
+  }
+
+  // ── Save to Rack… ──
+  document.getElementById('save-dd-rack').addEventListener('click', function() {
+    dropdown.classList.remove('open');
+    openSaveModal('rack');
+  });
+
+  // ── Save to Disk ──
+  document.getElementById('save-dd-disk').addEventListener('click', function() {
+    dropdown.classList.remove('open');
+    openSaveModal('disk');
+  });
+
+  // ── Modal — Cancel ──
+  document.getElementById('rack-save-cancel').addEventListener('click', function() {
+    modal.classList.remove('open');
+  });
+
+  // ── Modal — Save (OK) ──
+  function doRackSave() {
+    var name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    modal.classList.remove('open');
+    if (saveAction === 'rack') {
+      if (typeof saveToRackAndDisk === 'function') saveToRackAndDisk(name);
+    } else {
+      // Disk only — update name then capture
+      if (typeof currentPatchName !== 'undefined') currentPatchName = name;
+      var nameEl = document.getElementById('patch-name');
+      if (nameEl) nameEl.textContent = name;
+      if (typeof captureCurrentPatchNow === 'function') captureCurrentPatchNow();
+    }
+  }
+  document.getElementById('rack-save-ok').addEventListener('click', doRackSave);
+
+  // Enter key confirms, Escape cancels
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter')  { doRackSave(); }
+    if (e.key === 'Escape') { modal.classList.remove('open'); }
+  });
+
+  // Close modal on backdrop click
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) modal.classList.remove('open');
+  });
+})();
+
+
+// ════════════════════════════════════════════════════════════════════
+// SETTINGS PANEL
+// ════════════════════════════════════════════════════════════════════
+(function() {
+  var btnGear      = document.getElementById('btn-settings');
+  var panelAmp     = document.getElementById('panel-ampcab');
+  var panelOther   = document.getElementById('panel-other');
+  var panelSettings= document.getElementById('panel-settings');
+
+  function openSettings() {
+    // Close any open effect panel first
+    document.querySelectorAll('.chain-open').forEach(function(b) { b.classList.remove('panel-open'); });
+    panelOther.style.display = 'none';
+    // Match amp panel height so layout doesn't shift
+    var h = panelAmp.offsetHeight;
+    if (h) panelSettings.style.minHeight = h + 'px';
+    panelAmp.style.display = 'none';
+    panelSettings.style.display = 'flex';
+    btnGear.classList.add('active');
+    // Populate current paths
+    if (window.electronAPI) {
+      window.electronAPI.getCapturesDir().then(function(d) {
+        document.getElementById('settings-captures-path').textContent = d || '—';
+      }).catch(function(){});
+      window.electronAPI.getAvidDir().then(function(d) {
+        document.getElementById('settings-avid-path').textContent = d || 'Not set';
+      }).catch(function(){});
+    }
+  }
+
+  function closeSettings() {
+    panelSettings.style.display = 'none';
+    panelAmp.style.display = '';
+    btnGear.classList.remove('active');
+  }
+
+  btnGear.addEventListener('click', function() {
+    if (panelSettings.style.display === 'none' || panelSettings.style.display === '') {
+      openSettings();
+    } else {
+      closeSettings();
+    }
+  });
+
+  document.getElementById('btn-settings-close').addEventListener('click', closeSettings);
+
+  // Set Captures Folder
+  document.getElementById('settings-btn-set-captures').addEventListener('click', function() {
+    if (!window.electronAPI) return;
+    window.electronAPI.chooseCapturesDir().then(function(res) {
+      if (res && res.ok) {
+        document.getElementById('settings-captures-path').textContent = res.dir;
+        document.getElementById('capture-path').textContent = 'Folder: ' + res.dir;
+      }
+    }).catch(function(){});
+  });
+
+  // Open Captures Folder
+  document.getElementById('settings-btn-open-captures').addEventListener('click', function() {
+    if (!window.electronAPI) return;
+    window.electronAPI.getCapturesDir().then(function(d) {
+      if (d) window.electronAPI.openPath(d);
+    }).catch(function(){});
+  });
+
+  // Set Avid Editor Folder
+  document.getElementById('settings-btn-set-avid').addEventListener('click', function() {
+    if (!window.electronAPI) return;
+    window.electronAPI.browseAvidDir().then(function(res) {
+      if (res && res.ok) {
+        document.getElementById('settings-avid-path').textContent = res.dir;
+      }
+    }).catch(function(){});
+  });
+
+  // Open Logs Folder
+  document.getElementById('settings-btn-open-logs').addEventListener('click', function() {
+    if (!window.electronAPI) return;
+    window.electronAPI.getLogsDir().then(function(d) {
+      if (d) window.electronAPI.openPath(d);
+    }).catch(function(){});
+  });
+})();
 
 // ════════════════════════════════════════════════════════════════════
 // ABOUT

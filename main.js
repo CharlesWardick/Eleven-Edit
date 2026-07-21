@@ -33,7 +33,8 @@ function initLog() {
   if (!logsEnabled) return;
   try {
     const userDataPath = app.getPath('userData');
-    if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
+    const logsDir = path.join(userDataPath, 'logs');
+    if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 
     const now = new Date();
     const stamp = now.getFullYear()
@@ -42,7 +43,7 @@ function initLog() {
       + '-' + String(now.getHours()).padStart(2,'0')
       + String(now.getMinutes()).padStart(2,'0')
       + String(now.getSeconds()).padStart(2,'0');
-    logPath = path.join(userDataPath, 'session-' + stamp + '.log');
+    logPath = path.join(logsDir, 'session-' + stamp + '.log');
     logStream = fs.createWriteStream(logPath, { flags: 'a', encoding: 'utf8' });
     logStream.on('error', function(e) { console.error('Log stream error:', e.message); logStream = null; });
     logWrite('=== RigRollerPlus Session Start ' + now.toLocaleString() + ' ===');
@@ -256,6 +257,35 @@ ipcMain.handle('choose-captures-dir', async function() {
     logWrite('Choose captures dir error: ' + e.message);
     return { ok: false, error: e.message };
   }
+});
+
+ipcMain.handle('browse-avid-dir', async function() {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Choose Avid Editor Folder',
+      defaultPath: storeGet('avidDir', 'C:\\Program Files'),
+      properties: ['openDirectory']
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths.length) {
+      return { ok: false, canceled: true };
+    }
+    const chosen = result.filePaths[0];
+    storeSet('avidDir', chosen);
+    logWrite('Avid dir set to: ' + chosen);
+    return { ok: true, dir: chosen };
+  } catch(e) {
+    logWrite('Browse avid dir error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('get-avid-dir', function() {
+  return storeGet('avidDir', '');
+});
+
+ipcMain.handle('get-logs-dir', function() {
+  return path.join(app.getPath('userData'), 'logs');
 });
 
 ipcMain.handle('reset-captures-dir', function() {

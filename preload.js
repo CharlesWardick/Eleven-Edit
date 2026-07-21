@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseCapturesDir:()            => ipcRenderer.invoke('choose-captures-dir'),
   resetCapturesDir: ()            => ipcRenderer.invoke('reset-captures-dir'),
   openPath:       (path)          => ipcRenderer.invoke('open-path', path),
+  browseAvidDir:  ()              => ipcRenderer.invoke('browse-avid-dir'),
+  getAvidDir:     ()              => ipcRenderer.invoke('get-avid-dir'),
+  getLogsDir:     ()              => ipcRenderer.invoke('get-logs-dir'),
 
   platform:   process.platform,
   isElectron: true,

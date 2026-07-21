@@ -213,9 +213,9 @@ async function loadTfxFromDisk() {
   }
 }
 
-async function saveCurrentPatchToSlot() {
+async function saveCurrentPatchToSlot(nameOverride) {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
-  const name = currentPatchName || 'Untitled';
+  const name = ((nameOverride || currentPatchName || 'Untitled').substring(0, 16)).trim();
   const slot = currentSlot;
   const bank = Math.floor(slot / 4);
   const num  = slot % 4;
@@ -223,6 +223,11 @@ async function saveCurrentPatchToSlot() {
   const bankHex = bank.toString(16).padStart(2,'0').toUpperCase();
   const numHex  = num.toString(16).padStart(2,'0').toUpperCase();
   const nameHex = asciiToHexBytes(name);
+
+  // Update global and display so TFX capture picks up the new name
+  currentPatchName = name;
+  const nameEl = document.getElementById('patch-name');
+  if (nameEl) { nameEl.textContent = name; nameEl.classList.add('live'); }
 
   appLog('Saving current patch to ' + slotLabel(slot) + ' as "' + name + '"');
   setStatus('Saving to ' + slotLabel(slot) + '...');
@@ -249,5 +254,17 @@ async function saveCurrentPatchToSlot() {
   appLog('Save commit sent for ' + slotLabel(slot));
 }
 
+// Save to Rack + auto-capture TFX to disk in one operation.
+// Commits to current slot with the supplied name, then pulls SEND_PATCH
+// back from hardware and writes it to the captures folder. The name
+// update happens before capture so the TFX filename matches the slot.
+async function saveToRackAndDisk(name) {
+  await saveCurrentPatchToSlot(name);
+  // Short settle before pulling SEND_PATCH — hardware needs to finish
+  // the commit sequence before we read back what is now in the slot.
+  await sleep(500);
+  captureCurrentPatchNow();
+}
+
 document.getElementById('btn-load-tfx').addEventListener('click', loadTfxFromDisk);
-document.getElementById('btn-save-slot').addEventListener('click', saveCurrentPatchToSlot);
+document.getElementById('btn-save-slot').addEventListener('click', function() { saveCurrentPatchToSlot(); });
