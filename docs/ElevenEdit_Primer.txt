@@ -291,7 +291,7 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
   THE EDITOR NEED NOT BE RUNNABLE, ONLY INSTALLED (confirmed 7/21/2026). This
   is what makes graphics viable on Windows 11, where the editor BSODs. After
   installing on Win10 or Win11, delete everything except:
-      C:\Users\<username>\Documents\Eleven Rack Editor\Plug-In Settings
+      C:\Program Files\Avid\Eleven Rack Editor\System Plug-Ins
   That folder holds the images. Deleting the rest also removes any chance of
   launching it by accident. Worth stating plainly in any user instructions:
   install, harvest, delete, never run.

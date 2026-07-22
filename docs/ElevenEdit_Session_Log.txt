@@ -60,7 +60,7 @@ FINDING:     Test environments, all on Avid USB driver v1.1.12:
              interface than the earlier RigRoller variants did. Rule kept.
              GRAPHICS: the Avid Editor can be INSTALLED on Win11 and its images
              used without ever launching it. After install, delete everything
-             except C:\Users\<username>\Documents\Eleven Rack Editor\
+             except C:\Program Files\Avid\Eleven Rack Editor\System Plug-Ins
              Plug-In Settings — that folder holds the graphics. This removes
              the Win11 blocker from the planned graphics enhancement.
              JDK: compiled under 25 (21 earlier); runtimes verified 21/25/26.

@@ -135,7 +135,7 @@ Windows notes). Avid USB driver v1.1.12 throughout.
     The Avid Editor may be INSTALLED on Windows 11 and its image assets used,
     provided it is never launched. After installing on Windows 10 or 11,
     manually delete everything except:
-        C:\Users\<username>\Documents\Eleven Rack Editor\Plug-In Settings
+        C:\Program Files\Avid\Eleven Rack Editor\System Plug-Ins
     That folder holds the graphic images. Nothing else is needed, and removing
     the rest also removes any temptation (or accident) of launching it.
 
