@@ -133,3 +133,28 @@ let currentMonoState = null;
 // DIST panel open flag — controls whether CMD 0x11 DIST broadcasts update
 // the panel knobs. False when the panel is hidden (no-op updates).
 let distPanelOpen = false;
+
+// REVERB panel open flag — same role as distPanelOpen, for the REVERB slot.
+let reverbPanelOpen = false;
+
+// ── Amp Select receipt counter.
+// Incremented every time a CMD 0x11 paramLo 0x0F (Amp Select) reply is
+// processed. The post-nav pull waits for this to advance before building the
+// tone-knob query list, because that list is per-amp: if it is built while
+// currentAmpKey still holds the PREVIOUS patch's amp, the wrong paramLo set
+// gets queried. Observed 2026-07-22 — navigating 800 EchoScream -> Bassguy 59
+// queried lead800's knobs, so Vol Norm (0x08) was never read and 0x09 came
+// back unroutable. A fixed sleep could not fix this reliably; waiting on the
+// actual reply can.
+var ampSelectRxSeq = 0;
+
+// ── Chain map receipt counter.
+// Incremented once a CMD 0x21 chain map has been fully applied, meaning
+// currentChain and currentParamHi are valid. The post-nav pull waits on this
+// before issuing any amp-block query, because addressing a stale paramHi
+// queries the wrong block entirely.
+var chainMapRxSeq = 0;
+
+// ── Last post-nav pull measurements, shown in the timing panel.
+var lastNavPullMs = 0;
+var lastNavPullQueries = 0;

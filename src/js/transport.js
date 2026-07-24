@@ -279,16 +279,67 @@ function sendGateParamWrite(instId, paramId, v127) {
 // 'instId' in the message IS currentParamHi (runtime handle from chain map).
 // paramLo identifies the specific control (consistent across amps).
 // Format: F0 13 0B 0F 00 11 [currentParamHi] [paramLo] [v0] 00 00 00 00 F7
+// ── STOPGAP, 2026-07-23 — Speed and Sync are READ-ONLY.
+// On the DC models these two are interlocked in the hardware: selecting a
+// Sync division forces Speed to a fixed value, and turning the real Speed
+// knob on the rack resets Sync to OFF. Our writes do neither, so the hardware
+// fights them and snaps Speed back — the erratic knob behaviour.
+// Wire evidence (session 2026-07-23-063859): Sync always broadcasts trailing
+// bytes 00 00 00 10, Speed mostly 7F 7F 7F 1F, while sendParamWrite sends
+// trailing 00 00 00 00 — matching neither. Depth tolerates it; Speed does not
+// and the rack forces Speed to 0 in response.
+// Until the interlock and the trailing-byte meaning are properly established,
+// display these two but never write them. Set to [] to re-enable writes.
+// EMPTIED 7/23/2026. Both are now writable. The Avid capture
+// Avid_Shark_Sync_Test.pcapng settled why writes used to fail: it was the
+// Sync interlock, not a malformed message. With Sync on a division the rack
+// IGNORES every Speed write — Avid sent ~40 in that capture and the hardware
+// echoed the same unchanged value back each time. Avid never clears Sync
+// first, so its Speed knob does nothing in that state either.
+// Our rule instead mirrors the hardware: turning Speed clears Sync to OFF
+// first, exactly as the rack does when its own Speed knob is turned.
+// The trailing 00 00 00 00 this file already sent was never wrong. Avid's own
+// Sync-OFF write is byte identical to ours; the 0x10 that appears in the
+// final byte of every hardware BROADCAST is added by the rack on the way out.
+// Put 0x11 and/or 0x12 back in this array to make either read-only again —
+// the knob styling and the dropdown both follow it automatically.
+var READ_ONLY_PARAM_LOS = [];
+
 function sendParamWrite(paramLo, v127) {
+  if (READ_ONLY_PARAM_LOS.indexOf(paramLo) !== -1) {
+    appLog('sendParamWrite: paramLo 0x' +
+           paramLo.toString(16).padStart(2,'0').toUpperCase() +
+           ' is read-only (Speed/Sync interlock) — write suppressed');
+    return false;
+  }
   if (currentParamHi < 0) {
     appLog('sendParamWrite: currentParamHi not set yet, not sending');
     return false;
   }
-  const v0 = ((v127 + 64) % 128) & 0x7F;
+  // ENDPOINT SENTINELS (added 7/23/2026). A CMD 0x11 value is five 7-bit
+  // bytes, not one: v1..v4 are the LOW-ORDER bits of the same quantity, not
+  // padding. Sending v0 with 00 00 00 00 therefore asks for the very BOTTOM of
+  // that step. Most controls are quantised to the byte and cannot tell, but
+  // Speed carries real sub-step precision and reported 9.9 when asked for
+  // 10.0 — it was doing exactly as told.
+  // Section 7 already documents the true endpoints: min 40 00 00 00,
+  // max 3F 7F 7F 7F. Writes carry 0F in the final byte where broadcasts carry
+  // 1F, that 0x10 being added by the rack on the way out (confirmed against
+  // Avid's own writes in Avid_Shark_Sync_Test.pcapng).
+  // Applies to every knob: for controls already reaching 10.0 this asks for a
+  // value strictly closer to true maximum than before, so nothing visible
+  // changes, and any future high-precision control is right from the start.
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
   const hex = 'F0 13 0B 0F 00 11 '
     + currentParamHi.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
-    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+    + tail + ' F7';
   return sendHex(hex);
 }
 
@@ -337,7 +388,10 @@ function sendCabParamWrite(paramLo, v127) {
   return sendHex(hex);
 }
 
-// ── CMD 0x36 — To Amp volume (global). slot: 0x02=ToAmp1, 0x03=ToAmp2.
+// ── CMD 0x36 — To Amp volume. PER-PATCH, NOT GLOBAL (corrected 7/23/2026;
+// this comment said "global" for weeks and was simply wrong — the values live
+// in the TFX body and return with the patch. Tech Ref Sec 18 / C13).
+// slot: 0x02=ToAmp1, 0x03=ToAmp2.
 // Confirmed wire format 7/17/2026 from send/echo analysis:
 //   F0 13 0B 0F 00 36 [slot] [v0] 00 00 00 00 F7
 // slot goes directly at byte[6] — no extra fixed byte before it.
@@ -584,14 +638,256 @@ async function requestFullState() {
 // initiated nav), so a plain exact-match check against it is safe —
 // protects against a stale response for an older slot arriving late
 // during fast navigation (auto-roll) and yanking the display backward.
+// DIAGNOSTIC FLAG — flicker investigation, 2026-07-22.
+// The Avid editor never requests CMD 0x01 (the ~1.2 KB bulk TFX dump) after a
+// patch recall; we do, and it is the only large transfer in our post-nav
+// sequence. Set this false to skip it during navigation and see whether the
+// second front-panel flicker disappears.
+// WHILE FALSE, everything decoded from the bulk body goes stale or blank:
+// amp name, tone knobs, gate, amp out, cab/mic, stereo/mono, to-amp volumes.
+// That is expected. Set back to true to restore normal behaviour.
+var REQUEST_BULK_ON_NAV = false;
+
+// DIAGNOSTIC — amp paramLo investigation, 2026-07-22.
+// After each nav, fire the five queries the Avid editor sends that we have
+// never decoded, and dump the replies in full. Looking for a parameter
+// descriptor for the current amp.
+var PROBE_UNKNOWN_QUERIES = false;
+
+// DIAGNOSTIC — sweep the amp's own parameters, paramLo 0x01..0x19, against the
+// runtime handle from CMD 0x21, and log each reply in full. The Wireshark
+// captures lost the 5th value byte of every reply; our own log does not, so
+// this gives clean values to correlate against the readouts.
+var PROBE_AMP_PARAM_SWEEP = false;
+
+async function probeUnknownQueries() {
+  if (!bridgeMidiReady) return;
+  appLog('PROBE ---- unknown-query probe start ----');
+  var list = [['0x03', REQU_PROBE_03], ['0x08', REQU_PROBE_08],
+              ['0x0A', REQU_PROBE_0A], ['0x34', REQU_PROBE_34],
+              ['0x50', REQU_PROBE_50],
+              ['0x36 bare',   REQU_PROBE_36],
+              ['0x36 slot02', REQU_PROBE_36_S2],
+              ['0x36 slot03', REQU_PROBE_36_S3],
+              ['0x0D mono',   REQU_PROBE_0D]];
+  for (var i = 0; i < list.length; i++) {
+    appLog('PROBE  -> query CMD ' + list[i][0]);
+    sendHex(list[i][1]);
+    await sleep(250);
+  }
+  appLog('PROBE ---- unknown-query probe end ----');
+}
+
+async function probeAmpParamSweep() {
+  if (!bridgeMidiReady) return;
+  if (typeof currentParamHi === 'undefined' || currentParamHi === null) {
+    appLog('PROBE sweep skipped — no amp paramHi yet (CMD 0x21 not seen)');
+    return;
+  }
+  var hi = currentParamHi;
+  appLog('PROBE ---- amp param sweep start, paramHi=0x' +
+         hi.toString(16).padStart(2, '0').toUpperCase() + ' ----');
+  var hh = function(v) { return v.toString(16).padStart(2, '0').toUpperCase(); };
+  for (var lo = 0x01; lo <= 0x19; lo++) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh(hi) + ' ' + hh(lo) + ' F7');
+    await sleep(120);
+  }
+  appLog('PROBE ---- amp param sweep end ----');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// POST-NAV STATE PULL
+//
+// Two modes, chosen by REQUEST_BULK_ON_NAV.
+//
+//   TRUE  — legacy: request the ~1.2 KB bulk TFX dump (CMD 0x01) and decode
+//           every readout from its body. Correct, but the bulk request is
+//           what makes the hardware front panel flicker a second time
+//           (confirmed 2026-07-22).
+//   FALSE — targeted: read each value with its own small query, the way the
+//           Avid editor does. No bulk, no second flicker.
+//
+// Kept as a flag so one edit returns to known-good behaviour if the targeted
+// path ever misbehaves.
+//
+// TFX capture on hardware save is NOT affected by either mode — saves arrive
+// as an unprompted CMD 0x00 broadcast on a separate path.
+// ════════════════════════════════════════════════════════════════════
+
+// ── Post-nav timing. All four are tuning knobs; adjust here, nowhere else.
+//
+// Measured from the real Avid editor (Avid_Edit_Patch_Changes_.pcapng,
+// 2026-07-22): it issues 47 queries per recall in ~660 ms, average gap
+// 14.3 ms, MEDIAN gap 1.1 ms. It fires most queries back-to-back and only
+// pauses for the bulky replies (max observed gap 190 ms). Our first build
+// used 120 ms flat, roughly ten times slower than the hardware needs, which
+// is why panel refresh felt sluggish.
+//
+// These values put us at Avid's pace with a little margin. If anything reads
+// stale or arrives out of order, raise NAV_QUERY_GAP first.
+var NAV_QUERY_GAP    = 15;   // between ordinary queries
+var NAV_RECALL_SETTLE = 100; // after the patch recall, before querying
+var NAV_CHAIN_TIMEOUT = 900; // max wait for the chain map reply (see below)
+var NAV_AMP_TIMEOUT   = 700; // max wait for the amp identity reply (see below)
+
+// Incremented on every nav. A sequence that finds its id superseded, or the
+// slot changed underneath it, abandons the rest of its queries so replies
+// for an abandoned patch cannot paint stale values during fast navigation
+// or auto-roll.
+var navSeqId = 0;
+
 async function requestPatchStateAfterNav() {
   if (!bridgeMidiReady) return;
-  await sleep(200);
-  sendHex(REQU_SEND_PATCH); await sleep(150);
-  sendHex(REQU_PATCH_NAME); await sleep(150);
-  sendHex(REQU_CHAIN_MAP);  await sleep(150);
-  sendHex(REQU_RIG_VOL);
+
+  var mySeq     = ++navSeqId;
+  var startSlot = currentSlot;
+  var tStart    = Date.now();
+  var qCount    = 0;
+
+  function stale() {
+    if (mySeq !== navSeqId) return true;
+    if (currentSlot !== startSlot) return true;
+    return false;
+  }
+  function hh(v) { return v.toString(16).padStart(2, '0').toUpperCase(); }
+  function paramQuery(hi, lo) {
+    qCount++;
+    return 'F0 13 0B 0F 01 11 ' + hh(hi) + ' ' + hh(lo) + ' F7';
+  }
+  function finish() {
+    var ms = Date.now() - tStart;
+    lastNavPullMs = ms;
+    lastNavPullQueries = qCount;
+    appLog('Nav pull complete: ' + qCount + ' param queries, ' + ms + ' ms');
+    if (typeof refreshTimingPanel === 'function') refreshTimingPanel();
+  }
+
+  await sleep(NAV_RECALL_SETTLE);
+  if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
+
+  // ── Legacy bulk path ──
+  if (REQUEST_BULK_ON_NAV) {
+    sendHex(REQU_SEND_PATCH); await sleep(150);
+    sendHex(REQU_PATCH_NAME); await sleep(150);
+    sendHex(REQU_CHAIN_MAP);  await sleep(150);
+    sendHex(REQU_RIG_VOL);
+    if (PROBE_UNKNOWN_QUERIES) { await sleep(300); await probeUnknownQueries(); }
+    if (PROBE_AMP_PARAM_SWEEP) { await sleep(300); await probeAmpParamSweep(); }
+    return;
+  }
+
+  // ── Targeted path ──
+  // PHASE 1 — structure. The chain map sets currentParamHi and currentChain,
+  // and its handler fires requestAllBypass, so bypass flags come along free.
+  sendHex(REQU_PATCH_NAME); await sleep(NAV_QUERY_GAP);
+  if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
+  // Wait for the chain map to be APPLIED, not a fixed delay. Until it is,
+  // currentParamHi belongs to the previous patch, and every amp-block query
+  // would address the wrong block.
+  var chainBefore = chainMapRxSeq;
+  sendHex(REQU_CHAIN_MAP);
+  var cwaited = 0;
+  while (chainMapRxSeq === chainBefore && cwaited < NAV_CHAIN_TIMEOUT) {
+    await sleep(10);
+    cwaited += 10;
+    if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
+  }
+  if (chainMapRxSeq === chainBefore) {
+    appLog('Nav pull: chain map did not arrive within ' + NAV_CHAIN_TIMEOUT +
+           'ms — amp block queries skipped this pass');
+    if (stale()) return;
+  }
+
+  if (typeof currentParamHi !== 'number' || currentParamHi < 0) {
+    appLog('Nav pull: no amp paramHi after chain map — amp block queries skipped');
+  } else {
+    var hi = currentParamHi;
+
+    // PHASE 2 — amp identity FIRST. Tone knob paramLo values are looked up
+    // per amp, so currentAmpKey must be set before phase 3 or the tone
+    // replies arrive unroutable. This ordering was the fault in the
+    // 2026-07-22 diagnostic build.
+    // Wait for the REPLY, not a fixed delay. The tone list built below is
+    // per-amp, so if currentAmpKey still holds the previous patch's amp we
+    // query the wrong paramLo set — observed 2026-07-22, where navigating to
+    // Bassguy 59 used lead800's knobs, leaving Vol Norm (0x08) unread and
+    // 0x09 unroutable. Polling the receipt counter adapts to however long the
+    // hardware actually takes; the timeout only bounds a lost reply.
+    var seqBefore = ampSelectRxSeq;
+    sendHex(paramQuery(hi, 0x0F));
+    var waited = 0;
+    while (ampSelectRxSeq === seqBefore && waited < NAV_AMP_TIMEOUT) {
+      await sleep(10);
+      waited += 10;
+      if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
+    }
+    if (ampSelectRxSeq === seqBefore) {
+      appLog('Nav pull: amp identity did not arrive within ' + NAV_AMP_TIMEOUT +
+             'ms — tone list may use the previous amp');
+    }
+    if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
+
+    // PHASE 3 — amp block. Fixed params first, then this amp's tone controls.
+    var los = [0x03,        // amp out
+               0x04, 0x05,  // gate threshold, gate release
+               0x0E,        // bright
+               0x15, 0x16,  // cab type, mic type
+               0x17, 0x18]; // mic axis, speaker breakup
+
+    var ap = (typeof AMP_TONE_PARAMS !== 'undefined' && currentAmpKey)
+             ? AMP_TONE_PARAMS[currentAmpKey] : null;
+    if (ap && ap.knobs) {
+      // Only types the app can actually route and display. This mirrors
+      // decodeToneKnobValues(), which filters to the same two, so the
+      // targeted path reads exactly what the bulk path decoded — no more,
+      // no less.
+      // 'selector' entries (15 across the amp table, e.g. Sync on the DC
+      // models) are deliberately EXCLUDED: neither path has ever decoded
+      // them and ui.js has no selector rendering, so querying them only
+      // produced "unhandled paramLo" noise. Implementing selector readback
+      // is separate work; when it happens, add 'selector' here.
+      for (var k = 0; k < ap.knobs.length; k++) {
+        var kt = ap.knobs[k].type;
+        if (kt !== 'knob' && kt !== 'toggle') continue;
+        var klo = ap.knobs[k].lo;
+        if (typeof klo === 'number' && los.indexOf(klo) === -1) los.push(klo);
+      }
+      // Tremolo feature set — Sync (0x12) and On/Off (0x13). Sync is a
+      // 'selector' and 0x13 is not in the tone table at all, so neither is
+      // picked up by the filter above; both now have a display path, so both
+      // are queried here. Adds 2 queries, and only on the 15 amps that have
+      // tremolo. Depth (0x10) and Speed (0x11) are plain knobs and already
+      // came through the loop above.
+      if (typeof ampHasTremolo === 'function' && ampHasTremolo(currentAmpKey)) {
+        if (los.indexOf(0x12) === -1) los.push(0x12);
+        if (los.indexOf(0x13) === -1) los.push(0x13);
+      }
+    } else {
+      appLog('Nav pull: no tone map for amp "' + (currentAmpKey || 'unknown') + '"');
+    }
+
+    for (var i = 0; i < los.length; i++) {
+      if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
+      sendHex(paramQuery(hi, los[i]));
+      await sleep(NAV_QUERY_GAP);
+    }
+  }
+
+  // PHASE 4 — rig level. Each has its own command, none needs the amp handle.
+  if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
+  sendHex(REQU_RIG_VOL);            await sleep(NAV_QUERY_GAP);
+  if (stale()) return;
+  sendHex(REQU_TOAMP1_READ);        await sleep(NAV_QUERY_GAP);
+  if (stale()) return;
+  sendHex(REQU_TOAMP2_READ);        await sleep(NAV_QUERY_GAP);
+  if (stale()) return;
+  sendHex(REQU_MONO_READ);
+  finish();
+
+  if (PROBE_UNKNOWN_QUERIES) { await sleep(300); await probeUnknownQueries(); }
+  if (PROBE_AMP_PARAM_SWEEP) { await sleep(300); await probeAmpParamSweep(); }
 }
+
 
 // ════════════════════════════════════════════════════════════════════
 // DIST EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
@@ -649,6 +945,62 @@ function sendDistParamWrite(paramLo, v127) {
   const v0  = ((v127 + 64) % 128) & 0x7F;
   const hex = 'F0 13 0B 0F 00 11 '
     + distBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+  return sendHex(hex);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// REVERB EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
+// Mirror of the DIST panel functions, targeting SLOT_REVERB. Two models
+// live here; we send the mono base mid and let the firmware pick the
+// variant, exactly as DIST does with its single mid.
+// ════════════════════════════════════════════════════════════════════
+function sendReverbModelChange(newMid) {
+  if (!bridgeMidiReady) { appLog('sendReverbModelChange: bridge not ready'); return false; }
+  if (!currentChainInput || !currentChain.length) {
+    appLog('sendReverbModelChange: no chain map yet'); return false;
+  }
+  const b = [0xF0,0x13,0x0B,0x0F,0x00,0x21];
+  b.push(SLOT_INPUT, currentChainInput.modelId, currentChainInput.handle);
+  for (let i = 0; i < 10; i++) {
+    const blk      = currentChain[i];
+    const backLink = (i === 0) ? SLOT_INPUT : currentChain[i-1].slotId;
+    const mid      = (blk.slotId === SLOT_REVERB) ? newMid : blk.modelId;
+    const handle   = (blk.slotId === SLOT_REVERB) ? 0x00   : blk.handle;
+    b.push(backLink, mid, handle);
+  }
+  b.push(currentChain[9].slotId, 0xF7);
+  const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  appLog('sendReverbModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
+  return sendHex(hex);
+}
+
+// Query all knob params for the current REVERB model from hardware.
+function requestReverbParams() {
+  if (!bridgeMidiReady) return;
+  const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
+  if (!rvBlk) { appLog('requestReverbParams: no REVERB block in chain'); return; }
+  const model = REVERB_MODEL_BY_MID[rvBlk.modelId];
+  if (!model) {
+    appLog('requestReverbParams: unknown REVERB mid=0x' + rvBlk.modelId.toString(16).padStart(2,'0'));
+    return;
+  }
+  const hh = rvBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  model.paramLos.forEach(function(lo) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
+  });
+  appLog('requestReverbParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+}
+
+// Write one REVERB knob value to hardware — same 5-byte value payload as DIST.
+function sendReverbParamWrite(paramLo, v127) {
+  if (!bridgeMidiReady) return false;
+  const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
+  if (!rvBlk) { appLog('sendReverbParamWrite: no REVERB block'); return false; }
+  const v0  = ((v127 + 64) % 128) & 0x7F;
+  const hex = 'F0 13 0B 0F 00 11 '
+    + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
     + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
   return sendHex(hex);

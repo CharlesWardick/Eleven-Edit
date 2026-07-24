@@ -13,6 +13,16 @@ async function parseSysEx(data) {
   const dirByte = data[4];
   const cmd     = data[5];
 
+  // ── DIAGNOSTIC — amp paramLo investigation, 2026-07-22.
+  // Raw-dump, in full and undecoded, any response whose CMD is in
+  // PROBE_DUMP_CMDS. Runs before normal dispatch and changes nothing else;
+  // messages that already have a handler still reach it as usual.
+  if (typeof PROBE_DUMP_CMDS !== 'undefined' && PROBE_DUMP_CMDS.indexOf(cmd) !== -1) {
+    appLog('PROBE resp CMD 0x' + cmd.toString(16).padStart(2,'0').toUpperCase() +
+           '  len=' + data.length + 'b  ' +
+           Array.from(data).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' '));
+  }
+
   // CMD 0x00 — Bulk TFX data, spontaneous ASYNC broadcast (hardware save,
   //   bank load). HAS a slot-number byte at data[6]; payload starts at 7.
   // CMD 0x01 — Bulk TFX data, RESP to our own REQU SEND_PATCH. Confirmed
@@ -299,6 +309,10 @@ async function parseSysEx(data) {
       requestAllBypass();        // AFTER the row exists — needs currentChain populated
       // If DIST panel is open, update its dropdown/knobs with the new handle
       if (typeof refreshDistPanelAfterChainMap === 'function') refreshDistPanelAfterChainMap();
+      if (typeof refreshReverbPanelAfterChainMap === 'function') refreshReverbPanelAfterChainMap();
+      // Release the post-nav pull's wait: currentParamHi and currentChain are
+      // now valid, so amp-block queries can safely be addressed.
+      chainMapRxSeq++;
     } else {
       // Should not happen — every rig has an amp block.
       appLog('CMD 0x21: no AMP block (slot 0x00) found in chain map, paramHi unchanged');
@@ -434,6 +448,16 @@ async function parseSysEx(data) {
     //   paramLo 0x01 = block bypass   0x06 = amp bypass   0x14 = cab bypass
     //   v0 0x40 = active, 0x3F = bypassed
     //
+    // HANDLE GUARD (added 7/22): amp-bypass (0x06) and cab-bypass (0x14) are
+    // only meaningful on the AMP block's handle. Other blocks reuse paramLo
+    // 0x06 for their own parameters — e.g. Eleven SR REVERB Pre-Delay is
+    // paramLo 0x06 on the reverb handle. Without this guard a Pre-Delay turn
+    // was read as an amp-bypass event (and its readback was swallowed here
+    // instead of reaching the reverb knob). So 0x06/0x14 only count as bypass
+    // when they arrive on currentParamHi; anything else falls through to the
+    // per-block routing below. Same bug family as the 0x04-handle case:
+    // a value that is a control code in one context is plain data in another.
+    //
     // FORMAT B DETECTION NOTE: Format B has 0x04 as a literal marker byte at
     // data[6], NOT a handle. However, a block's runtime handle CAN legitimately
     // be 0x04 (e.g. MOD in certain chain orders), producing a Format A response
@@ -448,7 +472,10 @@ async function parseSysEx(data) {
       } else {                                                         // FORMAT A
         bInst = data[6]; bLo = data[7]; bV0 = data[8];
       }
-      if (bLo === BYPASS_PARAMLO_BLOCK || bLo === BYPASS_PARAMLO_AMP || bLo === BYPASS_PARAMLO_CAB) {
+      const isAmpBypassMsg = (bLo === BYPASS_PARAMLO_AMP || bLo === BYPASS_PARAMLO_CAB)
+                             && bInst === currentParamHi;
+      const isBlockBypassMsg = (bLo === BYPASS_PARAMLO_BLOCK);
+      if (isAmpBypassMsg || isBlockBypassMsg) {
         const isActive = (bV0 !== BYPASS_V0_BYPASSED);
         const blk = currentChain.find(x => x.handle === bInst);
         const who = blk ? blk.name : ('handle 0x' + bInst.toString(16).padStart(2,'0'));
@@ -502,6 +529,20 @@ async function parseSysEx(data) {
         if (paramLo === 0x02 || paramLo === 0x03 || paramLo === 0x04 || paramLo === 0x05) {
           if (typeof updateDistKnob === 'function') updateDistKnob(paramLo, val);
           appLog('CMD 0x11 DIST paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+          return;
+        }
+      }
+    }
+
+    // ── REVERB parameter routing — same shape as DIST above. paramLo 0x05
+    // is the Eleven SR Type control; updateReverbKnob also moves the Type
+    // dropdown to the nearest zone for it.
+    if (reverbPanelOpen) {
+      const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
+      if (rvBlk && instId === rvBlk.handle) {
+        if (paramLo >= 0x02 && paramLo <= 0x06) {
+          if (typeof updateReverbKnob === 'function') updateReverbKnob(paramLo, val);
+          appLog('CMD 0x11 REVERB paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
           return;
         }
       }
@@ -567,6 +608,10 @@ async function parseSysEx(data) {
 
     // paramLo 0x0F = Amp Select — raw v0, not scaled
     if (paramLo === 0x0F) {
+      // Signal the post-nav pull that amp identity has landed, BEFORE any
+      // early return below, so a value we cannot match still releases the
+      // wait rather than stalling it to timeout.
+      ampSelectRxSeq++;
       const match = AMP_SELECT_BY_V0[v0];
       if (match) {
         appLog('Amp Select readback: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' -> ' + match.label);
@@ -576,6 +621,14 @@ async function parseSysEx(data) {
       }
       return;
     }
+
+    // paramLo 0x12 = Sync selector, 0x13 = Tremolo on/off.
+    // Both confirmed 7/23/2026. They are amp-block parameters and only reach
+    // here on the amp handle, so no extra gating is needed — but they must be
+    // routed BEFORE the tone-knob loop, because Sync is a 'selector' entry in
+    // AMP_TONE_PARAMS and would otherwise fall through to "unhandled paramLo".
+    if (paramLo === 0x12) { updateSyncReadout(val); return; }
+    if (paramLo === 0x13) { updateTremReadout(val); return; }
 
     // Tone knobs — route by paramLo against current amp's AMP_TONE_PARAMS
     const ap = currentAmpKey ? AMP_TONE_PARAMS[currentAmpKey] : null;

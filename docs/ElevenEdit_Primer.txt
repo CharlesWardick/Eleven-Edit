@@ -1,8 +1,10 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-21
+Updated: 2026-07-23
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 9 complete (DIST effect panel); Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
+Status: Active development — Phase 11 complete (amp tremolo feature set);
+Phase 10 complete (REVERB effect panel); Phase 9 complete (DIST effect panel);
+Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
 
 SESSION START — DO THIS BEFORE ANY WORK
 --------------------------------------------------
@@ -72,6 +74,30 @@ complete without it. Each block that moved left a one-line pointer behind.
   be archived. If it would stop someone repeating a mistake, it stays.
 
 
+FINALIZATION — HOW TO WRAP A SESSION (the method that has been working)
+----------------------------------------------------------------------
+When Charlie says to finalize/wrap, do this, in order:
+  1. FOLD IN. For each confirmed finding in the session log, edit the value
+     directly into the Technical Reference (or this Primer) IN PLACE — new
+     protocol facts into the relevant numbered section, plus a one-line entry
+     in Tech Ref Sec 24 (Change Log). Never create a dated copy.
+  2. MARK THE LOG. Change each folded entry's STATUS to
+     "[FOLDED IN: <doc + section>]". Leave the entry in place (do not delete);
+     the log trends toward empty over time, not in one wipe. Anything still
+     provisional or unverified stays as-is with a clear NEXT.
+  3. UPDATE PRIMER STATE. Bump the Status line and CURRENT APP STATE phase,
+     move the shipped feature into WORKING, trim it from NOT YET IMPLEMENTED,
+     and add its functions to the CODE FILE MAP.
+  4. LINE-COUNT TELL. State each returned doc's line count against what you
+     started from. Docs that only gained content must not come back shorter.
+  5. ONE ZIP. Deliver every modified file — code AND the three/four docs — in a
+     single zip for download. Charlie folds that zip into the canonical build
+     folder at end of day; the build folder, not the project or the chat, is
+     canonical (see SESSION START).
+  The point of the zip is that the whole session lands as one consistent set,
+  so nothing is half-folded and no doc is left older than the code it describes.
+
+
 WHAT THIS PROJECT IS
 --------------------
 Eleven Edit is a full patch editor and bank manager for the Avid Eleven Rack
@@ -107,6 +133,26 @@ sees; he cannot write or debug code himself and won't fill in gaps.
     running, features that never query anything can appear to work perfectly.
     This caused a false pass on 7/19 (per-block bypass). If a feature reads
     state from the hardware, it is not proven until it has run solo.
+  - KNOB "JUMP TO CENTRE" — recurs every time a new knob type is added. When a
+    knob sitting at value 0 is grabbed, it leaps to the middle on the first
+    drag. Cause: reading the start value as `parseInt(dataset.value) || 64`,
+    where a legitimate 0 is falsy and becomes 64. FIX (copy from the tone-knob
+    drag, the known-good one): guard explicitly —
+    `(dataset.value !== undefined && dataset.value !== '') ? parseInt(...) : 64`.
+    Was present in DIST and REVERB panels; both fixed 7/22. Check for this
+    pattern in any new knob before building.
+  - A DISPLAY THAT CANNOT REACH A ROUND NUMBER IS A SCALE BUG, NOT DRIFT. Two
+    readouts were quietly wrong for weeks because a 0-127 integer was stretched
+    across a symmetric dB range, putting 0.0 dB between two integers where it
+    could never be shown. One was even written off as "log-pot nonlinearity".
+    Anchor any scale on its zero point. Same family: a write that asks for the
+    bottom of a step, which is why Speed would not reach 10.0.
+  - AN EDIT ANCHORED ON A LOOSE MARKER CAN SILENTLY DELETE A SECTION. Folding
+    in on 7/23, "cut from C11 to the next C12" removed Sections 23 and 24 of
+    the Technical Reference, because the FLAGGED CONFLICTS entries are not in
+    numeric order and C12's header sits ABOVE C11's. Nothing looked wrong; the
+    line-count tell caught it. Anchor on unique text and check the section
+    headers survive.
 
 
 CONFIRMED ARCHITECTURE (brief)
@@ -122,7 +168,7 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE (Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
 
@@ -131,11 +177,19 @@ WORKING:
   Current patch display: slot, name, amp model, effect-chain graphic
   Amp identification from TFX body ('6dls' marker scan)
   Gate Threshold / Release — SW send + TFX readback + live HW readback
-  Amp Out — SW send + TFX readback + live HW readback
-  Rig Volume — CC17 send + CMD 0x07 live readback
+  Amp Out — SW send + TFX readback + live HW readback (in the "Volumes" box)
+  Rig Volume — CC17 send + CMD 0x07 live readback (in the "Volumes" box)
   Amp Select dropdown — CMD 0x11 send + readback
   Tone stack — all 33 amps: SW drag, TFX initial readback, live HW readback
-  Bright toggle — SW button, TFX + live HW readback (12 amps)
+  Bright toggle — SW button, TFX + live HW readback (12 amps). The label comes
+    from the amp table, so SL100 Drive correctly reads MOD.
+  AMP TREMOLO FEATURE SET (Phase 11, 7/23/2026) — on the 15 amps that have it:
+    Depth and Speed knobs, a TREMOLO on/off button (paramLo 0x13, a control
+    Avid's editor does not have at all), and a 14-entry Sync dropdown showing
+    the note glyph and its name. All read and write.
+    Moving Speed clears Sync to OFF first, mirroring the rack. Avid's Speed
+    knob does nothing at all while Sync is engaged. Tech Ref Sec 11.
+    Laid out as a BRIGHT / TREMOLO / SYNC stack right of the tone knobs.
   Tuner button — SW send (CC69) + CMD 0x40 HW state readback
   To Amp 1/2 volume knobs — SW send + TFX readback + live HW readback (Phase 8)
   Cab Type / Mic Type dropdowns — SW send + TFX + live HW readback
@@ -169,14 +223,27 @@ WORKING:
     knobs with Avid-correct labels and per-model 2D layout, SW drag sends
     CMD 0x11, live HW readback, ✕ close button. Confirmed solo 7/21/2026.
     Pattern established for remaining eight effect slots.
+  REVERB effect panel (Phase 10) — both models: Blackpanel Spring Reverb and
+    Eleven SR. Model dropdown, model switching via CMD 0x21, knobs with
+    Avid-correct labels, SW drag sends CMD 0x11, live HW readback, ✕ close.
+    Eleven SR adds a Type control (linked dropdown + knob, 25 named zones) and
+    a Pre-Delay knob shown in ms (0–200). Confirmed solo 7/22/2026. Exposed and
+    fixed the amp-bypass paramLo-0x06 handle collision (Tech Ref Sec 3 / 23).
+  GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
+    moved off the old right-hand column for tighter window scaling (7/22).
 
 NOT YET IMPLEMENTED (largest first):
-  Effect panels for the eight remaining non-amp, non-DIST blocks — clicking
-    the chain row's arrow still shows a "coming soon" placeholder. The DIST
-    panel (Phase 9) established the full pattern: paramLo capture, rows-based
-    layout in DIST_MODELS, renderDistKnobs, CMD 0x21 model change. Replicate
-    per slot. paramLo numbers still needed for all non-DIST families.
-  Sync selector dropdown (paramLo 0x12 known; needs a valid-value capture)
+  Rig tempo control — CMD 0x50 identified and partly decoded 7/23; needs one
+    short calibration capture to finish. NEXT TASK. Tech Ref Sec 21.
+  Effect panels for the seven remaining non-amp effect blocks (MOD, DELAY,
+    WAH, VOL, FX1, FX2, FX LOOP) — clicking the chain row's arrow still shows a
+    "coming soon" placeholder. The DIST (Phase 9) and REVERB (Phase 10) panels
+    established the full pattern: paramLo capture, rows-based layout in a
+    MODELS table, render/update/drag helpers, CMD 0x21 model change, and a
+    handle-scoped CMD 0x11 routing block. Replicate per slot. paramLo numbers
+    still needed for the remaining families. REVERB also proved out two extras
+    worth reusing: a selector rendered as a linked dropdown+knob, and a
+    per-knob unit/scale (ms) on the value readout.
   To Amp source dropdowns — code present, GUI removed. SW sends don't move the
     HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
     defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
@@ -211,23 +278,76 @@ CODE FILE MAP
   preload.js           Electron preload, exposes electronAPI.
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
+                       Phase 11: .scard-col is a COLUMN of two fixed .amp-row
+                       blocks, not one wrapping row — that wrapping row is what
+                       made the tone knobs ride up beside Volumes and Bright
+                       wrap under Gate at wide sizes. BRIGHT / TREMOLO / SYNC
+                       stack added right of the tone knobs.
                        Settings panel, SAVE ▾ dropdown, name-prompt modal.
                        Phase 9: #panel-dist HTML, model dropdown, ✕ close button,
                        chain-open handler updated for DIST slot.
+                       Phase 10: #panel-reverb HTML + model dropdown + ✕; reverb
+                       branch in chain-open handler; "Volumes" box replaces the
+                       right-hand Amp Out/Rig Vol column (scard-col-r CSS now unused).
   state.js             Shared mutable state.
                        Phase 9: distPanelOpen flag.
+                       Phase 10: reverbPanelOpen flag.
+                       7/23: ampSelectRxSeq, chainMapRxSeq (reply-arrival
+                       counters the post-nav pull waits on), lastNavPullMs /
+                       lastNavPullQueries (timing panel readout).
+  timing-panel.js      DEV TOOL, 7/23. Draggable panel, bottom-left, that
+                       edits the nav timings live and reports the last pull's
+                       query count and elapsed ms. The timings are plain vars,
+                       so no rebuild is needed to try a value.
+                       SHOW_TIMING_PANEL = false removes it entirely.
+                       Tune NAV_QUERY_GAP and NAV_RECALL_SETTLE only; the two
+                       timeouts bound a LOST reply and are not speed controls.
   protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders.
+                       Phase 11: SYNC_DIVISIONS (14 entries, glyph + text),
+                       syncIndexFromV127, syncV127FromIndex, ampHasTremolo.
+                       SL100 Drive's 0x0E toggle relabelled MOD.
                        Phase 9: DIST_MODELS (rows layout, Avid labels) + DIST_MODEL_BY_MID.
+                       Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
+                       REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
   transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       7/23: requestPatchStateAfterNav() rewritten as a
+                       four-phase targeted pull (structure -> amp identity ->
+                       amp block -> rig level), replacing the CMD 0x01 bulk
+                       dump. REQUEST_BULK_ON_NAV=true restores the old path.
+                       Waits on reply counters, not timers. navSeqId + slot
+                       check abandon a pull if navigation moves on.
+                       READ_ONLY_PARAM_LOS is now EMPTY — Speed and Sync are
+                       writable. The array and the .knob-readonly styling
+                       remain: putting a paramLo back makes that knob read-only
+                       again with no other change.
+                       Phase 11: nav pull adds 0x12/0x13 on tremolo amps;
+                       sendParamWrite sends true endpoint sentinels.
                        Phase 9: sendDistModelChange, requestDistParams, sendDistParamWrite.
+                       Phase 10: sendReverbModelChange, requestReverbParams, sendReverbParamWrite.
   sysex-handler.js     Incoming message routing.
                        Phase 9: DIST paramLo routing in CMD 0x11 handler;
                        refreshDistPanelAfterChainMap called from CMD 0x21 handler.
+                       Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
+                       amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       Phase 11: updateTremButton/Readout, populateSyncDropdown,
+                       updateSyncReadout, Speed-clears-Sync rule in the tone
+                       drag handler, dB scales for To Amp and Amp Out anchored
+                       on zero. All four drag handlers now end a drag when the
+                       mouse reports no button held or the window loses focus —
+                       previously a release outside the window left the knob
+                       stuck to the pointer.
                        Phase 9: openDistPanel, renderDistKnobs, updateDistKnob,
                        refreshDistPanelAfterChainMap, DIST knob drag handler.
+                       Phase 10: openReverbPanel, renderReverbKnobs (incl. Type cell),
+                       updateReverbKnob, reverbKnobDisplay (ms), currentReverbModel,
+                       refreshReverbPanelAfterChainMap, REVERB knob drag handler.
+                       Knob drag start-value zero-guard fixed (DIST + REVERB).
   app-init.js          Startup wiring
-  patch-nav.js         Patch navigation logic
+  patch-nav.js         Patch navigation logic.
+                       7/23: sendPC() now emits the CMD 0x02 absolute-slot
+                       SysEx recall, not MIDI Program Change. USE_SYSEX_RECALL
+                       falls back to Program Change if ever needed.
   capture-scan.js      TFX capture, bank scan, load/save.
                        saveCurrentPatchToSlot(nameOverride) — optional rename.
                        saveToRackAndDisk(name) — rename + commit + auto TFX.
@@ -240,9 +360,16 @@ KEY STATE VARIABLES (state.js):
   currentAmpKey           e.g. 'tweed_lux', 'dc_mod_od'
   currentSlot             current patch slot 0–103
   brightOn                Bright toggle state (ui.js)
+  tremOn                  Tremolo on/off; UNDEFINED until the hardware reports
+                          it, so a first click cannot invert a guess (ui.js)
+  currentSyncZone         live Sync zone 0-13, 0 = OFF (ui.js)
+  syncClearedThisDrag     per-drag latch so a Speed drag clears Sync once
   hasReceivedAmpOutValue  guard against premature Amp Out send
   currentMonoState        null / true / false (Stereo/Mono indicator)
   distPanelOpen           true when DIST panel is visible; gates CMD 0x11 DIST routing
+  ampSelectRxSeq          bumped when an Amp Select (0x0F) reply is handled
+  chainMapRxSeq           bumped when a chain map (0x21) has been applied
+  navSeqId                post-nav pull generation; guards against stale replies
 
 
 ENVIRONMENT
@@ -288,13 +415,14 @@ Protocol foundation: Guillaume Schmid — ElevenHack (2013), Apache License 2.0.
 
 GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
 -------------------------------------------------------------------
-  THE EDITOR NEED NOT BE RUNNABLE, ONLY INSTALLED (confirmed 7/21/2026). This
-  is what makes graphics viable on Windows 11, where the editor BSODs. After
-  installing on Win10 or Win11, delete everything except:
+  WHERE THE GRAPHICS LIVE (confirmed 7/21/2026). The pedal/amp/cab images are
+  files in one folder:
       C:\Program Files\Avid\Eleven Rack Editor\System Plug-Ins
-  That folder holds the images. Deleting the rest also removes any chance of
-  launching it by accident. Worth stating plainly in any user instructions:
-  install, harvest, delete, never run.
+  They ship with the Avid Editor, but the Editor never has to RUN to use them —
+  which is what makes graphics viable on Windows 11, where the Editor BSODs. It
+  does not even need to stay installed once that folder is in hand. The app
+  only reads the folder; it launches nothing. (This is the "skin" idea: dress
+  the panels in the Avid pedal art. See the note under GRAPHICS below.)
 
   NEVER BUNDLE AVID'S ARTWORK. The app reads images from the user's existing
   Avid editor installation. The repo contains our mapping table and loader and
@@ -323,7 +451,32 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
   filenames. Bypassed blocks dim via a CSS filter, no second image set.
 
 
-NEXT SESSION — EFFECT PANELS FOR REMAINING EIGHT SLOTS
+NEXT SESSION — RIG TEMPO CONTROL
+-------------------------------------------------------------------
+  Identified 7/23 as CMD 0x50, four payload bytes, broadcast on every tempo
+  change and INVERSELY related to BPM. Not finished: the value range spans a
+  ratio of about 98 where 10-500 BPM spans 50, so it is not a plain reciprocal.
+  ONE SHORT CAPTURE FINISHES IT: with our app running, set the rack tempo to
+  exactly 60.0, 120.0, 240.0 and 32.1, pausing at each. Four known points
+  against four broadcast values pin the formula.
+  UI: a clock-style spinner near the STEREO badge — arrows to step, click the
+  decimal to edit it, accepts typed entry. Rig level, not the amp panel.
+  Motivation: reaching tempo on the rack's front panel is tedious.
+  Full detail: Technical Reference Sec 21.
+
+QUERY BUDGET — READ THIS BEFORE ADDING BLOCK PANELS
+-------------------------------------------------------------------
+  Measured from Avid (7/23/2026), per patch recall: 11 bypass flags, one per
+  block, PLUS 25 parameters for the AMP BLOCK ONLY. Avid queries NO parameters
+  for MOD, DELAY or any other block on recall — only their bypass flags. It
+  pulls the amp in full because the amp is the panel it shows.
+  So our ~20 queries should NOT grow toward Avid's 47 as blocks are added.
+  Fetch a block's parameters WHEN ITS PANEL OPENS, not on every nav — the
+  distPanelOpen / reverbPanelOpen flags already point this way. Querying every
+  block on every patch change adds permanent cost for values nobody is looking
+  at, and would make us slower than Avid rather than faster.
+
+LATER — EFFECT PANELS FOR REMAINING EIGHT SLOTS
 -------------------------------------------------------------------
   The DIST panel (Phase 9, 7/21/2026) established the full pattern. Eight
   non-amp slots remain: WAH, MOD, FX1, FX2, REVERB, DELAY, LOOP, VOLUME.

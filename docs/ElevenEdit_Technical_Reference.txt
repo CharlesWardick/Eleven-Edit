@@ -130,14 +130,15 @@ Windows notes). Avid USB driver v1.1.12 throughout.
   the earlier RigRoller variants that used whatever Windows presented.
   PRACTICE: keep the rule. Alternate between them; never drive both at once.
 
-  GRAPHICS WITHOUT RUNNING THE EDITOR (7/21/2026) — this is what makes the
-  planned graphics enhancement viable on Windows 11:
-    The Avid Editor may be INSTALLED on Windows 11 and its image assets used,
-    provided it is never launched. After installing on Windows 10 or 11,
-    manually delete everything except:
+  GRAPHICS ASSETS — WHERE THEY LIVE (7/21/2026). The pedal/amp/cab images the
+  planned graphics enhancement would use are just files on disk, in:
         C:\Program Files\Avid\Eleven Rack Editor\System Plug-Ins
-    That folder holds the graphic images. Nothing else is needed, and removing
-    the rest also removes any temptation (or accident) of launching it.
+    They come from the Avid Editor install, but the Editor never has to RUN —
+    which is what makes graphics viable on Windows 11, where it BSODs. The
+    Editor does not even need to remain installed once that folder is in hand;
+    everything else it installs can be deleted, and deleting it also removes
+    any chance of launching it by accident. The app only ever reads that
+    folder; it launches nothing.
 
 REQUIRED AVID DRIVER: v1.1.12 (confirmed). Solid, current, fully featured,
   and what the working Java-bridge build runs on. The older v1.0.11 requirement
@@ -209,13 +210,15 @@ FORMAT A — ASYNC broadcast (hardware -> us, spontaneous):
   hardware echoing a value we just sent). Used for tone knobs, gate, amp out,
   amp select, cab/mic/axis/breakup live updates, bypass changes.
 
-FORMAT B — RESP to our explicit REQU:
-  F0 13 0B 0F 12 11 04 [currentParamHi] [paramLo] [v0] 00 00 00 00 F7
-    data[6]=0x04 (fixed), data[7]=currentParamHi, data[8]=paramLo, data[9]=v0
-  Fires when: we send a REQU query for a specific parameter.
-  NOTE: This 0x04 at data[6] is REAL SysEx content, not USB framing. Earlier
-  research confused it with the USB 0x04 framing byte (see C1).
-  See C11 — not every REQU response arrives in this shape.
+FORMAT B — DELETED 7/23/2026; it never existed on this connection. Earlier
+  revisions described a RESP shape with a fixed 0x04 at data[6] shifting
+  handle/paramLo/v0 one byte right. Confirmed absent: across ~20 replies in
+  session-2026-07-23-131306.log byte 6 is always the block handle (0x04-0x0D,
+  0x12-0x1B), and every reply is 14 bytes, leaving no room for an extra marker.
+  It was a USB-CIN-framing artifact of the same family as C1.
+  RESP messages are FORMAT A shaped, with dir=0x12 instead of 0x02.
+  The handler still accepts both shapes; harmless, not worth removing.
+  See C11 (resolved).
 
   *** FORMAT A / FORMAT B DISAMBIGUATION — CONFIRMED BUG, FIXED 2026-07-20 ***
   data[6]===0x04 is NOT a reliable Format B marker. A block's runtime handle
@@ -246,9 +249,12 @@ REQU (query one parameter):
   with a fixed 0x07 silently fails on any patch where the amp sits elsewhere.
   This single wrong byte is what blocked amp/cab bypass from Phase 7 until
   7/18. Confirmed against Avid traffic: it queries every block this way.
-  The 0x07 here is a broadcast/wildcard instance the firmware resolves to
-  the current block; hardware replies as Format B with the real
-  currentParamHi filled in.
+  [DELETED 7/23] A sentence stood here claiming "the 0x07 is a broadcast/
+  wildcard instance the firmware resolves to the current block, and hardware
+  replies as Format B with the real currentParamHi filled in." That is the
+  pre-7/18 belief, and it survived directly BENEATH the correction that
+  withdrew it, saying the opposite. There is no wildcard: query with the real
+  handle. The Format B half of that sentence is also unconfirmed — see C11.
 
 UNIVERSAL paramLo VALUES (identical for all 33 amps, all sessions):
   0x03 = Amp Out Level
@@ -256,14 +262,29 @@ UNIVERSAL paramLo VALUES (identical for all 33 amps, all sessions):
   0x05 = Gate Release
   0x01 = Block Bypass      (EVERY non-amp chain block, on its own handle;
                             v0: 0x40=active, 0x3F=bypassed. Confirmed 7/18.)
-  0x06 = Amp Bypass        (v0: 0x40=active, 0x3F=bypassed)
+  0x06 = Amp Bypass        (v0: 0x40=active, 0x3F=bypassed. ONLY on the AMP
+                            handle — see the handle-context warning below.)
   0x0E = Bright toggle     (live: v0=127=ON, v0=0=OFF)
   0x0F = Amp Select        (raw v0 — NOT run through the (v+64)%128 formula)
-  0x14 = Cab Bypass        (v0: 0x40=active, 0x3F=bypassed)
+  0x12 = Sync              (tremolo amps only — 14 zones, Section 11)
+  0x13 = Tremolo On/Off    (tremolo amps only — v0=127=ON, v0=0=OFF)
+  0x14 = Cab Bypass        (v0: 0x40=active, 0x3F=bypassed. ONLY on the AMP
+                            handle — amp+cab are one block, one handle.)
   0x15 = Cab Type          (non-standard v0 — lookup table, Section 8)
   0x16 = Mic Type          (non-standard v0 — lookup table, Section 8)
   0x17 = Mic Axis          (v0: 0x3F=On-Axis, 0x40=Off-Axis — see C4)
   0x18 = Speaker Breakup   (standard continuous 0–127)
+
+*** paramLo 0x06 / 0x14 ARE AMP-HANDLE-ONLY (confirmed 7/22). *** These are
+  amp/cab bypass ONLY when the message arrives on currentParamHi (the amp
+  handle). paramLo is scoped per block: 0x06 on another block's handle is that
+  block's own parameter — e.g. Eleven SR REVERB Pre-Delay is paramLo 0x06 on
+  the reverb handle (Section 23). The bypass router MUST gate 0x06/0x14 on
+  bInst===currentParamHi, or a Pre-Delay turn is misread as an amp-bypass
+  event and its readback is swallowed. Same bug family as the 0x04-handle case
+  (C11): a value that is a control code in one context is plain data in
+  another — disambiguate by handle, never by the value alone. Block bypass
+  (0x01) is correctly handled on every block's own handle.
 
 Tone knob paramLo values are PER-AMP — see Section 11.
 
@@ -571,6 +592,15 @@ IMPLEMENTATION:
   REQU PATCH_NAME:  F0 13 0B 0F 01 05 F7   current patch name
   REQU CURR_RIG:    F0 13 0B 0F 01 02 F7   current slot number
   REQU RIG_VOL:     F0 13 0B 0F 01 07 F7   rig volume
+  REQU MONO:        F0 13 0B 0F 01 0D F7   Stereo/Mono state (RELIABLE —
+                    unlike the post-send echo). RESP: 0F 12 0D [00|01] F7.
+                    Verified 5/5 against hardware 7/23/2026; the read does
+                    NOT toggle the state.
+  REQU TOAMP1:      F0 13 0B 0F 01 36 02 F7   To Amp 1 volume
+  REQU TOAMP2:      F0 13 0B 0F 01 36 03 F7   To Amp 2 volume
+                    *** The SLOT BYTE IS REQUIRED. The bare form
+                    F0 13 0B 0F 01 36 F7 returns NOTHING. ***
+                    RESP: F0 13 0B 0F 12 36 [slot] [v0] 00 00 00 00 F7
   REQU PARAM:       F0 13 0B 0F 01 11 [handle] [paramLo] F7
   *** [handle] IS THE BLOCK HANDLE FROM THE CHAIN MAP, NOT A LITERAL 0x07. ***
   Earlier revisions of this doc showed 0x07 hardcoded — a stale artifact from
@@ -593,6 +623,15 @@ CMD 0x01 — SEND_PATCH / bulk write. Send = load body to HW memory
   (Section 16). REQU (dir=0x01) = pull current slot's body back. [SEND/RECV]
 CMD 0x02 — Current Rig Number. Send selects a slot; broadcast/RESP reports
   current slot. Used in save + navigation. [SEND/RECV]
+  CONFIRMED RECALL FORM (7/23/2026) — this is how Avid changes patches and
+  now how we do:
+      F0 13 0B 0F 00 02 00 [slot] F7      slot is 0-BASED, no translation
+                                          (A1=0x00, A2=0x01, D4=0x0F)
+  The hardware echoes the requested slot in both the 0x03 and 0x02
+  announcements. Verified on sequential navigation and on non-adjacent jumps.
+  *** DO NOT USE MIDI PROGRAM CHANGE (C0 nn) FOR NAVIGATION. *** It works,
+  but it triggers the rack's own front-panel recall behaviour ON TOP OF the
+  load. Avid never sends a Program Change. See Section 20.
 CMD 0x03 — Save Rig (commit to slot). Part of save sequence (Section 15). [SEND]
 CMD 0x04 — Rig Get/Set Name (address-based). Used in save; also a cheap
   names-only bank scan path. [SEND/RECV]
@@ -614,7 +653,14 @@ CMD 0x3C — FX Loop mode. GLOBAL setting, not per-patch.
 CMD 0x0D — Stereo/Mono. Send: F0 13 0B 0F 00 0D [val] F7. Broadcast:
   F0 13 0B 0F 02 0D [val] F7. val 0x01=Mono, 0x00=Stereo (both directions).
   Echo after our own send is always 0x01 — acknowledgement only, do not
-  decode. Global, not per-patch. See Section 10. [SEND/RECV]
+  decode. See Section 10. [SEND/RECV]
+  READ FORM (confirmed 7/23/2026): F0 13 0B 0F 01 0D F7
+    -> F0 13 0B 0F 12 0D [00=Stereo | 01=Mono] F7
+  This read IS reliable, unlike the post-send echo, and does not change state.
+  *** PER-PATCH, NOT GLOBAL. *** This entry previously said global; that was
+  wrong and contradicted the RMno note in Section 10. Corrected 7/23/2026
+  after a hardware test in which adjacent patches held different states and
+  each followed its own patch. Must be re-read on EVERY patch change.
 CMD 0x11 — Live parameter read/write. See Section 3. [SEND/RECV]
 CMD 0x20 — Effect Description (per-effect query). Effect string ID at byte 7,
   name at byte 25. [SEND/RECV]
@@ -634,6 +680,10 @@ CMD 0x34 — True Z impedance broadcast. Global, front-panel only. Auto-
   broadcasts on amp/cab model change (val=0x7E=Auto in that context). [DEAD-send]
 CMD 0x36 — Output Volume. F0 13 0B 0F [dir] 36 [outSel]... See Section 18.
   outSel 0x00=Main, 0x02=To Amp1, 0x03=To Amp2, 0x04=Unit Vol, 0x06=query.
+  CONFIRMED READ (7/23/2026): F0 13 0B 0F 01 36 [outSel] F7
+    -> F0 13 0B 0F 12 36 [outSel] [v0] 00 00 00 00 F7
+  The outSel byte is REQUIRED; the bare form returns nothing. Decode v0 with
+  the standard continuous-knob rule (Section 7). Values are PER-PATCH.
 CMD 0x37 — To Amp Source. F0 13 0B 0F 00 37 07 [slot] [val] F7.
   *** MUST be preceded by a CMD 0x3A query for that slot — sending without it
   causes a firmware assert. *** The 7/14 factory-reset incident was this
@@ -669,6 +719,55 @@ CONTINUOUS KNOBS (CMD 0x11, 0x07, 0x36) — single-byte offset binary:
   ENCODE: v0 = (targetV127 + 64) % 128
   val 0–127 maps to 0.0–10.0 on display.
   Sentinels: min = 0x40 00 00 00 (val 0); max = 0x3F 7F 7F 7F (val 127).
+
+MULTI-BYTE CMD 0x11 VALUES (35-bit) — added 7/23/2026:
+  *** SCOPE WARNING (added later the same day). The formula below does NOT
+  drive the DISPLAY of continuous knobs. Speed's displayed value is the plain
+  single-byte decode above, verified on nine messages against the rack's own
+  readout (0x50 -> 1.3, 0x4A -> 0.8, 0x60 -> 2.5, 0x1F -> 7.5, exact to the
+  tenth). This formula returns 6.28, 5.87, 7.52 and 2.56 for those same
+  messages. Use the single-byte decode for display. ***
+  A CMD 0x11 value is FIVE 7-bit bytes, not one. Most controls put everything
+  in v0 and leave v1..v4 at the sentinel, which is why the single-byte rule
+  above works for them. The full quantity is:
+      N   = v0<<28 | v1<<21 | v2<<14 | v3<<7 | v4        (35 bits)
+      raw = (N - 0x400000000) >> 3                       (signed)
+      display = 64 + raw / 2147483647 * 63               (0-127)
+  Verified against TFX-derived raws. 0x40 00 00 00 00 = 0 (centre);
+  0x7F 7F 7F 7F 7F = full positive.
+  *** WHEN CAPTURING WITH USBPcap, THE FINAL 4-BYTE GROUP OF EVERY MESSAGE IS
+  LOST *** — proven by a name response reading "Bassguy 5" for "Bassguy 59".
+  For a 0x11 reply that costs the 5th value byte. Our own app logs are not
+  truncated; prefer them for byte-level work.
+
+  TRAILING BYTES — RESOLVED 7/23/2026. They are the LOW-ORDER BITS of the same
+  35-bit quantity: not a per-control signature, not padding. Two rules:
+    1. THE 0x10 IN A BROADCAST IS ADDED BY THE RACK. The final byte of every
+       hardware broadcast is 0x10 higher than the corresponding write. Proven
+       against Avid's own traffic (Avid_Shark_Sync_Test.pcapng): Avid writes
+         00 11 <handle> 12 40 00 00 00 00
+       and the rack echoes
+         02 11 <handle> 12 40 00 00 00 10
+       Writes must NOT include it. Seen on Sync and Speed alike.
+    2. CONTROLS DIFFER ONLY IN PRECISION. Depth and Sync are quantised to the
+       byte, so their broadcasts always read v0 00 00 00 10. Speed carries real
+       sub-step precision, so its low bytes vary — v0=0x00 was observed with
+       both 00 00 00 10 and 7F 7F 7F 1F inside one sweep, either side of centre.
+
+  ENDPOINT SENTINELS ON WRITES. Sending v0 with 00 00 00 00 asks for the BOTTOM
+  of that step. Byte-quantised controls cannot tell; Speed can, and returned
+  9.9 when asked for 10.0. sendParamWrite() therefore sends:
+      v127 >= 127  ->  3F 7F 7F 7F 0F     (true maximum)
+      v127 <= 0    ->  40 00 00 00 00     (true minimum)
+      otherwise    ->  v0 00 00 00 00     (unchanged)
+  Note 0F rather than 1F in the final byte, per rule 1.
+
+  *** RETRACTED — an earlier revision of this block said Speed writes failed
+  because the trailing bytes were malformed, and that the rack forced Speed to
+  0 in response. BOTH WRONG, and the wrong diagnosis stood for a day. Speed
+  writes failed because the rack IGNORES any Speed write while Sync is on a
+  division (Section 11, TREMOLO). The trailing 00 00 00 00 was structurally
+  correct all along — byte identical to Avid's own Sync write. ***
 
 TOGGLES (Bright, live) — do NOT use the continuous decode:
   Live CMD 0x11: v0=127=ON, v0=0=OFF.
@@ -763,7 +862,12 @@ high-nibble=octave; tune 0=in tune.)
 10. STEREO / MONO
 ===================================================================
 
-Global setting, not per-patch. FULLY BIDIRECTIONAL (confirmed 7/18/2026).
+PER-PATCH, and FULLY BIDIRECTIONAL (bidirectional confirmed 7/18/2026;
+per-patch confirmed 7/23/2026). An earlier revision called this global, which
+never squared with the per-patch RMno key noted below. A hardware test settled
+it: adjacent patches held different states and each followed its own patch.
+Re-read it on every patch change — see REQU MONO in Section 5, which is a
+reliable read, unlike the post-send echo described below.
 Earlier docs called this receive-only; that was wrong — the send path exists,
 it is just not exposed on the Eleven Rack front panel in an obvious way. The
 Avid editor drives it from a small button on its chain graphic.
@@ -793,7 +897,9 @@ ECHO AFTER OUR OWN SEND — UNRELIABLE, DO NOT DECODE:
   Unsolicited broadcasts (front panel) are never suppressed and decode
   normally. Our own display is set optimistically at click time.
 
-TFX: key RMno (global section), body byte 124. 0=Stereo, 1=Mono.
+TFX: key RMno (patch-wide section of the body — see the heading note in
+  Section 14; this is PER-PATCH, not device-wide), body byte 124.
+  0=Stereo, 1=Mono.
   Matches the wire value sense. Read on patch load.
 
 CHAIN-MAP SIDE EFFECT: every accepted 0x0D reassigns the runtime handles of
@@ -808,6 +914,20 @@ UI: clickable badge on the chain row; dim when Stereo, lit amber when Mono.
 ===================================================================
 11. TONE STACK — ALL 33 AMPS (authoritative paramLo table)
 ===================================================================
+
+THE NUMBERING IS A RULE, NOT AN ARBITRARY TABLE (verified 7/23/2026):
+  paramLo == the TFX slider id.  sld7 -> 0x07, sldA -> 0x0A, sldD -> 0x0D.
+  ONE EXCEPTION: sldF -> 0x10, because 0x0F is taken by Amp Select.
+  Checked across the whole table: 201 entries follow the rule exactly, 15 are
+  the sldF case, zero genuine mismatches. Useful as a cross-check when adding
+  or auditing an amp, but the table below remains authoritative.
+
+CONTROL TYPES: entries are 'knob', 'toggle' or 'selector'. Only 'knob' and
+  'toggle' are read or displayed anywhere in the app — decodeToneKnobValues()
+  filters to those two, and the post-nav pull matches that filter deliberately.
+  The 15 'selector' entries have NO read path and NO display path in either
+  the bulk or the targeted path. Querying them only produces "unhandled
+  paramLo" noise. See Section 21.
 
 Tone knobs use CMD 0x11 with currentParamHi. paramLo differs per amp but is
 consistent across sessions. Gate/AmpOut (0x03/0x04/0x05) are universal and
@@ -904,10 +1024,52 @@ BRIGHT TOGGLE applies to: Black Vib/SR/Duo, Blue Line, M-2 Lead, SL100
   UI: BRIGHT button below the knob row; shown only when the amp table has a
   type:'toggle' entry. Send: sendParamWrite(0x0E, on ? 127 : 0).
 
-SYNC SELECTOR (paramLo 0x12, tfxKey Sync) appears on Lux Vib, Black
-Vib/SR/Mini/Duo, AC Hi Boost, and all DC. type='selector', currently
-excluded from UI. Dropdown UI + valid-value list still pending (one capture
-of clicking through all Sync positions will confirm the value set).
+TREMOLO FEATURE SET — SOLVED 7/23/2026. Four controls, on the 15 amps that
+have it: Lux Vib/Norm, Black Vib/SR/Mini/Duo, AC Hi Boost and all eight DC.
+      0x10  Depth      plain knob
+      0x11  Speed      plain knob, but see the interlock below
+      0x12  Sync       14-zone selector
+      0x13  On/Off     toggle, v0=127=ON / v0=0=OFF (same encoding as Bright)
+A contiguous block. 0x13 exists ONLY on the hardware front panel — Avid's
+editor has no such control and the per-amp XML does not describe it. On the
+rack it shares a physical button with Bright, repurposed by screen; that is a
+front-panel convenience, not a protocol fact, and they are separate params.
+
+SYNC — 14 ZONES. On the wire Sync is a CONTINUOUS 0-127 value the firmware
+quantises. Zone width 10, first and last truncated to 4, total exactly 128:
+      0-3 OFF | 4-13 zone 1 | ... | 114-123 zone 12 | 124-127 zone 13
+      index = (v < 4) ? 0 : min(13, 1 + floor((v - 4) / 10))
+      write = zone centre: 0 for OFF, else min(125, 8 + 10*(index-1))
+Divisions in order: whole note, then dotted / plain / triplet for half,
+quarter, eighth and sixteenth. 1 + 1 + 12 = 14 entries.
+DERIVED FROM two front-panel sweeps at different tempos that agree: at 120 BPM
+the Speed broadcast changed at decoded 64, 74, 84, 94, 104, 114, 124 (zones
+7-13); at 32.1 BPM only at 114 and 124 (zones 12-13). Slower divisions fall
+below the Speed floor and read 0 — hardware behaviour, not a decode fault.
+ORDER CONFIRMED INDEPENDENTLY: a dotted note is slower than the triplet before
+it, so displayed Speed must dip at zones 8 and 11. It does — 1.3, 0.8, 2.5,
+5.0, 4.2, 7.5 at 120 BPM.
+
+*** THE SYNC/SPEED INTERLOCK IS A MODE, NOT A PROTOCOL DEFECT. ***
+  Sync on a division: rate = rig tempo x division. Speed is an OUTPUT and the
+    rack IGNORES every Speed write. Confirmed in Avid_Shark_Sync_Test.pcapng —
+    Avid sent ~40 Speed writes with v0 ranging 0x16-0x2D and the hardware
+    echoed the SAME unchanged value back every time.
+  Sync OFF: Speed is an absolute rate and tempo is irrelevant. The only state
+    in which Speed is writable.
+  The rack's own Speed knob CLEARS SYNC TO OFF — that is how it hands control
+    back. Avid never does this, so Avid's Speed knob is inert whenever Sync is
+    engaged. An Avid limitation, not a rack one.
+  OUR RULE (better than Avid): moving Speed sends Sync=OFF first, once per
+    drag, then writes Speed normally. Mirrors the hardware and keeps the
+    control live at all times.
+  DO NOT reintroduce a write guard or grey the knob out. Both were tried on
+    7/23 and both are worse than modelling the mode.
+
+BRIGHT TOGGLE NAMING. paramLo 0x0E is called MOD on SL100 Drive and Bright on
+every other amp that has it. AMP_TONE_PARAMS carries the per-amp label and the
+button reads its text from there. Do NOT match on the string 'Bright' to decide
+visibility, or that amp's button vanishes — match on paramLo 0x0E.
 
 
 ===================================================================
@@ -1030,6 +1192,14 @@ correctly invert this decode — do not use it (causes "Bad Patch Data").
 ===================================================================
 
 GLOBAL SECTION (fixed body offset; unchanged across chain reorder):
+  *** "GLOBAL" HERE MEANS PATCH-WIDE, NOT DEVICE-WIDE. *** Everything below
+  lives INSIDE the TFX patch body, so every one of these values is PER-PATCH
+  and travels with the patch. "Global" distinguishes them from the per-effect
+  sections of the same body — nothing more. Reading this heading as
+  "device-wide setting" is what produced the wrong global claims for
+  Stereo/Mono (RMno) and To Amp 1/2 (Vol1/Vol2) that stood until 7/23/2026;
+  both are per-patch, and their position in this table always said so. See
+  C13, Section 10 and Section 18.
   Key   Offset  Description
   RVol  0x28    Rig Volume
   Vol1  0x30    To Amp 1 level
@@ -1060,7 +1230,8 @@ CAB / MIC SECTION KEYS (confirmed 7/16 via TFX binary diffs):
   sldM = Mic Axis         (0=Off-Axis, 1=On-Axis — inverted vs live v0)
   sldN = Speaker Breakup  (same INT32 scale as gate/tone)
   sldJ = Cab Bypass       (0=active, 1=bypassed)
-  RMno = Mono/Stereo      (global; 0=Stereo, 1=Mono)
+  RMno = Mono/Stereo      (patch-wide section of the body — PER-PATCH,
+                           not a device-wide setting; 0=Stereo, 1=Mono)
 
 CAB TYPE raw int32 -> name (Avid internal cab IDs, not sequential; stored as
 CAB_TYPE_LIST / CAB_RAW_TO_INDEX in protocol.js):
@@ -1153,6 +1324,25 @@ BANK RESTORE (file -> HW): per slot, run the Load (Section 16) + Save
 18. RIG VOLUME & TO AMP CONTROLS
 ===================================================================
 
+AMP OUT LEVEL (CMD 0x11 paramLo 0x03) — dB SCALE CORRECTED 7/23/2026:
+      db = (v127 - 98) * 0.6          0.0 dB at v127 = 98, 0.6 dB per step
+  Replaces db = -60 + (v127/127)*78, which put 0.0 dB at v127 = 97.7 —
+  unreachable, so the readout showed +0.2 where the rack showed 0.0.
+  EVIDENCE (session-2026-07-23-155947.log):
+      rack at 0.0 dB  -> v127 = 98,  old formula displayed +0.2
+      rack at 4.8 dB  -> v127 = 106, old formula displayed +5.1
+  106 is 8 steps above 98 and 4.8 / 8 = 0.6 exactly. The old 78 dB span implies
+  0.6142 per step, which would show 4.9 where the rack shows 4.8, so 0.6 is the
+  true step and the documented -60..+18 range was rounded.
+  IMPLIED ENDPOINTS: -58.8 dB at v127=0, +17.4 dB at v127=127. NOT yet checked
+  against the rack — if either disagrees, re-derive both anchors from fresh
+  readings rather than nudging the step.
+  *** THIS CLOSES the old "Amp Out has ~0.2-0.4 dB nonlinearity at midrange —
+  likely log-pot response" note, which was a MISDIAGNOSIS. There is no log-pot
+  behaviour. The scale was linear throughout, anchored 0.3 dB low with a step
+  2% too large — an error worst mid-range and vanishing at the ends, which is
+  exactly the shape mistaken for a curve. ***
+
 RIG VOLUME: CC 17 sends (all amps). CMD 0x07 live readback. REQU RIG_VOL
 reads current. Range val=0 -> -24.0 dB, val=127 -> 0.0 dB. Note: the Rig
 Volume knob is absent from the front panel on Tweed and some other models but
@@ -1166,11 +1356,38 @@ TO AMP 1 / 2 VOLUME (CMD 0x36):
   v0 encoding: standard (v127+64)%128 — same as CMD 0x11.
     v0=0x40=MUTE, v0=0x00=0dB, v0=0x3F=+12dB, v0=0x41=-12dB.
   Display range: MUTE at v127=0, -12dB to +12dB across v127=1–127.
+  *** dB SCALE ANCHORED AT 64 — corrected 7/23/2026. *** Anchor on the ZERO
+  POINT, do not stretch across the endpoints:
+      db = (v127 < 64) ? (v127 - 64) * (12 / 64)
+                       : (v127 - 64) * (12 / 63)
+  The old form, db = -12 + (v127/127)*24, puts 0.0 dB at v127 = 63.5 — a value
+  that cannot exist — so the display could NEVER print 0.0 and showed +0.1 at
+  64, -0.1 at 63. Evidence: with the rack reading 0.0 dB our log recorded
+  "CMD 0x36 ToAmp1 volume: v0=0x00 (+0.1 dB)", and v0=0x00 decodes to 64.
+  The two sides have different step sizes (64 steps below centre, 63 above),
+  which is what makes all three anchors land exactly: 0 -> -12.0, 64 -> 0.0,
+  127 -> +12.0. Print no '+' on a bare 0.0, matching the rack.
+  GENERAL LESSON: any dB scale with a zero crossing must be anchored at zero.
+  Stretching a 0-127 integer across a symmetric range puts zero between two
+  integers and makes it unreachable. Amp Out above had the same bug.
   TFX body offsets (confirmed from Avid-exported TFX diff 7/17/2026):
     To Amp 1 volume: body[52–55] — signed LE32, standard gateRawToV127.
     To Amp 2 volume: body[60–63] — signed LE32, standard gateRawToV127.
     MUTE = INT32_MIN (0x80000000) -> v=0; MAX = INT32_MAX (0x7FFFFFFF) -> v=127.
-  Global setting — not per-patch. Persists across patch navigation.
+  *** PER-PATCH, NOT GLOBAL. *** Corrected 7/23/2026. The user set both To
+  Amp volumes to specific values, saved the patch to the rack, navigated away
+  and back, and the settings returned WITH the patch. The TFX body offsets
+  listed immediately above already implied this — a global would not live in
+  the patch body. Any comment or code calling CMD 0x36 "global" is wrong.
+  Re-read both on EVERY patch change.
+  READ FORM (confirmed 7/23/2026): F0 13 0B 0F 01 36 [slot] F7
+    -> F0 13 0B 0F 12 36 [slot] [v0] 00 00 00 00 F7
+  The slot byte is REQUIRED; the bare form returns nothing.
+  ACCURACY: where this read and the TFX bulk decode disagree, THE BULK IS
+  WRONG. Every observed disagreement was the bulk one step low, and only on
+  positive values — its raw-to-value conversion floors (raw 603979776 = 81.7,
+  truncated to 81, true value 82; the rack displayed +3.3, matching 82).
+  Prefer the CMD 0x36 read.
   STATUS: SW send + HW readback + TFX initial readback all working (7/17).
   HW knob -> SW display tracking confirmed working.
 
@@ -1268,8 +1485,34 @@ TRANSPORT / DRIVER:
     use has been clean for about a week (Sec 1), but the rule stands: never
     drive both at once.
 
+NAVIGATION / READBACK (added 7/23/2026):
+  MIDI Program Change (C0 nn) for patch navigation — works, but triggers the
+    rack's own front-panel recall on top of the load, producing a visible
+    DOUBLE FLICKER on the hardware display. Avid never sends one. Use the
+    CMD 0x02 recall form in Section 6.
+  Requesting the CMD 0x01 bulk TFX dump on every patch change — this is what
+    actually caused the second front-panel flicker (proven by removing it:
+    flicker gone, and returning it: flicker back). Avid requests CMD 0x01 at
+    NO point. Read the individual values instead; every one of them now has a
+    confirmed read path. Keep the bulk for saves and TFX capture only.
+  [WITHDRAWN 7/23, afternoon — written that morning, retracted the same day]
+    "Writing to Speed (paramLo 0x11) or Sync (0x12) — the hardware fights the
+    write and snaps Speed back; both are write-blocked." OBSOLETE AND
+    MISLEADING. The rack was not fighting anything: it IGNORES Speed writes
+    while Sync sits on a division, because in that mode Speed is an output.
+    Both are writable now and both are written by the shipping build.
+    READ_ONLY_PARAM_LOS is EMPTY. Section 11 models the mode instead, and says
+    explicitly not to reintroduce a write guard or grey the knob — both were
+    tried on 7/23 and both are worse. Do not re-derive this entry.
+
 CMD 0x11 / PARAMS:
   Hardcoding paramHi per amp — wrong; it is a runtime handle.
+  Building a per-amp query list BEFORE the Amp Select (0x0F) reply lands —
+    the list is per-amp, so a fixed delay races the reply and silently queries
+    the PREVIOUS amp's paramLo set. Observed 7/23/2026: navigating to Bassguy
+    59 used lead800's numbers, so Vol Norm (0x08) was never read and 0x09 came
+    back unroutable. The missing read was invisible; only the stray 0x09
+    showed in the log. Wait on the REPLY, never on a timer.
   Sending CMD 0x11 with instId=0x04 hardcoded — wrong; use currentParamHi.
   Sending CMD 0x11 before currentParamHi is set (<=0) — causes HW assert.
   Treating CMD 0x11 as a two-byte paramId — wrong interpretation.
@@ -1279,6 +1522,17 @@ CMD 0x11 / PARAMS:
 
 ENCODING:
   ElevenHack's encode7bit — does NOT invert our decode7bit; use protocol.js.
+  [ADDED 7/23] Treating the CMD 0x11 trailing bytes as a per-control signature
+    to be matched — they are low-order VALUE bits. A day went into the theory
+    that Speed writes failed because those bytes were malformed. They were not:
+    the rack was ignoring the writes because Sync was engaged (Sec 11).
+  [ADDED 7/23] Stretching a 0-127 integer across a symmetric dB range. It puts
+    the zero point between two integers and makes 0.0 unreachable. Anchor on
+    zero instead (Sec 18).
+  [ADDED 7/23] Slicing a document on a loosely-matched marker. The FLAGGED
+    CONFLICTS entries are NOT in numeric order — C12's header sits above C11's
+    — so "cut from C11 to the next C12" silently deleted Sections 23 and 24.
+    Caught only by the Primer's line-count tell. Anchor edits on unique text.
   parseInt(value) || default for knob init — falsy trap makes value 0 jump
     to 64; use an explicit undefined/'' check (fixed 7/15).
   Standard (v+64)%128 for cab/mic type — wrong; use the lookup tables.
@@ -1310,8 +1564,36 @@ CHAIN / DANGER:
 ===================================================================
 
 NEXT / IMMEDIATE:
-  Sync selector dropdown UI (paramLo 0x12, tfxKey Sync). Need the valid value
-    set — one capture clicking through all Sync positions.
+  RIG TEMPO CONTROL (CMD 0x50) — user's next task. Partly decoded 7/23/2026.
+    Four payload bytes, broadcast on every tempo change. INVERSELY related to
+    BPM: across two sweeps the value traced a V while the tempo traced a peak.
+    NOT a simple reciprocal — the observed value range spans a ratio of about
+    98 where 10-500 BPM spans 50.
+    The startup reply F0 13 0B 0F 12 50 01 3A 04 20 F7 is byte identical across
+    sessions at different tempos, so it is NOT the tempo value.
+    A tempo change also triggers rebroadcasts of tempo-synced parameters in
+    other chain blocks — 753 in one sweep, on paramLo 0x02 handle 0x17 and
+    paramLo 0x04 handle 0x1A.
+    TO CLOSE IT — a two-minute calibration capture: set the rack tempo to
+    exactly 60.0, 120.0, 240.0 and 32.1, pausing at each. Four known points
+    against four broadcast values pin the formula and settle whether the
+    decimal rides in the same number.
+    UI WHEN BUILT: a spinner near the STEREO badge, NOT in the amp panel —
+    tempo is rig level, like Rig Vol. Avid's is a clock-style box: arrows step,
+    clicking the decimal edits it, and it accepts typed entry. Navigating to
+    tempo on the rack's front panel is tedious, which is the motivation.
+    The rack's FINE button repurposes the scroll wheel to the decimal place.
+
+  AMP OUT ENDPOINTS — the corrected scale (Sec 18) implies -58.8 dB at v127=0
+    and +17.4 dB at v127=127. Neither is checked against the rack. One glance
+    at each extreme confirms or refutes the 0.6 dB step.
+
+  Selector-type tone entries — RESOLVED 7/23/2026. All 15 were Sync (paramLo
+    0x12), which now has both a query and a display path: a 14-entry dropdown
+    driven by the zone map in Section 11. No 'selector' entry remains
+    unimplemented. transport.js adds 0x12 and 0x13 to the nav pull explicitly
+    for amps with tremolo rather than widening the type filter, so that filter
+    still mirrors decodeToneKnobValues() exactly.
   To Amp source (CMD 0x37) — SW sends don't move HW source. Root cause
     unknown. Additional HW options (Rig Out No Cab, RESO toggle) have unknown
     val bytes. Dropdowns removed from GUI pending investigation.
@@ -1322,14 +1604,23 @@ NEXT / IMMEDIATE:
     to initialize dropdowns when they are re-enabled.
 
 RESEARCH / COSMETIC:
-  Amp Out display has ~0.2–0.4 dB nonlinearity at midrange — likely log-pot
-    response; underlying values are correct.
+  [DELETED 7/23/2026] "Amp Out display has ~0.2-0.4 dB nonlinearity at midrange
+    — likely log-pot response; underlying values are correct." A MISDIAGNOSIS,
+    now fixed. The scale was linear all along, anchored 0.3 dB low with a step
+    2% too large — worst mid-range, vanishing at the ends, which is what was
+    mistaken for a pot curve. See Section 18.
   True Z representation differs by path (see C8).
 
 
 ===================================================================
 22. FLAGGED CONFLICTS
 ===================================================================
+
+*** KEEP THESE IN NUMERIC ORDER. *** They drifted out of order between 7/20
+and 7/23 (C12 and C13 sat above C11), and on 7/23 an edit anchored on "cut from
+C11 to the next C12" silently deleted Sections 23 and 24 because the next C12
+header was ABOVE the C11 one. Only the line-count tell caught it. Order
+restored 7/23; when adding an entry, insert it in sequence.
 
 C1 — 0x04 FRAMING (RESOLVED). Old raw-USB research (node-usb / Wireshark)
   shows a 0x04 device byte in the header (F0 13 0B 04 0F) and a 0x04 marker
@@ -1389,6 +1680,18 @@ C10 — STEREO/MONO SEND PATH (RESOLVED 7/18). Every doc prior to this one
   7/18. Section 10 is authoritative. Related: the 0x06 seen in old captures
   was USB CIN framing, not a payload byte — see Section 2.
 
+C11 — CMD 0x11 "FORMAT B" PROVENANCE. *** RESOLVED 7/23/2026 — FORMAT B DOES
+  NOT EXIST ON THIS CONNECTION. *** Settled from session-2026-07-23-131306.log:
+  across ~20 replies in one session byte 6 is ALWAYS the block handle (observed
+  0x04-0x0D and 0x12-0x1B), never a fixed 0x04 marker. Every reply is 14 bytes,
+  which leaves room for handle + paramLo + five value bytes and nothing else —
+  a 0x04 marker would not fit. The independent Avid capture
+  Avid_Shark_Sync_Test.pcapng shows the same shape.
+  FORMAT B has been deleted from Section 3. It was a USB-CIN-framing artifact
+  of the same family as C1: the raw Vendor Specific endpoint prefixes every
+  three payload bytes with 0x04, and early research read a framing byte as
+  content. The handler still accepts both shapes, which is harmless.
+
 C12 — ENVIRONMENT: WINDOWS 11 AND JDK VERSIONS (RESOLVED 7/21/2026).
   Both parts were apparent conflicts between statements about DIFFERENT
   things, not disagreements about the same thing.
@@ -1401,26 +1704,23 @@ C12 — ENVIRONMENT: WINDOWS 11 AND JDK VERSIONS (RESOLVED 7/21/2026).
       and 26. The --release 8 target means the compiler version is largely
       immaterial, which is why nothing broke while the two lines disagreed.
 
-C11 — CMD 0x11 "FORMAT B" PROVENANCE. *** STILL UNRESOLVED, narrowed 7/20 ***
-  UPDATE 7/20: a real bug confirmed that data[6]===0x04 cannot by itself mean
-  "Format B", because a block handle can legitimately equal 0x04 (Sec 3
-  disambiguation rule). That fixes the DETECTION problem but does not settle
-  the ORIGINAL question below — whether a genuine 0x04-prefixed Format B
-  exists on the MIDI layer at all, or whether every real RESP is Format A
-  shaped and Format B is a USB-framing artifact. Both remain possible. The
-  handler accepting both shapes is still the safe position.
-
-  Section 3 documents a FORMAT B for RESP messages, with a fixed 0x04 at
-  data[6] shifting handle/paramLo/v0 one byte right. The first real parameter
-  REQU this app ever sent (7/19) came back FORMAT A shaped instead:
-      OUT F0 13 0B 0F 01 11 51 06 F7
-      IN  F0 13 0B 0F 12 11 51 06 40 00 00 00 00 F7
-  i.e. data[6]=handle, no 0x04. FORMAT B may be another USB-CIN-framing
-  misread of the same kind that cost a day on CMD 0x0D (see C1 / Sec 2).
-  CURRENT PRACTICE: the bypass router accepts BOTH shapes, which is safe.
-  ACTION: before relying on FORMAT B anywhere new, capture a RESP on the MIDI
-  layer and confirm whether the 0x04 is ever really present. If it is not,
-  delete FORMAT B from Section 3 rather than leaving both documented.
+C13 — "GLOBAL" vs PER-PATCH: STEREO/MONO AND TO AMP 1/2 (RESOLVED 7/23/2026).
+  Every doc up to 7/23 called CMD 0x0D (Stereo/Mono) and CMD 0x36 (To Amp 1/2
+  volume) GLOBAL settings that persist across patch navigation. Both are
+  PER-PATCH. Settled by hardware test: adjacent patches held different
+  Stereo/Mono states and each followed its own patch; To Amp volumes set,
+  saved, navigated away from and returned to came back with the patch.
+  ROOT CAUSE — a word doing two jobs. RMno, Vol1 and Vol2 all live in what
+  Section 14 calls the TFX body's "GLOBAL SECTION". There, "global" means
+  patch-wide — the part of the body that is not a per-effect section. It was
+  read as device-wide. The table itself always contradicted that: values
+  stored INSIDE the patch body cannot be device settings. Section 14's
+  heading now says so explicitly.
+  CONSEQUENCE: both must be RE-READ ON EVERY PATCH CHANGE. Reliable read
+  paths now exist for both (Section 5). Any code comment still calling either
+  "global" is wrong.
+  RELATED: C10 corrected the same command's SEND path on 7/18; this corrects
+  its SCOPE. Two separate wrong claims about CMD 0x0D, five days apart.
 
 
 
@@ -1609,15 +1909,12 @@ but each model DISPLAYS them under different names:
   body on patch load (the tfxKey-search mechanism used by the amp tone stack,
   Sec 14) — do not drop them in favour of paramLo.
 
-*** 4-KNOB Treb/Bass ORDERING IS INFERRED, NOT INDEPENDENTLY OBSERVED. ***
-  0x02 (Driv) and 0x05 (Levl) are confirmed by capture. The assignment of
-  Treb=0x03 / Bass=0x04 comes from the sequential pattern of the 3-knob
-  models, not from a sweep that distinguishes the two. High confidence, not
-  proof — and it is exactly the shape of the amp-handle defect (Sec 24, 7/19):
-  a rule that holds across a self-consistent sample looks like a law.
-  TO CONFIRM: on White Boost or DC Distortion, sweep Treble alone and read the
-  paramLo. One capture settles it. Until then, if a user reports the two knobs
-  swapped on 4-knob models, suspect this line before the renderer.
+4-KNOB Treb=0x03 / Bass=0x04 ORDERING — CONFIRMED (7/22/2026). Originally
+  inferred from the 3-knob sequential pattern rather than an isolated sweep,
+  but the shipped panel maps correctly and was verified knob-by-knob against
+  the hardware front panel (right control moves the right parameter on White
+  Boost and DC Distortion). 0x02=Driv and 0x05=Levl were always capture-
+  confirmed; all four are now confirmed.
 
 Model change: send CMD 0x21 (dir=0x00) with the full current chain map,
 new model mid in the DIST slot triplet, handle=0x00. Hardware responds
@@ -1650,6 +1947,66 @@ reorder — existing CMD 0x21 handler already processes the response.
   Note — White Boost display layout: 2×2 grid
     UI row 1: Gain(0x02), Volume(0x05)
     UI row 2: Bass(0x04), Treble(0x03)
+
+-------------------------------------------------------------------
+REVERB SLOT — CMD 0x11 PARAMETER MAP (confirmed 7/22/2026)
+-------------------------------------------------------------------
+Source: Wireshark Black_Panel_Reverb_Capture_1 (210 CMD 0x11 writes),
+Eleven_SR_Reverb_Capture_1 (331), Reverb_Type_Drop_Down_Picker (24 clean
+dropdown writes). Knob-turn order matched to capture notes. Shipped and
+verified live with the Avid editor closed on multiple patches (incl. a
+max-control amp), 7/22/2026.
+
+Encoding: standard (v127+64)%128 for all knobs. paramLo 0x01 = bypass
+(shared across all effect blocks — not listed here).
+
+TWO MODELS live in the REVERB slot; switch with CMD 0x21 like DIST:
+  Blackpanel Spring Reverb   mid 0x26 (mono) / 0x27 (stereo)    3 knobs
+  Eleven SR                  mid 0x28 (mono) / 0x29 / 0x2A       Type + 4 knobs
+Send the mono base mid on a model change; the firmware picks the variant by
+chain context (same as a reorder). Map every variant mid to its model.
+
+  paramLo   Blackpanel Spring    Eleven SR
+  ────────────────────────────────────────────
+  0x02      Decay                Decay
+  0x03      Tone                 Tone
+  0x04      Mix (RMix)           Mix (RMix)
+  0x05      (not present)        Type (selector — see below)
+  0x06      (not present)        Pre-Delay   [ms, see scale note]
+
+  The three shared knobs land on IDENTICAL paramLo in both models, and the
+  order matches the CMD 0x20 name order (Dcay, Tone, RMix, Type, PDly) — a
+  three-way cross-confirmation.
+
+  *** paramLo 0x06 COLLIDES WITH AMP BYPASS. *** 0x06 is amp bypass ONLY on the
+  amp handle; here it is Pre-Delay on the reverb handle. The CMD 0x11 bypass
+  router must gate 0x06/0x14 on the amp handle (see Section 3). This was the
+  defect that made Pre-Delay flip the amp-bypass display and lose its readback.
+
+  PRE-DELAY SCALE: displayed as milliseconds over 0–200, LINEAR (v127/127 *
+  200). CONFIRMED against the hardware front-panel readout (7/22/2026) — the
+  ms value shown in the panel matches the unit's own display across the range.
+  Decay/Tone/Mix use the plain 0–10 display like other knobs.
+
+TYPE selector (Eleven SR, paramLo 0x05) is a NORMAL knob whose 0–127 range is
+quantised into 25 named zones. The panel offers both a dropdown and a knob,
+kept in sync; the dropdown snaps the knob to a zone centre. Exact wire values
+(v0) captured from the hardware dropdown; v127 = (v0-64) mod 128:
+  0 Echo Room 0x40   1 Studio 0x45   2 Small Room 0x4A   3 Jazz Club 0x50
+  4 Small Club 0x55  5 Garage 0x5A   6 Medium Room 0x60  7 Tiled Room 0x65
+  8 Wood Room 0x6A   9 Small Theater 0x70   10 Medium Theater 0x75
+  11 Large Theater 0x7A   12 Rich Hall 0x00   13 Concert Hall 0x05
+  14 Bright Hall 0x0A  15 Church 0x0F  16 Cathedral 0x15  17 Arena 0x1A
+  18 Small Plate 0x1F  19 Medium Plate 0x25  20 Large Plate 0x2A
+  21 Canyon 0x2F  22 Supa Long 0x35  23 Early Reflect 1 0x3A
+  24 Early Reflect 2 0x3F
+  (Echo Room 0x40 = patch load state, corroborated by the knob-sweep lowest.)
+  Incoming knob values map to the nearest zone so the dropdown tracks a
+  hardware knob turn as well as a dropdown pick.
+
+Model change: identical to DIST — CMD 0x21 (dir=0x00), full chain map, new
+model mid in the REVERB slot triplet, handle=0x00; the existing CMD 0x21
+handler adopts the response and re-queries params.
 
 -------------------------------------------------------------------
 OUTPUT CHANNEL TABLE — mid -> mono or stereo out  (7/19)
@@ -1743,6 +2100,73 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-23 (docs) — Review sweep of the navigation session. Deleted a stale
+  sentence in Section 3 that had survived directly beneath the correction
+  withdrawing it: it claimed the CMD 0x11 REQU handle byte 0x07 was a
+  "broadcast/wildcard the firmware resolves", i.e. the exact pre-7/18 belief
+  whose single wrong byte blocked amp/cab bypass for a whole phase. Added C13
+  for the two global-to-per-patch reversals and traced their root cause to
+  Section 14's "GLOBAL SECTION" heading, where "global" means patch-wide;
+  that heading now says so. Archived the fifteen build-by-build entries of the
+  flicker investigation (log 1080 -> ~330 lines); every conclusion was already
+  folded into Sections 5, 6, 7, 10, 11, 18, 20, 21 and the Primer.
+  PROCESS NOTE: this is the second time a correction has been ADDED without
+  the superseded sentence being DELETED, leaving a paragraph arguing with
+  itself (first was Sec 6's typeA text, 7/20). Adding the new claim is only
+  half the edit. After correcting something, re-read the whole surrounding
+  paragraph and delete what the correction just made false.
+
+2026-07-23 (code + protocol) — Patch navigation rebuilt; hardware front-panel
+  double flicker ELIMINATED. Recall switched from MIDI Program Change to the
+  CMD 0x02 absolute-slot SysEx form (Sec 6); slot is plain 0-based. The second
+  flicker was traced to OUR OWN CMD 0x01 bulk request on every nav — Avid never
+  requests it. The post-nav pull is now ~20 targeted queries instead of a
+  1.2 KB dump, at roughly Avid's measured pace. New confirmed read paths that
+  made this possible: CMD 0x36 with a slot byte (To Amp 1/2) and CMD 0x0D
+  (Stereo/Mono), both in Sec 5. Two long-standing "global" claims CORRECTED to
+  per-patch by hardware test — To Amp 1/2 (Sec 18) and Stereo/Mono (Sec 10).
+  CMD 0x11 values documented as five 7-bit bytes forming a 35-bit offset-binary
+  quantity (Sec 7), with the USBPcap truncation caveat that hid it. Tone-stack
+  paramLo shown to follow a rule (paramLo == TFX slider id, sldF->0x10) rather
+  than being an arbitrary table (Sec 11). Ordering hazard documented in Sec 20:
+  a per-amp query list must wait on the Amp Select REPLY, never on a timer, or
+  it silently queries the previous amp's parameters. Speed and Sync
+  write-blocked pending the interlock work (Sec 21).
+  [SUPERSEDED the same afternoon — see the 7/23 (afternoon) entry above: the
+  interlock was solved, the write block lifted, and the "hardware fights the
+  write" diagnosis retracted. This entry is left as the record of what was
+  believed at midday.]
+
+2026-07-22 (docs) — Confirmations folded, no protocol change. Eleven SR
+  Pre-Delay ms scale marked CONFIRMED (hardware front-panel check, not just
+  validated-by-use). DIST 4-knob Treb=0x03/Bass=0x04 marked CONFIRMED (shipped
+  panel verified knob-by-knob against the front panel), closing the "inferred"
+  caveat from 7/21. Graphics-asset sections (Sec 1, Primer) reworded to lead
+  with the folder location — the Avid Editor supplies the files but never runs,
+  and need not stay installed. C11 given a zero-cost close path (glance at
+  byte 6 of any logged REQU response); reminder added to the Primer.
+
+2026-07-22 (code + protocol) — Phase 10: REVERB effect panel shipped, the
+  second of the nine non-amp blocks. Two models in one slot (Blackpanel Spring
+  Reverb, Eleven SR), switched by CMD 0x21 like DIST. Full paramLo map and the
+  25-entry Eleven SR Type table added to Section 23, verified live with the
+  Avid editor closed. Eleven SR Pre-Delay displays milliseconds (0–200, linear,
+  validated by use). Type is a knob quantised into 25 named zones, presented as
+  a linked dropdown + knob.
+  BYPASS ROUTER FIX: paramLo 0x06 (amp bypass) / 0x14 (cab bypass) are now
+  matched only when the message arrives on the amp handle (currentParamHi).
+  Previously they matched on ANY handle, so Eleven SR Pre-Delay — paramLo 0x06
+  on the reverb handle — was misread as an amp-bypass event and its readback
+  was swallowed. The amp state never actually changed (confirmed with both
+  programs open). Same family as C11 (0x04-as-handle): a value that is a
+  control code in one context is data in another; discriminate by handle.
+  See Section 3.
+  GUI: Amp Out + Rig Vol moved from a right-hand vertical column into a
+  horizontal "Volumes" box matching the Gate / To Amp treatment, for tighter
+  window scaling. Recurring "knob jumps to centre at value 0" bug (falsy-0 in
+  `parseInt(...) || 64`) fixed in the DIST and REVERB panels; noted in the
+  Primer as a per-knob checklist item.
 
 2026-07-21 (environment) — Windows and JDK matrix consolidated, closing C12.
   Scattered platform notes accumulated across five weeks were replaced by a
@@ -1881,6 +2305,47 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   confirmed C1 Chorus/Vibrato 0x27/0x28 and found the stereo Graphic EQ 0x32.
   The Section 23 model table is now COMPLETE. The mid<->TFX bridge method has
   now named 30+ models across 13 patches without a single Wireshark capture.
+
+2026-07-23 (docs, review) — Review sweep of the tremolo session. Retracted a
+  Section 20 dead end written that morning and superseded that afternoon:
+  "writing Speed or Sync — the hardware fights the write; both write-blocked."
+  It contradicted Section 11, which now models the mode and says explicitly not
+  to reintroduce a write guard. RESTORED THE FLAGGED CONFLICTS TO NUMERIC
+  ORDER and added a standing note to keep them that way — the out-of-order C11
+  is what let an edit anchored on "cut from C11 to the next C12" delete
+  Sections 23 and 24 earlier the same day. That hazard is now removed at the
+  source rather than only being warned about.
+  PROCESS NOTE: this is the THIRD time a correction has been added while the
+  superseded claim was left standing elsewhere (Sec 6 typeA on 7/20, Sec 3 REQU
+  on 7/23 morning, Sec 20 Speed/Sync here). The pattern is consistent: the new
+  text goes where the work happened, and the stale copy sits in a list section
+  — dead ends, open questions, a command reference — that nobody reopened.
+  After correcting something, grep the OTHER sections for the old claim, not
+  just the paragraph being edited.
+
+7/23 (afternoon) — TREMOLO FEATURE SET COMPLETE, and four wrong diagnoses
+  retired.
+  • Tremolo On/Off found at paramLo 0x13 — a control that exists only on the
+    rack's front panel, absent from Avid's editor and from the amp XML.
+  • Sync decoded as a 14-zone selector over 0-127 (Sec 11), confirmed by two
+    tempo sweeps that agree and by the dotted-note dip in the Speed readout.
+  • The Sync/Speed interlock is a MODE, not a protocol defect. The rack ignores
+    Speed writes while Sync is engaged; its own Speed knob clears Sync to OFF.
+    Our editor now mirrors that, which Avid does not do at all.
+  • RETRACTED: "Speed writes fail because the trailing bytes are malformed"
+    (Sec 7). Those bytes are low-order value bits, and the 0x10 in a broadcast
+    is added by the rack. Our write format was correct all along.
+  • RESOLVED C11: FORMAT B does not exist on this connection; deleted from
+    Sec 3.
+  • Endpoint sentinels added to writes — Speed could not reach 10.0 because
+    every write asked for the bottom of the requested step.
+  • dB scales anchored on zero: To Amp at v127=64, Amp Out at v127=98 with a
+    0.6 dB step. Both previously made 0.0 dB unreachable.
+  • RETRACTED: the "Amp Out log-pot nonlinearity" note — no curve, just an
+    offset scale.
+  • SL100 Drive's 0x0E toggle is labelled MOD, not Bright; visibility must key
+    on paramLo, never on the label.
+  • Rig tempo identified as CMD 0x50, partly decoded, carried to Sec 21.
 
 [ARCHIVED] The detailed 7/16-7/18 entries — the chain-map decode narrative,
   the TFX cross-check that produced it, the Phase 7a-1 stereo/mono work, the

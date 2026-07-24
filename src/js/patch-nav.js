@@ -2,11 +2,26 @@
 // PATCH-NAV.JS — patch navigation and auto-roll.
 // ════════════════════════════════════════════════════════════════════
 
+// Patch recall method. Set to false to fall back to Program Change.
+var USE_SYSEX_RECALL = true;
+
 async function sendPC(slot) {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
-  var hex = 'C0 ' + slot.toString(16).padStart(2,'0').toUpperCase();
+
+  var hh = v => v.toString(16).padStart(2,'0').toUpperCase();
+  var hex, how;
+
+  if (USE_SYSEX_RECALL) {
+    // Absolute-slot recall, as used by the Avid editor.
+    hex = 'F0 13 0B 0F 00 02 00 ' + hh(slot) + ' F7';
+    how = 'SYSEX recall';
+  } else {
+    hex = 'C0 ' + hh(slot);
+    how = 'PC';
+  }
+
   if (sendHex(hex)) {
-    monitorLog('OUT', 'PC → ' + slot + ' (' + slotLabel(slot) + ')');
+    monitorLog('OUT', how + ' → ' + slot + ' (' + slotLabel(slot) + ')');
     setStatus('→ ' + slotLabel(slot));
   }
 }

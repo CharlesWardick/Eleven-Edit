@@ -152,6 +152,22 @@ async function init() {
     sendParamWrite(0x0E, brightOn ? 127 : 0);
     appLog('Bright toggled -> ' + (brightOn ? 'ON' : 'OFF'));
   });
+
+  // ── Tremolo on/off button — paramLo 0x13, same two-state encoding as
+  // Bright. Refuses to act until the hardware has told us the current state,
+  // so a first click can never invert a value we are only guessing at. ──
+  document.getElementById('btn-trem').addEventListener('click', function() {
+    if (currentParamHi < 0) return;
+    if (tremOn === undefined) {
+      appLog('Tremolo: state unknown yet, ignoring click');
+      setStatus('Tremolo: waiting for a readback from the hardware first');
+      return;
+    }
+    tremOn = !tremOn;
+    updateTremButton();
+    sendParamWrite(0x13, tremOn ? 127 : 0);
+    appLog('Tremolo toggled -> ' + (tremOn ? 'ON' : 'OFF'));
+  });
 }
 
 // ── Input selector button state helper ──

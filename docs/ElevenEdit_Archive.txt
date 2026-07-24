@@ -563,5 +563,927 @@ NEXT:        Solo test (Avid editor closed). After that passes:
 
 
 ===================================================================
+PART 3 — NAVIGATION / FLICKER INVESTIGATION, 2026-07-22 to 2026-07-23
+===================================================================
+Moved from the session log 2026-07-23. This is the build-by-build narrative of
+a single investigation: why our app made the rack's front panel flicker twice
+on a patch change when the Avid editor did not. It ran from build A through
+build H over two days and ended with patch navigation rebuilt.
+
+Every CONCLUSION is live in the Technical Reference — the CMD 0x02 recall form
+(Sec 6), the CMD 0x36 and CMD 0x0D read paths (Sec 5), the 35-bit multi-byte
+value format (Sec 7), Stereo/Mono and To Amp corrected to per-patch (Sec 10,
+18, C13), the paramLo-equals-slider-id rule (Sec 11), the navigation dead ends
+(Sec 20), and the Sync/Speed interlock (Sec 21). The query-budget finding is
+in the Primer.
+
+What follows is the working detail: what was tried, what each build changed,
+which hypotheses were wrong, and the raw observations behind the conclusions.
+Read it if you need to know WHY, or to re-open a question that was closed.
+
+-------------------------------------------------------------------
+DATE:        2026-07-22 (later)
+STATUS:      [FOLDED IN: Tech Ref Sec 3 (0x06/0x14 amp-handle rule), Sec 23
+             (REVERB map note), Sec 24; Primer WORKING / CODE FILE MAP]
+AREA:        CMD 0x11 bypass routing — paramLo 0x06 handle collision
+FINDING:     paramLo 0x06 = AMP BYPASS, but ONLY on the amp block's handle.
+             The bypass router matched 0x06 (and 0x14 cab) on ANY handle. No
+             other block used 0x06 until now, so it stayed latent. Eleven SR
+             REVERB Pre-Delay is paramLo 0x06 on the REVERB handle (0x61 in the
+             capture) — so every Pre-Delay turn was read as an amp-bypass event
+             (GUI showed AMP going bypassed) and the Pre-Delay READBACK was
+             swallowed here instead of reaching the knob (hence "no initial
+             readback"). Hardware amp state never actually changed, matching
+             Charlie's both-programs test.
+FIX:         Amp-bypass (0x06) and cab-bypass (0x14) now count as bypass only
+             when the message arrives on currentParamHi (the amp handle);
+             otherwise they fall through to per-block routing, where the reverb
+             handler updates Pre-Delay. Block bypass (0x01) unchanged.
+EVIDENCE:    session-2026-07-22-114841.log — IN F0 13 0B 0F 02 11 61 06 7F ...
+             logged as "Bypass: AMP -> ACTIVE"; amp real handle 0x5B, reverb
+             handle 0x61. Same bug FAMILY as the 0x04-handle case (Archive):
+             a value that is a control code in one context is data in another —
+             disambiguate by handle/context, never by the value alone.
+ALSO:        Pre-Delay now displays milliseconds over 0-200 (was 0-10 like the
+             other knobs). Mapping ASSUMED LINEAR, max 200 ms — needs a quick
+             hardware confirm of the value shown at full knob.
+NEXT:        Re-test solo (Avid closed): open Eleven SR REVERB, confirm all 5
+             controls read back on open incl Pre-Delay; sweep Pre-Delay and
+             confirm NO amp-bypass flicker and the ms readout tracks; confirm
+             real amp bypass (chain-slot click) still works. If good, fold the
+             0x06-only-on-amp-handle rule into Tech Ref (bypass section) and
+             confirm the ms scale.-------------------------------------------------------------------
+DATE:        2026-07-22
+STATUS:      provisional — change written, awaiting hardware test
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Patch recall method — Program Change vs absolute-slot SysEx
+FINDING:     Avid sends NO Program Change at any time. Every patch recall,
+             sequential or jump, is a single
+               F0 13 0B 0F 00 02 <tail truncated in capture>
+             on the Vendor-Specific port. Arbitrary bank jumps cannot be
+             relative, so the truncated tail must carry the absolute slot.
+             This matches patch-identity form 4 already in the Tech Ref:
+               F0 13 0B 0F 00 02 [0x00] [raw_slot] F7
+             Our app used C0 nn (Program Change), inherited from pre-Java-
+             bridge builds. Hypothesis for the double flicker seen on the HW
+             front panel: a Program Change triggers the Rack's own native
+             recall behaviour ON TOP OF the patch load, whereas Avid's
+             absolute-slot SysEx does not. Our post-change readback burst is
+             NOT the cause — logs show exactly one load per navigation, one
+             bulk dump, no write-back.
+CAPTURE
+CAVEAT:      This USBPcap setup drops the FINAL 4-byte USB-MIDI group of every
+             message. Proven by a name response reading "Bassguy 5" when the
+             true name is "Bassguy 59" — the closing group (39 00 F7) is gone.
+             Trailing arguments are therefore invisible in all three captures.
+             Re-check this before trusting any byte-level tail taken from them.
+EVIDENCE:    Avid_Edit_Patch_Changes_.pcapng (Avid, A1-A2-A3-A4 sequential)
+             Eleven_Edit_Patch_Changes.pcapng (ours, same walk)
+             Avid_Editor_JumpList_Patch_Changes.pcapng (Avid, A1-B2-C3-D4 jumps)
+             session-2026-07-22-154654.log (ours, same session as capture)
+CONFLICTS:   Tech Ref Sec 20 lists "SysEx for patch load via the standard MIDI
+             DIN port — silently ignored" as a dead end. Not in conflict: our
+             SysEx goes out the bridge OUT port that already carries working
+             CMD 0x01/0x11 traffic, not the DIN port.
+CHANGE:      patch-nav.js sendPC() now emits F0 13 0B 0F 00 02 00 <slot> F7,
+             guarded by USE_SYSEX_RECALL. Set that flag false to revert to
+             Program Change instantly. No other call site touched — goToSlot,
+             auto-roll and keyboard nav are unchanged.
+UNCONFIRMED: raw_slot encoding. Our slots are 0-based (A1=0, A2=1); the Tech
+             Ref example shows raw_slot 04. Verify against the slot echoed
+             back in the 0E 02 02 announcement after a recall.
+NEXT:        Test A1 to A2/A3/A4. Watch the front panel for one flicker vs two,
+             and confirm the echoed slot matches the slot requested. If the
+             display does not move at all, the encoding is wrong, not the
+             method — try the raw_slot variant before abandoning.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (later)
+STATUS:      provisional — recall CONFIRMED; flicker cause still open
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Patch recall — SysEx result, and the bulk request as flicker suspect
+CONFIRMED:   Absolute-slot SysEx recall works.
+               F0 13 0B 0F 00 02 00 <slot> F7
+             raw_slot is plain 0-based with NO translation: A2 = 0x01,
+             A4 = 0x03, D4 = 0x0F. Hardware echoes the requested slot back in
+             both 0x03 and 0x02 announcements (e.g. 0F 02 02 00 0F for D4).
+             Sequential nav and a non-adjacent jump to D4 both landed
+             correctly. Program Change is no longer used for navigation.
+             SIDE EFFECT: announcements now arrive with direction byte 0x0F
+             rather than 0x0E, matching the Avid capture exactly. Our 0x02 /
+             0x03 handlers accept both — worth noting before anything is
+             written that keys on 0x0E.
+RULED OUT:   Program Change is NOT the cause of the double front-panel
+             flicker. It persists unchanged after the switch to SysEx recall.
+             Also previously ruled out: a second load or a write-back from us
+             (logs show exactly one recall per navigation).
+NEW
+HYPOTHESIS:  The CMD 0x01 bulk TFX request is the second flicker. Avid never
+             requests CMD 0x01 at any point. Its post-recall sequence is
+             21, 05, 07, 0A, 08, 03, 50, 34, then the 11 bypass sweep. Ours
+             leads with 01 — a 1196-1361 byte dump, the only large transfer
+             in the sequence, arriving a beat after the recall.
+EVIDENCE:    session-2026-07-22-175415.log (SysEx recall, slot echoes, flicker
+             still present), Avid_Edit_Patch_Changes_.pcapng and
+             Avid_Editor_JumpList_Patch_Changes.pcapng (no CMD 0x01 anywhere).
+CHANGE:      transport.js requestPatchStateAfterNav() gains REQUEST_BULK_ON_NAV,
+             shipped set to FALSE for this diagnostic. While false, everything
+             decoded from the bulk body is stale or blank: amp name, tone
+             knobs, gate, amp out, cab/mic, stereo/mono, to-amp volumes.
+             Expected. Set true to restore.
+NEXT:        Nav A1-A2-A3-A4 with the flag false and watch the panel. If the
+             second flicker is gone, the bulk request is confirmed as the
+             cause. The fix is then NOT to drop the bulk — we need that data —
+             but to work out how Avid obtains it without CMD 0x01. Its
+             08, 50, 34 and 0A queries are unimplemented on our side and are
+             the obvious place to look.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night)
+STATUS:      provisional — flicker cause CONFIRMED; amp paramLo map NOT solved
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Flicker cause = CMD 0x01 bulk request; attempt at amp paramLo map
+CONFIRMED:   The CMD 0x01 bulk TFX request is the second front-panel flicker.
+             With REQUEST_BULK_ON_NAV=false the flicker is GONE, navigation and
+             a jump to D4 both correct, and all bulk-derived readouts blank as
+             expected. Evidence: session-2026-07-22-180229.log.
+             Cause chain now fully resolved: not Program Change, not a double
+             load, not a write-back — it is our own bulk request.
+CONFIRMED:   CMD 0x11 value encoding. Five 7-bit bytes form a 35-bit
+             offset-binary number N; raw = (N - 0x400000000) >> 3, signed.
+             0x40 00 00 00 00 = 0 (centre), 0x7F 7F 7F 7F 7F = +2147483647.
+             Display value = 64 + raw/2147483647*63 (0-127). Verified against
+             TFX-derived raws in session-2026-07-22-154654.log.
+             NOTE: captures lose the 5th byte, costing ~16 counts of 2.1e9 —
+             negligible, but the byte IS real; do not drop it when sending.
+CONFIRMED:   Avid reads the amp as a sweep of paramLo 0x01..0x19 against the
+             amp's runtime handle from CMD 0x21 (handle was 126 / 13 / 27 on
+             the three patches). 39 CMD 0x11 queries per patch change total:
+             25 amp params + the 11 per-block bypass flags + 3 duplicates
+             (0x06, 0x14, 0x15 queried twice — bypass and param overlap).
+             No CMD 0x01 anywhere in any Avid capture.
+NOT SOLVED:  The amp paramLo -> control map. Correlating the 25 values against
+             our decoded readouts over three patches gave only two consistent
+             hits: paramLo 0x08 = Mid (99) and 0x0B = Vol Norm (35) on Bassguy
+             59. Neighbours are close but wrong — 0x07 reads 106 vs our Treble
+             109, 0x09 reads 91 vs our Bass 85, 0x0A reads 46 vs our Vol
+             Bright 43 — off by 3-6 counts with no consistent offset. Gate,
+             amp out, cab and mic do not appear in the 25 at all.
+TWO
+EXPLANATIONS: (a) paramLo is amp-model-specific, as already documented for
+             DIST. The three test patches use three different amps (Tweed
+             Bass, Tread Vin, SL100 Drive), so slot 0x09 need not mean the
+             same knob on each.
+             (b) Our TFX tone decode is a few counts off on some knobs. It
+             locates the amp by scanning the body for a key and reading at
+             fixed offsets — a search, not a fixed layout. If so the param
+             values are the more trustworthy source and our present readouts
+             are slightly wrong.
+             Captures alone cannot separate these. NO MAP GUESSED.
+NEXT:        Knob-sweep, one amp model: turn each amp knob on the hardware and
+             record which (handle, paramLo) broadcasts. Six knobs. Then repeat
+             on a second amp with the same knob count — that single comparison
+             decides whether numbering is universal or per-model, which sets
+             the size of the whole job. It also settles (b) for free: if swept
+             values disagree with our TFX readouts, the TFX decode needs
+             fixing regardless of the flicker work.
+INTERIM:     Set REQUEST_BULK_ON_NAV back to TRUE for normal use until the map
+             exists. The SysEx recall is an independent confirmed win and
+             stays either way.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night, later)
+STATUS:      diagnostic build issued — awaiting results
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Probe of Avid's five undecoded queries + clean amp param sweep
+NOTE ON
+OLD SWEEPS:  Previously captured Wireshark knob-sweeps ARE still usable.
+             The truncation drops only the final 4-byte group, which on a CMD
+             0x11 response is the 5th value byte. Handle, paramLo and the top
+             four value bytes all survive, and a sweep only needs to show
+             WHICH paramLo moves. Do not discard those captures.
+RATIONALE:   Before hand-sweeping ~30 amp models, check whether the amp
+             parameter map can be obtained directly. Avid sends CMD 0x03,
+             0x08, 0x0A, 0x34 and 0x50 after every recall and we have never
+             decoded any of them; all five are short messages, so capture
+             truncation destroyed their whole payload. Our own logs are not
+             truncated. If one returns a parameter descriptor for the loaded
+             amp, the entire per-model mapping job disappears.
+CHANGE:      protocol.js   — REQU_PROBE_03/08/0A/34/50 and PROBE_DUMP_CMDS.
+             sysex-handler.js — raw full-hex dump of any response whose CMD is
+                            in PROBE_DUMP_CMDS, before normal dispatch; no
+                            existing handler is bypassed or altered.
+             transport.js  — PROBE_UNKNOWN_QUERIES fires the five queries
+                            after each nav; PROBE_AMP_PARAM_SWEEP sweeps
+                            paramLo 0x01..0x19 against currentParamHi and logs
+                            every reply in full, giving untruncated values to
+                            correlate. Both run AFTER the normal state pull so
+                            they cannot disturb it. Both default true.
+             REQUEST_BULK_ON_NAV stays FALSE for this build, to keep the log
+             readable and the flicker out of the way.
+TEST:        Nav across three or four patches on DIFFERENT amp models, then
+             send the log. Looking for: any of the five returning per-amp
+             parameter information, and a clean 25-value sweep per amp.
+NEXT IF NO
+DESCRIPTOR: fall back to knob-sweep on two amps of equal knob count to decide
+             universal vs per-model numbering before committing to all 30.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night, final)
+STATUS:      STABLE BUILD RESTORED — flicker work paused, not abandoned
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Rollback to known-good, plus two hardware-confirmed facts
+ROLLBACK:    REQUEST_BULK_ON_NAV back to TRUE, PROBE_UNKNOWN_QUERIES and
+             PROBE_AMP_PARAM_SWEEP both FALSE. App behaves as it did before
+             the flicker investigation, except patch recall is now SysEx
+             instead of Program Change (confirmed good, kept).
+             The double front-panel flicker RETURNS with this build. That is
+             the accepted trade for correct readouts.
+CAUSE OF
+"SKETCHY":   Tone-stack readback failing in the diagnostic build was a direct
+             consequence of REQUEST_BULK_ON_NAV=false, not a pre-existing
+             fault. Tone values are decoded from the bulk body; with the bulk
+             request suppressed they only refreshed when some other event
+             happened to trigger a bulk (hardware save, bank load). Restoring
+             the flag restores the readouts. No underlying app defect implied.
+             Secondary factor, still true and still unfixed: in the sweep the
+             amp identity arrived AFTER the tone values, because identity
+             comes from the bulk. Any future CMD 0x11 replacement must query
+             paramLo 0x0F first and wait for it before sweeping tone.
+CONFIRMED
+BY HARDWARE
+TEST:        To Amp 1 and To Amp 2 volumes are PER-PATCH, not global. User set
+             both to specific values, saved to the rack, navigated away and
+             back — settings returned with the patch. This CONTRADICTS the
+             comment on sendToAmpVolume in transport.js which calls CMD 0x36
+             "To Amp volume (global)". That comment is wrong and should be
+             corrected when the area is next touched.
+             Mono/Stereo is also PER-PATCH, not global.
+             Consequence: both must be re-read on every patch change, so
+             neither can be dropped from a bulk replacement, and neither has
+             a known read path outside the bulk body. CMD 0x36 is write-plus-
+             echo only; no query form exists anywhere in the code.
+BULK
+REPLACEMENT
+COVERAGE:    Covered by CMD 0x11: amp identity 0x0F, gate 0x04/0x05, amp out
+             0x03, tone knobs per-amp lo, cab 0x15, mic 0x16, axis 0x17,
+             breakup 0x18.
+             NOT covered, no known read path: Mono/Stereo, To Amp 1 volume,
+             To Amp 2 volume.
+             Until those three have a read path, the bulk request cannot be
+             removed without losing readouts. This is the blocker.
+OPEN LEADS:  Avid reads these somehow without ever requesting CMD 0x01. Its
+             undecoded per-recall queries remain the best candidates:
+             CMD 0x08 returns four 5-byte blocks and DOES vary by patch —
+               A1 gave 00 7F 02 00 19 then 00 7F 02 00 64 x2 then 00 7F 00 00 64,
+               while the other four patches gave 00 7F 00 00 64 in all four
+               blocks. Four blocks, per-patch, small values — plausible fit
+               for the To Amp pair plus two others. UNPROVEN.
+             CMD 0x0A returned 04/00/00/04/04 across the five patches — a
+               single byte that changes per patch. Plausible Mono/Stereo, but
+               all five patches were STEREO so nothing was distinguished.
+               UNPROVEN.
+             CMD 0x50 four bytes, varies per patch, does not track the amp
+               (lead800 and treadvint returned identical values). UNPROVEN.
+NEXT WHEN
+RESUMED:     Single-variable experiments, one at a time, on ONE patch:
+             set To Amp 1 to a distinctive value and re-probe, watching CMD
+             0x08 block 1; then toggle Mono/Stereo and re-probe, watching
+             CMD 0x0A and 0x50. Change one thing, look at one field.
+             Do NOT attempt the bulk replacement before all three unknowns
+             have a proven read path.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night, build B)
+STATUS:      A/B differential test build issued
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Read path for To Amp 1/2 and Mono/Stereo — outer (rig) level
+MODEL
+CORRECTION:  Earlier framing of "per-patch vs global" was WRONG. Everything in
+             question is per-patch. The real distinction is WHICH COMMAND
+             carries the value, and there are two levels:
+               INNER (amp block) — gate, amp out, tone stack, cab, mic.
+                 Read via CMD 0x11 against the amp's runtime handle.
+               OUTER (rig level) — rig volume, To Amp 1/2, Mono/Stereo.
+                 Each has its own top-level command number.
+             Rig Volume proves the outer level already works the way we need:
+             CMD 0x07 has a dedicated read, F0 13 0B 0F 01 07 F7, fired on
+             every nav, reliable, per-patch, never needed the bulk dump.
+             So To Amp is not missing a read because the hardware lacks one —
+             we have only ever WRITTEN CMD 0x36 and never tried reading it.
+BUILD B:     REQUEST_BULK_ON_NAV = TRUE  (app fully functional, readouts good)
+             PROBE_UNKNOWN_QUERIES = TRUE
+             PROBE_AMP_PARAM_SWEEP = FALSE (not needed here, keeps log short)
+             New read candidates, all read-only and unable to alter a patch:
+               F0 13 0B 0F 01 36 F7        (bare)
+               F0 13 0B 0F 01 36 02 F7     (To Amp 1 slot)
+               F0 13 0B 0F 01 36 03 F7     (To Amp 2 slot)
+             0x36 added to PROBE_DUMP_CMDS so any reply is dumped in full.
+TEST METHOD
+(USER'S,
+BETTER THAN
+PROBING):    Build two ADJACENT patches identical in every respect except To
+             Amp 1 and To Amp 2 — one pair at midpoint, one pair at 3 o'clock
+             — saved to the rack in neighbouring slots. Navigate back and
+             forth. Whatever carries the To Amp values MUST differ between the
+             two logs; everything else that differs should be slot-related and
+             can be discounted as a control. This avoids guessing command
+             forms entirely.
+             Then, separately, toggle Mono/Stereo on one patch and re-run,
+             watching CMD 0x0A and 0x50.
+DISCIPLINE:  Unsaved edits revert on nav, so ALWAYS save before testing
+             readback. Use distinctly different values for To Amp 1 vs To Amp
+             2 so a reply cannot be ambiguous.
+FILE SYNC:   All files handed over are one consistent set built from the
+             project baseline plus every edit to date. Take the newest set,
+             discard earlier ones, never apply partially. Build A (the stable
+             rollback) was superseded without being built — no action needed.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night, build C)
+STATUS:      To Amp read CONFIRMED; Mono/Stereo command identified
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Outer (rig) level read paths
+CONFIRMED:   CMD 0x36 READ FORM WORKS. Slot byte is REQUIRED; the bare form
+             returns nothing.
+               Request:  F0 13 0B 0F 01 36 <slot> F7   (02=ToAmp1, 03=ToAmp2)
+               Response: F0 13 0B 0F 12 36 <slot> <v0> 00 00 00 00 F7
+             Verified against user-set values on four patches (session log
+             2026-07-22-221119). Decode val = v0>=0x40 ? v0-0x40 : v0+64,
+             matching the existing write path, is correct.
+             ACCURACY NOTE: where the 0x36 read and the bulk decode disagree,
+             the BULK IS WRONG. Every disagreement is the bulk one step low
+             and only on positive values — its raw-to-value conversion floors
+             (raw 603979776 = 81.7, truncated to 81, true value 82; the rack
+             displayed +3.3 matching 82). Switching to 0x36 removes the bulk
+             dependency AND fixes a pre-existing off-by-one.
+ELIMINATED:  Mono/Stereo is NOT carried by CMD 0x03, 0x08, 0x0A, 0x34, 0x50 or
+             0x36. Proven, not merely unproven: patch P1 was visited three
+             times with genuinely different mono state each time (STEREO,
+             MONO, STEREO per the bulk decode) and all three probe blocks were
+             byte-identical. Session log 2026-07-22-221644.
+             Side notes from the same run: 0x0A varies by patch (04 on
+             A1/B1/P1, 00 on P4) but is unrelated to mono; 0x34 and 0x50 track
+             the amp; CMD 0x03's SECOND byte goes to 01 after an edit and back
+             to 00 after a save — looks like a dirty/unsaved flag, worth
+             following up separately as it could drive a "modified" indicator.
+CONFIRMED:   Mono/Stereo IS CMD 0x0D. From Mono_Toggle.pcapng: the Avid editor
+             writes F0 13 0B 0F 00 0D <val> F7 and the rack echoes
+             F0 13 0B 0F 02 0D <val> F7. This is not new to us — we already
+             have a 0x0D set command and a 0x0D handler. Only the READ form
+             was ever missing.
+IMPORTANT
+SIDE FINDING: After EVERY mono/stereo toggle the rack re-broadcasts the chain
+             map (CMD 0x21) with DIFFERENT block handles:
+               04 20 75 06 28 76  ->  04 21 7A 06 2A 7B  ->  04 20 7F 06 28 01
+             So a mono change invalidates currentParamHi. Any CMD 0x11 based
+             readback MUST re-read the chain map after a mono change, or it
+             will query stale handles. This affects the bulk-replacement
+             design directly.
+BUILD C:     Adds REQU_PROBE_0D = F0 13 0B 0F 01 0D F7 and 0x0D to
+             PROBE_DUMP_CMDS. Everything else unchanged from build B:
+             REQUEST_BULK_ON_NAV=TRUE, PROBE_UNKNOWN_QUERIES=TRUE,
+             PROBE_AMP_PARAM_SWEEP=FALSE.
+             Judged safe because 0x0D is now a KNOWN command, and the 0F 01
+             <cmd> read form has behaved as a read for every command tested.
+             Deliberately NOT doing a brute-force sweep of unknown command
+             numbers — some may act rather than report.
+TEST:        Nav to a STEREO patch, then to a MONO patch, and check whether
+             PROBE resp CMD 0x0D returns a value that tracks the state. Also
+             confirm the probe does not itself change the mono state.
+REMAINING
+BLOCKER:     Mono/Stereo read only. To Amp 1/2 is solved. If 0x0D read works,
+             every bulk-derived readout has a non-bulk path and the flicker
+             fix can proceed.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night, build D)
+STATUS:      BULK REPLACEMENT IMPLEMENTED — awaiting test
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Targeted post-nav state pull replacing the CMD 0x01 bulk dump
+CONFIRMED:   Mono/Stereo read works. 5/5 against hardware state across
+             A1/B1/B2/B1/A1, and the read does NOT toggle the state.
+               F0 13 0B 0F 01 0D F7 -> F0 13 0B 0F 12 0D <00 stereo|01 mono> F7
+             Last blocker cleared: every bulk-derived readout now has a
+             non-bulk read path.
+CHANGE:      transport.js requestPatchStateAfterNav() rewritten with two modes
+             selected by REQUEST_BULK_ON_NAV (now defaulting FALSE):
+               TRUE  = legacy bulk path, unchanged behaviour, second flicker.
+               FALSE = targeted path, four phases:
+                 1 structure — patch name 0x05, chain map 0x21. The chain map
+                   sets currentParamHi/currentChain and its handler fires
+                   requestAllBypass, so the 11 bypass flags come free.
+                 2 amp identity — CMD 0x11 paramLo 0x0F, ALONE, with a longer
+                   settle. Must resolve before phase 3 because tone paramLo
+                   values are per-amp. This ordering was the exact fault in
+                   the diagnostic build.
+                 3 amp block — 0x03 amp out, 0x04/0x05 gate, 0x0E bright,
+                   0x15/0x16 cab/mic, 0x17 axis, 0x18 breakup, then this
+                   amp's tone knobs from AMP_TONE_PARAMS, deduped.
+                 4 rig level — rig vol 0x07, To Amp 0x36 slots 02/03,
+                   mono 0x0D.
+             protocol.js gains REQU_TOAMP1_READ, REQU_TOAMP2_READ,
+             REQU_MONO_READ as confirmed constants.
+STALE
+GUARD:       navSeqId increments per nav; every phase checks both that its id
+             is still current AND that currentSlot has not moved. Any sequence
+             that finds itself superseded abandons its remaining queries and
+             logs "Nav pull abandoned — slot changed". This stops replies for
+             an abandoned patch painting stale values during fast navigation
+             or auto-roll — the same hazard the bulk path guarded with its
+             slot check.
+TIMING:      NAV_QUERY_GAP = 120 ms, deliberately conservative, with a 350 ms
+             wait after the chain map and 250 ms after amp identity. About 20
+             queries total. Avid fires ~39 per recall, so there is headroom to
+             reduce this once the path is confirmed. Tune only after correct.
+UNAFFECTED:  TFX capture on hardware save. Saves arrive as an unprompted CMD
+             0x00 broadcast on a separate path; neither mode touches it.
+PROBES:      PROBE_UNKNOWN_QUERIES and PROBE_AMP_PARAM_SWEEP both FALSE for
+             this build to keep the log readable. Probe code retained.
+TEST:        Nav across several patches on DIFFERENT amps. Check: second
+             flicker gone; amp name, tone stack, gate, amp out, cab, mic,
+             axis, breakup, rig vol, To Amp 1/2 and mono all correct and
+             matching what the bulk path showed. Then try fast navigation and
+             the auto-roller and watch for stale or blank readouts.
+             If anything is wrong, set REQUEST_BULK_ON_NAV = true to return to
+             known-good behaviour immediately.
+KNOWN
+RESIDUAL:    A mono/stereo change re-issues the chain map with DIFFERENT block
+             handles, invalidating currentParamHi. Not yet handled — after a
+             user mono toggle the chain map should be re-read before any
+             further CMD 0x11 queries. Deferred; note it before the next
+             parameter work.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night, build E)
+STATUS:      Targeted path WORKING — retuned for speed
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Post-nav timing
+USER TEST
+RESULT:      Build D targeted path works. NO flash on the hardware front
+             panel — the flicker is gone. All readouts correct on the patches
+             tried. Not yet tested across every amp model.
+             Complaint: panel refresh too slow.
+MEASURED
+FROM AVID:   Avid_Edit_Patch_Changes_.pcapng, per recall:
+               47 queries in ~660 ms
+               average gap 14.3 ms, MEDIAN gap 1.1 ms
+               p90 gap 73 ms, max 190 ms
+             Avid fires most queries back-to-back and only pauses for bulky
+             replies. Our build D used a flat 120 ms — about ten times slower
+             than the hardware needs. That was the sluggishness, not the
+             query count.
+CHANGE:      All post-nav delays are now named constants in transport.js,
+             adjust there and nowhere else:
+               NAV_QUERY_GAP     15 ms  (was 120) between ordinary queries
+               NAV_RECALL_SETTLE 100 ms (was 200) after recall
+               NAV_CHAIN_SETTLE  220 ms (was 350) after chain map 0x21
+               NAV_AMP_SETTLE    130 ms (was 250) after amp identity 0x0F
+             Full pull now roughly 750 ms against ~2.5 s, close to Avid's
+             660 ms for more queries than we send.
+TUNING
+GUIDANCE:    If anything reads stale, arrives out of order, or a panel shows a
+             previous patch's value, raise NAV_QUERY_GAP FIRST — the two
+             settles are already generous relative to Avid's observed maximum.
+             Do not reduce NAV_CHAIN_SETTLE or NAV_AMP_SETTLE without evidence;
+             phase 2 must complete before phase 3 or tone replies arrive
+             unroutable.
+STILL TO
+TEST:        Every amp model (tone maps differ per amp); fast navigation and
+             the auto-roller against the stale guard.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night, build F)
+STATUS:      Race condition found and fixed — awaiting retest
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Post-nav pull ordering; fixed sleeps replaced by reply waits
+TEST RESULT
+BUILD E:     Six navigations, all six amps identified correctly, no abandoned
+             pulls, no stale reads, no errors. Speed acceptable. Front panel
+             flicker gone. BUT the log exposed a real defect.
+DEFECT:      SILENT MISSING READOUT. On A2 (Bassguy 59, tweed_bass) the tone
+             queries actually sent were paramLo 0D 0C 0B 0A 09 07 — that is
+             LEAD800's knob set, the amp from the PREVIOUS patch — instead of
+             tweed_bass's 0D 0B 0C 0A 07 08.
+             Consequences:
+               0x09 queried spuriously -> "CMD 0x11 unhandled paramLo=0x09"
+               0x08 (Vol Norm) NEVER QUERIED -> readout silently not updated
+             The four "unhandled paramLo" lines in the build E log were the
+             visible symptom; the missing read was the real damage, and it was
+             invisible. Values that DID arrive were routed correctly, because
+             routing happens at reply time when currentAmpKey is already
+             correct — which is exactly why this hid so well.
+ROOT CAUSE:  NAV_AMP_SETTLE (130 ms fixed) expired before the Amp Select reply
+             arrived, so the per-amp tone list was built from the stale
+             currentAmpKey. Raising the sleep would only make it rarer, not
+             correct — the failure is a race, not a duration.
+FIX:         Both critical waits are now event-driven, not timed.
+             state.js gains two counters:
+               ampSelectRxSeq — incremented when a CMD 0x11 paramLo 0x0F reply
+                 is processed. Incremented BEFORE any early return, so an
+                 unmatched v0 still releases the wait instead of stalling it.
+               chainMapRxSeq  — incremented once a CMD 0x21 chain map has been
+                 fully applied, i.e. currentChain and currentParamHi valid.
+             transport.js polls each counter every 10 ms until it advances:
+               NAV_CHAIN_TIMEOUT 900 ms  (replaces NAV_CHAIN_SETTLE 220)
+               NAV_AMP_TIMEOUT   700 ms  (replaces NAV_AMP_SETTLE   130)
+             Timeouts only bound a lost reply and log plainly when hit. The
+             stale-slot guard is still checked inside both poll loops, so a
+             fast nav still aborts promptly rather than waiting out a timeout.
+             The chain map wait matters as much as the amp one: a stale
+             currentParamHi addresses the WRONG BLOCK entirely, not merely the
+             wrong parameter.
+UNCHANGED:   NAV_QUERY_GAP 15 ms, NAV_RECALL_SETTLE 100 ms.
+RETEST:      Navigate between patches with DIFFERENT amps, especially amps
+             with different knob counts, and confirm: no "unhandled paramLo"
+             lines at all, and every tone control on each amp gets a query.
+             Check Vol Norm specifically on Bassguy 59. Then fast nav and the
+             auto-roller.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night, build G)
+STATUS:      Targeted path CLEAN — race fix verified
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Post-nav pull; selector-type controls excluded from query list
+TEST RESULT
+BUILD F:     Navigation good, speed acceptable, flicker gone. The stale
+             tone-list race is FIXED — the lead800/tweed_bass symptom from
+             build E did not recur, and no "abandoned" or "did not arrive"
+             lines appeared. Auto-advance not yet exercised.
+REMAINING
+NOISE:       Three "CMD 0x11 unhandled paramLo=0x12" lines, all on DC Vintage
+             Crunch. paramLo 0x12 on that amp is Sync, type 'selector'.
+             PRE-EXISTING, NOT A REGRESSION: decodeToneKnobValues() filters to
+             type 'knob' or 'toggle', so the bulk path never decoded selectors
+             either, and ui.js has no selector rendering at all. There are 15
+             selector entries across the amp table and none has ever been read
+             or displayed by either path.
+CHANGE:      The targeted query list now skips any entry whose type is not
+             'knob' or 'toggle', mirroring decodeToneKnobValues() exactly.
+             The targeted path therefore reads precisely what the bulk path
+             decoded — no more, no less — and the log returns to zero noise.
+             When selector readback is implemented, add 'selector' to that
+             filter in transport.js AND give it a display path in ui.js;
+             doing one without the other just restores the noise.
+OPEN ITEM
+(BACKLOG):   Selector controls (Sync on the DC models, and 14 others) are
+             unimplemented end to end. Not a flicker-project item; logged here
+             so it is not mistaken for a regression later.
+STILL TO
+TEST:        Auto-advance / roller against the stale guard, and the remaining
+             amp models.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-22 (night) — PARKED
+STATUS:      Session paused. Build G written but NOT YET BUILT OR TESTED.
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Where to pick up
+RESUME
+HERE:        1. Build the build-G file set (state.js, protocol.js,
+                transport.js, sysex-handler.js, patch-nav.js).
+             2. Expect ZERO "unhandled paramLo" lines. If any appear, note
+                which amp and paramLo before changing anything.
+             3. Exercise auto-advance / the roller. This is the ONLY untested
+                path that matters — it is the sole thing that drives the
+                stale-slot abort guard hard. Watch for blank or stale
+                readouts and for "Nav pull abandoned — slot changed" lines,
+                which are expected and healthy during fast navigation.
+             4. Work through the remaining amp models.
+SETTLED
+THIS
+SESSION:     - Patch recall by absolute-slot SysEx, replacing Program Change.
+             - Front-panel double flicker: cause was our own CMD 0x01 bulk
+               request; removed, flicker gone.
+             - Read paths confirmed for To Amp 1/2 (CMD 0x36 with slot byte)
+               and Mono/Stereo (CMD 0x0D).
+             - CMD 0x11 value encoding decoded and documented.
+             - Post-nav pull rewritten as ~20 targeted queries at Avid's pace,
+               with event-driven waits and a stale-slot abort guard.
+             - REQUEST_BULK_ON_NAV remains as a one-line fallback to the old
+               behaviour if anything goes wrong.
+BACKLOG —
+NOT
+IMPLEMENTED: Amp panel controls with no read or display path in EITHER the
+             bulk or targeted path. All pre-existing; none is a regression
+             from this session's work:
+               - Sync dropdown — every amp in the DC series.
+               - Vibrato toggle — DC series.
+               - Tremolo toggle — several other amps.
+               - 15 'selector' type entries in AMP_TONE_PARAMS generally.
+             Each needs BOTH a query (add the type to the filter in
+             transport.js) AND a display path in ui.js. Adding the query
+             alone only produces "unhandled paramLo" noise.
+ALSO
+OUTSTANDING: - A mono/stereo toggle re-issues the chain map with DIFFERENT
+               block handles, invalidating currentParamHi. Not yet handled;
+               after a mono change the chain map should be re-read before any
+               further CMD 0x11 query. Workaround: nav away and back.
+             - sendToAmpVolume() in transport.js is commented "global". That
+               comment is WRONG — hardware test proved To Amp 1/2 are
+               per-patch. Correct it when next in that area.
+             - CMD 0x03's second byte appears to be a dirty/unsaved flag
+               (01 after an edit, 00 after a save). Unconfirmed, but could
+               drive a "modified" indicator.
+             - NAV_QUERY_GAP is 15 ms against Avid's measured 14.3 ms mean.
+               No need to tune further unless a problem appears.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-23 (morning)
+STATUS:      Build G verified clean; Speed knob defect isolated, cause OPEN
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Post-nav pull verification, chain reorder behaviour, Speed knob
+BUILD G
+VERIFIED:    ZERO "unhandled paramLo" lines across 12 navigations. The
+             selector exclusion worked. No abandoned pulls, no timeouts, no
+             stale reads. Speed acceptable. Targeted path is sound.
+CONFIRMED —
+CHAIN
+REORDER:     Drag-and-drop of the chain causes the hardware to BROADCAST the
+             full chain map UNPROMPTED (F0 13 0B 0F 02 21 ...) after every
+             reorder — five broadcasts observed 06:16:42 to 06:17:12, none
+             preceded by a request from us. Block handles CHANGE each time:
+             first block went 38 -> 40 -> 44 -> 4D -> 50.
+             Our 0x21 handler already consumes these and bumps chainMapRxSeq,
+             so drag/drop self-heals currentParamHi. NO ACTION NEEDED.
+             Same mechanism as the mono/stereo toggle noted 2026-07-22 — that
+             one is still unhandled only because it is not accompanied by an
+             unprompted rebroadcast in the case observed.
+DEFECT —
+SPEED KNOB:  On DC models, paramLo 0x11 (Speed) neither reads nor writes.
+               READS  — all six replies were 00 00 00 00 00.
+               WRITES — during a drag we sent v0 = 7F, 7D, 7B ... and the
+                 hardware echoed 00 00 00 00 10 EVERY TIME, identical
+                 regardless of what was sent.
+             The display then shows 64 (centre) because the handler decodes
+             v0 alone; under the 5-byte encoding 00 00 00 00 10 is near
+             MINIMUM, not centre. So the display is also wrong, but that is a
+             symptom, not the cause.
+NOT THE
+CAUSE:       Stale handle is RULED OUT. In the same drag, on the same handle
+             0x39, Treble (0x0A) and Depth (0x10) both wrote and echoed
+             correctly. The block was addressed properly throughout.
+             User's hypothesis that it only breaks after changing model in an
+             already-loaded patch is therefore NOT supported by this capture —
+             the fault is specific to paramLo 0x11, not to the handle or the
+             model-change path.
+TWO
+CANDIDATES:  (a) Sync is locking Speed. DC models carry a Sync selector we
+                 have never implemented or read. If engaged, a free-running
+                 rate would be ignored and forced to a tempo division, which
+                 would look exactly like this.
+             (b) Speed uses a different encoding. It is a rate, not a 0-127
+                 knob. Our write places the value in the first byte only; if
+                 the rack expects a rate spread across the lower bytes, our
+                 writes are nonsense and 00 00 00 00 00 does not mean centre.
+             This capture cannot separate them. NOTHING GUESSED.
+NEXT TEST
+(NO CODE):   With the app running, turn the SPEED KNOB ON THE RACK'S OWN FRONT
+             PANEL through several positions and read the broadcasts — they
+             reveal the true encoding and range. Then toggle SYNC on the
+             hardware and turn Speed again.
+               Speed responds only with Sync off  -> candidate (a)
+               Broadcast values unlike our single-byte writes -> candidate (b)
+             Same technique that settled recall, To Amp and Mono/Stereo.
+             Cannot damage anything.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-23 (morning, addendum)
+STATUS:      User hardware observation — raises candidate (a) to likely
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Sync / Speed coupling on DC models
+OBSERVATION
+(USER,
+DIRECT FROM
+HARDWARE):   Sync and Speed are COUPLED. The Sync selector has several
+             choices — user recalls 3 or 4 — and choosing certain ones MOVES
+             THE SPEED KNOB to a specific position on its own.
+             This is a first-hand hardware observation, not yet corroborated
+             from the protocol, so it lives here and not in the Technical
+             Reference. Promote it once the wire behaviour confirms it.
+IMPLICATION: This makes candidate (a) from the previous entry the likely
+             explanation of the Speed defect. If Sync owns Speed whenever a
+             division is selected, then the hardware would ignore any free
+             rate we write and report a value it derives itself — which is
+             exactly the observed pattern: writes of 7F / 7D / 7B all echoing
+             back an identical 00 00 00 00 10.
+             It also means Speed may not be independently writable AT ALL
+             while Sync is engaged, so "fixing" the Speed write could be the
+             wrong goal. The correct model may be: read Sync first, and treat
+             Speed as read-only, or as driven, whenever Sync is on a division.
+CONSEQUENCE
+FOR DESIGN:  Sync therefore is NOT merely a missing display control. It is a
+             control that DRIVES another parameter, so implementing Speed
+             correctly probably requires implementing Sync first, not after.
+             This reorders the backlog: on DC models, do Sync before Speed.
+STILL
+REQUIRED:    The front-panel test from the previous entry stands, with one
+             addition — note WHICH Sync choice is selected at each step, and
+             which Sync choices move the Speed knob and where to. That gives
+             the Sync value list AND the Speed positions it forces, in one
+             pass.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-23 (build H)
+STATUS:      Speed/Sync stopgap + live timing panel
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Sync/Speed interlock; runtime tuning of the post-nav pull
+USER
+OBSERVATION
+(HARDWARE):  The interlock is BIDIRECTIONAL.
+               Sync OFF + Speed at 0 behaves normally.
+               Setting Sync to certain divisions FORCES Speed to a fixed spot.
+               Turning the real Speed knob ON THE RACK resets Sync to OFF.
+             Our software does the second half not at all: it writes Speed
+             without clearing Sync, so the hardware forces Speed back — the
+             erratic knob behaviour.
+WIRE
+EVIDENCE     From session 2026-07-23-063859, broadcasts on the amp handle:
+(MEASURED):    SYNC  0x12 — 127 distinct values, ALWAYS trailing 00 00 00 10
+               SPEED 0x11 — 126 distinct values, mostly trailing 7F 7F 7F 1F,
+                            and 00 00 00 10 in another region
+               DEPTH 0x10 — works fine, always trailing 00 00 00 10
+             sendParamWrite() sends trailing 00 00 00 00, matching NONE of
+             them. Depth tolerates it; Speed does not, and the rack answers by
+             forcing Speed to 0.
+             NOTE: both Sync and Speed are CONTINUOUS 0-127 values on the wire,
+             not a 3-4 item list. The dropdown presentation must quantise them
+             somewhere. The meaning of the trailing bytes is NOT established —
+             do not invent a write format from this.
+STOPGAP:     transport.js sendParamWrite() now refuses any paramLo listed in
+             READ_ONLY_PARAM_LOS, currently [0x11 Speed, 0x12 Sync]. They still
+             DISPLAY whatever the hardware broadcasts; only writes are
+             suppressed, and each suppression is logged. Set the array to []
+             to re-enable. This removes the erratic behaviour without
+             pretending to solve the interlock.
+DECISION:    NOT reverting to the pre-bulk-replacement code. The interlock is
+             independent of the read-path work — the write path is identical
+             in both builds, so the old code would fight the hardware in
+             exactly the same way. Reverting would forfeit the recall fix, the
+             flicker fix, the To Amp and Mono/Stereo read paths and the race
+             fix, and would not address this bug.
+NEW FILE:    timing-panel.js — a development panel, bottom right, that edits
+             the nav timings live. The timings are plain `var` globals, so no
+             rebuild is needed to try a value.
+               TUNE: NAV_QUERY_GAP (main lever), NAV_RECALL_SETTLE.
+               DO NOT TUNE: NAV_CHAIN_TIMEOUT / NAV_AMP_TIMEOUT — these bound
+               a LOST reply only. The pull already proceeds the moment the real
+               reply lands, so lowering them cannot speed anything up; it can
+               only cause a false give-up. Shown greyed. Raise only if "did not
+               arrive" appears in the log.
+             The panel also reports the last pull's query count and elapsed ms,
+             so tuning is measured rather than guessed. SHOW_TIMING_PANEL =
+             false hides it entirely.
+             index.html gains one script tag, loaded last.
+TUNING
+METHOD:      Drop NAV_QUERY_GAP a few ms at a time; after each change navigate
+             several patches across DIFFERENT amps and run auto advance. Too
+             small shows up as "unhandled paramLo" lines or a readout lagging a
+             patch behind. Then step back up once. Avid's measured mean is
+             14.3 ms; ~10 ms is the sensible floor.
+OPEN:        The Sync/Speed interlock itself. Needs the trailing-byte meaning,
+             the Sync value-to-division mapping, which divisions force Speed
+             and to what, and the rule that a genuine Speed change clears Sync.
+             Separate work; nothing should be written to either control until
+             it is understood.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-23 — CHAT CLOSE / HANDOFF
+STATUS:      Flicker project COMPLETE and working. Amp control section next.
+             [FOLDED IN 2026-07-23 -> Technical Reference / Primer]
+AREA:        Wrap-up, corrected query model, next-session brief
+TUNED
+(USER):      NAV_QUERY_GAP 5 ms, NAV_RECALL_SETTLE 80 ms — tested good,
+             including with auto advance. Down from 15/100. Log confirms the
+             values were applied. Avid's measured mean gap is 14.3 ms, so we
+             are now comfortably faster than the reference implementation.
+             These are the live values; edit the defaults in transport.js if
+             they should persist across builds.
+VERIFIED:    Speed reads and no longer writes (stopgap working).
+PANEL FIX:   timing-panel.js now opens bottom-LEFT, is DRAGGABLE by its
+             header, and shrinks to a faint compact chip when collapsed —
+             previously it sat over the About and Settings buttons.
+             Dev tool only; SHOW_TIMING_PANEL = false removes it.
+CORRECTED
+QUERY MODEL: Earlier assumption — that our ~20 queries would grow toward
+             Avid's 47 as more chain blocks are implemented — is WRONG.
+             Measured breakdown of Avid's 39 CMD 0x11 messages per recall:
+               11 blocks x 1 bypass flag        = 11
+               AMP block parameters             = 25
+               duplicates (0x06, 0x14, 0x15)    =  3
+             Avid queries NO parameters for MOD, DELAY, or any other block on
+             recall — only their bypass flags. It pulls the amp in full
+             because the amp is the panel it displays.
+             Like for like we are already close: Avid reads 25 amp params by
+             sweeping the whole range, we read ~14 because we read only what
+             we display.
+DESIGN
+CONSEQUENCE: Fetch a block's parameters WHEN ITS PANEL OPENS, not on every
+             nav. The distPanelOpen / reverbPanelOpen flags already point this
+             way. Querying every block on every patch change would add
+             permanent cost for values nobody is looking at, and would make us
+             slower than Avid rather than faster.
+NEXT
+SESSION —
+AMP CONTROL
+SECTION:     User's stated next task. Treat Sync, Speed, Vibrato and Depth as
+             ONE interlocked feature set, not four independent controls:
+               - Sync and Speed are bidirectionally interlocked (see the
+                 2026-07-23 build H entry for the wire evidence).
+               - A vibrato/tremolo toggle bypasses whatever Sync and Speed are
+                 driving. Implement the toggle FIRST — it defines whether the
+                 other two are even live.
+               - Depth is suspected to belong to the same feature set but with
+                 NO direct linkage to Sync or Speed. Unconfirmed; user's read.
+                 Note Depth already reads and writes correctly today.
+             Do not write to Speed or Sync until the interlock is established.
+             READ_ONLY_PARAM_LOS in transport.js is the guard; emptying it
+             re-enables writes and restores the erratic behaviour.
+STATE OF
+THE BUILD:   Working. Recall by SysEx, no front-panel flicker, all readouts
+             correct via targeted queries, race-free ordering, stale-slot
+             abort guard, live timing panel. REQUEST_BULK_ON_NAV = false;
+             setting it true restores the old bulk path unchanged.
+FILE SET:    state.js, protocol.js, transport.js, sysex-handler.js,
+             patch-nav.js, timing-panel.js, index.html.
+-------------------------------------------------------------------
+
+
+-------------------------------------------------------------------
+DATE:        2026-07-22
+STATUS:      [FOLDED IN: Tech Ref Sec 23 (REVERB CMD 0x11 map + Type table),
+             Sec 24; Primer Status / WORKING / CODE FILE MAP]
+AREA:        REVERB slot — CMD 0x11 param map, model switch, Eleven SR Type
+FINDING:     REVERB slot holds TWO models, switched by CMD 0x21 (same as DIST):
+               Blackpanel Spring Reverb  mid 0x26 (mono) / 0x27 (stereo)
+               Eleven SR                 mid 0x28 (mono) / 0x29 / 0x2A
+             paramLo map (both models; standard (v127+64)%128 encoding):
+               0x01 bypass (global)  0x02 Decay  0x03 Tone  0x04 Mix
+               0x05 Type (Eleven SR only)  0x06 Pre-Delay (Eleven SR only)
+             The 3 shared knobs land on identical paramLo in BOTH captures,
+             and the order matches Tech Ref Sec 23 name order — three-way
+             cross-confirmation. Model switch sends the mono base mid; the
+             firmware picks the variant by chain context, as with a reorder.
+             ELEVEN SR TYPE is a normal knob (paramLo 0x05) whose 0-127 range
+             is quantised into 25 named zones. Panel gives both a dropdown and
+             a knob; the dropdown just snaps the knob to a zone centre. Exact
+             wire values per type captured from the hardware dropdown:
+               Echo Room 0x40, Studio 0x45, Small Room 0x4A, Jazz Club 0x50,
+               Small Club 0x55, Garage 0x5A, Medium Room 0x60, Tiled Room 0x65,
+               Wood Room 0x6A, Small Theater 0x70, Medium Theater 0x75,
+               Large Theater 0x7A, Rich Hall 0x00, Concert Hall 0x05,
+               Bright Hall 0x0A, Church 0x0F, Cathedral 0x15, Arena 0x1A,
+               Small Plate 0x1F, Medium Plate 0x25, Large Plate 0x2A,
+               Canyon 0x2F, Supa Long 0x35, Early Reflect 1 0x3A,
+               Early Reflect 2 0x3F. (v127 = (v0-64) mod 128.)
+EVIDENCE:    Black_Panel_Reverb_Capture_1.pcapng (210 CMD 0x11 writes),
+             Eleven_SR_Reverb_Capture_1.pcapng (331 writes),
+             Reverb_Type_Drop_Down_Picker.pcapng (24 clean dropdown writes,
+             Studio..Early Reflect 2; Echo Room = load state 0x40, matching the
+             knob-sweep lowest). Knob-turn order per Charlie's capture notes.
+CONFLICTS:   Tech Ref Sec 23 has the reverb param NAMES but no paramLo numbers.
+             Additive — no conflict. Type value table is new.
+NEXT:        Test the built EXE with the Avid editor CLOSED (DIST readback
+             discipline): open REVERB panel on a Spring patch and an Eleven SR
+             patch, confirm knobs + Type dropdown reflect readback; turn each
+             HW knob and confirm the panel tracks; switch models both ways.
+             CONFIRM the 5-byte value payload (v0 00 00 00 00, copied from the
+             DIST writer) is accepted by the reverb block — hardware knob
+             broadcasts carried non-zero trailing bytes; DIST proved zeros work
+             on write, but verify here. If all pass, promote paramLo numbers +
+             Type table into Tech Ref Sec 23 and mark [FOLDED IN].-------------------------------------------------------------------
+DATE:        2026-07-21
+STATUS:      [FOLDED IN: Tech Ref Sec 1, 20, 24, C12; Primer ENVIRONMENT /
+             HARDWARE SAFETY / GRAPHICS]
+AREA:        Windows and JDK platform matrix — C12 closed
+FINDING:     Test environments, all on Avid USB driver v1.1.12:
+               Win10 (VM + physical, several driver versions)
+                 Eleven Edit works. Avid Editor runs.
+               Win11 22H2 VM, JDK 25
+                 Eleven Edit works. Avid Editor installs but BSODs if run.
+               Win11 26H1 VM, JDK 26  (stood up 7/21 to test the revised
+                 Microsoft MIDI stack against the bridge)
+                 Eleven Edit works, no effect from the new MIDI stack.
+                 Avid Editor untested; assume same as 22H2.
+             CONCURRENCY: several BSODs early in development with both running
+             at once. About a week now with both open and no BSOD, but use has
+             been ALTERNATING rather than simultaneous. Two candidate reasons,
+             neither confirmed: the fault was simultaneous ACCESS rather than
+             coexistence, and/or the Java bridge rides a different USB
+             interface than the earlier RigRoller variants did. Rule kept.
+             GRAPHICS: the Avid Editor can be INSTALLED on Win11 and its images
+             used without ever launching it. After install, delete everything
+             except C:\Program Files\Avid\Eleven Rack Editor\System Plug-Ins
+             Plug-In Settings — that folder holds the graphics. This removes
+             the Win11 blocker from the planned graphics enhancement.
+             JDK: compiled under 25 (21 earlier); runtimes verified 21/25/26.
+             --release 8 target makes the compiler version largely immaterial.
+LESSON:      Neither half of C12 was a real contradiction. "Windows 11 works"
+             was about Eleven Edit; "Win11 BSODs" was about the Avid Editor.
+             Both true, about different subjects, and they only looked like a
+             conflict once compressed into one-liners in separate sections.
+             Before resolving a conflict by discarding a side, check the two
+             statements are about the same thing.
+
+===================================================================
 END OF ARCHIVE
 ===================================================================

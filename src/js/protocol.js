@@ -54,6 +54,49 @@ const REQU_PATCH_NAME = 'F0 13 0B 0F 01 05 F7';
 const REQU_RIG_VOL    = 'F0 13 0B 0F 01 07 F7';
 const REQU_CURR_RIG   = 'F0 13 0B 0F 01 02 F7';
 
+// ── DIAGNOSTIC — amp paramLo investigation, 2026-07-22.
+// The Avid editor sends these five queries after every patch recall and we
+// have never decoded any of them. In the Wireshark captures they are short
+// messages, so the capture truncation ate their entire payload. Our own logs
+// are NOT truncated, so asking for them ourselves is the way to see them.
+// Hypothesis: one of these returns a parameter descriptor for the currently
+// loaded amp, which would give us the paramLo map for every amp model without
+// sweeping each one by hand.
+// Set PROBE_UNKNOWN_QUERIES false in transport.js to switch all of this off.
+const REQU_PROBE_03   = 'F0 13 0B 0F 01 03 F7';
+const REQU_PROBE_08   = 'F0 13 0B 0F 01 08 F7';
+const REQU_PROBE_0A   = 'F0 13 0B 0F 01 0A F7';
+const REQU_PROBE_34   = 'F0 13 0B 0F 01 34 F7';
+const REQU_PROBE_50   = 'F0 13 0B 0F 01 50 F7';
+
+// CMD 0x36 read candidates. We only ever WRITE 0x36; no read form has ever
+// been tried. Every other read in this protocol is F0 13 0B 0F 01 <cmd> F7,
+// and CMD 0x3A takes a slot byte the same way, so try bare and both slots.
+// Read-only: these cannot alter or corrupt a patch.
+const REQU_PROBE_36    = 'F0 13 0B 0F 01 36 F7';
+const REQU_PROBE_36_S2 = 'F0 13 0B 0F 01 36 02 F7';
+const REQU_PROBE_36_S3 = 'F0 13 0B 0F 01 36 03 F7';
+
+// CMD 0x0D read candidate. Confirmed 2026-07-22 from Mono_Toggle.pcapng that
+// CMD 0x0D IS the Mono/Stereo command: the Avid editor writes it as
+// F0 13 0B 0F 00 0D <val> F7 and the rack echoes F0 13 0B 0F 02 0D <val> F7.
+// We already set and handle 0x0D; only the read form is missing.
+const REQU_PROBE_0D    = 'F0 13 0B 0F 01 0D F7';
+
+// ── Confirmed read commands for the outer (rig) level, 2026-07-22.
+// These replace values previously only obtainable from the bulk TFX body.
+//   To Amp volume — slot byte REQUIRED; the bare form returns nothing.
+//     F0 13 0B 0F 01 36 <02|03> F7
+//     -> F0 13 0B 0F 12 36 <slot> <v0> 00 00 00 00 F7
+//   Mono/Stereo — verified 5/5 against hardware state, read does not toggle.
+//     F0 13 0B 0F 01 0D F7  ->  F0 13 0B 0F 12 0D <00 stereo|01 mono> F7
+const REQU_TOAMP1_READ = 'F0 13 0B 0F 01 36 02 F7';
+const REQU_TOAMP2_READ = 'F0 13 0B 0F 01 36 03 F7';
+const REQU_MONO_READ   = 'F0 13 0B 0F 01 0D F7';
+
+// Responses to raw-dump in full. Set to [] to silence the dump.
+const PROBE_DUMP_CMDS = [0x03, 0x08, 0x0A, 0x0D, 0x34, 0x36, 0x50];
+
 // ── Model display names, indexed by the chain map's mid (CMD 0x20 index).
 // Complete: all 65 indices, captured from the editor's startup enumeration.
 // Used for the chain slot hover text so the user can see what is loaded in a
@@ -403,7 +446,10 @@ const AMP_TONE_PARAMS = {
       { lo: 0x0A, tfxKey: 'sldA', label: 'Treble',   type: 'knob'   },
       { lo: 0x0D, tfxKey: 'sldD', label: 'Presence', type: 'knob'   },
       { lo: 0x09, tfxKey: 'sld9', label: 'Master',   type: 'knob'   },
-      { lo: 0x0E, tfxKey: 'sldE', label: 'Bright',   type: 'toggle' },
+      // Named MOD on this amp only — Crunch and Clean call the same
+      // paramLo/tfxKey Bright (Tech Ref Sec 11). The button takes its text
+      // from this label, so the GUI now matches the rack's front panel.
+      { lo: 0x0E, tfxKey: 'sldE', label: 'MOD',      type: 'toggle' },
     ],
   }, sl100crunch: {
     // Confirmed via Wireshark 7/15/2026 — identical to sl100drive
@@ -608,6 +654,69 @@ const AMP_TONE_PARAMS = {
     ],
   },
 };
+
+// ════════════════════════════════════════════════════════════════════
+// TREMOLO FEATURE SET — Depth 0x10 / Speed 0x11 / Sync 0x12 / On-Off 0x13
+// ════════════════════════════════════════════════════════════════════
+// Confirmed 7/23/2026 from two front-panel captures at 32.1 and 120 BPM.
+//
+// SYNC (paramLo 0x12) is a CONTINUOUS 0-127 value on the wire that the
+// firmware quantises into 14 zones: OFF plus 13 note divisions. Zone width
+// is 10, with the first and last zones truncated to 4 so the total is 128:
+//     0-3     OFF
+//     4-13    division 1
+//     ...     (10 apart)
+//     114-123 division 12
+//     124-127 division 13
+// Derived from the Speed value changing at decoded 64,74,84,94,104,114,124
+// in the 120 BPM capture and at 114,124 only in the 32.1 capture (the slower
+// divisions fall below the Speed floor and all read 0 — that is the hardware,
+// not a decode fault).
+//
+// The division ORDER is whole note, then dotted / plain / triplet for half,
+// quarter, eighth and sixteenth. Independently confirmed by the displayed
+// Speed dipping at zones 8 and 11, which is exactly where a dotted note
+// follows a triplet.
+const SYNC_DIVISIONS = [
+  { glyph: '\u2014',            text: 'OFF'           },  // zone 0
+  { glyph: '\uD834\uDD5D',      text: '1/1'           },  // whole
+  { glyph: '\uD834\uDD5E.',     text: '1/2 dotted'    },
+  { glyph: '\uD834\uDD5E',      text: '1/2'           },
+  { glyph: '\uD834\uDD5E\u00B3',text: '1/2 triplet'   },
+  { glyph: '\u2669.',           text: '1/4 dotted'    },
+  { glyph: '\u2669',            text: '1/4'           },
+  { glyph: '\u2669\u00B3',      text: '1/4 triplet'   },
+  { glyph: '\u266A.',           text: '1/8 dotted'    },
+  { glyph: '\u266A',            text: '1/8'           },
+  { glyph: '\u266A\u00B3',      text: '1/8 triplet'   },
+  { glyph: '\u266C.',           text: '1/16 dotted'   },
+  { glyph: '\u266C',            text: '1/16'          },
+  { glyph: '\u266C\u00B3',      text: '1/16 triplet'  },
+];
+
+// Wire value (0-127, already offset-decoded) -> zone index 0-13.
+function syncIndexFromV127(v) {
+  if (v === null || v === undefined) return 0;
+  if (v < 4) return 0;
+  const i = 1 + Math.floor((v - 4) / 10);
+  return i > 13 ? 13 : i;
+}
+
+// Zone index -> the value to WRITE. Uses the centre of the zone so a small
+// rounding error either way still lands in the intended division.
+function syncV127FromIndex(i) {
+  if (i <= 0) return 0;
+  if (i >= 13) return 125;
+  return 8 + 10 * (i - 1);
+}
+
+// An amp has the tremolo feature set if its tone table carries the Sync
+// selector. That is true of all 15 amps listed in Tech Ref Sec 11, so no
+// separate list has to be maintained here.
+function ampHasTremolo(key) {
+  const ap = key ? AMP_TONE_PARAMS[key] : null;
+  return !!(ap && ap.knobs && ap.knobs.some(k => k.lo === 0x12));
+}
 
 // ── Amp model integer → AMP key ──
 const AMP_ID_TO_KEY = {
@@ -1123,3 +1232,97 @@ const DIST_MODELS = [
 ];
 const DIST_MODEL_BY_MID = {};
 DIST_MODELS.forEach(function(m) { DIST_MODEL_BY_MID[m.mid] = m; });
+
+// ════════════════════════════════════════════════════════════════════
+// REVERB EFFECT MODELS — paramLo numbers confirmed 7/22/2026 via Wireshark
+// (Black_Panel_Reverb_Capture_1 + Eleven_SR_Reverb_Capture_1 + dropdown
+// picker capture). Knob-turn order matched to capture notes; the three
+// knobs shared by both models land on identical paramLo, cross-confirming
+// the map, and it matches the Tech Ref Sec 23 parameter name order.
+//
+// TWO MODELS live in the REVERB slot:
+//   Blackpanel Spring Reverb — mids 0x26 (mono) / 0x27 (stereo)   3 knobs
+//   Eleven SR                — mids 0x28 (mono) / 0x29 / 0x2A     Type + 4 knobs
+// Model switch = CMD 0x21 (same mechanism as DIST). We SEND the mono base
+// mid; firmware re-instantiates and may pick the stereo variant by chain
+// context. REVERB_MODEL_BY_MID maps EVERY variant to its model so readback
+// resolves correctly regardless of which variant the firmware chose.
+//
+// paramLo: 0x02 Decay · 0x03 Tone · 0x04 Mix · 0x05 Type · 0x06 Pre-Delay
+// paramLo 0x01 = bypass (all blocks — handled globally, not listed here).
+// Encoding: standard (v127+64)%128, same as every other knob.
+//
+// TYPE (Eleven SR only, paramLo 0x05) is a NORMAL knob whose 0-127 range is
+// quantised into 25 named zones. The dropdown just snaps the knob to a
+// zone centre. v0 values below are the exact wire values captured from the
+// hardware dropdown; v127 is the decoded knob position (v0-64 mod 128).
+// ════════════════════════════════════════════════════════════════════
+const REVERB_TYPE_LIST = [
+  { name: 'Echo Room',       v0: 0x40 },
+  { name: 'Studio',          v0: 0x45 },
+  { name: 'Small Room',      v0: 0x4A },
+  { name: 'Jazz Club',       v0: 0x50 },
+  { name: 'Small Club',      v0: 0x55 },
+  { name: 'Garage',          v0: 0x5A },
+  { name: 'Medium Room',     v0: 0x60 },
+  { name: 'Tiled Room',      v0: 0x65 },
+  { name: 'Wood Room',       v0: 0x6A },
+  { name: 'Small Theater',   v0: 0x70 },
+  { name: 'Medium Theater',  v0: 0x75 },
+  { name: 'Large Theater',   v0: 0x7A },
+  { name: 'Rich Hall',       v0: 0x00 },
+  { name: 'Concert Hall',    v0: 0x05 },
+  { name: 'Bright Hall',     v0: 0x0A },
+  { name: 'Church',          v0: 0x0F },
+  { name: 'Cathedral',       v0: 0x15 },
+  { name: 'Arena',           v0: 0x1A },
+  { name: 'Small Plate',     v0: 0x1F },
+  { name: 'Medium Plate',    v0: 0x25 },
+  { name: 'Large Plate',     v0: 0x2A },
+  { name: 'Canyon',          v0: 0x2F },
+  { name: 'Supa Long',       v0: 0x35 },
+  { name: 'Early Reflect 1', v0: 0x3A },
+  { name: 'Early Reflect 2', v0: 0x3F },
+];
+// Decoded knob position (0-127) per type — v127 = (v0 - 64) mod 128.
+REVERB_TYPE_LIST.forEach(function(t) { t.v127 = ((t.v0 - 64) + 128) % 128; });
+
+// Map an incoming knob value (0-127) to the nearest Type index, so the
+// dropdown tracks a hardware knob turn as well as a dropdown pick.
+function reverbTypeIndexFromV127(v127) {
+  var best = 0, bestD = 999;
+  for (var i = 0; i < REVERB_TYPE_LIST.length; i++) {
+    var d = Math.abs(REVERB_TYPE_LIST[i].v127 - v127);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+const REVERB_MODELS = [
+  // ── Blackpanel Spring Reverb — 1 row · 3 knobs, no Type control
+  { mid: 0x26, mids: [0x26, 0x27], name: 'Blackpanel Spring Reverb',
+    paramLos: [0x02, 0x03, 0x04],
+    typeControl: null,
+    rows: [
+      [ {label:'Decay', lo:0x02},
+        {label:'Tone',  lo:0x03},
+        {label:'Mix',   lo:0x04} ]
+    ]
+  },
+  // ── Eleven SR — Type control (dropdown + knob) then 4 knobs.
+  // Panel order matches the hardware: TYPE · DECAY · PRE-DELAY · TONE · MIX.
+  { mid: 0x28, mids: [0x28, 0x29, 0x2A], name: 'Eleven SR',
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
+    typeControl: { lo: 0x05, label: 'Type', list: REVERB_TYPE_LIST },
+    rows: [
+      [ {label:'Decay',     lo:0x02},
+        {label:'Pre-Delay', lo:0x06, unit:'ms', max:200},
+        {label:'Tone',      lo:0x03},
+        {label:'Mix',       lo:0x04} ]
+    ]
+  },
+];
+const REVERB_MODEL_BY_MID = {};
+REVERB_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { REVERB_MODEL_BY_MID[mid] = m; });
+});
