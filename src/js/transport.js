@@ -465,6 +465,29 @@ function sendMonoStereo(isMono) {
   sendHex(hex);
 }
 
+// ── CMD 0x50 — Rig tempo set.
+// Format: F0 13 0B 0F 00 50 d1 d2 d3 d4 F7, the four 6-bit digits of the
+// microseconds-per-beat value (protocol.js, rigTempoBpmToDigits).
+// The rack echoes the same value straight back with dir 0x02, so there is no
+// need to suppress the echo the way CMD 0x0D does — the echo agrees with what
+// we sent and simply repaints the same number.
+// COST WARNING: every tempo change makes the rack rebroadcast the parameters
+// of every tempo-synced block. Three CMD 0x11 messages in the calibration
+// capture, but an earlier front-panel sweep produced 753. Callers must
+// throttle; ui.js does this on a trailing timer.
+function sendRigTempo(bpm) {
+  if (!bridgeMidiReady) { appLog('sendRigTempo: bridge not ready'); return; }
+  if (bpm < TEMPO_BPM_MIN) bpm = TEMPO_BPM_MIN;
+  if (bpm > TEMPO_BPM_MAX) bpm = TEMPO_BPM_MAX;
+  var d = rigTempoBpmToDigits(bpm);
+  var hh = function(v) { return v.toString(16).padStart(2, '0').toUpperCase(); };
+  var hex = 'F0 13 0B 0F 00 50 ' + hh(d[0]) + ' ' + hh(d[1]) + ' '
+          + hh(d[2]) + ' ' + hh(d[3]) + ' F7';
+  appLog('sendRigTempo: ' + bpm.toFixed(1) + ' BPM  ('
+         + Math.round(60000000 / bpm) + ' us/beat)  ' + hex);
+  return sendHex(hex);
+}
+
 // ── Chain reorder — CMD 0x21 sent back with dir=0x00 (Tech Ref Sec 4).
 // There is no dedicated reorder command: you send a COMPLETE chain map
 // describing the order you want, re-using each block's existing model id and
@@ -736,6 +759,127 @@ var NAV_AMP_TIMEOUT   = 700; // max wait for the amp identity reply (see below)
 // or auto-roll.
 var navSeqId = 0;
 
+// ── SHARED AMP BLOCK PARAM LIST ──────────────────────────────────────
+// The set of paramLo values worth querying on the amp block for whatever
+// amp is currently selected. Used by BOTH the post-nav pull (Phase 3) and
+// the amp-type-change refresh, so the two can never fall out of step.
+//
+// Only types the app can actually route and display are included. This
+// mirrors decodeToneKnobValues(), which filters to the same two, so the
+// targeted path reads exactly what the bulk path decoded — no more, no less.
+// 'selector' entries (15 across the amp table, e.g. Sync on the DC models)
+// are deliberately EXCLUDED from the generic loop: ui.js has no selector
+// rendering. Sync is added explicitly below because it DOES have a display
+// path. When general selector readback is implemented, add 'selector' here.
+function ampBlockParamLos(who) {
+  var los = [0x03,        // amp out
+             0x04, 0x05,  // gate threshold, gate release
+             0x0E,        // bright
+             0x15, 0x16,  // cab type, mic type
+             0x17, 0x18]; // mic axis, speaker breakup
+
+  var ap = (typeof AMP_TONE_PARAMS !== 'undefined' && currentAmpKey)
+           ? AMP_TONE_PARAMS[currentAmpKey] : null;
+  if (ap && ap.knobs) {
+    for (var k = 0; k < ap.knobs.length; k++) {
+      var kt = ap.knobs[k].type;
+      if (kt !== 'knob' && kt !== 'toggle') continue;
+      var klo = ap.knobs[k].lo;
+      if (typeof klo === 'number' && los.indexOf(klo) === -1) los.push(klo);
+    }
+    // Tremolo feature set — Sync (0x12) and On/Off (0x13). Sync is a
+    // 'selector' and 0x13 is not in the tone table at all, so neither is
+    // picked up by the filter above; both now have a display path, so both
+    // are queried here. Adds 2 queries, and only on the 15 amps that have
+    // tremolo. Depth (0x10) and Speed (0x11) are plain knobs and already
+    // came through the loop above.
+    if (typeof ampHasTremolo === 'function' && ampHasTremolo(currentAmpKey)) {
+      if (los.indexOf(0x12) === -1) los.push(0x12);
+      if (los.indexOf(0x13) === -1) los.push(0x13);
+    }
+  } else {
+    appLog((who || 'ampBlockParamLos') + ': no tone map for amp "'
+           + (currentAmpKey || 'unknown') + '"');
+  }
+  return los;
+}
+
+
+// ── AMP TYPE CHANGE — RE-QUERY THE BLOCK ─────────────────────────────
+// WHY THIS EXISTS (confirmed 2026-07-24, hardware, cross-checked against
+// the Avid editor):
+//   Amp parameters are stored PER CHAIN SLOT, not per amp model. Changing
+//   the amp model changes only which parameters are exposed and what they
+//   are called; the stored values are untouched. Avid shows values after an
+//   amp change because it re-reads the block. We showed "--" because
+//   setCurrentAmp -> updateToneKnobs blanks every knob to 64 and nothing
+//   ever asked the hardware again.
+//
+//   NOTE — this is NOT a chain map change. Amp type is CMD 0x11 paramLo
+//   0x0F, a parameter INSIDE the amp block. The block's slot and runtime
+//   handle do not move, so unlike the DIST/REVERB model change (CMD 0x21,
+//   which gets a fresh handle) there is nothing to re-read from the chain
+//   map here. Do not add a chain map request to this path.
+//
+//   Consequence worth knowing when testing: a control shared by two models
+//   under different names is ONE stored value. Editing 59 Tweed's "Tone"
+//   and switching back to a Treadplate shows that value on "Treble". That
+//   is real hardware behaviour, matches Avid, and is not a bug.
+var AMP_CHANGE_SETTLE = 100;   // ms after the 0x0F echo before re-querying.
+                               // Same figure the REVERB panel uses after a
+                               // model change. Provisional — raise it if the
+                               // log shows queries going unanswered.
+var ampChangeReqSeq = 0;       // cancels an in-flight refresh if the amp
+                               // changes again before it runs
+
+// Standalone CMD 0x11 read builder. Deliberately NOT the paramQuery() inside
+// requestPatchStateAfterNav — that one is a private helper of the nav pull and
+// also increments the nav query counter feeding the Dev timings panel. Reusing
+// it would both be out of scope (the error that broke the first build) and
+// pollute the nav timing figures with queries the nav pull never made.
+function ampParamQuery(hi, lo) {
+  function hh(v) { return v.toString(16).padStart(2, '0').toUpperCase(); }
+  return 'F0 13 0B 0F 01 11 ' + hh(hi) + ' ' + hh(lo) + ' F7';
+}
+
+async function requestAmpBlockParamsAfterAmpChange() {
+  var mySeq = ++ampChangeReqSeq;
+  var slotAtStart = (typeof currentSlot !== 'undefined') ? currentSlot : null;
+
+  await sleep(AMP_CHANGE_SETTLE);
+
+  // Superseded by a newer amp change, or the user navigated away.
+  if (mySeq !== ampChangeReqSeq) {
+    appLog('Amp change refresh abandoned — amp changed again');
+    return;
+  }
+  if (typeof currentSlot !== 'undefined' && currentSlot !== slotAtStart) {
+    appLog('Amp change refresh abandoned — patch changed');
+    return;
+  }
+  if (!bridgeMidiReady) return;
+  if (typeof currentParamHi !== 'number' || currentParamHi < 0) {
+    appLog('Amp change refresh: no amp handle — skipped');
+    return;
+  }
+
+  var hi  = currentParamHi;
+  var los = ampBlockParamLos('Amp change refresh');
+  appLog('Amp change refresh: querying ' + los.length + ' params for '
+         + (currentAmpName || currentAmpKey || 'unknown')
+         + ' handle=0x' + hi.toString(16).padStart(2,'0').toUpperCase());
+
+  for (var i = 0; i < los.length; i++) {
+    if (mySeq !== ampChangeReqSeq) {
+      appLog('Amp change refresh abandoned mid-query — amp changed again');
+      return;
+    }
+    sendHex(ampParamQuery(hi, los[i]));
+    await sleep(NAV_QUERY_GAP);
+  }
+}
+
+
 async function requestPatchStateAfterNav() {
   if (!bridgeMidiReady) return;
 
@@ -828,43 +972,9 @@ async function requestPatchStateAfterNav() {
     if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
 
     // PHASE 3 — amp block. Fixed params first, then this amp's tone controls.
-    var los = [0x03,        // amp out
-               0x04, 0x05,  // gate threshold, gate release
-               0x0E,        // bright
-               0x15, 0x16,  // cab type, mic type
-               0x17, 0x18]; // mic axis, speaker breakup
-
-    var ap = (typeof AMP_TONE_PARAMS !== 'undefined' && currentAmpKey)
-             ? AMP_TONE_PARAMS[currentAmpKey] : null;
-    if (ap && ap.knobs) {
-      // Only types the app can actually route and display. This mirrors
-      // decodeToneKnobValues(), which filters to the same two, so the
-      // targeted path reads exactly what the bulk path decoded — no more,
-      // no less.
-      // 'selector' entries (15 across the amp table, e.g. Sync on the DC
-      // models) are deliberately EXCLUDED: neither path has ever decoded
-      // them and ui.js has no selector rendering, so querying them only
-      // produced "unhandled paramLo" noise. Implementing selector readback
-      // is separate work; when it happens, add 'selector' here.
-      for (var k = 0; k < ap.knobs.length; k++) {
-        var kt = ap.knobs[k].type;
-        if (kt !== 'knob' && kt !== 'toggle') continue;
-        var klo = ap.knobs[k].lo;
-        if (typeof klo === 'number' && los.indexOf(klo) === -1) los.push(klo);
-      }
-      // Tremolo feature set — Sync (0x12) and On/Off (0x13). Sync is a
-      // 'selector' and 0x13 is not in the tone table at all, so neither is
-      // picked up by the filter above; both now have a display path, so both
-      // are queried here. Adds 2 queries, and only on the 15 amps that have
-      // tremolo. Depth (0x10) and Speed (0x11) are plain knobs and already
-      // came through the loop above.
-      if (typeof ampHasTremolo === 'function' && ampHasTremolo(currentAmpKey)) {
-        if (los.indexOf(0x12) === -1) los.push(0x12);
-        if (los.indexOf(0x13) === -1) los.push(0x13);
-      }
-    } else {
-      appLog('Nav pull: no tone map for amp "' + (currentAmpKey || 'unknown') + '"');
-    }
+    // List built by the shared builder (see ampBlockParamLos) so this path and
+    // the amp-type-change path can never drift apart.
+    var los = ampBlockParamLos('Nav pull');
 
     for (var i = 0; i < los.length; i++) {
       if (stale()) { appLog('Nav pull abandoned — slot changed'); return; }
@@ -881,7 +991,12 @@ async function requestPatchStateAfterNav() {
   if (stale()) return;
   sendHex(REQU_TOAMP2_READ);        await sleep(NAV_QUERY_GAP);
   if (stale()) return;
-  sendHex(REQU_MONO_READ);
+  sendHex(REQU_MONO_READ);          await sleep(NAV_QUERY_GAP);
+  if (stale()) return;
+  // Rig tempo is NOT per patch, so this is strictly a refresh — it costs one
+  // query and keeps the clock honest if the tempo was changed from the front
+  // panel while we were not listening.
+  sendHex(REQU_TEMPO_READ);
   finish();
 
   if (PROBE_UNKNOWN_QUERIES) { await sleep(300); await probeUnknownQueries(); }

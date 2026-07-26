@@ -37,276 +37,128 @@ NEXT:        what would confirm it, or what to do with it
 ===================================================================
 ENTRIES (newest first)
 ===================================================================
+
+WHEN A FOLDED ENTRY LEAVES THIS FILE: an entry marked [FOLDED IN] is archived
+at the NEXT review cycle, not the same one. That leaves the most recent
+session visible here for continuity, while the log still trends toward empty.
+Provisional entries stay until they are resolved or abandoned.
 -------------------------------------------------------------------
-DATE:        2026-07-23 (afternoon)
-STATUS:      [FOLDED IN 2026-07-23 -> Technical Reference Sec 3, 7, 11, 18, 20,
-             21, 22 (C11 resolved), 24; Primer Status / CURRENT APP STATE /
-             WORKING / NOT YET IMPLEMENTED / CODE FILE MAP / KEY STATE
-             VARIABLES / HOW TO WORK WITH CHARLIE / NEXT SESSION]
-             Verified on hardware. Retained here only until the next sweep.
-AREA:        Amp tremolo feature set — Sync 0x12, On/Off 0x13, panel layout
-FOLLOW-UP
-BUILD (same
-session):    Hardware test passed: layout correct, Sync dropdown tracks all 14
-             zones, Tremolo reads and writes both directions. Four issues
-             found and fixed in a second build.
-             1. SPEED KNOB DIVERGED FROM THE RACK. 623 suppressed Speed writes
-                in session-2026-07-23-141511.log. The knob painted itself as
-                it was dragged while sendParamWrite refused to transmit, so
-                the display walked away from the hardware. This is the
-                "inconsistency between Speed and the Sync dropdown" reported —
-                Sync was honest about being read-only and Speed was not.
-                FIX: new .knob-readonly style. Any tone knob whose paramLo is
-                in READ_ONLY_PARAM_LOS renders at 0.65 opacity, is not
-                draggable, appends "(rack only)" to its label and carries an
-                explanatory tooltip. It still displays every broadcast.
-                Emptying READ_ONLY_PARAM_LOS makes the knob live again with no
-                other change — the styling is driven off that same array.
-             2. STUCK KNOB DRAG — CONFIRMED PROGRAM DEFECT, NOT HARDWARE.
-                All four drag handlers ended a drag only on a mouseup received
-                by the window. Releasing the button outside the window, or the
-                window losing focus mid-drag, never delivered it, so the knob
-                kept following the mouse until the next click.
-                FIX: mousemove now also ends the drag when e.buttons is 0, and
-                a window blur listener resets it. Applied to all four handlers
-                (initKnob, tone knobs, DIST, REVERB).
-             3. Tremolo button label no longer appends ON/OFF; colour carries
-                the state.
-             4. SL100 Drive's 0x0E toggle is labelled MOD on the rack. Tech
-                Ref Sec 11 recorded this but AMP_TONE_PARAMS said 'Bright' for
-                all 19 amps. Table corrected, and the button now takes its
-                text from the table instead of a hardcoded string. Also
-                updateBrightVisibility now matches on paramLo 0x0E rather than
-                the label 'Bright' — with the label corrected, the old
-                label-based match would have hidden the button on that amp.
-BUILD 3 —
-INTERLOCK
-SOLVED:      Avid_Shark_Sync_Test.pcapng (Avid alone, Wireshark) settles the
-             Sync/Speed interlock that has been open since 7/23 morning.
-             1. THE OLD DIAGNOSIS WAS WRONG. Speed writes did not fail because
-                sendParamWrite's trailing bytes were malformed. They failed
-                because the rack IGNORES any Speed write while Sync is on a
-                division. Avid sent ~40 Speed writes between t=95s and t=116s
-                with v0 ranging 0x16-0x2D; the hardware echoed the SAME
-                unchanged value (1F 7F 7F 7F 1F) back every single time. Avid
-                never clears Sync first, so its own Speed knob is equally
-                inert in that state — user confirmed visually before the
-                capture was analysed.
-             2. SYNC WRITE FORMAT CONFIRMED, and it is what we already emit.
-                Avid picking OFF from its dropdown sends
-                  00 11 <handle> 12 40 00 00 00 00
-                and the rack echoes
-                  02 11 <handle> 12 40 00 00 00 10
-                That outgoing message is byte identical to
-                sendParamWrite(0x12, 0).
-             3. THE 0x10 IS A BROADCAST ARTEFACT. The final byte of every
-                hardware broadcast is 0x10 higher than the corresponding
-                write. Seen on both Sync and Speed. It is added by the rack on
-                the way out and must NOT be included in writes. This retires
-                the "trailing bytes are not understood" caveat in Sec 7 for
-                these two controls.
-             4. Speed's v1-v4 in broadcasts are genuine low-order bits of the
-                same quantity, not a fixed signature: v0=0x00 appeared with
-                both 00 00 00 10 and 7F 7F 7F 1F within one sweep, either side
-                of centre. Display continues to use the single-byte decode,
-                which is correct to the tenth (Finding 3).
-DESIGN
-ADOPTED
-(USER):      Rather than greying Speed while Sync is engaged, MIRROR THE
-             HARDWARE: turning Speed clears Sync to OFF first, exactly as the
-             rack does when its own Speed knob is turned. The control stays
-             live at all times and behaves as the front panel does. This is
-             better than Avid, whose Speed knob simply does nothing in that
-             state.
-             IMPLEMENTATION: currentSyncZone tracks the live zone from every
-             readback; syncClearedThisDrag latches per drag so the Sync-OFF
-             write is sent once at the start of a Speed drag, not on every
-             mousemove. The latch also clears when the hardware confirms Sync
-             is OFF, so a rack-side clear cannot cause a duplicate.
-             READ_ONLY_PARAM_LOS is now EMPTY — both 0x11 and 0x12 are
-             writable. The array and the .knob-readonly styling remain in
-             place: putting a paramLo back makes that knob read-only again
-             with no other change.
-             Sync dropdown is now ENABLED and writes the CENTRE of the chosen
-             zone (syncV127FromIndex), so a rounding error either way still
-             lands in the intended division.
-BUILD 4 —
-PRECISION
-FIXES:       1. SPEED WOULD NOT REACH 10.0, settling back to 9.9. Cause: a CMD
-                0x11 value is FIVE 7-bit bytes and v1..v4 are the LOW-ORDER
-                bits, not padding. sendParamWrite always sent v0 + 00 00 00 00,
-                i.e. the very BOTTOM of the requested step. Most controls are
-                quantised to the byte and cannot tell; Speed carries real
-                sub-step precision (v0=0x00 was seen with both 00 00 00 10 and
-                7F 7F 7F 1F within one sweep) and reported exactly what it was
-                asked for. Depth and Presence were checked and are clean,
-                confirming this is a precision issue and not Speed-specific.
-                FIX: endpoint sentinels, already documented in Sec 7 —
-                  v127 >= 127  ->  3F 7F 7F 7F 0F
-                  v127 <= 0    ->  40 00 00 00 00
-                  otherwise    ->  v0 00 00 00 00  (unchanged)
-                Writes carry 0F in the final byte where broadcasts carry 1F.
-                Applied to ALL knobs by agreement: for controls already
-                reaching 10.0 this asks for a value strictly closer to true
-                maximum, so nothing visible changes.
-             2. TO AMP 1/2 COULD NEVER DISPLAY 0.0 dB. The old scale,
-                db = -12 + (v127/127)*24, puts zero at v127 = 63.5, which
-                cannot exist — it showed +0.1 at 64 and -0.1 at 63.
-                EVIDENCE, from existing logs, no new capture needed: with the
-                rack reading 0.0 dB our log recorded
-                  CMD 0x36 ToAmp1 volume: v0=0x00 (+0.1 dB)
-                and v0=0x00 decodes to 64. So 64 is the hardware's 0 dB point.
-                FIX: anchor at 64, with 64 steps below centre and 63 above, so
-                all three anchors land exactly: 0 -> -12.0, 64 -> 0.0,
-                127 -> +12.0. Also drops the '+' from a bare 0.0.
-                LIKELY CLOSES the "Amp Out 0.2-0.4 dB midrange nonlinearity"
-                in Sec 21: an offset scale is worst mid-range and vanishes at
-                the ends, which is exactly the reported shape. It was never
-                nonlinearity.
-             3. AMP OUT — SAME DEFECT, NOW FIXED AND CONFIRMED.
-                From session-2026-07-23-155947.log:
-                  rack set to 0.0 dB  -> v127 = 98,  we showed +0.2
-                  rack reading 4.8 dB -> v127 = 106, we showed +5.1
-                106 is 8 steps above 98 and 4.8 / 8 = 0.6 exactly, so the step
-                is 0.6 dB and the 0 dB anchor is v127 = 98.
-                NEW: db = (v127 - 98) * 0.6.
-                The old -60..+18 span implies 0.6142 per step, which would show
-                4.9 where the rack shows 4.8 — so the documented range was
-                rounded. Implied endpoints are now -58.8 dB at v127=0 and
-                +17.4 dB at v127=127. WORTH A SPOT CHECK at both extremes; if
-                either disagrees, the step is not exactly 0.6 and both anchors
-                need re-deriving rather than nudging (see Primer, two-failed-
-                fixes rule).
-                Rig Vol (-24..0) and Gate Threshold (-90..-20) have no zero
-                crossing and are unaffected.
-                CONFIRMS the Sec 21 entry "Amp Out display has ~0.2-0.4 dB
-                nonlinearity at midrange — likely log-pot response" was a
-                MISDIAGNOSIS. There is no log-pot behaviour: the scale was
-                linear all along, just anchored wrongly and with a step 2%
-                too large. That entry should be deleted, not amended.
-             4. FOCUS RING — TRIED AND REVERTED AT USER REQUEST. The ring left
-                on dropdowns and buttons after a click is the browser's default
-                focus indicator, not a deliberate "recently used" marker. It
-                was briefly limited to keyboard focus (:focus-visible) with a
-                blur() on the Sync dropdown. User asked for it back, so both
-                the CSS and the blur calls were removed and the default
-                behaviour restored. Recorded here only so the idea is not
-                re-proposed as new: it was considered and declined, not missed.
-VERIFIED ON
-HARDWARE:    Speed now reaches and holds 10.0. To Amp 1 and 2 read 0.0 dB.
-             Sentinel writes caused no regression on other knobs.
-NEXT:        Hardware test, Avid closed, patches backed up first — this is the
-             first time the app has written to either control.
-              - Sync on a division, drag our Speed knob: Sync should drop to
-                OFF and Speed should then track.
-              - Pick a division from our dropdown: the rack should follow and
-                Speed should jump to the tempo-derived value.
-              - Turn the rack's Speed knob: Sync should drop to OFF in our GUI.
-NOT A
-DEFECT:      Sync did read OFF correctly (14:15:21 and 14:15:35). The sweep
-             then climbed 0 -> 124 without returning, so it had no reason to
-             show OFF again. Zone mapping tracked all fourteen zones exactly,
-             including the boundary: val 13 -> zone 1, val 15 -> zone 2.
-FINDING 1 —
-TREMOLO
-ON/OFF:      paramLo 0x13 on the amp handle. This control exists ONLY on the
-             hardware front panel: Avid's editor has no such toggle and the
-             per-amp XML does not describe it. Encoding is identical to
-             Bright — 127 = ON, 0 = OFF, seen on the wire as
-               ON   3F 7F 7F 7F 1F
-               OFF  40 00 00 00 10
-             The tremolo set is therefore a contiguous paramLo block:
-               0x10 Depth   0x11 Speed   0x12 Sync   0x13 On/Off
-EVIDENCE:    session-2026-07-23-131306.log. Eight 0x13 events 13:13:35 to
-             13:14:35 = the four on/off presses reported; four 0x0E events
-             13:15:29 to 13:15:40 = the two Bright presses. Distinct
-             parameters, correct counts, correct order.
-FINDING 2 —
-SYNC MAP:    Sync (0x12) is a continuous 0-127 value quantised into 14 zones:
-             OFF plus 13 note divisions. Zone width 10; first and last zones
-             truncated to 4 so the total is exactly 128.
-               0-3 OFF | 4-13 div 1 | ... | 114-123 div 12 | 124-127 div 13
-             Division order: whole note, then dotted / plain / triplet for
-             half, quarter, eighth and sixteenth.
-EVIDENCE:    Two front-panel sweeps at different tempos, which agree:
-             at 120 BPM the Speed broadcast changed at decoded 64, 74, 84, 94,
-             104, 114, 124 (zones 7-13); at 32.1 BPM only at 114 and 124
-             (zones 12-13). Slower divisions fall below the Speed floor and
-             read 0 — hardware behaviour, not a decode fault.
-             ORDER CONFIRMED INDEPENDENTLY: a dotted note is slower than the
-             triplet before it, so displayed Speed must dip at zones 8 and 11.
-             It does — 1.3, 0.8, 2.5, 5.0, 4.2, 7.5 at 120 BPM.
-FINDING 3 —
-SPEED
-DECODE:      Speed's displayed value is the STANDARD single-byte offset decode
-             of v0. Verified on nine messages against the rack's own display:
-             0x50 -> 1.3, 0x4A -> 0.8, 0x60 -> 2.5, 0x1F -> 7.5, all to the
-             tenth. The 35-bit multi-byte formula in Tech Ref Sec 7 returns
-             6.28, 5.87, 7.52 and 2.56 for those same messages and is WRONG
-             for this control. The trailing bytes carry precision below the
-             displayed step, not a different encoding.
-CONFLICTS:   Tech Ref Sec 7 — the 35-bit formula must be scoped or corrected.
-             Sec 11 — Sync is no longer an unimplemented 'selector'.
-             Sec 21 / Primer — "Sync dropdown needs a valid-value capture" is
-             now satisfied.
-FINDING 4 —
-C11 SETTLED: FORMAT B does not exist on this connection. Across ~20 replies in
-             one session, byte 6 is always the block handle (0x04-0x0D,
-             0x12-0x1B), never a fixed 0x04 marker, and every reply is 14
-             bytes — handle, paramLo and five value bytes, with no room for an
-             extra marker. Recommend deleting FORMAT B from Sec 3 and closing
-             C11. The handler accepts both shapes, so nothing breaks either
-             way.
-FINDING 5 —
-RIG TEMPO:   CMD 0x50, four payload bytes, broadcast on tempo change.
-             INVERSELY related to BPM — the value traced a V while the tempo
-             traced a peak, twice, matching two sweeps. NOT decoded: the value
-             range spans a ratio of about 98 where 10-500 BPM spans 50, so it
-             is not a simple reciprocal. A tempo change also triggered 753
-             rebroadcasts of paramLo 0x02 on handle 0x17 and 0x04 on handle
-             0x1A — tempo-synced parameters in other chain blocks.
-             The startup reply F0 13 0B 0F 12 50 01 3A 04 20 F7 is byte
-             identical across sessions at different tempos, so it is NOT the
-             tempo value.
-             NEXT: a two-minute calibration capture — set tempo to exactly
-             60.0, 120.0, 240.0 and 32.1 with a pause at each. Four known
-             points pin the formula and settle whether the decimal rides in
-             the same number. Deferred; tempo is a rig-level control, not part
-             of the amp panel. The FINE button repurposes the scroll wheel to
-             the decimal place (user, 7/23).
-BUILD
-CHANGES:     protocol.js  SYNC_DIVISIONS (14 entries, glyph + text),
-                          syncIndexFromV127, syncV127FromIndex, ampHasTremolo.
-             index.html   .scard-col is now a COLUMN of two fixed .amp-row
-                          blocks instead of one wrapping row. That single
-                          wrapping row is what made the tone knobs ride up
-                          beside Volumes and Bright wrap under Gate at wide
-                          window sizes. Amp controls now always start below
-                          the gate row. New vertical stack right of the tone
-                          knobs: BRIGHT / TREMOLO / Sync dropdown, top down.
-             ui.js        updateBrightVisibility now gates all three
-                          independently; updateTremButton, updateTremReadout,
-                          populateSyncDropdown, updateSyncReadout; tremOn.
-                          Bright visibility now matches on paramLo 0x0E rather
-                          than the label 'Bright' — SL100 Drive names that same
-                          toggle MOD and so was never showing its button.
-             sysex-handler.js  0x12 and 0x13 routed BEFORE the tone-knob loop.
-             transport.js Nav pull adds 0x12 and 0x13, only on the 15 amps
-                          that have tremolo (+2 queries on those amps only).
-             app-init.js  TREMOLO click handler. Refuses to act until a
-                          readback has arrived, so a first click cannot invert
-                          a guessed state.
-WRITES:      TREMOLO writes are ENABLED (plain two-state control, same as
-             Bright). Sync dropdown is DISPLAY ONLY — disabled in the UI, and
-             0x12 remains in READ_ONLY_PARAM_LOS. Speed writes stay blocked.
-NEXT:        Hardware test, Avid closed. Then, if Sync writes are wanted, the
-             candidate format is v0 with trailing 00 00 00 10 — that was the
-             trailing signature on all 242 Sync broadcasts without exception,
-             and syncV127FromIndex already returns zone centres to write.
-             Also outstanding in this area: sendToAmpVolume()'s "global"
-             comment is wrong (To Amp 1/2 are per-patch) — not yet corrected.
+DATE:        2026-07-24
+STATUS:      [FOLDED IN: Technical Reference Sec 5, Sec 6 (correction),
+             Sec 18 (new RIG TEMPO block), Sec 21 (closed), Sec 24;
+             Primer Status / CURRENT APP STATE / WORKING / NOT YET
+             IMPLEMENTED / CODE FILE MAP]. Shipped; awaiting hardware test.
+AREA:        Rig tempo — CMD 0x50 decode; chain-strip right-hand group
+FINDING:     CMD 0x50 carries MICROSECONDS PER BEAT as a 24-bit number in four
+             SIX-bit digits, most significant first:
+               us = (d1<<18)|(d2<<12)|(d3<<6)|d4,  BPM = 60000000/us
+             The 7/23 reading of this as a mysterious non-reciprocal inverse
+             with a ~98:1 span was an artifact of assuming 7-bit bytes, which
+             is what every other multi-byte value in this protocol uses. Every
+             payload byte in the capture is below 0x40.
+EVIDENCE:    Tempo_Settings.pcapng, six values keyed directly on the Avid
+             editor. Decode is exact on all six with no rounding slack, and
+             the encoder reproduces all six captured messages byte for byte:
+               500.0 00 1D 13 00   60.0 03 34 09 00   120.0 01 3A 04 20
+               240.0 00 3D 02 10   32.1 07 08 15 27    10.0 16 38 36 00
+CONFLICTS:   Three, all corrected IN PLACE rather than annotated:
+             - Sec 21 "inversely related, not a simple reciprocal, ~98:1" —
+               retracted; it is a simple reciprocal.
+             - Sec 21 "startup reply 01 3A 04 20 is byte identical across
+               sessions, so it is NOT the tempo value" — retracted; it decodes
+               to exactly 500000 us = 120.0 BPM, the default. The probe
+               evidently ran at 120 BPM every time.
+             - Sec 6 "CMD 0x50 — Version/capabilities query, response
+               04 03 14 29, likely firmware version" — wrong command, deleted.
+NEXT:        Hardware test with the Avid editor CLOSED (this feature reads
+             state from the rack, so it is not proven until it runs solo):
+             - type 120.5, Enter — rack front panel should follow
+             - click the tenths digit, hold the up arrow — should climb by 0.1
+               a step, and the log should show far fewer sends than steps
+             - change tempo on the RACK — our clock should track it
+             - navigate patches — clock should stay put and re-read once
+             UNVERIFIED: whether the rack accepts a written tempo outside
+             10.0-500.0. Our field clamps to that range either way.
 -------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-24
+STATUS:      provisional — cosmetic, confirm on sight
+AREA:        Chain strip, right-hand group
+FINDING:     "drag blocks to reorder" hint removed at user request (10px on
+             #555, unreadable). After a first build the user refined the
+             layout from the screenshot: the Stereo/Mono badge moved to the END
+             OF THE CHAIN FLOW (right after the last block), preceded by a
+             #mono-connector line that shows TWO lines for STEREO and ONE for
+             MONO — tracking the BADGE state, explicitly not the last block's
+             output channels (user chose this). margin-left:auto moved from the
+             badge to that connector so the end-group still parks right. STEREO
+             green, MONO amber. TEMPO to the right, label stacked above the box.
+NOTE:        The badge was described this session as read-only. It is NOT — it
+             has had a working click-to-toggle since 7/18 (CMD 0x0D). Nothing
+             was disabled; the change really was colour only. Worth knowing
+             before someone "fixes" the mismatch between the green colour and
+             the assumed read-only status.
+NEXT:        Eyeball the strip at maximised width and at the smallest window
+             size the app allows; the group is fixed-width and does not wrap.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-24
+STATUS:      [FOLDED IN: Technical Reference Sec 11 (two new blocks), Sec 21,
+             Sec 24; Primer Status / CURRENT APP STATE / WORKING / CODE FILE
+             MAP]. Shipped and hardware-tested same session.
+AREA:        Amp model change — tone stack values / per-slot parameter storage
+FINDING:     Changing amp model in an open patch blanked every tone knob to
+             "--" while the Avid editor kept showing values. True even
+             between two models with an identical layout (92 Treadplate
+             Vintage -> Modern).
+             CAUSE: amp params are stored PER CHAIN SLOT and shared across
+             models; the model only selects which paramLos are exposed and
+             what they are called. The rack never cleared anything. Our
+             setCurrentAmp -> updateToneKnobs blanked the knobs to 64/"--"
+             and no code path ever re-read the block. Avid was not
+             remembering values; it was re-reading.
+EVIDENCE:    Four user tests against the Avid editor, no capture needed:
+             (a) same-layout Vintage -> Modern still blanked in our app,
+                 not in Avid;
+             (b) Vintage -> Tweed -> Vintage returned all eight original
+                 values intact, so the rack retains hidden values;
+             (c) editing Tweed's "Tone" to 2.2 then returning to Vintage
+                 showed Treble = 2.2, not the original 7.4 — proving one
+                 stored value under two model-specific names;
+             (d) Sync survived 65 AC Boost -> DC family;
+             (e) cab type changes already preserved mic/axis/breakup — the
+                 tell that one path in the app re-read and the other did not.
+FIX:         On the 0x0F echo, when the amp key actually changes, wait
+             AMP_CHANGE_SETTLE ms and re-query the amp block's paramLo set
+             against the EXISTING handle. No chain map re-read: 0x0F is a
+             parameter inside the block, not a CMD 0x21 model change, so the
+             handle does not move. No mapping table, no knob-count
+             reconciliation — the hardware is authoritative.
+             transport.js: ampBlockParamLos() (Phase 3's list builder,
+             extracted so the nav path and this path cannot drift),
+             ampParamQuery(), requestAmpBlockParamsAfterAmpChange() with a
+             sequence guard that cancels on a further amp change or a patch
+             change mid-refresh.
+             sysex-handler.js: 0x0F handler calls it. Fires for our dropdown,
+             the rack's front panel and the Avid editor alike.
+BUILD 1
+DEFECT:      "PROMISE: paramQuery is not defined" on load. paramQuery() is a
+             PRIVATE helper declared inside requestPatchStateAfterNav and was
+             called from module scope. Fixed with a standalone ampParamQuery()
+             rather than hoisting the original, because the nav version also
+             increments the Dev timings query counter — reusing it would have
+             polluted the nav timing figures with queries the nav pull never
+             made. LESSON: check the SCOPE of a helper before reusing it, and
+             check whether it has side effects beyond returning its value.
+             This one had both problems.
+TESTED:      Build 2 passed on hardware. Settle time 150 ms, then lowered to
+             100 ms, both good.
+CONFLICTS:   none. Nothing in the Technical Reference contradicted any of it;
+             this is new ground, not a correction.
+NEXT:        (1) AMP_CHANGE_SETTLE is a fixed guess about other machines —
+                 untested across hosts, VM vs bare metal, USB 2.0 vs 3.x.
+                 Adaptive version deferred (Tech Ref Sec 21).
+             (2) USB 3.x operation untested under this app (Tech Ref Sec 21).
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 DATE:        2026-07-20 (late)
 STATUS:      provisional — process, no protocol content
 AREA:        Document regression during an out-of-date chat session
@@ -398,6 +250,8 @@ NEXT:        Deferred by agreement 7/19. Current drag behaviour is correct and
 -------------------------------------------------------------------
 
 
+
+
 ===================================================================
 ARCHIVED ENTRIES — INDEX ONLY
 ===================================================================
@@ -405,6 +259,8 @@ Promoted into the main docs, verified present, then moved to
 ElevenEdit_Archive.txt. Nothing here is needed for current work; the index
 exists so no finding vanishes without a trace.
 
+--- moved 2026-07-24 ---
+  2026-07-23 (afternoon)       Amp tremolo feature set — Sync 0x12, On/Off 0x13, panel layout
 --- moved 2026-07-23 (navigation / flicker investigation, build-by-build) ---
   2026-07-22 (later)           CMD 0x11 bypass routing — paramLo 0x06 handle collision
   2026-07-22 (later)           Patch recall — SysEx result, and the bulk request as flicker suspect
@@ -423,7 +279,6 @@ exists so no finding vanishes without a trace.
   2026-07-23 (build H)         Sync/Speed interlock; runtime tuning of the post-nav pull
   2026-07-23 — CHAT CLOSE / HANDOFF Wrap-up, corrected query model, next-session brief
   2026-07-22                   REVERB slot — CMD 0x11 param map, model switch, Eleven SR Type
-
 --- moved 2026-07-21 ---
   2026-07-20 (late)  Bypass — Format B false positive when a block handle is 0x04
   2026-07-20         Documentation sweep — superseded text removed, no new findings
@@ -439,5 +294,4 @@ exists so no finding vanishes without a trace.
   2026-07-20         Per-block bypass never queried — yesterday's pass was a FALSE
   2026-07-21         DIST paramLo numbers — all five models
   2026-07-21         DIST panel POC — Phase 9 (effect panel pattern established)
-
-Full text: ElevenEdit_Archive.txt, Parts 2 and 3.
+Full text: ElevenEdit_Archive.txt, Parts 2, 3 and 4.

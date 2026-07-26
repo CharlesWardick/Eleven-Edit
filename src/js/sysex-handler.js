@@ -358,6 +358,20 @@ async function parseSysEx(data) {
     return;
   }
 
+  // CMD 0x50 — Rig tempo. Broadcast on every tempo change (front panel, Avid
+  // editor, or our own send echoed back) and also the reply to REQU_TEMPO_READ.
+  // Format: F0 13 0B 0F [dir] 50 d1 d2 d3 d4 F7 — four SIX-bit digits of the
+  // microseconds-per-beat value. dir is 0x02 for a broadcast and 0x12 for the
+  // reply to our query; both mean the same thing here.
+  // See protocol.js rigTempoDecodeUs for the encoding and why it is not the
+  // 7-bit format used elsewhere.
+  if (cmd === 0x50 && data.length >= 10) {
+    const us  = rigTempoDecodeUs(data[6], data[7], data[8], data[9]);
+    const bpm = rigTempoUsToBpm(us);
+    if (bpm !== null) updateTempoDisplay(bpm);
+    return;
+  }
+
   // CMD 0x36 — To Amp volume hardware knob broadcast
   // Format: F0 13 0B 0F 02 36 [slot] [v0] 00 00 00 00 F7
   // slot: 0x02=ToAmp1, 0x03=ToAmp2. v0 = raw 0x00–0x7F (no formula).
@@ -615,7 +629,25 @@ async function parseSysEx(data) {
       const match = AMP_SELECT_BY_V0[v0];
       if (match) {
         appLog('Amp Select readback: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' -> ' + match.label);
-        if (match.key !== currentAmpKey) setCurrentAmp(match.key);
+        if (match.key !== currentAmpKey) {
+          setCurrentAmp(match.key);
+          // setCurrentAmp -> updateToneKnobs has just relabelled the tone
+          // stack and blanked every knob to "--". The stored values are
+          // still in the rack (amp params are per SLOT, not per model), so
+          // ask for them back. Without this the knobs sit at "--" forever,
+          // which is the whole reason this call exists. See
+          // requestAmpBlockParamsAfterAmpChange in transport.js.
+          //
+          // Deliberately fires on ANY amp identity change, whether the user
+          // picked it in our dropdown, changed it on the rack's front panel,
+          // or the Avid editor changed it — all three arrive here the same
+          // way. The post-nav pull sets it too, but that path re-queries
+          // everything itself a moment later, and the sequence guard means
+          // the later of the two simply supersedes this one.
+          if (typeof requestAmpBlockParamsAfterAmpChange === 'function') {
+            requestAmpBlockParamsAfterAmpChange();
+          }
+        }
       } else {
         appLog('Amp Select readback: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' — no matching entry');
       }

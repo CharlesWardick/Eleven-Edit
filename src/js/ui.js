@@ -471,6 +471,13 @@ function updateMonoIndicator(isMono) {
     el.classList.toggle('mono-active', isMono);
     el.classList.toggle('mono-inactive', !isMono);
   }
+  // Connector into the badge: one line for MONO, two for STEREO — tracks the
+  // badge state, deliberately not any block's output channel count.
+  const conn = document.getElementById('mono-connector');
+  if (conn) {
+    conn.innerHTML = isMono ? '<i></i>' : '<i></i><i></i>';
+    conn.title = isMono ? 'Mono' : 'Stereo';
+  }
   appLog('Stereo/Mono: ' + (isMono ? 'MONO' : 'STEREO'));
 }
 
@@ -488,6 +495,183 @@ document.addEventListener('DOMContentLoaded', function() {
       sendMonoStereo(newMono);        // toggle hardware
     });
   }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// RIG TEMPO — digital-clock field (CMD 0x50)
+// ════════════════════════════════════════════════════════════════════
+//
+// Held internally as TENTHS of a BPM (integer), so stepping the tenths digit
+// is plain +/- 1 and there is no floating-point drift on repeated steps.
+// 100 = 10.0 BPM, 5000 = 500.0 BPM.
+//
+// Three ways in, all agreed with Charlie 7/24:
+//   - click a segment, then arrows / mouse wheel / up-down keys
+//   - the small stepper to the right of the box
+//   - type the value straight in and press Enter
+//
+// Nothing is sent until a value is COMMITTED. Typing is buffered and only
+// leaves the box on Enter or blur, so a half-typed "1" on the way to "120"
+// never reaches the hardware as 10 BPM.
+var currentTempoTenths = null;      // null until the first readback
+var tempoSeg           = 'w';       // 'w' whole, 't' tenths
+var tempoTypeBuf       = null;      // non-null while the user is typing
+var tempoSendTimer     = null;
+var tempoPendingSend   = null;
+
+const TEMPO_MIN_T = Math.round(TEMPO_BPM_MIN * 10);
+const TEMPO_MAX_T = Math.round(TEMPO_BPM_MAX * 10);
+
+// Repaint from currentTempoTenths, or from the type buffer while typing.
+function renderTempoField() {
+  const wEl = document.getElementById('tempo-whole');
+  const tEl = document.getElementById('tempo-tenth');
+  const box = document.getElementById('tempo-box');
+  if (!wEl || !tEl || !box) return;
+
+  if (tempoTypeBuf !== null) {
+    // Show exactly what has been typed so far, left as typed.
+    const parts = tempoTypeBuf.split('.');
+    wEl.textContent = (parts[0] === '' ? '_' : parts[0]);
+    tEl.textContent = (parts.length > 1 ? (parts[1] === '' ? '_' : parts[1]) : '_');
+    box.classList.add('tempo-typing');
+    wEl.classList.remove('seg-on');
+    tEl.classList.remove('seg-on');
+    return;
+  }
+
+  box.classList.remove('tempo-typing');
+  if (currentTempoTenths === null) {
+    wEl.textContent = '---';
+    tEl.textContent = '-';
+  } else {
+    wEl.textContent = String(Math.floor(currentTempoTenths / 10));
+    tEl.textContent = String(currentTempoTenths % 10);
+  }
+  wEl.classList.toggle('seg-on', tempoSeg === 'w');
+  tEl.classList.toggle('seg-on', tempoSeg === 't');
+}
+
+// Called by the CMD 0x50 handler for every broadcast, echo and query reply.
+// Ignored mid-typing so the hardware cannot overwrite a value being entered.
+function updateTempoDisplay(bpm) {
+  if (bpm === null || bpm === undefined) return;
+  const t = Math.round(bpm * 10);
+  const changed = (t !== currentTempoTenths);
+  currentTempoTenths = t;
+  if (tempoTypeBuf === null) renderTempoField();
+  if (changed) appLog('Rig tempo: ' + (t / 10).toFixed(1) + ' BPM');
+}
+
+// Trailing throttle. A tempo change makes the rack rebroadcast every
+// tempo-synced parameter in the chain — three messages in the calibration
+// capture, 753 in an earlier front-panel sweep — so held arrows and wheel
+// spins must not turn into a message per step.
+function queueTempoSend(tenths) {
+  tempoPendingSend = tenths;
+  if (tempoSendTimer) return;
+  tempoSendTimer = setTimeout(function() {
+    tempoSendTimer = null;
+    const v = tempoPendingSend;
+    tempoPendingSend = null;
+    if (v !== null) sendRigTempo(v / 10);
+  }, 150);
+}
+
+function setTempoTenths(t, send) {
+  if (t < TEMPO_MIN_T) t = TEMPO_MIN_T;
+  if (t > TEMPO_MAX_T) t = TEMPO_MAX_T;
+  currentTempoTenths = t;
+  renderTempoField();
+  if (send) queueTempoSend(t);
+}
+
+// Step the SELECTED segment: tenths digit = 0.1 BPM, whole digits = 1.0 BPM.
+function stepTempo(dir) {
+  if (currentTempoTenths === null) {
+    appLog('Rig tempo: no value read back yet — nothing to step');
+    return;
+  }
+  setTempoTenths(currentTempoTenths + dir * (tempoSeg === 't' ? 1 : 10), true);
+}
+
+function commitTempoTyping() {
+  if (tempoTypeBuf === null) return;
+  const raw = tempoTypeBuf;
+  tempoTypeBuf = null;
+  const v = parseFloat(raw);
+  if (isNaN(v)) { renderTempoField(); return; }
+  const t = Math.round(v * 10);
+  if (t < TEMPO_MIN_T || t > TEMPO_MAX_T) {
+    appLog('Rig tempo: ' + v + ' is outside ' + TEMPO_BPM_MIN.toFixed(1)
+           + '-' + TEMPO_BPM_MAX.toFixed(1) + ' BPM — clamped');
+    setStatus('Tempo range is ' + TEMPO_BPM_MIN.toFixed(1) + ' to '
+              + TEMPO_BPM_MAX.toFixed(1) + ' BPM');
+  }
+  setTempoTenths(t, true);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const box = document.getElementById('tempo-box');
+  const wEl = document.getElementById('tempo-whole');
+  const tEl = document.getElementById('tempo-tenth');
+  const up  = document.getElementById('tempo-up');
+  const dn  = document.getElementById('tempo-dn');
+  if (!box) return;
+
+  function selectSeg(s) {
+    if (tempoTypeBuf !== null) commitTempoTyping();
+    tempoSeg = s;
+    renderTempoField();
+    box.focus();
+  }
+  if (wEl) wEl.addEventListener('mousedown', function(e) { e.preventDefault(); selectSeg('w'); });
+  if (tEl) tEl.addEventListener('mousedown', function(e) { e.preventDefault(); selectSeg('t'); });
+  box.addEventListener('mousedown', function(e) {
+    if (e.target === box) { e.preventDefault(); selectSeg(tempoSeg); }
+  });
+
+  if (up) up.addEventListener('click', function() { stepTempo(1);  box.focus(); });
+  if (dn) dn.addEventListener('click', function() { stepTempo(-1); box.focus(); });
+
+  // Wheel only acts when the box has focus, so a stray scroll over the chain
+  // strip on the way somewhere else cannot nudge the rig tempo.
+  box.addEventListener('wheel', function(e) {
+    if (document.activeElement !== box) return;
+    e.preventDefault();
+    stepTempo(e.deltaY < 0 ? 1 : -1);
+  }, { passive: false });
+
+  box.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowUp')    { e.preventDefault(); stepTempo(1);  return; }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); stepTempo(-1); return; }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); selectSeg('w'); return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); selectSeg('t'); return; }
+    if (e.key === 'Enter')      { e.preventDefault(); commitTempoTyping(); return; }
+    if (e.key === 'Escape')     { e.preventDefault(); tempoTypeBuf = null; renderTempoField(); return; }
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (tempoTypeBuf !== null) {
+        tempoTypeBuf = tempoTypeBuf.slice(0, -1);
+        if (tempoTypeBuf === '') tempoTypeBuf = null;
+        renderTempoField();
+      }
+      return;
+    }
+    if (/^[0-9]$/.test(e.key) || e.key === '.') {
+      e.preventDefault();
+      if (tempoTypeBuf === null) tempoTypeBuf = '';
+      if (e.key === '.' && tempoTypeBuf.indexOf('.') !== -1) return;
+      // Cap the entry so a stuck key cannot build an absurd string.
+      if (tempoTypeBuf.replace('.', '').length >= 4) return;
+      tempoTypeBuf += e.key;
+      renderTempoField();
+    }
+  });
+
+  box.addEventListener('blur', function() { commitTempoTyping(); });
+
+  renderTempoField();
 });
 
 // ════════════════════════════════════════════════════════════════════
@@ -645,9 +829,13 @@ function renderChainRow() {
   if (!strip || !currentChain.length) return;
 
   // Collect the movable pieces before touching anything.
-  const arrows = Array.from(strip.querySelectorAll('.chain-arr'));
-  const hint   = strip.querySelector('.chain-drag-hint');
+  // The "drag blocks to reorder" hint was removed 7/24/2026 — 10px on #555 was
+  // unreadable. #mono-indicator now carries the margin-left:auto that pushes
+  // the right-hand group to the end of the strip.
+  const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector)'));
+  const conn   = document.getElementById('mono-connector');
   const mono   = document.getElementById('mono-indicator');
+  const tempo  = document.getElementById('tempo-wrap');
 
   const containerFor = containerForSlot;
 
@@ -689,8 +877,9 @@ function renderChainRow() {
 
   // Trailing items stay at the end.
   arrows.slice(arrowIdx).forEach(a => { a.style.display = 'none'; });
-  if (hint) strip.appendChild(hint);
-  if (mono) strip.appendChild(mono);
+  if (conn)  strip.appendChild(conn);
+  if (mono)  strip.appendChild(mono);
+  if (tempo) strip.appendChild(tempo);
 
   refreshBlockBypassDisplays();
   wireChainDrag();

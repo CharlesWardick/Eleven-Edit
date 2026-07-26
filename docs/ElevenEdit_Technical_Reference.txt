@@ -601,6 +601,8 @@ IMPLEMENTATION:
                     *** The SLOT BYTE IS REQUIRED. The bare form
                     F0 13 0B 0F 01 36 F7 returns NOTHING. ***
                     RESP: F0 13 0B 0F 12 36 [slot] [v0] 00 00 00 00 F7
+  REQU TEMPO:       F0 13 0B 0F 01 50 F7      rig tempo (Section 18)
+                    RESP: F0 13 0B 0F 12 50 [d1] [d2] [d3] [d4] F7
   REQU PARAM:       F0 13 0B 0F 01 11 [handle] [paramLo] F7
   *** [handle] IS THE BLOCK HANDLE FROM THE CHAIN MAP, NOT A LITERAL 0x07. ***
   Earlier revisions of this doc showed 0x07 hardcoded — a stale artifact from
@@ -700,8 +702,12 @@ CMD 0x3D — Input Selector broadcast. F0 13 0B 0F 02 3D [val] F7 (value at
   0x12=Re-Amp. Broadcast on input change only (not startup/patch change).
 CMD 0x40 — Tuner. See Section 9. [SEND/RECV]
 CMD 0x41 — Tuner companion broadcast. Safe to ignore.
-CMD 0x50 — Version/capabilities query. Request data=0x05; response
-  04 03 14 29 (likely firmware version). [SEND/RECV]
+CMD 0x50 — Rig tempo, in microseconds per beat, as four 6-bit digits.
+  Full encoding, ranges and the throttling warning are in Section 18.
+  [SEND/RECV/BROADCAST]
+  (This entry formerly read "Version/capabilities query, response 04 03 14 29,
+  likely firmware version". That was wrong and is deleted, not amended —
+  7/24/2026.)
 
 Startup commands seen only in Avid editor USB capture (purpose unknown,
 not required by Eleven Edit): 0x08, 0x0A, 0x35, 0x39.
@@ -905,7 +911,16 @@ TFX: key RMno (patch-wide section of the body — see the heading note in
 CHAIN-MAP SIDE EFFECT: every accepted 0x0D reassigns the runtime handles of
   all post-amp chain blocks and fires a fresh CMD 0x21. See Section 4.
 
-UI: clickable badge on the chain row; dim when Stereo, lit amber when Mono.
+UI: clickable badge at the END OF THE CHAIN ROW, right after the last block.
+  MONO = amber, STEREO = green (matching an active chain block) — recoloured
+  7/24/2026 because the old dim-grey STEREO was near invisible. A connector
+  line precedes the badge in the same stacked-line style as a between-block
+  arrow: TWO lines when STEREO, ONE when MONO. That line tracks the BADGE
+  state by deliberate choice (user, 7/24), NOT the last block's output channel
+  count, so it can differ from the connector between the final two blocks.
+  The badge is FIXED WIDTH (sized for STEREO) so it does not resize on the
+  switch to MONO, and sits tight after the last block; the tempo field holds
+  the far-right edge of the strip.
   300 ms click lockout to prevent accidental double-fires (the hardware
   itself has no minimum interval — it accepted machine-gun toggling from the
   Avid editor without complaint).
@@ -1070,6 +1085,68 @@ BRIGHT TOGGLE NAMING. paramLo 0x0E is called MOD on SL100 Drive and Bright on
 every other amp that has it. AMP_TONE_PARAMS carries the per-amp label and the
 button reads its text from there. Do NOT match on the string 'Bright' to decide
 visibility, or that amp's button vanishes — match on paramLo 0x0E.
+
+
+PARAMETER STORAGE IS PER CHAIN SLOT, NOT PER AMP MODEL (confirmed 7/24/2026,
+hardware, cross-checked against the Avid editor).
+  The amp block holds ONE set of parameter values, seeded from the TFX on
+  patch load and persisted to that slot thereafter. An amp model does not own
+  storage; it only determines WHICH paramLo values are exposed, in what order,
+  and under what labels. The table above is a per-model VIEW over shared
+  storage.
+
+  CONSEQUENCES, all verified:
+    - Changing amp model does NOT clear or reset any value. Every stored
+      value survives, including paramLos the new model does not display.
+    - Going from an 8-knob amp to a 3-knob amp hides five values; they are
+      retained and reappear on returning to an 8-knob model.
+    - A paramLo shared by two models under DIFFERENT NAMES is ONE value.
+      Editing 59 Tweed's "Tone" and then selecting a 92 Treadplate shows
+      that value on "Treble". Confirmed by direct test: Treadplate Treble
+      7.4 -> switch to Tweed -> set Tone to 2.2 -> switch back -> Treble
+      reads 2.2.
+    - Sync (0x12) survives a model change across families for the same
+      reason: 65 AC Boost -> any DC model keeps the selected division.
+
+  This is hardware behaviour and Avid exhibits it identically. It is NOT a
+  bug and must NOT be "corrected" in software. There is no mapping table to
+  build and no knob-count reconciliation to do — whatever the rack reports
+  for a paramLo is the truth.
+
+  WHAT THIS MEANS FOR THE APP: after an amp model change, RE-READ the block.
+  Do not carry values forward, and do not assume a same-layout change (e.g.
+  Treadplate Vintage -> Modern) needs no refresh. See "AMP MODEL CHANGE —
+  REFRESH SEQUENCE" below.
+
+
+AMP MODEL CHANGE — REFRESH SEQUENCE (implemented 7/24/2026).
+  Amp type is CMD 0x11 paramLo 0x0F — a PARAMETER INSIDE the amp block. It is
+  NOT a chain map change. The block's slot ID and runtime handle are
+  unchanged by it.
+    DO NOT add a chain map request to this path. That distinguishes it from
+    the DIST/REVERB model change (CMD 0x21), where the firmware assigns a
+    NEW handle and a chain map re-read is mandatory. Confusing the two costs
+    a wasted round trip and reintroduces a handle race that does not exist
+    here.
+
+  SEQUENCE, on the 0x0F echo (fires for our dropdown, the rack's front panel,
+  and the Avid editor alike — all three arrive at the same handler):
+    1. setCurrentAmp() relabels/reorders the tone stack from AMP_TONE_PARAMS
+       and blanks every knob to 64 / "--".
+    2. Wait AMP_CHANGE_SETTLE ms.
+    3. Query the amp block's paramLo set against the EXISTING handle.
+  Knobs read "--" for the settle period, then fill with the stored values.
+
+  THE BUG THIS FIXED: step 3 did not exist. Step 1 blanked the knobs and
+  nothing ever asked the hardware again, so every tone control read "--"
+  after any amp change, even between two models with identical layouts.
+  Avid appeared to "remember" values only because it re-reads.
+
+  The paramLo set is built by ampBlockParamLos() in transport.js, shared with
+  the post-nav pull (Section 3 / Primer code map) so the two paths cannot
+  drift apart. Note that the nav pull's private paramQuery() helper also
+  increments the Dev timings query counter and must NOT be reused from other
+  paths; ampParamQuery() exists for that reason.
 
 
 ===================================================================
@@ -1400,15 +1477,96 @@ TO AMP SOURCE (CMD 0x37):
   with unknown val bytes — not yet captured.
   HW echoes back with dir=0x02, same format.
   Global setting — not per-patch, not stored in TFX body.
-  REQUIRED: Send CMD 0x3A query for the slot FIRST, wait for response, then
-  send CMD 0x37. Skipping the query causes firmware assert (7/17/2026 x2).
+  *** HIGHEST-RISK COMMAND IN THE PROJECT. EVERY ASSERT ON CMD 0x37 HAS
+  BRICKED THE RACK AND FORCED A FULL FACTORY RESET — no exceptions. ***
+  History (dates approximate, two NON-CONSECUTIVE days):
+    Day 1 — knobs (0x36) and selects (0x37) both attempted. Selects asserted
+            and BRICKED the unit; full factory reset required. (The knobs
+            simply did not work that day; they never asserted and never
+            bricked anything.)
+    Day 2 — knobs got working first (0x36, now confirmed). Then selects were
+            attempted again and BRICKED the unit TWICE more, each a full reset.
+    Net: three bricks, all from CMD 0x37 selects, every one a factory reset.
+    CMD 0x36 volume is fully exonerated — it has never asserted or bricked.
+  CONTRAST — asserts ELSEWHERE are not like this: the "bad patch format"
+  errors during TFX learning and assorted front-panel oddities recovered with
+  a nav-away-and-back, no reset. The brick-on-assert behaviour is SPECIFIC to
+  this command. Do not generalise it to hardware testing at large, and do not
+  soften it here: on 0x37, assert = brick = reset.
+  Patches survive ONLY because Charlie backs up; the rack retains nothing
+  through the reset.
+  The CMD 0x3A query-first sequence was found to avoid the assert in limited
+  testing, but the feature was never made to work and the root cause of why
+  SW sends do not move the HW source is unknown. "Safer sequence found" does
+  NOT mean "safe" — see STATUS below and the investigation brief.
   CMD 0x3A REQU: F0 13 0B 0F 01 3A [slot] F7
   CMD 0x3A RESP: F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7  (10 bytes)
     data[6]=0x07, data[7]=slot, data[8]=currentVal.
-  STATUS: Query+write sequence confirmed — no assert. HW source does not
-  visibly change in response to SW sends — root cause unknown. Dropdowns
-  removed from GUI 7/17; code preserved for future investigation.
-  Factory reset recovery: hold FX Loop + Mod + Reverb at power on.
+  STATUS: query+write avoided the assert in limited testing, but the HW source
+  does NOT change in response to SW sends — root cause unknown. Dropdowns
+  removed from the GUI by decision; code preserved for future investigation.
+  DO NOT re-enable or send until an observation-only capture explains what the
+  Avid editor does that we do not (see the To Amp Source investigation brief).
+  Factory reset recovery: hold FX Loop + Mod + Reverb at power on, wait for the
+  logo with no scroll bar, power off, power on normally. Restore patches from
+  backup afterward.
+
+
+RIG TEMPO — CMD 0x50. FULLY DECODED 7/24/2026 (Tempo_Settings.pcapng).
+  Rig level, not per patch — same class of control as Rig Volume, which is
+  why it lives beside the Stereo/Mono badge in the GUI and not in a panel.
+
+  THE PAYLOAD IS MICROSECONDS PER BEAT — the standard MIDI tempo quantity —
+  carried as a 24-bit number split into four SIX-BIT digits, most
+  significant first:
+      us  = (d1 << 18) | (d2 << 12) | (d3 << 6) | d4
+      BPM = 60000000 / us          (displayed to one decimal)
+      d1..d4 back out of BPM by the reverse: us = round(60000000 / BPM)
+
+  *** THE BYTES ARE 6-BIT DIGITS, NOT THE 7-BIT BYTES USED BY CMD 0x11. ***
+  Every payload byte is below 0x40. Reading them as base 128, by analogy with
+  every other multi-byte value in this protocol, is exactly what made this
+  look like an undecodable inverse relationship with a ~98:1 span. If a
+  multi-byte value refuses to decode, check the observed byte ceiling before
+  assuming the field width — the ceiling is data.
+
+  EXACT against all six calibration points, no rounding slack, and the
+  encoder reproduces every captured message byte for byte:
+      500.0 BPM   00 1D 13 00      120000 us
+       60.0 BPM   03 34 09 00     1000000 us
+      120.0 BPM   01 3A 04 20      500000 us
+      240.0 BPM   00 3D 02 10      250000 us
+       32.1 BPM   07 08 15 27     1869159 us
+       10.0 BPM   16 38 36 00     6000000 us
+
+  READ:      F0 13 0B 0F 01 50 F7
+  RESP:      F0 13 0B 0F 12 50 d1 d2 d3 d4 F7
+  BROADCAST: F0 13 0B 0F 02 50 d1 d2 d3 d4 F7   (front panel, Avid, or our
+             own write echoed straight back — the echo agrees with what was
+             sent, so unlike CMD 0x0D it needs no suppression)
+  WRITE:     F0 13 0B 0F 00 50 d1 d2 d3 d4 F7
+
+  RANGE: 10.0-500.0 BPM per the hardware and the Avid editor. 24 bits reaches
+  far past both ends, so the limits are the rack's, not the encoding's.
+
+  RETRACTED BY THIS ENTRY (was in Sec 21 as an open question):
+    - "INVERSELY related to BPM but not a simple reciprocal, value range spans
+      a ratio of about 98 where 10-500 BPM spans 50." It IS a simple
+      reciprocal. The 98:1 was an artifact of the wrong field width.
+    - "The startup reply F0 13 0B 0F 12 50 01 3A 04 20 F7 is byte identical
+      across sessions at different tempos, so it is NOT the tempo value."
+      01 3A 04 20 decodes to exactly 500000 us = 120.0 BPM, the default. It
+      IS the tempo value; the probe evidently ran at 120 BPM each time.
+    - Sec 6's "CMD 0x50 — Version/capabilities query, response 04 03 14 29
+      (likely firmware version)" — wrong command, deleted there.
+
+  COST WARNING — A TEMPO CHANGE IS AN EXPENSIVE EVENT. The rack rebroadcasts
+  the parameters of every tempo-synced block afterwards: three CMD 0x11
+  messages in the calibration capture, but 753 in an earlier front-panel
+  sweep (paramLo 0x02 on handle 0x17, paramLo 0x04 on handle 0x1A). Anything
+  that can produce a run of tempo values — a held arrow, a wheel spin, a
+  dragged control — MUST throttle. Eleven Edit sends on a 150 ms trailing
+  timer and commits typed entry only on Enter or blur.
 
 
 ===================================================================
@@ -1513,6 +1671,13 @@ CMD 0x11 / PARAMS:
     59 used lead800's numbers, so Vol Norm (0x08) was never read and 0x09 came
     back unroutable. The missing read was invisible; only the stray 0x09
     showed in the log. Wait on the REPLY, never on a timer.
+    NOT IN CONFLICT WITH AMP_CHANGE_SETTLE (Phase 12, Sec 11 / Sec 21). This
+    entry is about WHICH paramLo list to build: build it only after the 0x0F
+    reply identifies the amp. Phase 12 obeys that — it triggers ON the echo.
+    AMP_CHANGE_SETTLE is a separate, later delay before the queries go out,
+    covering the rack's own settling, not the list choice. Two different waits
+    at two different points. Making the settle adaptive (Sec 21) is a
+    refinement, not a correction of this entry.
   Sending CMD 0x11 with instId=0x04 hardcoded — wrong; use currentParamHi.
   Sending CMD 0x11 before currentParamHi is set (<=0) — causes HW assert.
   Treating CMD 0x11 as a two-byte paramId — wrong interpretation.
@@ -1555,7 +1720,12 @@ CHAIN / DANGER:
   Identifying a chain block by mid range instead of slot ID — mid is the
     MODEL, and generic FX slots host models from other categories, so ranges
     overlap. Use the slot ID (Sec 4).
-  Sending CMD 0x37 without CMD 0x3A query first — causes firmware assert.
+  Sending CMD 0x37 (To Amp Source) at all — every assert on this command has
+    BRICKED the rack and forced a full factory reset, three times across two
+    days (Sec 18). The query-first sequence avoided the assert in limited
+    testing but the feature never worked and the root cause is unknown. Do not
+    send it. This is unique to 0x37: asserts elsewhere (bad-patch-format, panel
+    oddities) recover with nav-away/back. CMD 0x36 volume is NOT implicated.
     Always query with CMD 0x3A, wait for response, then send CMD 0x37.
 
 
@@ -1564,25 +1734,43 @@ CHAIN / DANGER:
 ===================================================================
 
 NEXT / IMMEDIATE:
-  RIG TEMPO CONTROL (CMD 0x50) — user's next task. Partly decoded 7/23/2026.
-    Four payload bytes, broadcast on every tempo change. INVERSELY related to
-    BPM: across two sweeps the value traced a V while the tempo traced a peak.
-    NOT a simple reciprocal — the observed value range spans a ratio of about
-    98 where 10-500 BPM spans 50.
-    The startup reply F0 13 0B 0F 12 50 01 3A 04 20 F7 is byte identical across
-    sessions at different tempos, so it is NOT the tempo value.
-    A tempo change also triggers rebroadcasts of tempo-synced parameters in
-    other chain blocks — 753 in one sweep, on paramLo 0x02 handle 0x17 and
-    paramLo 0x04 handle 0x1A.
-    TO CLOSE IT — a two-minute calibration capture: set the rack tempo to
-    exactly 60.0, 120.0, 240.0 and 32.1, pausing at each. Four known points
-    against four broadcast values pin the formula and settle whether the
-    decimal rides in the same number.
-    UI WHEN BUILT: a spinner near the STEREO badge, NOT in the amp panel —
-    tempo is rig level, like Rig Vol. Avid's is a clock-style box: arrows step,
-    clicking the decimal edits it, and it accepts typed entry. Navigating to
-    tempo on the rack's front panel is tedious, which is the motivation.
-    The rack's FINE button repurposes the scroll wheel to the decimal place.
+  AMP_CHANGE_SETTLE — PROVISIONAL VALUE (transport.js, added 7/24/2026).
+    Flat delay between the amp-model echo and the block re-query. Started at
+    150 ms (borrowed from the REVERB panel), reduced to 100 ms after testing;
+    both work. Lower is likely fine and has not been swept.
+    THE CONCERN IS PORTABILITY, NOT SPEED: it is a fixed guess about someone
+    else's machine, untested across host PCs, VM vs bare metal, and USB 2.0
+    vs 3.x. It works everywhere it has been tried, which is exactly the shape
+    of a constant that fails on a slower host.
+    FAILURE MODE IF TOO LOW: tone knobs stay at "--" after an amp change and
+    the log shows the queries going out with no replies behind them. Harmless
+    and obvious — it cannot corrupt a patch.
+    BETTER FIX WHEN IT MATTERS: make it adaptive the way the nav pull already
+    is — fire the first query immediately and poll a receipt counter rather
+    than sleeping a guessed interval. That removes the constant entirely and
+    self-adjusts per machine. Deferred as not worth the work today.
+
+  USB 3.x OPERATION — UNTESTED UNDER THIS APP. Avid specifies USB 2.0 for the
+    Eleven Rack. The unit did appear to run on a 3.x port during this
+    project's earliest days, but 2.0 was used from then on out of caution and
+    nothing since has been checked against 3.x. Worth a test: this app is far
+    lighter on the bus than the Avid editor, but it still rides the Avid
+    driver, so the driver's constraints are ours regardless of how little we
+    ask of it. Test before assuming, and re-check AMP_CHANGE_SETTLE and the
+    nav timings on 3.x if it does run.
+
+  RIG TEMPO CONTROL (CMD 0x50) — CLOSED 7/24/2026. Fully decoded from the
+    six-point calibration capture this section asked for, shipped as a
+    digital-clock field on the chain strip. Encoding, message forms and the
+    rebroadcast cost warning are in Section 18. The earlier partial reading
+    on this line (a non-reciprocal inverse with a ~98:1 span, and a startup
+    reply that was "not the tempo value") was wrong on both counts and is
+    retracted there; nothing about it is worth re-deriving.
+    STILL UNVERIFIED, one glance each: does the rack accept a written tempo
+    below 10.0 or above 500.0 — i.e. are those limits the rack's or just the
+    editor's? Our field clamps to them regardless.
+    The rack's FINE button repurposes the scroll wheel to the decimal place;
+    our tenths segment does the same job and is already implemented.
 
   AMP OUT ENDPOINTS — the corrected scale (Sec 18) implies -58.8 dB at v127=0
     and +17.4 dB at v127=127. Neither is checked against the rack. One glance
@@ -2100,6 +2288,105 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-24 (docs, correction) — CMD 0x37 (To Amp Source) history corrected from
+  Charlie's firsthand account. Prior text softened it to "firmware assert (7/17
+  x2), recovered" plus a separate "7/14 factory reset". The truth: three bricks,
+  all from 0x37 selects, across two non-consecutive days, EVERY one a full
+  factory reset — there is no recoverable-assert version of this command. Knobs
+  (0x36 volume) never asserted or bricked and are fully exonerated; day 1 they
+  merely did not work, day 2 they were made to work. The brick-on-assert
+  behaviour is specific to 0x37 — asserts during TFX learning and front-panel
+  oddities recovered with nav-away/back. Sec 18, Sec 20 and the Primer safety
+  note all updated to state assert-equals-brick plainly and stop implying a
+  safe query-first path exists. Dates left approximate at Charlie's direction.
+
+2026-07-24 (docs, workflow) — Primer clarified: the masters are folded ONCE at
+  wrap, not regenerated every turn. During a session, findings go to the
+  session log only; full Technical Reference / Primer output on every pass is
+  waste and adds rewrite risk (dropped sections, reordered conflicts). Added to
+  HOW UPDATES WORK and to the FINALIZATION preamble, with the one exception:
+  fold mid-session only when a finding changes the next step (a retraction to
+  be built on, or a safety item). Prompted by a session that produced full docs
+  five times before wrap.
+
+2026-07-24 (docs, review, evening) — Review of the rig-tempo/GUI session. The
+  fold-in was clean and the three retractions were done in place; one stale
+  spot remained. The Primer's "NEXT SESSION — RIG TEMPO CONTROL" block still
+  described the task as unfinished, quoting the ~98:1 non-reciprocal reading
+  that the SAME session had just disproved. Same pattern as every prior sweep:
+  the correction lands where the work happened (Sec 18, Sec 21), the stale copy
+  sits in a forward-looking or list section nobody reopened. Replaced it with
+  the effect-panel next task. No other issues; baseline intact, conflicts in
+  order, 38 sections present.
+
+2026-07-24 (code + protocol, evening) — RIG TEMPO SOLVED AND SHIPPED. CMD 0x50
+  is microseconds per beat as four 6-bit digits; BPM = 60000000/us. Exact on
+  all six calibration points and the encoder reproduces every captured message
+  byte for byte. Full entry in Section 18, REQU form added to Section 5, and
+  the Section 6 line corrected — it had CMD 0x50 as a firmware-version query,
+  which was simply wrong. Section 21's open question closed, with both of its
+  earlier claims retracted in place: the relationship IS a simple reciprocal,
+  and the "byte identical, therefore not the tempo value" startup reply
+  decodes to exactly 120.0 BPM, the default.
+  THE LESSON, worth more than the value: the whole 7/23 dead end came from
+  assuming 7-bit bytes because everything else in this protocol uses them.
+  Every byte in the capture was under 0x40. Check the observed byte ceiling
+  before assuming a field width — the ceiling is data.
+  GUI: chain strip right-hand group rebuilt. The "drag blocks to reorder" hint
+  removed (10px on #555, unreadable). Stereo/Mono badge now carries the
+  margin-left:auto that pushes the group right, and STEREO is green like an
+  active block instead of near-invisible grey — MONO stays amber. Its click
+  behaviour is UNCHANGED and still writes (CMD 0x0D, confirmed 7/18). New
+  TEMPO field sits one button-width to its right: a digital clock with
+  click-selectable whole and tenths segments, stepper, wheel, up/down keys and
+  direct typing committed on Enter or blur. Writes throttled on a 150 ms
+  trailing timer because a tempo change makes the rack rebroadcast every
+  tempo-synced parameter in the chain. Nav pull phase 4 gains one tempo query.
+  LAYOUT REFINED same day after a first build: badge moved to the end of the
+  chain flow with a state-driven connector line (2=STEREO/1=MONO) in front of
+  it, and the tempo label stacked above its number box. Sec 10 UI note updated.
+
+2026-07-24 (docs, review, later) — Primer gains SESSION START item 5: a review
+  session should REQUEST specific code when the docs alone cannot settle a
+  question, rather than waiting to be offered it. Reason: a review compares
+  documents against each other, and code is invisible unless attached to the
+  message — being in the project folder does not make it readable. That leaves
+  doc-vs-code drift undetectable by default: a session that documents a fix but
+  ships something slightly different would pass every check now in place.
+  The item lists the four trigger conditions, the file mapping, and the limit —
+  it catches "the doc says 0.6, the code says 0.61", not design problems.
+
+2026-07-24 (docs, review) — Review sweep. Purely additive session, nothing
+  superseded, no stale text found. Added one disambiguation to Section 20: its
+  "wait on the REPLY, never on a timer" dead end and Phase 12's
+  AMP_CHANGE_SETTLE are two different waits at two different points, and the
+  note now says so before someone reads them as contradictory and "fixes" one.
+  That is the C12 shape — two true statements about different things reading
+  as a conflict once compressed. Archived the 7/23 tremolo entry (Archive
+  Part 4) and wrote the archiving policy into the log header: a folded entry
+  leaves at the NEXT review cycle, keeping the most recent session visible.
+
+2026-07-24 — Amp model change now refreshes the tone stack from hardware.
+  Section 11 gains two blocks: PARAMETER STORAGE IS PER CHAIN SLOT (amp
+  params are shared storage under per-model labels — changing model never
+  clears a value, and two models can name one paramLo differently) and AMP
+  MODEL CHANGE — REFRESH SEQUENCE (0x0F is a parameter, not a chain map
+  change; no handle re-read). Section 21 records the settle-time constant as
+  provisional. Shipped in transport.js (ampBlockParamLos, ampParamQuery,
+  requestAmpBlockParamsAfterAmpChange) and sysex-handler.js (0x0F handler).
+  METHOD NOTE: the whole finding came from four user observations against the
+  Avid editor, no capture required — same-layout change still blanked, values
+  returned after a round trip, an edit under one model's label reappeared
+  under another's, and cab type changes already behaved correctly. The last
+  of those was the tell: one path in the app re-read after a change and the
+  other did not.
+  PROCESS NOTE: the Primer's session-start check was skipped this session and
+  the docs were read only after the finding was reached independently. It
+  cost nothing here — nothing in the Tech Ref contradicted the finding, and
+  the code comments carried enough context to work from — but that was luck,
+  not method. The check exists for the case where the docs would have said
+  "already tried, see Section 20".
 
 2026-07-23 (docs) — Review sweep of the navigation session. Deleted a stale
   sentence in Section 3 that had survived directly beneath the correction
