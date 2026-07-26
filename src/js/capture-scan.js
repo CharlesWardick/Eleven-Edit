@@ -144,6 +144,16 @@ function clearStaleReadoutsOnNav() {
   document.getElementById('amp-out-val').textContent = '--';
   document.getElementById('gate-thresh-val').textContent = '--';
   document.getElementById('gate-release-val').textContent = '--';
+  // Item A: a full patch change forgets every knob's "changed" state; the new
+  // patch re-baselines. Main knobs re-baseline at the end of the nav pull;
+  // effect knobs re-baseline on next panel open — so drop the whole store here.
+  if (typeof clearFxBaselines === 'function') clearFxBaselines();
+  // Also drop the OLD patch's main-knob baseline right now, so the incoming
+  // values paint plain amber during the pull instead of flashing red until the
+  // end-of-pull snapshot runs.
+  if (typeof clearMainKnobBaselines === 'function') clearMainKnobBaselines();
+  // Item: a fresh patch is clean — reset the SAVE-button dirty latch.
+  if (typeof clearPatchDirty === 'function') clearPatchDirty();
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -206,6 +216,8 @@ async function loadTfxFromDisk() {
     requestPatchStateAfterNav();
 
     setStatus('Loaded "' + name + '" — memory only, not saved to any slot yet');
+    // Loaded content is uncommitted, so the patch is dirty — light SAVE.
+    if (typeof markPatchDirty === 'function') markPatchDirty();
     appLog('Load complete: ' + name);
   } catch(e) {
     appLog('Load TFX error: ' + e.message);
@@ -260,6 +272,13 @@ async function saveCurrentPatchToSlot(nameOverride) {
 // update happens before capture so the TFX filename matches the slot.
 async function saveToRackAndDisk(name) {
   await saveCurrentPatchToSlot(name);
+  // A rack commit makes the slot match the buffer, so the current values ARE
+  // the new saved truth: re-baseline knobs (main + effect) and clear dirty.
+  // Save-to-Disk does NOT call this, so after a disk-only save the knobs stay
+  // red and SAVE stays green — the patch is still unsaved to the rack.
+  if (typeof captureKnobBaselines === 'function') captureKnobBaselines();  // main knobs -> amber
+  if (typeof clearFxBaselines === 'function') { clearFxBaselines(); rebaselineOpenFxPanel(); }
+  if (typeof clearPatchDirty === 'function') clearPatchDirty();   // saved = clean
   // Short settle before pulling SEND_PATCH — hardware needs to finish
   // the commit sequence before we read back what is now in the slot.
   await sleep(500);

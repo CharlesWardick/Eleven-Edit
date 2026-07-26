@@ -1033,7 +1033,7 @@
   <div class="bt-sep"></div>
   <!-- SAVE ▾ consolidated button -->
   <div style="position:relative;">
-    <button class="bt-btn green" id="btn-save-menu">SAVE ▾</button>
+    <button class="bt-btn" id="btn-save-menu">SAVE ▾</button>
     <div id="save-dropdown">
       <div class="save-dd-item" id="save-dd-rack">Save to Rack…</div>
       <div class="save-dd-item" id="save-dd-disk">Save to Disk</div>
@@ -1389,6 +1389,16 @@ document.getElementById('breakup-slider').addEventListener('input', function() {
 document.getElementById('breakup-slider').addEventListener('change', function() {
   sendCabParamWrite(0x18, parseInt(this.value));
 });
+// Scroll wheel on the slider (item 4, 7/26). One notch = 1 unit, wheel up =
+// increase; send is throttled like the knobs so a fast spin cannot flood.
+document.getElementById('breakup-slider').addEventListener('wheel', function(e) {
+  e.preventDefault();
+  var v = Math.max(0, Math.min(127, parseInt(this.value) - Math.sign(e.deltaY)));
+  this.value = v;
+  document.getElementById('breakup-val').textContent = (Math.round(v / 127 * 100) / 10).toFixed(1);
+  if (typeof queueKnobSend === 'function') queueKnobSend('breakup', function(val){ sendCabParamWrite(0x18, val); }, v);
+  else sendCabParamWrite(0x18, v);
+}, { passive: false });
 
 // ════════════════════════════════════════════════════════════════════
 // AMP / CAB BYPASS — display only (chain reorder not yet supported)

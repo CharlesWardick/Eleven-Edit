@@ -583,6 +583,35 @@ IMPLEMENTATION:
   moved, since slot IDs name the blocks. Verified by reconstructing four
   documented moves from the data alone.
 
+  HANDLES ALSO CHANGE ON SAVE — confirmed 7/26/2026. A save commit makes the
+  firmware re-instantiate the patch and reassign block handles, exactly like a
+  reorder does. Observed the amp handle walk 7D -> 0C -> 1A and 1C -> ... -> 42
+  across successive saves in one session. Consequence: after a save, our
+  currentParamHi points at the OLD amp handle. SW knob writes then hit a dead
+  handle (knobs "go dead"), and incoming broadcasts arrive from the NEW handle
+  and get dropped as mismatches ("instId 0x1d does not match currentParamHi").
+  FIX (shipped 7/26): the isSave branch re-reads the chain map immediately after
+  a save confirms, so currentParamHi and the effect handles refresh at once.
+  See Sec 15.
+
+  SELF-HEAL FOR HANDLE DRIFT (shipped 7/26). Belt-and-suspenders for any path
+  that leaves currentParamHi stale: if HANDLE_RESYNC_THRESHOLD (5) CMD 0x11
+  broadcasts in a row arrive for a handle we do not recognise, sysex-handler
+  re-reads the chain map once (debounced HANDLE_RESYNC_COOLDOWN = 2000 ms) to
+  resync, instead of ignoring them forever. Logs "Self-heal: ... re-reading
+  chain map to resync". This is why a physical knob turn could revive dead SW
+  knobs before the post-save fix existed — the HW broadcast tripped the resync.
+
+  KNOB-WRITE FLOOD IS WHAT FORCES A BAD RESYNC — mitigation shipped 7/26. An
+  un-paced knob drag sent one CMD 0x11 write per mouse-move (~48/s measured).
+  That flood swamps the rack, which reassigns the amp handle MID-DRAG and starts
+  broadcasting from the new one while we still hold the old currentParamHi — the
+  "dead in both directions" state. ui.js now throttles all knob/slider writes
+  through queueKnobSend (trailing, KNOB_SEND_INTERVAL = 60 ms, per-control),
+  mirroring the tempo throttle. On-screen motion stays instant; only the HW
+  write is paced, and the final value always lands. Pre-existing bug, not from
+  the 7/26 UI work; reproduced on the prior build.
+
 ===================================================================
 5. CONFIRMED REQU COMMANDS
 ===================================================================
@@ -1365,6 +1394,26 @@ NOT YET: save-to-different-slot (slot picker UI). Protocol is identical to
 current save — only the target slot number changes. When built, Load TFX
 → Save to Different Slot serves as "copy file into any slot".
 
+POST-SAVE HANDLE REFRESH (7/26/2026). A commit re-instantiates the patch and
+REASSIGNS block handles (see Sec 4), so after the save-confirm bulk broadcast
+our currentParamHi and effect handles are stale — SW knobs would write to a
+dead handle until a HW broadcast tripped the self-heal. The isSave branch now
+re-reads the chain map right after confirming a save (logs "Post-save:
+re-reading chain map ..."), which refreshes currentParamHi, currentChain,
+bypass, and any open effect panel. This is also where the knob-colour baseline
+and FX-truth baselines are re-anchored to the just-saved values, and the SAVE
+dirty latch is cleared (see Primer, 7/26 UI features).
+
+NAME BEHAVIOUR (for reference — working as intended):
+  - Save to Rack writes the name INTO the patch (CMD 0x05) before commit, then
+    captures the TFX; the file's internal name and its filename both match.
+  - Save to Disk only sets the filename (currentPatchName, with a "_manual"
+    suffix via the manual-capture path); it does NOT write the name into the
+    patch body, so the file's internal name stays whatever the buffer held.
+    On reload the app reads the INTERNAL name, so a disk-saved file can load
+    back showing a different name than its filename. Charlie confirmed 7/26
+    this is intended; documented so it is not "fixed" by mistake.
+
 
 ===================================================================
 16. LOAD TFX PROTOCOL (file -> hardware memory)
@@ -1424,6 +1473,10 @@ RIG VOLUME: CC 17 sends (all amps). CMD 0x07 live readback. REQU RIG_VOL
 reads current. Range val=0 -> -24.0 dB, val=127 -> 0.0 dB. Note: the Rig
 Volume knob is absent from the front panel on Tweed and some other models but
 exists in the editor for all; CC 17 changes it on hardware regardless.
+  PER-PATCH — confirmed 7/26/2026 (Charlie, save/nav test): Rig Volume, the two
+  To Amp volumes, and Rig Tempo (Sec on CMD 0x50) are all stored in patch data —
+  they persist with the patch, differ between patches, and editing any of them
+  marks the patch dirty (the SAVE button latches; HW and Avid do the same).
 
 TO AMP 1 / 2 VOLUME (CMD 0x36):
   Confirmed wire format 7/17/2026 from HW knob capture + Avid USB capture
@@ -1513,8 +1566,15 @@ TO AMP SOURCE (CMD 0x37):
 
 
 RIG TEMPO — CMD 0x50. FULLY DECODED 7/24/2026 (Tempo_Settings.pcapng).
-  Rig level, not per patch — same class of control as Rig Volume, which is
-  why it lives beside the Stereo/Mono badge in the GUI and not in a panel.
+  PER-PATCH — corrected 7/26/2026. The live value is broadcast rig-wide (front
+  panel, Avid, our echo), which earlier read as "rig level, not per patch," but
+  Charlie confirmed by test that the value is STORED IN THE PATCH: save a patch,
+  navigate away and back, and the tempo persists and differs between patches;
+  editing it flags the patch dirty on the hardware and in the Avid editor, same
+  as Rig Volume and the To Amp volumes (see Sec 18). Treat tempo, Rig Vol and
+  To Amp 1/2 alike: per-patch values that happen to sit outside a panel in the
+  GUI. (The stale transport.js comment near the nav pull still calls tempo "not
+  per patch — strictly a refresh"; harmless, but correct it when next in there.)
 
   THE PAYLOAD IS MICROSECONDS PER BEAT — the standard MIDI tempo quantity —
   carried as a 24-bit number split into four SIX-BIT digits, most
@@ -1733,7 +1793,38 @@ CHAIN / DANGER:
 21. OPEN QUESTIONS & PENDING WORK
 ===================================================================
 
-NEXT / IMMEDIATE:
+CODE-COMMENT DRIFT TO FIX (doc-vs-code, next time in the file):
+  transport.js has a stale comment near the nav pull calling Rig Tempo "not per
+  patch — strictly a refresh". Tempo is PER-PATCH (confirmed 7/26; Sec 18 / CMD
+  0x50). Harmless at runtime — the comment does not drive behaviour — but
+  correct it when next editing transport.js so code and docs agree. Flagged
+  here so it is not lost in a parenthetical.
+
+KNOWN LIMITATION — ACCEPTED, NOT FIXING (rapid SW nav bounce, 7/26/2026):
+  Machine-gunning the SW patch arrow (~6 recalls/s, far past normal use) makes
+  the rack fall behind and return CMD 0x02 slot confirmations out of order,
+  even backward. The app advances position per click but also trusts a late
+  stale confirmation and resets to it, so the next clicks re-navigate from the
+  old slot -> the rack is driven backward -> patches "cycle". The nav-pull
+  abandon guard held (225 pulls abandoned in the test, read side never piled
+  up) and it SELF-RECOVERED, landing cleanly on the intended-ish slot. Normal
+  navigation has been solid for weeks; no real user nav's this way. DECISION
+  (Charlie, 7/26): note but do not fix — reworking position tracking is not
+  worth the risk. IF revisited: (1) pace/coalesce recall sends on a trailing
+  timer toward the latest target; (2) track nav INTENT and ignore CMD 0x02
+  confirmations for slots already passed, settling + pulling once when the
+  confirmation matches intent (mirrors the HW scroll wheel, which coalesces
+  internally and reports only the landing patch).
+
+SCROLL WHEEL (item 4) — status 7/26/2026:
+  DONE: wheel now works on amp tone knobs, DIST/REVERB knobs, and the Speaker
+  Breakup slider (added 7/26), joining Gate/To Amp/Rig Vol/Amp Out. One notch =
+  1 hardware unit; sends throttled via queueKnobSend.
+  DROPPED (Charlie, 7/26): scroll to cycle the Cab/Mic dropdowns — not wanted.
+  FUTURE (with item B / Settings): configurable scroll increment + drag
+  sensitivity, saved to settings.json.
+
+
   AMP_CHANGE_SETTLE — PROVISIONAL VALUE (transport.js, added 7/24/2026).
     Flat delay between the amp-model echo and the block re-query. Started at
     150 ms (borrowed from the REVERB panel), reduced to 100 ms after testing;
@@ -2288,6 +2379,40 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-26 (docs, review) — Review sweep of the UI/handle session. Purely
+  additive fold-in; baseline intact, conflicts in order, 38 sections. Verified
+  the "saves reassign handles" finding sits consistently in Sec 4 alongside the
+  reorder and Stereo/Mono handle-change blocks (three triggers, one shared rule:
+  never cache a handle across a chain map). Confirmed with Charlie that every
+  7/26 item was hardware-tested the same day, so the session log's "not yet
+  tested" status lines were stale relative to its own finalization footer;
+  archived the four verbose build entries to Archive Part 5 and kept the
+  finalization note. Promoted the session's self-flagged stale transport.js
+  tempo comment from a buried parenthetical to a visible Sec 21 to-do — live
+  doc-vs-code drift, exactly what SESSION START item 5 exists to surface.
+  No protocol issues found.
+
+2026-07-26 (UI + protocol) — SESSION SUMMARY. Six UI features plus two protocol
+  corrections, all tested by Charlie the same day.
+  UI (details in Primer CURRENT APP STATE): (1) knob colour-state — knobs go red
+  when a value differs from the loaded patch (amber base for amp/main, green for
+  effect panels); (2) effect-panel red-state now PERSISTS across panel switches
+  (per-effect baseline store), matching how the amp panel holds truth; (3) SAVE
+  button dirty latch — grey until the first patch edit, green until nav or save;
+  (4) Save to Disk keeps the patch dirty (only a rack commit cleans it);
+  (5) knob-write flood fixed — trailing throttle on all knob/slider writes, plus
+  a post-save chain-map re-read and a handle-mismatch self-heal (see Sec 4/15);
+  (6) scroll wheel added to amp tone knobs, DIST/REVERB knobs, and the Breakup
+  slider.
+  PROTOCOL CORRECTIONS: Rig Tempo, Rig Volume, and To Amp 1/2 are PER-PATCH
+  (Sec 18 and the CMD 0x50 entry) — corrected from the earlier "rig level, not
+  per patch" note, confirmed by Charlie's save/nav test. Saves REASSIGN block
+  handles just like reorders do (Sec 4/15) — the root cause of post-save "dead
+  SW knobs". Name behaviour clarified (Sec 15): Save to Rack writes the name into
+  the patch; Save to Disk only names the file — intended.
+  Files touched: ui.js, sysex-handler.js, transport.js, capture-scan.js,
+  index.html. All changes additive; no regressions found in Charlie's testing.
 
 2026-07-24 (docs, correction) — CMD 0x37 (To Amp Source) history corrected from
   Charlie's firsthand account. Prior text softened it to "firmware assert (7/17

@@ -295,3 +295,56 @@ exists so no finding vanishes without a trace.
   2026-07-21         DIST paramLo numbers — all five models
   2026-07-21         DIST panel POC — Phase 9 (effect panel pattern established)
 Full text: ElevenEdit_Archive.txt, Parts 2, 3 and 4.
+
+───────────────────────────────────────────────────────────────────
+[ARCHIVED 2026-07-26] The four verbose 7/26 build entries (knob colour state,
+SAVE dirty latch, knob-drag MIDI flood fix, scroll-wheel extension) are folded
+and confirmed in the masters per the finalization note below; full working
+detail moved to ElevenEdit_Archive.txt, Part 5.
+───────────────────────────────────────────────────────────────────
+
+2026-07-26 — ITEM 4 (partial): SCROLL WHEEL on remaining knobs + slider
+STATUS: PROVISIONAL — built, not yet tested by Charlie.
+Adds mouse-wheel support to the controls that lacked it: amp tone knobs,
+DIST knobs, REVERB knobs, and the Speaker Breakup slider. (Gate / To Amp /
+Rig Vol / Amp Out already had it via initKnob.)
+DESIGN: one notch = 1 hardware unit (finest the rack accepts, matching the
+existing scrollable knobs); wheel up = increase. New delegated document-level
+'wheel' handler in ui.js routes tone/dist/reverb by their data-* keys; the
+slider gets its own 'wheel' listener in index.html. Every scroll send goes
+through queueKnobSend (the drag throttle), so a fast spin cannot flood the
+rack. Red "changed" colour and the SAVE dirty latch follow for free (same send
+path). Speed(0x11)/Sync interlock mirrored from the drag handler.
+NOT DONE (still open from the morning's item 4, deferred by Charlie): scroll to
+cycle the Cab / Mic dropdowns and toggle Mic Axis. Also still FUTURE: a
+configurable scroll increment in Settings (belongs with item B).
+FILES: ui.js, index.html.
+RETEST: hover each amp tone knob, each DIST/REVERB knob, and the Breakup slider;
+scroll up/down — value should step by ~0.1 on the 0-10 knobs, knob goes red,
+SAVE lights, and a fast spin should not produce a "does not match" burst.
+
+═══════════════════════════════════════════════════════════════════
+2026-07-26 — FOLDED IN (finalization)
+═══════════════════════════════════════════════════════════════════
+All 2026-07-26 provisional findings above have been promoted into the living
+reference docs and are now CONFIRMED there. Nothing below needs re-folding.
+  -> Technical Reference:
+       Sec 4  — handles reassigned on SAVE; knob-write throttle; self-heal.
+       Sec 15 — post-save chain-map re-read; Save-to-Rack vs Save-to-Disk name
+                behaviour (intended).
+       Sec 18 + CMD 0x50 entry — Rig Tempo / Rig Volume / To Amp 1-2 are
+                PER-PATCH (corrected from "rig level, not per patch").
+       Sec 21 — accepted rapid-SW-nav bounce limitation; scroll-wheel status
+                (done for knobs+slider; Cab/Mic dropdown scroll dropped;
+                increment config deferred to item B).
+       Sec 24 — dated session summary.
+  -> Primer:
+       CURRENT APP STATE — 7/26 UI pass (colour-state, FX truth, dirty latch,
+                throttle, scroll wheel).
+       CODE FILE MAP — ui.js / sysex-handler.js / transport.js / capture-scan.js
+                updated with the new functions.
+REMAINING (not fixed, by decision or scope): rapid-nav bounce (accepted);
+  Cab/Mic dropdown + Mic Axis scroll (dropped/deferred); configurable scroll
+  increment + knob-style Appearance panel (item B, next session); stale
+  transport.js comment calling tempo "not per patch" (harmless, fix when next
+  editing that file).

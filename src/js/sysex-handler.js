@@ -5,6 +5,12 @@
 // transport.js — it calls into both, plus ui.js and capture-scan.js.
 // ════════════════════════════════════════════════════════════════════
 
+// Self-heal state for the amp-handle resync (see the CMD 0x11 mismatch branch).
+var _handleMismatchCount    = 0;
+var _lastHandleResyncMs     = 0;
+var HANDLE_RESYNC_THRESHOLD = 5;      // consecutive unknown-handle broadcasts
+var HANDLE_RESYNC_COOLDOWN  = 2000;   // ms between resync attempts
+
 async function parseSysEx(data) {
   if (data.length < 6) return;
   if (data[0] !== 0xF0 || data[1] !== 0x13 || data[2] !== 0x0B ||
@@ -90,6 +96,19 @@ async function parseSysEx(data) {
       updateCabMicReadouts(decodeCabMicValues(body));
       updateMonoIndicator(decodeMonoStereo(body));
       updateToAmpVolumeReadouts(decodeToAmpVolumes(body));
+      captureKnobBaselines();   // saved values are the new "unchanged" baseline
+      clearFxBaselines();       // effect truth is now the saved state:
+      rebaselineOpenFxPanel();  //   re-anchor an open panel, others on next open
+      if (typeof clearPatchDirty === 'function') clearPatchDirty();  // saved = clean
+      // A save makes the rack re-instantiate the patch and REASSIGN block
+      // handles, so currentParamHi (and the effect handles) are now stale —
+      // SW knob writes would hit the old amp handle and appear dead until a HW
+      // knob turn triggers the self-heal. Re-read the chain map now to refresh
+      // all handles (and currentChain / bypass / effect panels) proactively.
+      if (typeof REQU_CHAIN_MAP !== 'undefined') {
+        appLog('Post-save: re-reading chain map to refresh reassigned block handles');
+        sendHex(REQU_CHAIN_MAP);
+      }
       const captureName = (currentPatchName || 'patch').replace(/[\\/:*?"<>|]/g, '_').substring(0,24);
       try {
         const result = await window.electronAPI.saveTfx(captureName, payload);
@@ -125,6 +144,11 @@ async function parseSysEx(data) {
         updateCabMicReadouts(decodeCabMicValues(body));
         updateMonoIndicator(decodeMonoStereo(body));
         updateToAmpVolumeReadouts(decodeToAmpVolumes(body));
+        // NOTE: do NOT re-baseline knob colours here. This branch is a generic
+        // readback of the CURRENT buffer — it fires on manual "Capture Now" and
+        // on Save-to-Disk, where the buffer may be dirty. Re-baselining would
+        // wrongly turn red knobs amber. Baselines are set only on a true patch
+        // load (end of the nav pull) and on a rack commit (save paths).
       } else {
         appLog('Bulk response for slot ' + slotNum + ' ignored — stale (currentSlot now ' + currentSlot + ')');
       }
@@ -566,8 +590,24 @@ async function parseSysEx(data) {
     if (instId !== currentParamHi || currentParamHi < 0) {
       appLog('CMD 0x11 instId=0x' + instId.toString(16).padStart(2,'0') +
         ' — does not match currentParamHi=0x' + (currentParamHi<0?'(none)':currentParamHi.toString(16).padStart(2,'0')) + ', ignored');
+      // SELF-HEAL (item, 7/26): a run of mismatches means the rack reassigned the
+      // amp's handle (e.g. after a flood) and is broadcasting from one we no
+      // longer recognise — the "knobs go dead both ways" state. Re-read the chain
+      // map once to re-establish currentParamHi, debounced so a burst triggers a
+      // single resync, not a storm. The throttle above should prevent the flood
+      // that gets us here; this is the safety net if one ever slips through.
+      _handleMismatchCount++;
+      var _nowMs = Date.now();
+      if (_handleMismatchCount >= HANDLE_RESYNC_THRESHOLD &&
+          (_nowMs - _lastHandleResyncMs) > HANDLE_RESYNC_COOLDOWN) {
+        _lastHandleResyncMs = _nowMs;
+        _handleMismatchCount = 0;
+        appLog('Self-heal: ' + HANDLE_RESYNC_THRESHOLD + '+ broadcasts for an unknown handle — re-reading chain map to resync');
+        if (typeof REQU_CHAIN_MAP !== 'undefined') sendHex(REQU_CHAIN_MAP);
+      }
       return;
     }
+    _handleMismatchCount = 0;   // a match means we are back in sync
 
     // paramLo 0x06 / 0x14 (amp / cab bypass) handled by the bypass routing
     // block above — they never reach here.

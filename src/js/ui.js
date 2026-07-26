@@ -4,10 +4,38 @@
 // as opposed to transport.js (sends/receives) or protocol.js (decodes).
 // ════════════════════════════════════════════════════════════════════
 
+// ── Knob colour states (item A, 7/26/2026) ──────────────────────────
+// The rack's line-pointer knobs glow to show state; we mirror that.
+//   amber = amp / main-panel base   green = fx (effect-panel) base
+//   red   = current value differs from the patch's SAVED baseline
+// Baseline = the value read back when the patch loads (see
+// captureKnobBaselines). Any move away from it — from our drag, the front
+// panel, or Avid — turns the knob red, exactly as the hardware pointer does.
+// Kept as named values so item B can later read them from settings.json.
+const KNOB_COLORS = {
+  amber: '#e0a020',   // was hardcoded throughout drawKnob
+  green: '#30c050',   // theme --green, matches active chain blocks
+  red:   '#e83828'    // uncommitted change
+};
+
+// Decide a knob's colour from its wrap: fx base if data-base="fx", red if a
+// baseline is stored and the current value differs from it.
+function knobColor(canvas, value127) {
+  const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
+  let base = KNOB_COLORS.amber;
+  if (wrap && wrap.dataset.base === 'fx') base = KNOB_COLORS.green;
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== ''
+      && parseInt(wrap.dataset.orig) !== value127) {
+    return KNOB_COLORS.red;
+  }
+  return base;
+}
+
 function drawKnob(canvas, value127) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   const cx = w/2, cy = h/2, r = (w-6)/2;
+  const knobCol = knobColor(canvas, value127);
 
   // 7 o'clock = 225° from top (12 o'clock), going clockwise
   // Canvas angles: 0 = right (3 o'clock), PI/2 = bottom, PI = left, 3PI/2 = top
@@ -29,7 +57,7 @@ function drawKnob(canvas, value127) {
   if (value127 > 0) {
     ctx.beginPath();
     ctx.arc(cx, cy, r-4, startRad, endRad);
-    ctx.strokeStyle = '#e0a020'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.strokeStyle = knobCol; ctx.lineWidth = 5; ctx.lineCap = 'round';
     ctx.stroke();
   }
 
@@ -47,11 +75,121 @@ function drawKnob(canvas, value127) {
   ctx.rotate(endRad + Math.PI/2);
   ctx.beginPath();
   ctx.arc(0, -(r-17), 4, 0, Math.PI*2);
-  ctx.fillStyle = '#e0a020'; ctx.fill();
+  ctx.fillStyle = knobCol; ctx.fill();
   ctx.restore();
 }
 
+// Drop main-panel baselines and repaint to base colour. Called at nav start so
+// the incoming patch's knobs show plain amber during the pull instead of a red
+// flash (the old patch's baseline would otherwise read every new value as
+// "changed"). The new baseline is taken at the end of the pull.
+function clearMainKnobBaselines() {
+  document.querySelectorAll('.knob-wrap:not([data-base="fx"])').forEach(function(w) {
+    delete w.dataset.orig;
+    var c = w.querySelector('canvas');
+    if (c && w.dataset.value !== undefined && w.dataset.value !== '')
+      drawKnob(c, parseInt(w.dataset.value) || 0);
+  });
+}
+
+// Snapshot every MAIN-PANEL knob's current value as its baseline. Called once
+// per patch load and once after a save, so the red "changed" state is measured
+// against the patch's saved values — not against a live edit. Effect-panel
+// knobs (data-base="fx") are excluded here; they baseline themselves when their
+// panel's params arrive (see updateDistKnob / updateReverbKnob), because those
+// values come in a separate query a moment later, not in this patch dump.
+function captureKnobBaselines() {
+  document.querySelectorAll('.knob-wrap:not([data-base="fx"])').forEach(function(w) {
+    if (w.dataset.value !== undefined && w.dataset.value !== '') {
+      w.dataset.orig = w.dataset.value;
+      var c = w.querySelector('canvas');
+      if (c) drawKnob(c, parseInt(w.dataset.value) || 0);  // reset colour to base
+    }
+  });
+}
+
 function valDisplay(v127) { return (v127/127*10).toFixed(1); }
+
+// ── Effect-panel knob baseline (item A, FX truth) ───────────────────
+// The effect-panel DOM is rebuilt every time a panel opens, so a knob's
+// "original" value cannot live only on the wrap or it is lost on reopen —
+// which is why FX knobs used to forget their red state after switching panels.
+// It lives here instead: one entry per effect slot, surviving open/close and
+// visits to other panels, exactly like the amp panel holds its truth.
+//   fxBaseline[slotId][loHex] = original value for THIS patch
+// Reset points:
+//   - full patch nav  -> clearFxBaselines() from clearStaleReadoutsOnNav()
+//   - effect model change -> clearFxBaselineForSlot() in the refresh funcs
+//   - save -> re-anchored to the just-saved values (sysex-handler save path)
+var fxBaseline = {};
+
+// ── SAVE-button dirty latch (item, 7/26) ────────────────────────────
+// Grey until the first patch edit, then green until the next patch nav or a
+// save. Pure latch — set once on change, never re-checks whether values were
+// put back. Global writes (To Amp source) and readbacks do not call these.
+function markPatchDirty() {
+  var b = document.getElementById('btn-save-menu');
+  if (b) b.classList.add('green');
+}
+function clearPatchDirty() {
+  var b = document.getElementById('btn-save-menu');
+  if (b) b.classList.remove('green');
+}
+
+// ── Knob write throttle (item, 7/26) ────────────────────────────────
+// A knob drag used to send one MIDI write per mouse-move — up to ~48/sec in a
+// captured session. That flood swamps the rack; it reassigns the amp's internal
+// handle mid-stream and starts broadcasting from the new one, which the app no
+// longer recognises ("instId does not match currentParamHi, ignored"), so the
+// knobs go dead in both directions and it looks like a disconnect. Same problem
+// the tempo control already solved. This trailing throttle coalesces rapid
+// changes per control: the on-screen knob still moves instantly (drawn locally);
+// only the hardware write is paced, and the final value always lands.
+var KNOB_SEND_INTERVAL = 60;   // ms between writes for one control while dragging
+var _knobSendTimers  = {};
+var _knobSendPending = {};
+function queueKnobSend(key, fn, val) {
+  _knobSendPending[key] = { fn: fn, val: val };
+  if (_knobSendTimers[key]) return;               // a write is already scheduled
+  _knobSendTimers[key] = setTimeout(function() {
+    _knobSendTimers[key] = null;
+    var p = _knobSendPending[key];
+    _knobSendPending[key] = null;
+    if (p) p.fn(p.val);                            // send the most recent value
+  }, KNOB_SEND_INTERVAL);
+}
+
+function clearFxBaselines() { fxBaseline = {}; }
+function clearFxBaselineForSlot(slotId) { delete fxBaseline[slotId]; }
+function fxBaselineGet(slotId, loHex) {
+  return fxBaseline[slotId] ? fxBaseline[slotId][loHex] : undefined;
+}
+// First value seen for a slot+lo this patch becomes its baseline; later calls
+// return that same stored baseline rather than overwriting it, so a reopened
+// panel measures the current (possibly changed) value against the original.
+function fxBaselineSetIfUnset(slotId, loHex, val) {
+  if (!fxBaseline[slotId]) fxBaseline[slotId] = {};
+  if (fxBaseline[slotId][loHex] === undefined) fxBaseline[slotId][loHex] = val;
+  return fxBaseline[slotId][loHex];
+}
+
+// After a save, whatever an open effect panel currently shows IS the saved
+// truth — re-anchor its baseline to now so those knobs read green again.
+function rebaselineOpenFxPanel() {
+  var slotId = -1, sel = '';
+  if (typeof distPanelOpen !== 'undefined' && distPanelOpen)        { slotId = SLOT_DIST;   sel = '#dist-knob-row .knob-wrap'; }
+  else if (typeof reverbPanelOpen !== 'undefined' && reverbPanelOpen){ slotId = SLOT_REVERB; sel = '#reverb-knob-row .knob-wrap'; }
+  if (slotId < 0) return;
+  document.querySelectorAll(sel).forEach(function(w) {
+    var loHex = w.dataset.distLo || w.dataset.reverbLo;
+    if (loHex === undefined || w.dataset.value === undefined || w.dataset.value === '') return;
+    var v = parseInt(w.dataset.value);
+    if (!fxBaseline[slotId]) fxBaseline[slotId] = {};
+    fxBaseline[slotId][loHex] = v;
+    w.dataset.orig = v;
+    drawKnob(w.querySelector('canvas'), v);
+  });
+}
 
 // Gate Threshold: 0=OFF, 1-127 maps -90dB to -20dB
 function valGateThresh(v127) {
@@ -184,14 +322,14 @@ function initKnob(wrapId, valId, dispFn, onChangeCB) {
     wrap.dataset.value = val;
     drawKnob(canvas, val);
     if (valSpan) valSpan.textContent = dispFn(val);
-    if (onChangeCB) onChangeCB(val);
+    if (onChangeCB) queueKnobSend('knob:' + wrapId, onChangeCB, val);
   });
   window.addEventListener('mouseup', () => { dragging = false; });
   window.addEventListener('blur', () => { dragging = false; });
   wrap.addEventListener('dblclick', () => {
     val = 64; wrap.dataset.value = 64;
     drawKnob(canvas, val); if (valSpan) valSpan.textContent = dispFn(val);
-    if (onChangeCB) onChangeCB(64);
+    if (onChangeCB) queueKnobSend('knob:' + wrapId, onChangeCB, 64);
   });
   wrap.addEventListener('wheel', e => {
     e.preventDefault();
@@ -199,7 +337,7 @@ function initKnob(wrapId, valId, dispFn, onChangeCB) {
     val = Math.max(0, Math.min(127, val - Math.sign(e.deltaY)));
     wrap.dataset.value = val;
     drawKnob(canvas, val); if (valSpan) valSpan.textContent = dispFn(val);
-    if (onChangeCB) onChangeCB(val);
+    if (onChangeCB) queueKnobSend('knob:' + wrapId, onChangeCB, val);
   }, { passive: false });
 }
 
@@ -1225,7 +1363,7 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
           appLog('Speed moved while Sync was on ' + SYNC_DIVISIONS[currentSyncZone].text
                  + ' — clearing Sync to OFF first (the rack does the same)');
         }
-        sendParamWrite(lo, val);
+        queueKnobSend('tone:' + lo, function(v) { sendParamWrite(lo, v); }, val);
       }
     }
   });
@@ -1245,9 +1383,80 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
     const ap = currentAmpKey ? AMP_TONE_PARAMS[currentAmpKey] : null;
     if (ap && currentParamHi >= 0) {
       const knobs = ap.knobs.filter(k => k.type === 'knob');
-      if (idx < knobs.length) sendParamWrite(knobs[idx].lo, 64);
+      if (idx < knobs.length) queueKnobSend('tone:' + knobs[idx].lo, function(v) { sendParamWrite(knobs[idx].lo, v); }, 64);
     }
   });
+})();
+
+// ════════════════════════════════════════════════════════════════════
+// SCROLL WHEEL on tone / DIST / REVERB knobs (item 4, 7/26)
+// The Gate / To Amp / Rig Vol / Amp Out knobs already scroll via initKnob;
+// these delegated-handler knobs did not. One notch = 1 hardware unit (the
+// finest the rack accepts), matching the other knobs. Wheel up = increase.
+// Sends go through the same throttle as drags so a fast spin cannot flood the
+// rack; the red "changed" colour and SAVE-dirty latch follow automatically
+// because the send path is identical.
+// ════════════════════════════════════════════════════════════════════
+(function() {
+  function step(wrap, e) {
+    var v = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    v = Math.max(0, Math.min(127, v - Math.sign(e.deltaY)));   // wheel up (deltaY<0) = increase
+    wrap.dataset.value = v;
+    drawKnob(wrap.querySelector('canvas'), v);
+    return v;
+  }
+  document.addEventListener('wheel', function(e) {
+    // Amp tone knobs (keyed by data-tone-idx, per-amp paramLo lookup)
+    var tw = e.target.closest('.knob-wrap[data-tone-idx]');
+    if (tw) {
+      var idx = parseInt(tw.dataset.toneIdx);
+      if (isNaN(idx) || idx < 0) return;
+      e.preventDefault();
+      var tv = step(tw, e);
+      var tEl = document.getElementById('tone-v' + idx);
+      if (tEl) tEl.textContent = valDisplay(tv);
+      var ap = currentAmpKey ? AMP_TONE_PARAMS[currentAmpKey] : null;
+      if (ap && currentParamHi >= 0) {
+        var knobs = ap.knobs.filter(function(k){ return k.type === 'knob'; });
+        if (idx < knobs.length) {
+          var lo = knobs[idx].lo;
+          // Speed (0x11): the rack ignores a Speed write while Sync is on a
+          // division and clears Sync when its own Speed knob moves — mirror the
+          // drag handler and clear Sync first.
+          if (lo === 0x11 && currentSyncZone !== 0) {
+            queueKnobSend('tone:12', function(){ sendParamWrite(0x12, 0); }, 0);
+          }
+          queueKnobSend('tone:' + lo, function(val){ sendParamWrite(lo, val); }, tv);
+        }
+      }
+      return;
+    }
+    // DIST knobs (keyed by data-dist-lo)
+    var dw = e.target.closest('.knob-wrap[data-dist-lo]');
+    if (dw) {
+      var dlo = parseInt(dw.dataset.distLo, 16);
+      if (isNaN(dlo)) return;
+      e.preventDefault();
+      var dv = step(dw, e);
+      var dEl = document.getElementById('dist-v-' + dw.dataset.distLo);
+      if (dEl) dEl.textContent = valDisplay(dv);
+      if (bridgeMidiReady) queueKnobSend('dist:' + dlo, function(val){ sendDistParamWrite(dlo, val); }, dv);
+      return;
+    }
+    // REVERB knobs (keyed by data-reverb-lo; the Type composite re-syncs its
+    // dropdown from the hardware echo, same as a drag)
+    var rw = e.target.closest('.knob-wrap[data-reverb-lo]');
+    if (rw) {
+      var rlo = parseInt(rw.dataset.reverbLo, 16);
+      if (isNaN(rlo)) return;
+      e.preventDefault();
+      var rv = step(rw, e);
+      var rEl = document.getElementById('reverb-v-' + rw.dataset.reverbLo);
+      if (rEl) rEl.textContent = valDisplay(rv);
+      if (bridgeMidiReady) queueKnobSend('reverb:' + rlo, function(val){ sendReverbParamWrite(rlo, val); }, rv);
+      return;
+    }
+  }, { passive: false });
 })();
 
 // ════════════════════════════════════════════════════════════════════
@@ -1349,7 +1558,7 @@ function renderDistKnobs(mid) {
         knobDiv.className = 'ctrl-knob';
         knobDiv.innerHTML =
           '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="dist-w-' + loHex + '" data-value="64" data-dist-lo="' + loHex + '">'
+          + '<div class="knob-wrap" id="dist-w-' + loHex + '" data-value="64" data-base="fx" data-dist-lo="' + loHex + '">'
           + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
           + '<span class="knob-val" id="dist-v-' + loHex + '">--</span>';
         rowDiv.appendChild(knobDiv);
@@ -1370,6 +1579,9 @@ function updateDistKnob(paramLo, val) {
   const wrap  = document.getElementById('dist-w-' + loHex);
   const valEl = document.getElementById('dist-v-' + loHex);
   if (wrap) {
+    // Display the current value; anchor the baseline in the persistent store so
+    // it survives panel close/reopen. First value this patch becomes the truth.
+    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_DIST, loHex, val);
     wrap.dataset.value = val;
     drawKnob(wrap.querySelector('canvas'), val);
   }
@@ -1386,6 +1598,7 @@ function refreshDistPanelAfterChainMap() {
   if (sel && parseInt(sel.value) !== distBlk.modelId) {
     sel.value = String(distBlk.modelId);
     renderDistKnobs(distBlk.modelId);
+    clearFxBaselineForSlot(SLOT_DIST);   // new model = new reference point
   }
   // Short delay so firmware handle assignment settles before we query
   setTimeout(requestDistParams, 150);
@@ -1418,7 +1631,7 @@ function refreshDistPanelAfterChainMap() {
     var loHex = activeParamLo.toString(16).padStart(2,'0');
     var vEl = document.getElementById('dist-v-' + loHex);
     if (vEl) vEl.textContent = valDisplay(val);
-    if (bridgeMidiReady) sendDistParamWrite(activeParamLo, val);
+    if (bridgeMidiReady) queueKnobSend('dist:' + activeParamLo, function(v) { sendDistParamWrite(activeParamLo, v); }, val);
   });
 
   window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
@@ -1434,7 +1647,7 @@ function refreshDistPanelAfterChainMap() {
     var loHex = paramLo.toString(16).padStart(2,'0');
     var vEl = document.getElementById('dist-v-' + loHex);
     if (vEl) vEl.textContent = valDisplay(64);
-    if (bridgeMidiReady) sendDistParamWrite(paramLo, 64);
+    if (bridgeMidiReady) queueKnobSend('dist:' + paramLo, function(v) { sendDistParamWrite(paramLo, v); }, 64);
   });
 })();
 
@@ -1508,7 +1721,7 @@ function renderReverbKnobs(mid) {
     tc.list.forEach(function(t, i) { opts += '<option value="' + i + '">' + t.name + '</option>'; });
     cell.innerHTML =
       '<label>' + tc.label + '</label>'
-      + '<div class="knob-wrap" id="reverb-w-' + loHex + '" data-value="64" data-reverb-lo="' + loHex + '">'
+      + '<div class="knob-wrap" id="reverb-w-' + loHex + '" data-value="64" data-base="fx" data-reverb-lo="' + loHex + '">'
       + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
       + '<select id="reverb-type-select" style="width:112px;margin-top:2px;'
       + 'background:#1a1a1a;color:var(--text);border:1px solid var(--border-dim);'
@@ -1539,7 +1752,7 @@ function renderReverbKnobs(mid) {
     knobDiv.className = 'ctrl-knob';
     knobDiv.innerHTML =
       '<label>' + cell.label + '</label>'
-      + '<div class="knob-wrap" id="reverb-w-' + loHex + '" data-value="64" data-reverb-lo="' + loHex + '">'
+      + '<div class="knob-wrap" id="reverb-w-' + loHex + '" data-value="64" data-base="fx" data-reverb-lo="' + loHex + '">'
       + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
       + '<span class="knob-val" id="reverb-v-' + loHex + '">--</span>';
     rowDiv.appendChild(knobDiv);
@@ -1579,6 +1792,8 @@ function updateReverbKnob(paramLo, val) {
   const wrap  = document.getElementById('reverb-w-' + loHex);
   const valEl = document.getElementById('reverb-v-' + loHex);
   if (wrap) {
+    // Baseline anchored in the persistent store — survives panel close/reopen.
+    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_REVERB, loHex, val);
     wrap.dataset.value = val;
     drawKnob(wrap.querySelector('canvas'), val);
   }
@@ -1605,6 +1820,7 @@ function refreshReverbPanelAfterChainMap() {
   if (sel && model && parseInt(sel.value) !== model.mid) {
     sel.value = String(model.mid);
     renderReverbKnobs(rvBlk.modelId);   // model actually changed — rebuild controls
+    clearFxBaselineForSlot(SLOT_REVERB);   // new model = new reference point
   }
   setTimeout(requestReverbParams, 150);
   appLog('refreshReverbPanelAfterChainMap: mid=0x' + rvBlk.modelId.toString(16).padStart(2,'0')
@@ -1632,7 +1848,7 @@ function refreshReverbPanelAfterChainMap() {
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }  // released outside the window
     var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
     updateReverbKnob(activeParamLo, val);
-    if (bridgeMidiReady) sendReverbParamWrite(activeParamLo, val);
+    if (bridgeMidiReady) queueKnobSend('reverb:' + activeParamLo, function(v) { sendReverbParamWrite(activeParamLo, v); }, val);
   });
 
   window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
@@ -1644,6 +1860,6 @@ function refreshReverbPanelAfterChainMap() {
     var paramLo = parseInt(wrap.dataset.reverbLo, 16);
     if (isNaN(paramLo)) return;
     updateReverbKnob(paramLo, 64);
-    if (bridgeMidiReady) sendReverbParamWrite(paramLo, 64);
+    if (bridgeMidiReady) queueKnobSend('reverb:' + paramLo, function(v) { sendReverbParamWrite(paramLo, v); }, 64);
   });
 })();

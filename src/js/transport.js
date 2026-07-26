@@ -262,6 +262,15 @@ function sendHex(hex) {
 // drag), one real sample at the center value (v0=0x40) shows v1-v4 all
 // zero — used here as the "just set it directly" pattern. This part is
 // NOT proven the way v0 is; test before trusting fully.
+// Per-patch write wrapper (item, 7/26): any write that changes patch data goes
+// through here so the SAVE button latches green (dirty). Global writes (To Amp
+// source) and all queries/readbacks keep calling sendHex directly and never
+// mark dirty. The latch is cleared on patch nav and on save.
+function sendPatchWrite(hex) {
+  if (typeof markPatchDirty === 'function') markPatchDirty();
+  return sendHex(hex);
+}
+
 function sendGateParamWrite(instId, paramId, v127) {
   if (instId == null || instId < 0) {
     appLog('sendGateParamWrite: no valid instance id, not sending');
@@ -272,7 +281,7 @@ function sendGateParamWrite(instId, paramId, v127) {
     + instId.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramId.toString(16).padStart(2,'0').toUpperCase() + ' '
     + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // ── CMD 0x11 parameter write — confirmed wire format 7/14/2026.
@@ -340,7 +349,7 @@ function sendParamWrite(paramLo, v127) {
     + currentParamHi.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
     + tail + ' F7';
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // ── CMD 0x11 cab/mic/speaker parameter write.
@@ -385,7 +394,7 @@ function sendCabParamWrite(paramLo, v127) {
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
     + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
   appLog('sendCabParamWrite: paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' v127=' + v127 + ' v0=0x' + v0.toString(16).padStart(2,'0'));
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // ── CMD 0x36 — To Amp volume. PER-PATCH, NOT GLOBAL (corrected 7/23/2026;
@@ -404,7 +413,7 @@ function sendToAmpVolume(slot, v127) {
     + slot.toString(16).padStart(2,'0').toUpperCase() + ' '
     + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
   appLog('sendToAmpVolume: slot=0x' + slot.toString(16).padStart(2,'0') + ' v127=' + v127 + ' v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase());
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // ── CMD 0x3A — To Amp source query. slot: 0x00=ToAmp1, 0x01=ToAmp2.
@@ -462,7 +471,7 @@ function sendMonoStereo(isMono) {
   const hex = 'F0 13 0B 0F 00 0D ' + val.toString(16).padStart(2,'0').toUpperCase() + ' F7';
   appLog('sendMonoStereo: ' + (isMono ? 'MONO' : 'STEREO') + ' val=0x' + val.toString(16).padStart(2,'0').toUpperCase());
   suppressMonoEcho = true;
-  sendHex(hex);
+  sendPatchWrite(hex);
 }
 
 // ── CMD 0x50 — Rig tempo set.
@@ -485,7 +494,7 @@ function sendRigTempo(bpm) {
           + hh(d[2]) + ' ' + hh(d[3]) + ' F7';
   appLog('sendRigTempo: ' + bpm.toFixed(1) + ' BPM  ('
          + Math.round(60000000 / bpm) + ' us/beat)  ' + hex);
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // ── Chain reorder — CMD 0x21 sent back with dir=0x00 (Tech Ref Sec 4).
@@ -521,7 +530,7 @@ function sendChainOrder(newOrder) {
   b.push(newOrder[9].slotId, 0xF7);
   const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
   appLog('sendChainOrder: ' + newOrder.map(x => x.name).join(' > '));
-  sendHex(hex);
+  sendPatchWrite(hex);
   return true;
 }
 
@@ -549,7 +558,7 @@ function sendBypassWrite(handle, paramLo, isActive) {
   appLog('sendBypassWrite: handle=0x' + handle.toString(16).padStart(2,'0').toUpperCase()
     + ' paramLo=0x' + paramLo.toString(16).padStart(2,'0').toUpperCase()
     + ' -> ' + (isActive ? 'ACTIVE' : 'BYPASSED'));
-  sendHex(hex);
+  sendPatchWrite(hex);
   return true;
 }
 
@@ -620,7 +629,7 @@ function sendRawParamWrite(instId, paramId, rawV0) {
 async function sendCC(cc, val) {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
   var hex = 'B0 ' + cc.toString(16).padStart(2,'0').toUpperCase() + ' ' + val.toString(16).padStart(2,'0').toUpperCase();
-  if (sendHex(hex)) monitorLog('OUT', 'CC ' + cc + ' → ' + val);
+  if (sendPatchWrite(hex)) monitorLog('OUT', 'CC ' + cc + ' → ' + val);
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -752,6 +761,10 @@ var NAV_QUERY_GAP    = 15;   // between ordinary queries
 var NAV_RECALL_SETTLE = 100; // after the patch recall, before querying
 var NAV_CHAIN_TIMEOUT = 900; // max wait for the chain map reply (see below)
 var NAV_AMP_TIMEOUT   = 700; // max wait for the amp identity reply (see below)
+var NAV_BASELINE_SETTLE = 250; // after the last query, before snapshotting the
+                               // knob-colour baseline (item A) — lets the async
+                               // CMD 0x11 replies land first. Raise if a freshly
+                               // navigated patch shows red knobs it should not.
 
 // Incremented on every nav. A sequence that finds its id superseded, or the
 // slot changed underneath it, abandons the rest of its queries so replies
@@ -999,6 +1012,14 @@ async function requestPatchStateAfterNav() {
   sendHex(REQU_TEMPO_READ);
   finish();
 
+  // Knob-colour baseline (item A). Normal navigation uses this targeted pull,
+  // not the CMD 0x01 bulk decode, so the main-panel knobs are populated by the
+  // async CMD 0x11 replies above. Snapshot their loaded values as the "unchanged"
+  // reference once those replies have settled; a later move (drag, front panel,
+  // Avid) then reads as red. Effect-panel knobs baseline themselves separately.
+  await sleep(NAV_BASELINE_SETTLE);
+  if (!stale() && typeof captureKnobBaselines === 'function') captureKnobBaselines();
+
   if (PROBE_UNKNOWN_QUERIES) { await sleep(300); await probeUnknownQueries(); }
   if (PROBE_AMP_PARAM_SWEEP) { await sleep(300); await probeAmpParamSweep(); }
 }
@@ -1030,7 +1051,7 @@ function sendDistModelChange(newMid) {
   b.push(currentChain[9].slotId, 0xF7);
   const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
   appLog('sendDistModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // ── Query all knob params for the current DIST model from hardware.
@@ -1062,7 +1083,7 @@ function sendDistParamWrite(paramLo, v127) {
     + distBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
     + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1088,7 +1109,7 @@ function sendReverbModelChange(newMid) {
   b.push(currentChain[9].slotId, 0xF7);
   const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
   appLog('sendReverbModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // Query all knob params for the current REVERB model from hardware.
@@ -1118,7 +1139,7 @@ function sendReverbParamWrite(paramLo, v127) {
     + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
     + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
-  return sendHex(hex);
+  return sendPatchWrite(hex);
 }
 
 // ════════════════════════════════════════════════════════════════════

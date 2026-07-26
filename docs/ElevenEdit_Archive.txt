@@ -1771,5 +1771,264 @@ NEXT:        Hardware test, Avid closed. Then, if Sync writes are wanted, the
 -------------------------------------------------------------------
 
 ===================================================================
+PART 5 — 7/26 UI PASS + POST-SAVE HANDLE BUG (working detail)
+===================================================================
+Moved from the session log 2026-07-26 after fold-in and hardware test. The
+build-by-build detail of the six-feature UI pass and the post-save "dead knobs"
+investigation. Conclusions are live in Tech Ref Sec 4 (handles reassign on
+save; knob-write throttle; handle-mismatch self-heal), Sec 15 (post-save
+chain-map re-read; Save-to-Rack vs Save-to-Disk naming), Sec 18 + CMD 0x50
+(Rig Tempo / Rig Volume / To Amp 1-2 are per-patch), Sec 21 (accepted rapid-nav
+bounce; scroll-wheel status), and the Primer's CURRENT APP STATE.
+
+Read this for the reasoning: how three symptoms (dead SW knobs after save,
+knobs reviving on a physical turn, "instId does not match" broadcasts) traced
+to one root cause — the firmware reassigning block handles on save — and how
+the throttle, post-save re-read, and self-heal each address a different leg of
+it.
+
+───────────────────────────────────────────────────────────────────
+2026-07-26 — ITEM A: KNOB COLOUR STATE (red-on-change)
+STATUS: PROVISIONAL — built, not yet tested on hardware by Charlie.
+NEXT: build EXE, confirm colours and baseline behaviour, then fold in.
+
+WHAT: knobs mirror the rack's line-pointer glow. amber = amp/main-panel
+base, green = fx (effect-panel) base, red = current value differs from the
+patch's SAVED baseline. Deviation from any source (our drag, front panel,
+Avid) shows red — confirmed with Charlie this is intended and matches the
+hardware pointer.
+
+CORRECTION TO PRIMER: the primer/plan said "TFX readback already stores the
+original." It does NOT — knobs stored only their current value (dataset.value);
+no baseline existed. Added one.
+
+DESIGN:
+  - Colours are named constants KNOB_COLORS {amber,green,red} at top of ui.js
+    (item B will move these to settings.json for persistence + colourblind
+    palette). amber #e0a020, green #30c050 (theme --green), red #e83828.
+  - drawKnob no longer hardcodes amber; a new knobColor(canvas,value) reads the
+    knob's wrap: data-base="fx" -> green base, else amber; if a baseline
+    (dataset.orig) is stored and differs from current -> red. Value arc AND
+    indicator dot both take the state colour; track stays dark.
+  - MAIN-PANEL baseline: captureKnobBaselines() snapshots dataset.value ->
+    dataset.orig for every .knob-wrap NOT marked fx. Called at the end of BOTH
+    CMD 0x01 decode paths in sysex-handler.js (save path + nav/load path), so
+    a nav or a save re-baselines.
+  - EFFECT-PANEL baseline: those values arrive in a separate query ~150 ms
+    after the patch dump, so they baseline themselves — updateDistKnob /
+    updateReverbKnob set orig on the FIRST value after a (re)render, and the
+    two refresh...AfterChainMap functions delete orig on nav so the re-query
+    re-baselines instead of showing red against the previous patch.
+
+FILES: ui.js (1649->1705, +56), sysex-handler.js (738->740, +2).
+
+KNOWN MINOR (watch for in testing): changing amp MODEL inside a patch resets
+tone knobs to 64 then repopulates; if the loaded baseline != those values the
+knobs may flash/settle red. Red there is arguably correct (the patch is now
+changed), but confirm it is not distracting.
+
+OPEN (item C, flagged 7/26): scroll wheel already steps 1 hardware unit — the
+finest the rack allows (integers 0-127). "0.2" seen on To Amp is one unit on
+its dB scale (~0.19 dB); tone ~0.08, Amp Out ~0.6. No true 0.1 step is
+possible. Real aim = more decimal places in the readout to test the rack's
+~0.1 physical deadband. Handle under item C.
+
+  ── 2026-07-26 FOLLOW-UP (test 1): main-panel knobs stayed amber ──
+  CAUSE: normal navigation uses the four-phase TARGETED pull
+  (requestPatchStateAfterNav in transport.js), not the CMD 0x01 bulk decode.
+  captureKnobBaselines() was only wired into the 0x01 path, which now fires
+  only on save/manual-capture — so on a normal nav the main knobs never got a
+  baseline and could never read red. (Effect-panel knobs self-baseline, so
+  they worked.) This is exactly the doc-vs-code drift the primer warns about:
+  the plan assumed the bulk-decode load path.
+  FIX: capture the baseline at the END of the nav pull, after NAV_BASELINE_SETTLE
+  (new, 250 ms, tunable) so the async CMD 0x11 replies land first. The 0x01
+  save/capture calls stay. transport.js 1133->1145 (+12).
+  RETEST: main knobs should now be amber at rest and red when moved off the
+  loaded value; nav to a new patch re-baselines. If a freshly navigated patch
+  shows red knobs it should not, raise NAV_BASELINE_SETTLE.
+
+  HW NOTE (Charlie, test 1): the rack's own knob does not change colour until
+  the change reaches ~0.3 (on the 0-10 scale) — a hardware deadband. Our SW is
+  exact (any step shows red). Worth confirming precisely under item C when we
+  add finer readout precision.
+
+  ── 2026-07-26 FOLLOW-UP (test 2): FX panels forgot red on reopen ──
+  OBSERVED (Charlie): amp panel holds truth across panel switches (red stays
+  where left); FX panels re-baselined to current values on reopen and went
+  green again — losing truth. Decision (agreed): keep truth, fix the FX panels
+  to persist, do NOT dumb the amp down to the hardware's per-screen reset.
+  WHY the HW resets: its 3 physical amp knobs are shared across screens; on
+  another screen the knob sits at the wrong position, so the rack suppresses
+  colour until you turn PAST the truth point, then it goes red. It never forgot
+  truth — it just can't reposition a physical knob. Our exact-value method is
+  the truth; the rack's colour is a physical-limitation artefact.
+
+  CAUSE: effect-panel knob DOM is rebuilt on every panel open, so orig (held on
+  the wrap) was wiped and re-seeded from the re-queried current value.
+  FIX: persistent per-effect baseline store fxBaseline[slotId][loHex] in ui.js.
+  First value seen per patch = truth; survives open/close and visits to other
+  panels. updateDistKnob / updateReverbKnob now read orig from the store, not
+  the DOM. rebaselineOpenFxPanel() re-anchors an open panel after a save.
+  Reset points:
+    - full patch nav  -> clearFxBaselines() added to clearStaleReadoutsOnNav()
+      (capture-scan.js) — the one choke point for SW, HW and first-connect nav
+    - effect model change -> clearFxBaselineForSlot() in the two refresh funcs
+      (kept OUT of the reorder case, which must not reset truth)
+    - front-panel save -> sysex-handler save path clears + rebaselineOpenFxPanel
+    - SW Save to Rack -> same, in saveToRackAndDisk (different path from HW save)
+  KNOWN GAP (accepted): if an effect is changed on the front panel BEFORE its
+  panel is ever opened this patch, first open baselines to the already-changed
+  value (query budget forbids reading every effect on every nav). Normal flow
+  nav->open->tweak is correct.
+
+  FILES this session (start -> now):
+    ui.js            1649 -> 1745  (+96)
+    sysex-handler.js  738 ->  742  (+4)
+    transport.js     1133 -> 1145  (+12)
+    capture-scan.js   270 ->  278  (+8)
+  All grew (additions only). STATUS still PROVISIONAL — retest, then fold in.
+
+───────────────────────────────────────────────────────────────────
+2026-07-26 — ITEM: SAVE-BUTTON DIRTY LATCH
+STATUS: PROVISIONAL — built, not yet tested by Charlie.
+
+WHAT: SAVE (#btn-save-menu) now starts grey like Load TFX and latches GREEN on
+the first patch edit, staying green until the next patch nav or a save. Pure
+latch — no polling, never re-checks whether a value was returned to original
+(matches how the HW and Avid editor flag a dirty patch, which we did not have).
+
+HOW: new sendPatchWrite(hex) wrapper in transport.js calls markPatchDirty()
+then sendHex(); the 13 per-patch write functions now send through it
+(sendGateParamWrite, sendParamWrite, sendCabParamWrite, sendToAmpVolume,
+sendRawParamWrite [amp select], sendMonoStereo, sendRigTempo, sendChainOrder,
+sendBypassWrite [covers amp/cab/block bypass], sendDist/ReverbModelChange,
+sendDist/ReverbParamWrite). All queries/readbacks keep calling sendHex directly,
+so navigation never false-triggers. markPatchDirty/clearPatchDirty live in ui.js
+(add/remove the 'green' class). Load TFX marks dirty (uncommitted memory).
+Reset: clearPatchDirty() on patch nav (clearStaleReadoutsOnNav) and on save
+(front-panel save path + SW saveToRackAndDisk).
+
+CONFIRMED WITH CHARLIE (per-patch, so they DO light SAVE): amp knobs, Gate,
+Amp Out, 1/2 Vol (To Amp volumes), Rig Vol, rig tempo, Cab, Mic, Axis, Bright,
+Speaker Breakup, amp-model swap, Stereo/Mono, chain reorder, block bypass, all
+DIST/REVERB edits. GLOBAL, so does NOT light SAVE: To Amp source (CMD 0x37).
+
+DOC CORRECTION (fold into Tech Ref/Primer at wrap): rig tempo IS per-patch —
+Charlie verified by saving, navigating away and back, values stuck and differed
+per patch, and the HW/Avid flag dirty on a tempo change. transport.js still
+carries an old comment near the nav pull calling tempo "NOT per patch / strictly
+a refresh" — that comment is WRONG and should be corrected. (To Amp volume was
+already corrected 7/23 to per-patch; tempo is the remaining stale note.)
+
+FILES this session (start -> now):
+  ui.js            1649 -> ~1772
+  sysex-handler.js  738 ->  743
+  transport.js     1133 -> 1160
+  capture-scan.js   270 ->  287
+  index.html       1600 -> 1600 (one class edit, no line change)
+
+  ── 2026-07-26 FOLLOW-UP: Save-to-Disk should stay dirty ──
+  Charlie question: if you Save to DISK only (no rack commit), keep dirty?
+  ANSWER: KEEP dirty — disk save writes a TFX file but does not commit to the
+  HW slot, so the slot still differs from the buffer. Only a rack commit cleans.
+  BUG this surfaced: Save-to-Disk runs captureCurrentPatchNow() -> REQU_SEND_PATCH
+  -> the CMD 0x01 generic readback branch, where I had put captureKnobBaselines().
+  That branch fires only on manual Capture / disk save (normal nav uses the
+  targeted pull), so it was wrongly re-baselining knobs to the current (dirty)
+  buffer — knobs went amber while the dirty flag correctly stayed green.
+  FIX: removed captureKnobBaselines() from the generic readback branch. Knob
+  baselines are now set ONLY on a true patch load (end of nav pull) and on a
+  rack commit (front-panel save branch already did; saveToRackAndDisk now calls
+  captureKnobBaselines() explicitly). Net behaviour:
+    - Save to Rack  -> knobs amber, SAVE grey  (clean)
+    - Save to Disk  -> knobs stay red, SAVE stays green  (still unsaved to rack)
+    - Capture Now   -> knobs unchanged, flag unchanged
+  CAVEAT (logged): if REQUEST_BULK_ON_NAV is re-enabled (debug fallback), nav
+  would use the generic branch and no longer auto-baseline knob colours. The
+  default targeted path is unaffected.
+  FILES: sysex-handler.js, capture-scan.js.
+
+───────────────────────────────────────────────────────────────────
+2026-07-26 — DEFECT: knob-drag MIDI flood ("lost control of amp knobs")
+STATUS: PROVISIONAL — fix built, not yet tested by Charlie.
+PRE-EXISTING: reproduced on the pre-7/26 build too, and nothing today added
+MIDI traffic — the dirty-flag hook is a button-colour change only. NOT a
+regression from today's work. Charlie confirmed by reverting and reproducing.
+
+SYMPTOM: after a few saves + fast knob drags, the amp knobs went dead in BOTH
+directions (SW->HW and HW->SW). Bridge/MIDI stayed connected — not a real
+disconnect.
+DIAGNOSIS (from session-2026-07-26-123511.log): a knob drag sent one CMD 0x11
+write PER mouse-move — up to 48 writes/second. That flood swamps the rack; it
+reassigns the amp block's runtime handle mid-drag and starts broadcasting from
+the new handle. The app still holds the old currentParamHi, so every incoming
+update is dropped ("instId 0x1d does not match currentParamHi=0x0f, ignored" —
+138 such frames at the end of that log) and the UI freezes = looks disconnected.
+Note: handles are per-patch runtime values from the chain map and legitimately
+differ each patch; the bug is the app/rack disagreeing after a flood, not the
+handle changing per se.
+
+FIX 1 — throttle (ui.js): new queueKnobSend(key, fn, val) trailing throttle,
+mirroring the existing tempo throttle. Coalesces per control (key = tone:/knob:/
+dist:/reverb: + id) at KNOB_SEND_INTERVAL = 60 ms (~16 writes/s, tunable). The
+on-screen knob still moves instantly (drawn locally); only the hardware write is
+paced, and the final value always lands. Routed: tone drag + reset, initKnob
+drag/wheel/dblclick (To Amp vols), DIST drag + reset, REVERB drag + reset.
+One-shots left direct: reverb Type dropdown pick, once-per-drag Sync clear.
+
+FIX 2 — self-heal (sysex-handler.js): if HANDLE_RESYNC_THRESHOLD (5) broadcasts
+in a row arrive for an unknown handle, re-read the chain map once (debounced by
+HANDLE_RESYNC_COOLDOWN = 2000 ms) to re-establish currentParamHi, instead of
+ignoring forever. Safety net in case any flood ever slips past the throttle.
+
+FILES: ui.js, sysex-handler.js.
+RETEST: drag amp tone knobs hard/fast, back and forth, right after a save or two.
+Knobs should keep tracking both directions; the log should NOT fill with
+"does not match currentParamHi". If it ever does, the self-heal line
+"Self-heal: ... re-reading chain map to resync" should appear and control return.
+TUNING: if drags feel laggy to the ear, lower KNOB_SEND_INTERVAL (ui.js); if a
+flood still occurs, raise it.
+
+  ── 2026-07-26 FOLLOW-UP: SW knobs dead AFTER A SAVE (handle reassignment) ──
+  From logs 132134 (throttle confirmed: writes down to ~15/s from 48/s, fast
+  moves fine) and 132345 (SW knobs went dead; self-heal fired 2x).
+  ROOT CAUSE (Charlie's hunch, confirmed): a SAVE makes the rack re-instantiate
+  the patch and REASSIGN block handles. In 132345 the amp handle walked
+  7D -> 0C -> 1A across saves; the app kept writing to the stale handle (dead SW
+  knobs) while the rack broadcast from the new one (1A appeared only in
+  broadcasts, never in our writes). A physical knob turn broadcast from the new
+  handle and tripped the self-heal, which is why "HW brings them back". The
+  rename is incidental — it is the commit/re-instantiation that moves the handle.
+  (Not every save moves it: 132134 stayed on 0x61 the whole time, 0 mismatches.)
+  FIX: on "Save confirmed" (isSave branch), re-read the chain map immediately
+  (sendHex REQU_CHAIN_MAP) so currentParamHi and the effect handles refresh at
+  once — no longer waiting for a HW broadcast + self-heal. Harmless when the
+  handle did not change (returns the same map). The self-heal stays as backup.
+  FILE: sysex-handler.js.
+  RETEST: edit, Save to Rack (incl. rename), then immediately drag a SW amp knob
+  — it should track the rack with no dead period and no "does not match" burst.
+
+  ── 2026-07-26 KNOWN LIMITATION (accepted, not fixing): rapid SW nav bounce ──
+  Machine-gunning the SW patch arrow (log 135642: ~6 recalls/sec, far faster than
+  any normal use) makes the rack fall behind and return CMD 0x02 slot
+  confirmations out of order, even jumping backward (reported H4=31 then F1=20).
+  Feedback loop: the app advances position per click but also trusts a LATE/stale
+  confirmation and resets to it, so the next clicks re-navigate from the old
+  slot -> the rack is sent backward -> "recycling e-f-g" cycling. The nav-pull
+  abandon guard worked (225 pulls abandoned, read side never piled up) and it
+  SELF-RECOVERED: landed cleanly on G1 "Friedman HBE" with a normal nav pull.
+  DECISION (Charlie): note but do NOT fix. Normal navigation has been solid over
+  weeks of testing; no real user nav's this way; reworking position tracking
+  isn't worth the risk. Accepted limitation, abuse-case only.
+  IF ever revisited: (1) pace/coalesce recall sends on a trailing timer toward
+  the latest target; (2) track nav INTENT and ignore CMD 0x02 confirmations for
+  slots already navigated past, settling + pulling once when the confirmation
+  matches intent (mirrors how the HW scroll wheel coalesces internally).
+  NOTE: pre-existing behaviour, not related to today's changes.
+
+
+
+===================================================================
 END OF ARCHIVE
 ===================================================================

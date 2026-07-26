@@ -201,9 +201,33 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 13 + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE (Phase 13 + 7/26 UI pass + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
+
+7/26/2026 UI PASS (all tested by Charlie same day; details in Tech Ref Sec 4/15/18/24):
+  Knob colour-state — a knob turns RED when its value differs from the loaded
+    patch, and returns to base when set back exactly. Base is AMBER on the amp
+    /main panel, GREEN on effect panels. The three colours are named values in
+    one place in ui.js (KNOB_COLORS) so item B can later make them user-chosen /
+    colourblind-safe. Baseline is captured on patch load (end of nav pull) and on
+    a rack save; a full patch nav resets it.
+  Effect-panel red-state PERSISTS across panel switches (per-effect baseline
+    store, fxBaseline), matching how the amp panel holds truth. The rack itself
+    forgets per-screen (shared physical knobs); we keep truth deliberately.
+    Accepted gaps: changing an effect on the front panel BEFORE opening its
+    panel baselines to the already-changed value (query budget); and an
+    amp/effect MODEL swap shows all-red (genuinely different controls).
+  SAVE button dirty latch — starts grey like Load TFX, turns green on the first
+    patch edit, stays green until a patch nav or a save. Pure latch, no polling.
+    Save to Disk leaves it green (not committed to the rack); Save to Rack and a
+    front-panel save clear it. Global writes (To Amp source) do NOT light it.
+  Knob-write throttle — all knob/slider drags AND scroll now pace their HW
+    writes through queueKnobSend (60 ms trailing), fixing a pre-existing flood
+    that could desync the amp handle and freeze the knobs. Post-save chain-map
+    re-read + handle self-heal back it up (Tech Ref Sec 4/15).
+  Scroll wheel — now on amp tone knobs, DIST/REVERB knobs, and the Speaker
+    Breakup slider (joining Gate/To Amp/Rig Vol/Amp Out). One notch = 1 unit.
 
 WORKING:
   Patch navigation — SW controls and HW front panel (both update all displays)
@@ -375,6 +399,11 @@ CODE FILE MAP
                        Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
                        REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
   transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       7/26: sendPatchWrite(hex) wrapper — the 13 per-patch
+                       write functions send through it so the SAVE dirty latch
+                       lights (queries/readbacks keep calling sendHex directly);
+                       NAV_BASELINE_SETTLE (250 ms) after the nav pull before
+                       snapshotting the knob-colour baseline.
                        Phase 13: sendRigTempo(bpm); nav pull phase 4 gains one
                        REQU_TEMPO_READ after the mono read.
                        Phase 12: ampBlockParamLos() — the amp block's paramLo
@@ -402,6 +431,14 @@ CODE FILE MAP
                        Phase 9: sendDistModelChange, requestDistParams, sendDistParamWrite.
                        Phase 10: sendReverbModelChange, requestReverbParams, sendReverbParamWrite.
   sysex-handler.js     Incoming message routing.
+                       7/26: handle self-heal in the CMD 0x11 mismatch branch
+                       (HANDLE_RESYNC_THRESHOLD/COOLDOWN -> one chain-map
+                       re-read); isSave branch re-reads the chain map after a
+                       save (handles get reassigned on commit) and re-anchors
+                       knob/FX baselines + clears the dirty latch; baseline
+                       capture was REMOVED from the generic bulk-readback branch
+                       (it fires on manual capture / Save-to-Disk, which must not
+                       clean the knobs).
                        Phase 13: CMD 0x50 branch — decodes the four 6-bit
                        digits and calls updateTempoDisplay. Accepts dir 0x02
                        (broadcast/echo) and 0x12 (reply to our query) alike.
@@ -416,6 +453,15 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/26: KNOB_COLORS + knobColor() (amber/green base, red on
+                       change); captureKnobBaselines()/clearMainKnobBaselines()
+                       (main-panel baseline); fxBaseline store + helpers
+                       (per-effect red-state persistence); markPatchDirty/
+                       clearPatchDirty (SAVE latch); queueKnobSend() trailing
+                       throttle (KNOB_SEND_INTERVAL=60) that ALL knob/slider
+                       drag + scroll sends now route through; new delegated
+                       'wheel' handler for tone/DIST/REVERB knobs (Breakup
+                       slider's wheel is in index.html).
                        Phase 13: the tempo clock — renderTempoField,
                        updateTempoDisplay, queueTempoSend (150 ms trailing),
                        setTempoTenths, stepTempo, commitTempoTyping, and the
@@ -445,6 +491,11 @@ CODE FILE MAP
   capture-scan.js      TFX capture, bank scan, load/save.
                        saveCurrentPatchToSlot(nameOverride) — optional rename.
                        saveToRackAndDisk(name) — rename + commit + auto TFX.
+                       7/26: clearStaleReadoutsOnNav now also clears the FX
+                       baseline store, main-knob baselines, and the dirty latch
+                       (one choke point for every nav); saveToRackAndDisk
+                       re-anchors knob/FX baselines + clears dirty; loadTfx marks
+                       the patch dirty (uncommitted in memory).
   ElevenRackBridge.java  Java bridge source
   tfx-inspect.js       CLI: decode a TFX file
   tfx-diff.js          CLI: diff two TFX files
