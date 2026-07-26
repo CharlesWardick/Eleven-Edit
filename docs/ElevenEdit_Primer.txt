@@ -1,8 +1,10 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-23
+Updated: 2026-07-24
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 11 complete (amp tremolo feature set);
+Status: Active development — Phase 13 complete (rig tempo clock + chain-strip
+right-hand group); Phase 12 complete (amp model change refresh);
+Phase 11 complete (amp tremolo feature set);
 Phase 10 complete (REVERB effect panel); Phase 9 complete (DIST effect panel);
 Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
 
@@ -33,6 +35,27 @@ day of silently reverted work.
      Technical Reference was 81 lines short and had silently reverted both a
      sweep and that same day's GUI documentation. Nothing in it was wrong; it
      was simply older, under the right filename.
+  5. REVIEW SESSIONS — ASK FOR CODE WHEN THE DOCS ALONE CANNOT SETTLE IT.
+     A review compares documents against each other and cannot see the code
+     unless it is attached to that message; being "in the project folder" does
+     not make it visible. So doc-vs-code drift — a session that documents a
+     fix but ships something slightly different — is invisible by default.
+     REQUEST the specific file, do not wait to be offered it, when:
+       - a retraction lands and the withdrawn behaviour may still be in code
+       - a named constant or formula is documented (settle times, dB anchors,
+         zone arithmetic) and can be checked against the source in seconds
+       - a symptom recurs after a documented fix — doc and binary disagree,
+         and only the code decides
+       - two docs describe one function differently, or a doc describes a
+         behaviour without naming the mechanism
+     WHERE TO LOOK: transport.js and protocol.js carry most protocol-critical
+     claims (send builders, constants, lookup tables, decoders);
+     sysex-handler.js for routing and format detection; ui.js for display
+     formulas. Ask for one or two files, never the set.
+     DO NOT ask routinely. A well-scoped additive session does not need it,
+     and the whole set costs context for no return. Expect to catch "the doc
+     says 0.6 and the code says 0.61", not architectural problems — the
+     reviewer reads as an outsider, without the codebase's history.
 
 
 READ THIS FIRST, THEN ONE OTHER DOCUMENT:
@@ -58,10 +81,17 @@ reference doc to hold updates.
 
 A fact is either confirmed (lives in a main doc, EDITED IN PLACE) or
 provisional (lives in the session log). Never both, never a third dated file.
-During a session, put findings in the log. When one is CONFIRMED, edit the
-value directly into the Technical Reference (or this Primer) and mark the log
-entry [FOLDED IN]. The log trends back toward empty; the two main docs are
-always current. This is what prevents the six-overlapping-documents problem.
+During a session, findings go to the SESSION LOG only — that is the whole
+point of the log. Do NOT rewrite or regenerate the Technical Reference or the
+Primer on every turn; the masters are the ledger, not the scratchpad, and each
+full rewrite is a chance to drop a section or reorder something. Fold the log's
+confirmed findings into the masters ONCE, at wrap (see FINALIZATION), editing
+in place and marking each entry [FOLDED IN]. The log trends back toward empty;
+the masters stay current without being touched mid-session. This is what
+prevents the six-overlapping-documents problem.
+  ONE EXCEPTION — fold immediately, mid-session, only when a finding changes
+  what the next step does: a retraction the next task would otherwise build on,
+  or a hardware-safety item. Everything else waits for wrap.
 
 THE ARCHIVE (added 7/21). Promoted log entries and superseded narrative move
 to ElevenEdit_Archive.txt, one direction only — things go in, nothing comes
@@ -76,7 +106,10 @@ complete without it. Each block that moved left a one-line pointer behind.
 
 FINALIZATION — HOW TO WRAP A SESSION (the method that has been working)
 ----------------------------------------------------------------------
-When Charlie says to finalize/wrap, do this, in order:
+This runs ONCE, when Charlie says to finalize/wrap — NOT every turn. During the
+session the masters are left alone and findings accumulate in the log (see HOW
+UPDATES WORK). Producing full Technical Reference / Primer files on every pass
+is wasted effort and adds risk; wait for the wrap signal, then do this in order:
   1. FOLD IN. For each confirmed finding in the session log, edit the value
      directly into the Technical Reference (or this Primer) IN PLACE — new
      protocol facts into the relevant numbered section, plus a one-line entry
@@ -168,7 +201,7 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE (Phase 13 + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
 
@@ -190,6 +223,31 @@ WORKING:
     Moving Speed clears Sync to OFF first, mirroring the rack. Avid's Speed
     knob does nothing at all while Sync is engaged. Tech Ref Sec 11.
     Laid out as a BRIGHT / TREMOLO / SYNC stack right of the tone knobs.
+  RIG TEMPO (Phase 13, 7/24/2026) — a digital-clock field on the chain strip,
+    right of the Stereo/Mono badge. Reads and writes CMD 0x50, which is
+    microseconds per beat as four 6-bit digits (Tech Ref Sec 18). Click the
+    whole or tenths segment then use the stepper, the mouse wheel or the
+    up/down keys; or just type "120.5" and press Enter. Range 10.0-500.0,
+    clamped. Writes go out on a 150 ms trailing timer because a tempo change
+    makes the rack rebroadcast every tempo-synced parameter in the chain.
+    Tracks front-panel and Avid changes live, and is re-queried once per nav.
+  CHAIN STRIP RIGHT-HAND GROUP (7/24/2026, refined same day) — the "drag
+    blocks to reorder" hint is gone (10px on #555, unreadable). The Stereo/Mono
+    badge now sits at the END OF THE CHAIN FLOW, right after the last block,
+    preceded by a connector line like the ones between blocks: TWO lines when
+    STEREO, ONE when MONO (tracks the badge state, not any block's output).
+    STEREO is green like an active block, MONO amber; click-to-toggle unchanged
+    and still writes CMD 0x0D. TEMPO sits one button-width to its right with the
+    label stacked above the number box. Badge is fixed-width (sized for STEREO) so it does not resize when it switches to MONO (with asymmetric padding so the letter-spaced text sits optically centred), and it sits tight after the last block; TEMPO holds the far-right edge.
+  AMP MODEL CHANGE REFRESH (Phase 12, 7/24/2026) — changing amp type inside an
+    open patch now re-reads the amp block and shows the real stored values,
+    instead of blanking every tone knob to "--". Fires whether the change came
+    from our dropdown, the rack's front panel or the Avid editor.
+    WHY IT LOOKS ODD BUT IS RIGHT: amp parameters are stored PER CHAIN SLOT,
+    not per model, so values survive a model change and a control shared by
+    two models under different names is ONE value — edit 59 Tweed's "Tone"
+    and a Treadplate's "Treble" shows it. Avid behaves identically.
+    Tech Ref Sec 11.
   Tuner button — SW send (CC69) + CMD 0x40 HW state readback
   To Amp 1/2 volume knobs — SW send + TFX readback + live HW readback (Phase 8)
   Cab Type / Mic Type dropdowns — SW send + TFX + live HW readback
@@ -233,8 +291,6 @@ WORKING:
     moved off the old right-hand column for tighter window scaling (7/22).
 
 NOT YET IMPLEMENTED (largest first):
-  Rig tempo control — CMD 0x50 identified and partly decoded 7/23; needs one
-    short calibration capture to finish. NEXT TASK. Tech Ref Sec 21.
   Effect panels for the seven remaining non-amp effect blocks (MOD, DELAY,
     WAH, VOL, FX1, FX2, FX LOOP) — clicking the chain row's arrow still shows a
     "coming soon" placeholder. The DIST (Phase 9) and REVERB (Phase 10) panels
@@ -260,7 +316,8 @@ NOT YET IMPLEMENTED (largest first):
 DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
 -------------------------------------------------------------------
   Zadig / node-usb / node-midi / Web MIDI for the Vendor Specific port
-  Sending CMD 0x37 WITHOUT CMD 0x3A query first — firmware assert
+  Sending CMD 0x37 (To Amp Source) — every assert on it has BRICKED the rack
+    (full factory reset), 3x over 2 days. Do not send. 0x36 volume is safe.
   Hardcoding paramHi — it is a runtime handle from the chain map
   Caching a block handle across a chain map — re-read after every CMD 0x21
     and every CMD 0x0D
@@ -278,6 +335,10 @@ CODE FILE MAP
   preload.js           Electron preload, exposes electronAPI.
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
+                       Phase 13: chain-strip right-hand group — drag-hint div
+                       removed, #mono-indicator restyled (green STEREO / amber
+                       MONO) and given margin-left:auto, #tempo-wrap digital
+                       clock added with its segment/stepper CSS.
                        Phase 11: .scard-col is a COLUMN of two fixed .amp-row
                        blocks, not one wrapping row — that wrapping row is what
                        made the tone knobs ride up beside Volumes and Bright
@@ -303,6 +364,10 @@ CODE FILE MAP
                        Tune NAV_QUERY_GAP and NAV_RECALL_SETTLE only; the two
                        timeouts bound a LOST reply and are not speed controls.
   protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders.
+                       Phase 13: REQU_TEMPO_READ, TEMPO_BPM_MIN/MAX,
+                       rigTempoDecodeUs, rigTempoUsToBpm, rigTempoBpmToDigits.
+                       0x50 dropped from PROBE_DUMP_CMDS — it has a real
+                       handler now and the raw dump only doubled the log.
                        Phase 11: SYNC_DIVISIONS (14 entries, glyph + text),
                        syncIndexFromV127, syncV127FromIndex, ampHasTremolo.
                        SL100 Drive's 0x0E toggle relabelled MOD.
@@ -310,6 +375,18 @@ CODE FILE MAP
                        Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
                        REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
   transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       Phase 13: sendRigTempo(bpm); nav pull phase 4 gains one
+                       REQU_TEMPO_READ after the mono read.
+                       Phase 12: ampBlockParamLos() — the amp block's paramLo
+                       query set, extracted from the nav pull's Phase 3 so the
+                       nav path and the amp-change path share one list and
+                       cannot drift. ampParamQuery() — standalone read builder;
+                       do NOT reuse the nav pull's private paramQuery(), which
+                       is out of scope AND increments the Dev timings counter.
+                       requestAmpBlockParamsAfterAmpChange() — waits
+                       AMP_CHANGE_SETTLE (100 ms, provisional) then re-queries
+                       the block on the EXISTING handle; sequence guard cancels
+                       it on a further amp change or a patch change.
                        7/23: requestPatchStateAfterNav() rewritten as a
                        four-phase targeted pull (structure -> amp identity ->
                        amp block -> rig level), replacing the CMD 0x01 bulk
@@ -325,11 +402,28 @@ CODE FILE MAP
                        Phase 9: sendDistModelChange, requestDistParams, sendDistParamWrite.
                        Phase 10: sendReverbModelChange, requestReverbParams, sendReverbParamWrite.
   sysex-handler.js     Incoming message routing.
+                       Phase 13: CMD 0x50 branch — decodes the four 6-bit
+                       digits and calls updateTempoDisplay. Accepts dir 0x02
+                       (broadcast/echo) and 0x12 (reply to our query) alike.
+                       Phase 12: the paramLo 0x0F handler calls
+                       requestAmpBlockParamsAfterAmpChange when the amp key
+                       actually changes. NOTE 0x0F is a parameter inside the
+                       amp block, not a chain map change — the handle does not
+                       move, so no chain map re-read belongs on this path
+                       (unlike the DIST/REVERB CMD 0x21 model change).
                        Phase 9: DIST paramLo routing in CMD 0x11 handler;
                        refreshDistPanelAfterChainMap called from CMD 0x21 handler.
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       Phase 13: the tempo clock — renderTempoField,
+                       updateTempoDisplay, queueTempoSend (150 ms trailing),
+                       setTempoTenths, stepTempo, commitTempoTyping, and the
+                       segment/stepper/wheel/key/typing listeners. Held as
+                       integer TENTHS of a BPM so repeated stepping cannot
+                       drift. renderChainRow no longer looks for the removed
+                       drag hint and now re-appends #tempo-wrap after the
+                       badge on every reflow.
                        Phase 11: updateTremButton/Readout, populateSyncDropdown,
                        updateSyncReadout, Speed-clears-Sync rule in the tone
                        drag handler, dB scales for To Amp and Amp Out anchored
@@ -394,11 +488,17 @@ ENVIRONMENT
 HARDWARE SAFETY
 ---------------
   Always back up patches before any SW-send testing session.
-  CMD 0x37 (To Amp Source) must ALWAYS be preceded by a CMD 0x3A query for
-    that slot. Sent unqueried it caused a firmware hang and factory reset
-    (all patches lost) on 7/14. With the query first the sequence is safe and
-    asserts no longer occur — but the GUI dropdowns stay removed because SW
-    sends still do not move the HW source. See Tech Ref Sec 18.
+  CMD 0x37 (To Amp Source) is the project's most dangerous command. EVERY
+    assert on it has BRICKED the rack and forced a full factory reset — three
+    times across two non-consecutive days, all from 0x37 selects, never from
+    0x36 volume. Patches survive only from backup. A CMD 0x3A query-first
+    sequence avoided the assert in limited testing, but the feature never
+    worked and why SW sends don't move the HW source is unknown, so the
+    dropdowns stay removed. DO NOT send 0x37 until an observation-only capture
+    explains the difference (see the To Amp Source investigation brief). This
+    brick-on-assert behaviour is SPECIFIC to 0x37: asserts elsewhere
+    (bad-patch-format while learning TFX, front-panel oddities) recovered with
+    a nav-away-and-back and never needed a reset. See Tech Ref Sec 18.
   NEVER run the Avid Editor on Windows 11 — BSOD. It may be installed there
     for its graphics, but never launched (see GRAPHICS below).
   Never drive the Avid Editor and Eleven Edit at the same time. Several BSODs
@@ -451,18 +551,17 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
   filenames. Bypassed blocks dim via a CSS filter, no second image set.
 
 
-NEXT SESSION — RIG TEMPO CONTROL
+NEXT SESSION — EFFECT PANEL FOR ANOTHER BLOCK
 -------------------------------------------------------------------
-  Identified 7/23 as CMD 0x50, four payload bytes, broadcast on every tempo
-  change and INVERSELY related to BPM. Not finished: the value range spans a
-  ratio of about 98 where 10-500 BPM spans 50, so it is not a plain reciprocal.
-  ONE SHORT CAPTURE FINISHES IT: with our app running, set the rack tempo to
-  exactly 60.0, 120.0, 240.0 and 32.1, pausing at each. Four known points
-  against four broadcast values pin the formula.
-  UI: a clock-style spinner near the STEREO badge — arrows to step, click the
-  decimal to edit it, accepts typed entry. Rig level, not the amp panel.
-  Motivation: reaching tempo on the rack's front panel is tedious.
-  Full detail: Technical Reference Sec 21.
+  Rig tempo (Phase 13) is done, so the largest remaining chunk is the seven
+  non-amp effect panels still on placeholders: MOD, DELAY, WAH, VOL, FX1, FX2,
+  FX LOOP. DIST (Phase 9) and REVERB (Phase 10) established the whole pattern;
+  each new slot needs one Wireshark capture for its paramLo numbers, then the
+  same six edits copied across. Full recipe and recommended order are in the
+  LATER — EFFECT PANELS section below. WAH or VOLUME is the easiest start
+  (single model, simplest capture).
+  Read QUERY BUDGET first: fetch a block's parameters when its panel OPENS,
+  not on every nav.
 
 QUERY BUDGET — READ THIS BEFORE ADDING BLOCK PANELS
 -------------------------------------------------------------------

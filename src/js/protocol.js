@@ -94,8 +94,54 @@ const REQU_TOAMP1_READ = 'F0 13 0B 0F 01 36 02 F7';
 const REQU_TOAMP2_READ = 'F0 13 0B 0F 01 36 03 F7';
 const REQU_MONO_READ   = 'F0 13 0B 0F 01 0D F7';
 
+//   Rig tempo — CMD 0x50. Reply carries the four 6-bit digits (see
+//   rigTempoDecodeUs below). Reply direction byte observed as 0x12 for the
+//   answer to this query and 0x02 for an unsolicited broadcast; the handler
+//   accepts either.
+const REQU_TEMPO_READ  = 'F0 13 0B 0F 01 50 F7';
+
 // Responses to raw-dump in full. Set to [] to silence the dump.
-const PROBE_DUMP_CMDS = [0x03, 0x08, 0x0A, 0x0D, 0x34, 0x36, 0x50];
+// 0x50 removed 7/24/2026 — it is decoded now and has a real handler, so the
+// raw dump was only doubling the log on every tempo change (and a tempo
+// change is already a noisy event).
+const PROBE_DUMP_CMDS = [0x03, 0x08, 0x0A, 0x0D, 0x34, 0x36];
+
+// ════════════════════════════════════════════════════════════════════
+// RIG TEMPO — CMD 0x50 (decoded 7/24/2026, Tempo_Settings.pcapng)
+// ════════════════════════════════════════════════════════════════════
+// Payload is MICROSECONDS PER BEAT — the standard MIDI tempo quantity —
+// carried as a 24-bit number split into four SIX-bit digits, most
+// significant first:
+//     us = (d1 << 18) | (d2 << 12) | (d3 << 6) | d4
+//     BPM = 60000000 / us
+// Every payload byte is therefore below 0x40, which is the tell that these
+// are 6-bit digits and not the 7-bit bytes used by CMD 0x11. Reading them as
+// base 128 is what made this look like an undecodable inverse relationship
+// with a ~98:1 span for the better part of a day.
+// Exact against all six calibration points, no rounding slack:
+//     500.0 -> 00 1D 13 00 -> 120000     60.0 -> 03 34 09 00 -> 1000000
+//     120.0 -> 01 3A 04 20 -> 500000    240.0 -> 00 3D 02 10 -> 250000
+//      32.1 -> 07 08 15 27 -> 1869159    10.0 -> 16 38 36 00 -> 6000000
+const TEMPO_BPM_MIN = 10.0;
+const TEMPO_BPM_MAX = 500.0;
+
+function rigTempoDecodeUs(d1, d2, d3, d4) {
+  return (d1 << 18) | (d2 << 12) | (d3 << 6) | d4;
+}
+
+// Microseconds per beat -> BPM, rounded to the tenth the display shows.
+function rigTempoUsToBpm(us) {
+  if (!us) return null;
+  return Math.round((60000000 / us) * 10) / 10;
+}
+
+// BPM -> the four 6-bit digits, ready to drop into a send string.
+function rigTempoBpmToDigits(bpm) {
+  var us = Math.round(60000000 / bpm);
+  if (us < 1) us = 1;
+  if (us > 0xFFFFFF) us = 0xFFFFFF;
+  return [(us >> 18) & 0x3F, (us >> 12) & 0x3F, (us >> 6) & 0x3F, us & 0x3F];
+}
 
 // ── Model display names, indexed by the chain map's mid (CMD 0x20 index).
 // Complete: all 65 indices, captured from the editor's startup enumeration.
