@@ -87,15 +87,28 @@ async function parseSysEx(data) {
       captureCount++;
       appLog('Save confirmed — capturing TFX slot ' + slotNum + ' (' + slotName + ')');
 
-      // Decode amp model, gate, Amp Out, and tone knob values from the shared body
+      // Discrete controls (cab/mic, mono) are safe to apply from the body.
       const ampInfo = decodeAmpKey(body);
-      if (ampInfo && ampInfo.key) setCurrentAmp(ampInfo.key);
-      updateGateReadout(decodeGateValues(body, ampInfo ? ampInfo.markerPos : null));
-      updateAmpOutReadout(decodeAmpOutValue(body, ampInfo ? ampInfo.markerPos : null));
-      updateToneReadouts(decodeToneKnobValues(body, ampInfo ? ampInfo.markerPos : null, ampInfo ? ampInfo.key : null), ampInfo ? ampInfo.key : null);
+      const ampChanged = !!(ampInfo && ampInfo.key && ampInfo.key !== currentAmpKey);
+      // Only re-render the amp when it ACTUALLY changed — setCurrentAmp ->
+      // updateToneKnobs blanks the tone row to "--"/midpoint, so calling it on a
+      // same-amp save would wipe the live tone values (regression 7/27).
+      if (ampChanged) setCurrentAmp(ampInfo.key);
       updateCabMicReadouts(decodeCabMicValues(body));
       updateMonoIndicator(decodeMonoStereo(body));
-      updateToAmpVolumeReadouts(decodeToAmpVolumes(body));
+      // Continuous red-tracked knobs (gate, amp out, tone, To-Amp vols) already
+      // show the correct LIVE 0-127 values. Re-decoding them from the body rounds
+      // a high-res int32 via gateRawToV127 and can land one unit off the live
+      // value — the harmless difference our pixel-perfect red flags as phantom
+      // red / the Save-to-Rack flash. So repaint them ONLY when there is no live
+      // truth to preserve: the amp was just re-rendered (blanked), or the legacy
+      // bulk-on-nav mode (nothing live-populated them). (7/27)
+      if (ampChanged || REQUEST_BULK_ON_NAV) {
+        updateGateReadout(decodeGateValues(body, ampInfo ? ampInfo.markerPos : null));
+        updateAmpOutReadout(decodeAmpOutValue(body, ampInfo ? ampInfo.markerPos : null));
+        updateToneReadouts(decodeToneKnobValues(body, ampInfo ? ampInfo.markerPos : null, ampInfo ? ampInfo.key : null), ampInfo ? ampInfo.key : null);
+        updateToAmpVolumeReadouts(decodeToAmpVolumes(body));
+      }
       captureKnobBaselines();   // saved values are the new "unchanged" baseline
       clearFxBaselines();       // effect truth is now the saved state:
       rebaselineOpenFxPanel();  //   re-anchor an open panel, others on next open
@@ -135,15 +148,23 @@ async function parseSysEx(data) {
       // request arriving late during fast navigation and yanking the
       // display backward.
       if (slotNum === currentSlot) {
-        // Decode amp model, gate, Amp Out, and tone knob values from the shared body
         const ampInfo = decodeAmpKey(body);
-        if (ampInfo && ampInfo.key) setCurrentAmp(ampInfo.key);
-        updateGateReadout(decodeGateValues(body, ampInfo ? ampInfo.markerPos : null));
-        updateAmpOutReadout(decodeAmpOutValue(body, ampInfo ? ampInfo.markerPos : null));
-        updateToneReadouts(decodeToneKnobValues(body, ampInfo ? ampInfo.markerPos : null, ampInfo ? ampInfo.key : null), ampInfo ? ampInfo.key : null);
+        const ampChanged = !!(ampInfo && ampInfo.key && ampInfo.key !== currentAmpKey);
+        // Only re-render the amp if it actually changed (setCurrentAmp blanks the
+        // tone row); otherwise leave the live knobs untouched.
+        if (ampChanged) setCurrentAmp(ampInfo.key);
         updateCabMicReadouts(decodeCabMicValues(body));
         updateMonoIndicator(decodeMonoStereo(body));
-        updateToAmpVolumeReadouts(decodeToAmpVolumes(body));
+        // Don't repaint the continuous red-tracked knobs from the body unless the
+        // amp was just re-rendered or we're in legacy bulk-on-nav — they already
+        // show the live 0-127 values, and a body re-decode rounds one unit off,
+        // which shows as phantom red (the Save-to-Disk "knobs stay red" case). (7/27)
+        if (ampChanged || REQUEST_BULK_ON_NAV) {
+          updateGateReadout(decodeGateValues(body, ampInfo ? ampInfo.markerPos : null));
+          updateAmpOutReadout(decodeAmpOutValue(body, ampInfo ? ampInfo.markerPos : null));
+          updateToneReadouts(decodeToneKnobValues(body, ampInfo ? ampInfo.markerPos : null, ampInfo ? ampInfo.key : null), ampInfo ? ampInfo.key : null);
+          updateToAmpVolumeReadouts(decodeToAmpVolumes(body));
+        }
         // NOTE: do NOT re-baseline knob colours here. This branch is a generic
         // readback of the CURRENT buffer — it fires on manual "Capture Now" and
         // on Save-to-Disk, where the buffer may be dirty. Re-baselining would

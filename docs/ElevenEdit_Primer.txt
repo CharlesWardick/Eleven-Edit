@@ -201,9 +201,22 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 13 + 7/26 UI pass + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE (Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
+
+7/27/2026 FIXES (tested by Charlie same day; details in Tech Ref Sec 15/21/24):
+  Startup SAVE no longer green — sendCC marks the patch dirty only for per-patch
+    CCs (Rig Vol, CC 17); input (global) and tuner (transient) do not. The
+    startup forced-Guitar therefore no longer lights SAVE.
+  First connect reflects the rack's CURRENT patch (like Avid) instead of forcing
+    A1. No recall is sent; the current-rig reply drives the initial pull.
+  Phantom red on save fixed — save/capture no longer repaints the live continuous
+    knobs from the body (that int32->0-127 re-decode rounded a unit off the live
+    value and, via the tone-row re-render, could also blank it). Only re-renders/
+    repaints when the amp actually changed or in legacy bulk-on-nav mode.
+  DEFERRED: reflect live input / stop forcing Guitar (input is global — future
+    global-settings work; Tech Ref Sec 21).
 
 7/26/2026 UI PASS (all tested by Charlie same day; details in Tech Ref Sec 4/15/18/24):
   Knob colour-state — a knob turns RED when its value differs from the loaded
@@ -404,6 +417,11 @@ CODE FILE MAP
                        lights (queries/readbacks keep calling sendHex directly);
                        NAV_BASELINE_SETTLE (250 ms) after the nav pull before
                        snapshotting the knob-colour baseline.
+                       7/27: sendCC marks dirty only for PER_PATCH_CCS = [17]
+                       (Rig Vol); input/tuner CCs use plain sendHex. First
+                       connect reflects the rack's current patch (currentSlot=-1
+                       then requestFullState; CMD 0x02 reply drives the pull)
+                       instead of forcing goToSlot(0)/A1.
                        Phase 13: sendRigTempo(bpm); nav pull phase 4 gains one
                        REQU_TEMPO_READ after the mono read.
                        Phase 12: ampBlockParamLos() — the amp block's paramLo
@@ -431,6 +449,12 @@ CODE FILE MAP
                        Phase 9: sendDistModelChange, requestDistParams, sendDistParamWrite.
                        Phase 10: sendReverbModelChange, requestReverbParams, sendReverbParamWrite.
   sysex-handler.js     Incoming message routing.
+                       7/27: save/capture bulk branches (isSave + manual/disk)
+                       only setCurrentAmp and repaint the continuous knobs from
+                       the body when (ampChanged || REQUEST_BULK_ON_NAV) — a
+                       same-amp save leaves the live knobs untouched (no blanking,
+                       no phantom red). Discrete controls (cab/mic, mono) always
+                       apply. CMD 0x3D input handler drives setInputButtons.
                        7/26: handle self-heal in the CMD 0x11 mismatch branch
                        (HANDLE_RESYNC_THRESHOLD/COOLDOWN -> one chain-map
                        re-read); isSave branch re-reads the chain map after a

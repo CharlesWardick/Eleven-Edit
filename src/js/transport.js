@@ -81,10 +81,16 @@ function handleBridgeMsg(msg) {
       clearStaleReadoutsOnNav();
       if (!hasCompletedInitialConnect) {
         hasCompletedInitialConnect = true;
-        appLog('First connect this session — starting on A1 for a predictable state');
+        appLog('First connect this session — reflecting the rack\'s current patch (no forced nav)');
         setTimeout(function() {
-          goToSlot(0); // handles its own safe name/amp/gate/rig-vol refresh
-          setTimeout(function() { requestFullState(); }, 500); // one-time setup only now
+          // Behave like Avid: land on whatever patch the rack is already on
+          // instead of forcing A1. Force the next slot confirmation to register
+          // as a change (currentSlot starts at 0, and the rack may be on A1)
+          // so the CMD 0x02 handler runs its clearStaleReadoutsOnNav +
+          // requestPatchStateAfterNav for us. requestFullState's REQU_CURR_RIG
+          // is what elicits that confirmation; it also refreshes the chain map.
+          currentSlot = -1;
+          requestFullState();
         }, 300);
       } else {
         appLog('Reconnect — leaving hardware on whatever patch it currently has');
@@ -626,10 +632,17 @@ function sendRawParamWrite(instId, paramId, rawV0) {
   return sendHex(hex);
 }
 
+// CCs that carry PER-PATCH values (so a change should light the SAVE latch).
+// Only Rig Volume (CC 17) qualifies. Input select (CC 65/66/67) is a GLOBAL
+// hardware setting and the Tuner (CC 69) is transient — neither belongs to the
+// patch, so they must NOT mark it dirty. (7/27)
+var PER_PATCH_CCS = [17];
+
 async function sendCC(cc, val) {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
   var hex = 'B0 ' + cc.toString(16).padStart(2,'0').toUpperCase() + ' ' + val.toString(16).padStart(2,'0').toUpperCase();
-  if (sendPatchWrite(hex)) monitorLog('OUT', 'CC ' + cc + ' → ' + val);
+  var ok = (PER_PATCH_CCS.indexOf(cc) !== -1) ? sendPatchWrite(hex) : sendHex(hex);
+  if (ok) monitorLog('OUT', 'CC ' + cc + ' → ' + val);
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

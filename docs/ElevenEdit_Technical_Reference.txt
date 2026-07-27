@@ -729,6 +729,13 @@ CMD 0x3D — Input Selector broadcast. F0 13 0B 0F 02 3D [val] F7 (value at
   data[6], NOT data[7]=F7). Values: 0x00=Guitar, 0x02=Mic, 0x03=Line L,
   0x04=Line R, 0x05=Line L+R, 0x06=Dig L, 0x07=Dig R, 0x08=Dig L+R,
   0x12=Re-Amp. Broadcast on input change only (not startup/patch change).
+  INPUT IS GLOBAL, NOT PER-PATCH — confirmed 7/27/2026 (Charlie): it never
+  changes with the patch, only when the user changes input. So input CCs
+  (65/66/67) must NOT mark the patch dirty (same category as To Amp source);
+  sendCC only lights the SAVE latch for PER_PATCH_CCS = [17] (Rig Vol). Since the
+  rack does not announce input on connect/recall and there is no REQU to poll it,
+  the app cannot reflect the live global input on connect — it currently forces
+  Guitar at startup (see Sec 21, "reflect input" deferred).
 CMD 0x40 — Tuner. See Section 9. [SEND/RECV]
 CMD 0x41 — Tuner companion broadcast. Safe to ignore.
 CMD 0x50 — Rig tempo, in microseconds per beat, as four 6-bit digits.
@@ -1306,6 +1313,29 @@ GLOBAL SECTION (fixed body offset; unchanged across chain reorder):
   Stereo/Mono (RMno) and To Amp 1/2 (Vol1/Vol2) that stood until 7/23/2026;
   both are per-patch, and their position in this table always said so. See
   C13, Section 10 and Section 18.
+
+  *** OPERATING-MODE HYPOTHESIS — why some body fields test "global" (reasoned,
+  not confirmed; recorded so a recurring pattern is not re-discovered from
+  scratch each time). *** The TFX body appears to carry a SUPERSET of state,
+  serving two different ways the Eleven Rack can be operated:
+    - STANDALONE (how this app uses it): a physical piece of analog gear with
+      a global front-panel input and global routing. Some patch-body fields are
+      NOT honored on recall in this mode.
+    - PRO TOOLS-INTEGRATED (the rack's original bundled mode): the DAW drives
+      the rack's DSP and I/O as part of a session, where fields like input
+      source plausibly ARE recalled per patch/session.
+  CONSEQUENCE: a field being PRESENT in the body does NOT mean the hardware
+  honors it on recall in standalone use. When a field lives in this section yet
+  TESTS as global on real hardware (input/WorB is the clear case; watch for
+  others), the most likely explanation is that the field is authoritative in
+  Pro Tools-integrated mode and inert in standalone mode — NOT that the docs or
+  the capture are wrong. This reframes every "per-patch or global?" question as
+  "authoritative in WHICH mode?", and predicts more such fields will surface.
+  Until Avid documentation or another authority confirms or denies this, treat
+  it as the working model: trust the HARDWARE RECALL TEST (save a distinct
+  value, navigate away and back, observe whether it follows the patch) over the
+  mere presence of the field in the body. Confirmed-global-by-recall so far:
+  input/WorB. Confirmed per-patch-by-recall: RMno, Vol1/Vol2, Tempo, Rig Vol.
   Key   Offset  Description
   RVol  0x28    Rig Volume
   Vol1  0x30    To Amp 1 level
@@ -1315,6 +1345,18 @@ GLOBAL SECTION (fixed body offset; unchanged across chain reorder):
   PIGI  0x58    True Z (125=Auto, 0–11 per impedance)  [see C8]
   ExpT  0x68    Expression Pedal target
   WorB  0x98    Input Selector (60=Guitar, 61=Mic, ...)
+                *** WRITTEN INTO THE BODY BUT IGNORED ON RECALL — same trap as
+                RMno / C13. *** Confirmed 7/27/2026 (Charlie): a patch saved
+                under Mic vs Digital produces a DIFFERENT file (hash differs),
+                so the value IS stored per-patch. But on recall the hardware
+                does NOT apply it — save a patch as Mic, navigate away and the
+                input stays on the global setting; return to that patch and it
+                shows whatever the global input now is, not Mic. Live input is
+                GLOBAL, driven by CMD 0x3D and the front panel. So WorB is
+                present-but-not-authoritative for standalone operation: do NOT
+                read it back on recall, do NOT let it mark the patch dirty, and
+                do NOT wire input as a per-patch control. See the operating-mode
+                note under this section's heading, and CMD 0x3D (Section 6).
 
 AMP SECTION (chain-position-relative; find relative to the '6dls' marker at
 raw 0x36 0x64 0x6C 0x73). j = body index where '6dls' bytes start.
@@ -1403,6 +1445,30 @@ re-reading chain map ..."), which refreshes currentParamHi, currentChain,
 bypass, and any open effect panel. This is also where the knob-colour baseline
 and FX-truth baselines are re-anchored to the just-saved values, and the SAVE
 dirty latch is cleared (see Primer, 7/26 UI features).
+
+SAVE/CAPTURE MUST NOT REPAINT LIVE KNOBS FROM THE BODY (7/27/2026). Both bulk
+readback branches (isSave, and the manual/disk/nav-sync branch) decode the body
+to identify the amp and set discrete controls. They must NOT re-decode the
+continuous red-tracked knobs (gate, amp out, tone, To-Amp vols) and repaint them
+over the values already shown, because:
+  - The TFX body stores each knob as a high-res signed int32; the live CMD 0x11
+    protocol carries it as a coarse 0-127. Converting body->0-127 (gateRawToV127)
+    can round ONE unit off the live value. Values are not wrong (~0.08 on a 0-10
+    scale, inaudible), but the pixel-perfect knob-colour comparator flags the
+    variance as PHANTOM RED — persistent on Save-to-Disk, a red->amber flash on
+    Save-to-Rack, and different knobs on different amps (all one cause).
+  - setCurrentAmp() -> updateToneKnobs() BLANKS the tone row to "--"/midpoint on
+    re-render, so on a same-amp save the row is wiped; the body repaint was the
+    only thing refilling it (regression seen 7/27 when the repaint was first
+    removed outright).
+RULE (shipped 7/27): compute ampChanged = (decoded key !== currentAmpKey). Call
+setCurrentAmp ONLY when ampChanged. Repaint the continuous knobs from the body
+ONLY when (ampChanged || REQUEST_BULK_ON_NAV) — i.e. only when there is no live
+truth to preserve (row was just re-rendered, or legacy bulk-on-nav populated
+nothing live). On a normal same-amp save the live knobs are left untouched:
+no blanking, no phantom red; captureKnobBaselines then snapshots the live values
+so baseline == display. Discrete controls (cab/mic, mono) are always safe to
+apply. Nav itself never enters these branches (targeted pull populates live).
 
 NAME BEHAVIOUR (for reference — working as intended):
   - Save to Rack writes the name INTO the patch (CMD 0x05) before commit, then
@@ -1792,6 +1858,25 @@ CHAIN / DANGER:
 ===================================================================
 21. OPEN QUESTIONS & PENDING WORK
 ===================================================================
+
+DEFERRED — REFLECT LIVE INPUT INSTEAD OF FORCING GUITAR (1c, 7/27/2026):
+  Input is GLOBAL (Sec on CMD 0x3D), so forcing Guitar on connect stomps the
+  user's global input choice. The rack does not announce input on connect/recall
+  and there is no REQU to poll it, so the CMD 0x3D handler (which already drives
+  setInputButtons) only fires when the user physically changes input. Right
+  future design: stop forcing Guitar and reflect the live global input when a
+  0x3D arrives — belongs in a future global-HW-settings area, NOT read from the
+  patch body (that value is a stale per-save snapshot, meaningless for a global).
+  Left as-is this session (still forces Guitar); the forced write no longer
+  dirties the patch (1a), so it is cosmetically harmless for now.
+
+FIRST-CONNECT NOW REFLECTS THE RACK'S CURRENT PATCH (7/27/2026) — no longer
+  forces A1. On connect it sets currentSlot = -1 then calls requestFullState();
+  the REQU_CURR_RIG reply (CMD 0x02 handler) sets the real slot and runs the
+  nav pull. The -1 is required because currentSlot inits to 0 and the handler
+  only pulls when the confirmed slot differs — without it, a rack sitting on A1
+  would not pull. Watch item: if the main panel ever comes up blank on connect,
+  the confirmation-triggered pull did not fire — look here first.
 
 CODE-COMMENT DRIFT TO FIX (doc-vs-code, next time in the file):
   transport.js has a stale comment near the nav pull calling Rig Tempo "not per
@@ -2379,6 +2464,40 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-27 (docs, review) — Review sweep of the connect/dirty/phantom-red
+  session. Additive fold-in, baseline intact, conflicts in order, 38 sections.
+  Found and resolved one contradiction the session left open: Section 14's TFX
+  global-section table lists WorB (Input Selector) as living in the patch body,
+  while today's finding says input is GLOBAL. Charlie's hardware test settles
+  it — a patch saved as Mic vs Digital hash-differs (so the value IS written to
+  the body), but recall does NOT apply it (navigating away/back keeps the global
+  input). Same present-but-ignored trap as RMno/C13; WorB line annotated so a
+  future session cannot re-read it as per-patch and undo the 7/27 dirty-flag fix.
+  ALSO recorded a broader operating-mode HYPOTHESIS (labeled reasoned, not
+  confirmed) near the global-section heading: the TFX body carries a superset of
+  state for both standalone and Pro Tools-integrated operation, so a field's
+  presence in the body does not imply it is honored on recall in standalone use.
+  This reframes the recurring "per-patch or global?" battles (RMno, To Amp
+  source, now input) as "authoritative in which mode?" and gives the hardware
+  recall test as the arbiter. Documented at Charlie's direction so months of
+  hard-won understanding are not overlooked later.
+
+2026-07-27 (UI + connect) — three fixes from the 7/26 queue, tested by Charlie.
+  1a — SAVE-green-on-startup: sendCC routed every CC through sendPatchWrite, so
+    the startup forced-Guitar (CC 65) dirtied the patch. Now only PER_PATCH_CCS
+    = [17] (Rig Vol) mark dirty; input (65/66/67) and tuner (69) use plain
+    sendHex. Also fixes "changing input/tuner lights SAVE". (transport.js)
+  1b — retire forced A1: first connect now reflects the rack's current patch
+    (currentSlot = -1 then requestFullState; CMD 0x02 reply drives the pull)
+    instead of recalling A1. (transport.js; Sec 21)
+  2 — phantom red on save: the save/capture bulk branches were repainting the
+    continuous knobs from the body (int32->0-127 rounds one unit off the live
+    value) and setCurrentAmp was blanking the tone row. Now they only
+    setCurrentAmp / repaint when (ampChanged || REQUEST_BULK_ON_NAV); a normal
+    same-amp save leaves the live knobs untouched. (sysex-handler.js; Sec 15)
+  Also confirmed: input select is GLOBAL, not per-patch (Sec on CMD 0x3D).
+  Deferred: 1c (reflect live input / stop forcing Guitar) — Sec 21.
 
 2026-07-26 (docs, review) — Review sweep of the UI/handle session. Purely
   additive fold-in; baseline intact, conflicts in order, 38 sections. Verified

@@ -38,6 +38,40 @@ NEXT:        what would confirm it, or what to do with it
 ENTRIES (newest first)
 ===================================================================
 
+-------------------------------------------------------------------
+DATE:        2026-07-27 (review)
+STATUS:      [FOLDED IN: Technical Reference Sec 14 (WorB annotation +
+             operating-mode hypothesis), Sec 24]
+AREA:        Input Selector is global — WorB body field is written but ignored;
+             broader operating-mode model recorded
+FINDING:     Section 14 lists WorB (0x98, Input Selector) in the TFX global
+             section, implying per-patch storage; today's fix treats input as
+             global. Both are true in a specific sense. Charlie's hardware test:
+               - A patch saved under Mic vs Digital HASH-DIFFERS -> the value is
+                 written into the patch body.
+               - On recall the hardware IGNORES it -> save as Mic, nav away,
+                 input stays on the current global; return to the Mic-saved
+                 patch and it shows the global (e.g. Digital), not Mic.
+             So WorB is present-but-not-authoritative in standalone use — the
+             RMno/C13 trap again.
+HYPOTHESIS (reasoned, not confirmed — Charlie): the TFX body carries a SUPERSET
+             of state for two operating modes. Standalone (this app) = analog
+             gear with global input/routing; Pro Tools-integrated (the rack's
+             original bundled mode) = DAW drives DSP/IO per session, where input
+             and similar fields plausibly ARE recalled. A body field can thus be
+             authoritative in integrated mode and inert in standalone mode.
+             Reframes every "per-patch or global?" question as "authoritative in
+             WHICH mode?" and predicts more such fields. Arbiter = the hardware
+             recall test, not presence in the body.
+ACTION:      WorB line annotated (do not read back, do not dirty, do not wire
+             per-patch). Operating-mode note added by the global-section
+             heading. Both labeled fact vs hypothesis. Recorded because it took
+             months of observation to reach and would otherwise be re-litigated.
+NEXT:        If ever confirmable: Avid docs, or a capture of the rack in Pro
+             Tools-integrated mode, would settle whether input/others recall in
+             that mode. Not blocking anything.
+-------------------------------------------------------------------
+
 WHEN A FOLDED ENTRY LEAVES THIS FILE: an entry marked [FOLDED IN] is archived
 at the NEXT review cycle, not the same one. That leaves the most recent
 session visible here for continuity, while the log still trends toward empty.
@@ -348,3 +382,89 @@ REMAINING (not fixed, by decision or scope): rapid-nav bounce (accepted);
   increment + knob-style Appearance panel (item B, next session); stale
   transport.js comment calling tempo "not per patch" (harmless, fix when next
   editing that file).
+
+═══════════════════════════════════════════════════════════════════
+2026-07-27 — SESSION (queued items from 7/26 wrap)
+STATUS: [FOLDED IN 2026-07-27 — Tech Ref Sec 15 (phantom red / save repaint),
+  Sec 21 (1c deferred, first-connect), CMD 0x3D section (input global), Sec 24
+  change log; Primer CURRENT APP STATE + CODE FILE MAP]. Tested & passed.
+  Files: transport.js, sysex-handler.js.
+═══════════════════════════════════════════════════════════════════
+
+1a — CC DIRTY CATEGORIZATION (SAVE-green-on-startup fix). DONE.
+  Root cause (found 7/26, confirmed in current code): sendCC routes through
+  sendPatchWrite, so EVERY CC marked the patch dirty. The startup "forced Guitar
+  input" (sendCC(65,0), app-init.js ~1200 ms after launch) therefore lit SAVE
+  green after the nav's dirty-clear.
+  Fix: sendCC now marks dirty only for PER_PATCH_CCS = [17] (Rig Volume). Input
+  (CC 65/66/67) and Tuner (CC 69) use plain sendHex → never dirty. Also fixes the
+  latent "changing input or tuner lights SAVE" issue.
+  CONFIRMED (Charlie): input select is a GLOBAL hardware setting, not per-patch —
+  it never changes with patch and only when the user changes input. So it does
+  not belong to the patch and must not dirty it.
+
+1b — RETIRE FORCED A1 ON FIRST CONNECT (reflect current patch, Avid-like). DONE.
+  Was: first connect forced goToSlot(0) (recall to A1) "for a predictable state"
+  — legacy from the pre-Java-bridge era. Reconnect already reflected the current
+  patch. Now first connect does too: it sets currentSlot = -1 then calls
+  requestFullState(); the REQU_CURR_RIG reply (CMD 0x02 handler) sets the real
+  slot and runs clearStaleReadoutsOnNav + requestPatchStateAfterNav for us.
+  DETOUR/why currentSlot=-1: currentSlot inits to 0 (state.js), and the CMD 0x02
+  handler only pulls when the confirmed slot DIFFERS from currentSlot — so if the
+  rack sat on A1 (slot 0) it would not have pulled. Forcing -1 guarantees the
+  confirmation registers as a change and the pull fires, wherever the rack is.
+  No recall is sent, so the rack is left where the user had it.
+
+2 — PHANTOM RED ON SAVE (the 3 order-dependent red knobs). DONE.
+  Root cause (found 7/26): the TFX body stores knobs as high-res int32; the live
+  CMD 0x11 protocol carries them as coarse 0-127. On save/capture the body was
+  re-decoded (gateRawToV127) and REPAINTED over the already-live knobs; for knobs
+  whose stored value straddles a rounding boundary the body value lands one unit
+  off the live one. Values are NOT wrong (inaudible ~0.08 diff) — our
+  pixel-perfect red just flags the variance. Save-to-Rack re-anchored the
+  baseline (flash then amber); Save-to-Disk did not (stayed red). Different amps
+  show a different set of knobs (Tweed Bass: Amp Out/Treble/Vol Bright;
+  82 Lead 800: Gate Thresh/Presence/Treble) — same single cause.
+  Fix: in BOTH save/capture branches (sysex-handler.js), keep amp-ID + discrete
+  controls (cab/mic, mono) but do NOT repaint the continuous red-tracked knobs
+  (gate, amp out, tone, To-Amp vols) from the body — they already show the live
+  value. Gated behind REQUEST_BULK_ON_NAV so the legacy bulk-on-nav mode, where
+  nothing live-populated them, still repaints. Baseline and display now both come
+  from the live 0-127, so the rounding gap cannot surface. Keeps pixel-perfect
+  red intact (no tolerance introduced).
+
+1c — REFLECT LAST INPUT / STOP FORCING GUITAR. DEFERRED (Charlie's call).
+  Not needed to fix startup-green (1a already does) and independent of 1b/2.
+  Left as-is: app still forces Guitar on connect. Because input is GLOBAL, the
+  right future design is NOT "read input from patch body" (a stale snapshot) but
+  "stop forcing, reflect the live global input" — belongs in a future global-HW-
+  settings area. There is no REQU to poll input; the CMD 0x3D broadcast handler
+  (sysex-handler ~469) already sets the buttons when the rack volunteers input,
+  but the rack does not announce it on patch recall. Revisit with item B / a
+  global-settings panel.
+
+RETEST NOTES for Charlie:
+  - Launch: SAVE stays grey; app lands on the rack's CURRENT patch, not A1.
+  - Change input buttons / toggle tuner: SAVE must NOT go green. Move Rig Vol:
+    SAVE SHOULD go green.
+  - Nav to a patch that previously showed phantom red (e.g., 59 Tweed Bass);
+    Save to Disk and Save to Rack — the 3 knobs should NOT go red/flash. Make a
+    REAL edit then Save to Disk — those knobs SHOULD stay red (unsaved to rack).
+
+  ── 2026-07-27 FOLLOW-UP (test 1): Part 2 regression — tone knobs blanked on save ──
+  Charlie: after ANY save the amp tone knobs went to midpoint + "--" and red
+  (HW values correct; load was fine, broke only on save). Screenshot: 92
+  Treadplate Vintage, all 6 tone knobs red/blank.
+  CAUSE: the save/capture branch calls setCurrentAmp() -> updateToneKnobs(),
+  which RE-RENDERS the tone row to default ("--", midpoint 64). Previously the
+  updateToneReadouts() call right after refilled the values; my first Part 2 edit
+  removed that refill but left setCurrentAmp, so the row was blanked and never
+  repopulated. (Plain nav was unaffected — it never enters this branch; tone
+  knobs populate live there.)
+  FIX: gate on ampChanged = (decoded amp key !== currentAmpKey). Only call
+  setCurrentAmp when the amp ACTUALLY changed, and only repaint the continuous
+  knobs (gate/ampout/tone/To-Amp) from the body when (ampChanged ||
+  REQUEST_BULK_ON_NAV). On a normal same-amp save nothing touches the live tone
+  knobs -> no blanking AND no phantom red. captureKnobBaselines then snapshots
+  the live values (baseline == display -> amber). Applied to BOTH the isSave and
+  manual/disk branches. File: sysex-handler.js.
