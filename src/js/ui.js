@@ -200,11 +200,16 @@ function valGateThresh(v127) {
 
 // Gate Release: logarithmic 10ms to 3000ms
 // Hardware shows ~198ms at midpoint — log scale confirmed
+// One decimal place throughout (7/27), matching every other readout
+// (Gate Threshold, Rig Vol, Amp Out, To Amp Vol) — was showing a bare
+// rounded integer below 1000ms ("10 ms") while the seconds branch above
+// 1000ms already used .toFixed(1). The v127=0 special case is gone too:
+// the formula already lands exactly on 10 at v127=0, so toFixed(1) alone
+// gives "10.0 ms" with no separate branch needed.
 function valGateRelease(v127) {
-  if (v127 === 0) return '10 ms';
   // Logarithmic: ms = 10 * (300)^(v/127)
   const ms = 10 * Math.pow(300, v127 / 127);
-  return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
+  return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
 }
 
 // Rig Volume: 0-127 maps -24dB to 0dB
