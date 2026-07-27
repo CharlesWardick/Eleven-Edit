@@ -412,6 +412,12 @@ CODE FILE MAP
                        Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
                        REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
   transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       7/27 REORG: sendDistModelChange/requestDistParams/
+                       sendDistParamWrite and the REVERB equivalents MOVED to
+                       fx-transport.js (new file, below) — this file no longer
+                       grows with each new effect panel. PURE RELOCATION, no
+                       logic changed. Everything below dated 7/23 and earlier
+                       still describes this file correctly.
                        7/26: sendPatchWrite(hex) wrapper — the 13 per-patch
                        write functions send through it so the SAVE dirty latch
                        lights (queries/readbacks keep calling sendHex directly);
@@ -446,8 +452,16 @@ CODE FILE MAP
                        again with no other change.
                        Phase 11: nav pull adds 0x12/0x13 on tremolo amps;
                        sendParamWrite sends true endpoint sentinels.
-                       Phase 9: sendDistModelChange, requestDistParams, sendDistParamWrite.
-                       Phase 10: sendReverbModelChange, requestReverbParams, sendReverbParamWrite.
+                       Phase 9/10 functions (sendDistModelChange etc.) now live
+                       in fx-transport.js — see that entry below.
+  fx-transport.js      NEW 7/27. Per-effect-block SEND functions, one
+                       model-change/request-params/param-write trio per block,
+                       split out of transport.js so that file stops growing as
+                       panels are added. Currently holds: sendDistModelChange,
+                       requestDistParams, sendDistParamWrite, sendReverbModelChange,
+                       requestReverbParams, sendReverbParamWrite. THE NEXT SEVEN
+                       PANELS' send functions belong HERE, not in transport.js —
+                       copy the DIST trio as the template (see file header).
   sysex-handler.js     Incoming message routing.
                        7/27 REORG: parseSysEx was one 700+ line function with a
                        sequential if-chain over every CMD byte — hard to follow
@@ -490,6 +504,14 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/27 REORG: openDistPanel/renderDistKnobs/updateDistKnob/
+                       refreshDistPanelAfterChainMap/DIST drag handler and the
+                       REVERB equivalents MOVED to fx-panels.js (new file, below)
+                       — this file no longer grows with each new effect panel.
+                       PURE RELOCATION, no logic changed. Everything below dated
+                       7/26 and earlier that is NOT about DIST/REVERB still
+                       describes this file correctly; the Phase 9/10 lines at
+                       the bottom of this entry now describe fx-panels.js instead.
                        7/26: KNOB_COLORS + knobColor() (amber/green base, red on
                        change); captureKnobBaselines()/clearMainKnobBaselines()
                        (main-panel baseline); fxBaseline store + helpers
@@ -520,6 +542,17 @@ CODE FILE MAP
                        updateReverbKnob, reverbKnobDisplay (ms), currentReverbModel,
                        refreshReverbPanelAfterChainMap, REVERB knob drag handler.
                        Knob drag start-value zero-guard fixed (DIST + REVERB).
+  fx-panels.js         NEW 7/27. Per-effect-panel UI, split out of ui.js so that
+                       file stops growing as panels are added. Currently holds
+                       the DIST panel (openDistPanel, renderDistKnobs,
+                       updateDistKnob, refreshDistPanelAfterChainMap, drag
+                       handler) and the REVERB panel (same set plus
+                       currentReverbModel, reverbKnobDisplay for the ms unit,
+                       and the Type dropdown+knob linkage). THE NEXT SEVEN
+                       PANELS' UI belongs HERE, not in ui.js — copy the DIST
+                       set as the template (see file header); REVERB's extra
+                       pieces are the template for any block that needs a
+                       linked selector or a non-default unit/scale.
   app-init.js          Startup wiring
   patch-nav.js         Patch navigation logic.
                        7/23: sendPC() now emits the CMD 0x02 absolute-slot
