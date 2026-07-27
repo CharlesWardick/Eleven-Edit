@@ -281,6 +281,13 @@ OPEN:        Does AMP-CAB have a special rule too? Avid drags an adjacent loop
 NEXT:        Deferred by agreement 7/19. Current drag behaviour is correct and
              working; this is feel, not function. Revisit after the effect
              panel work.
+UPDATE 7/27: effect panel work (DIST, REVERB) is done, so this is next in
+             line — Charlie intends to pick it up next session. BEFORE
+             implementing the AMP-CAB+Loop rule above: Charlie will re-verify
+             it directly against the Avid editor first — the OPEN question
+             above was never confirmed, and he flagged that the original
+             finding may not be 100% accurate on a re-look. Do NOT implement
+             that rule from this entry alone; wait for his fresh observation.
 -------------------------------------------------------------------
 
 

@@ -1,6 +1,6 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-24
+Updated: 2026-07-27
 Author: Charles Wardick (charles.wardick@gmail.com)
 Status: Active development — Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
@@ -204,6 +204,26 @@ CONFIRMED ARCHITECTURE (brief)
 CURRENT APP STATE (Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
+
+7/27/2026 EVENING — CODE REORGANIZATION + one display fix (tested by Charlie
+  same day; no protocol or behaviour changes except where noted):
+  sysex-handler.js — parseSysEx was one 700+ line function running every
+    incoming CMD byte as a sequential if-chain. Split into one handleXxx(data)
+    function per command, dispatched from a thin switch; CMD 0x11 further
+    split into routeBypassMessage / routeFormatBAmpMessage / routeAmpBlockParam.
+  transport.js and ui.js — both grew by one repeated chunk per effect panel
+    (DIST, REVERB so far; 7 more planned). The per-effect send functions moved
+    out of transport.js into new fx-transport.js; the per-effect panel UI moved
+    out of ui.js into new fx-panels.js. Neither core file grows further as
+    panels are added — new panels' code belongs in the two new files (see
+    their header comments for the copy-this-pattern template).
+  Gate Release readout — was a bare rounded integer below 1000ms ("10 ms")
+    while every other readout (Gate Threshold, Rig Vol, Amp Out, To Amp Vol)
+    already showed one decimal place. Now consistent ("10.0 ms"). ACTUAL
+    DISPLAY CHANGE, not a pure reorg — scale/formula untouched.
+  See CODE FILE MAP below for the per-file detail; all three changes are on
+  branch claude/elevenedit-primer-review-njmhy5 (check git for current merge
+  status — that's tracked in git, not restated here).
 
 7/27/2026 FIXES (tested by Charlie same day; details in Tech Ref Sec 15/21/24):
   Startup SAVE no longer green — sendCC marks the patch dirty only for per-patch
