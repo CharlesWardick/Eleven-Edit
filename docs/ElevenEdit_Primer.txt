@@ -449,6 +449,19 @@ CODE FILE MAP
                        Phase 9: sendDistModelChange, requestDistParams, sendDistParamWrite.
                        Phase 10: sendReverbModelChange, requestReverbParams, sendReverbParamWrite.
   sysex-handler.js     Incoming message routing.
+                       7/27 REORG: parseSysEx was one 700+ line function with a
+                       sequential if-chain over every CMD byte — hard to follow
+                       and the reason this file kept needing "ask for it by
+                       name" treatment in reviews. Split into one handleXxx(data)
+                       function per CMD (handleBulkTfxData, handleSlotConfirm,
+                       handleChainMap, handleParamReadback, etc.), dispatched
+                       from a thin switch in parseSysEx. CMD 0x11 (the biggest
+                       branch) further split into routeBypassMessage,
+                       routeFormatBAmpMessage, routeAmpBlockParam. PURE
+                       REORGANIZATION — every guard, branch and comment moved
+                       verbatim; no behaviour changed. Dead unused var dirByte
+                       dropped. Verify against this entry, not against memory
+                       of the old single-function layout.
                        7/27: save/capture bulk branches (isSave + manual/disk)
                        only setCurrentAmp and repaint the continuous knobs from
                        the body when (ampChanged || REQUEST_BULK_ON_NAV) — a
