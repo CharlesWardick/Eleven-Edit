@@ -320,8 +320,19 @@ WORKING:
   Chain row — true per-patch order, model name on hover, stereo shown as
     stacked double connector lines (49 of 52 models resolved).
   Chain reorder — drag and drop, with FX Loop placement enforced client-side.
-    Note: unlike Avid, dragging the amp does NOT drag an adjacent loop with it
-    (intentional, see Tech Ref Sec 4).
+    7/28: LIVE PREVIEW — blocks physically shift into place during the drag
+    itself (applyChainOrder), not just on drop; a chain-map arriving mid-drag
+    no longer fights the preview (renderChainRow no-ops while chainDragActive).
+    AMP-CAB + LOOP LINKED DRAG — dragging AMP-CAB while LOOP sits immediately
+    adjacent now moves LOOP with it, same direction/distance, until LOOP hits
+    either end of the chain — matching Avid's feel, confirmed against the real
+    editor by Charlie 7/27 (see Session Log). Once LOOP is parked at an end,
+    AMP-CAB is free to roam alone again; dragging LOOP directly is unchanged
+    (existing jump-between-legal-stops behaviour). PENDING CHARLIE'S BUILD
+    TEST — the underlying reorder math was verified by a standalone Node
+    simulation of every scenario Charlie described (caught and fixed one real
+    bug: LOOP already parked at an end was wrongly still being dragged along),
+    but the actual drag feel in the browser has not been clicked through yet.
   TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
   Load TFX (memory load) — round-trip verified
   Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto
@@ -524,6 +535,19 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28: chain drag rewritten for live preview + the
+                       AMP-CAB/LOOP linked rule. computeReorder signature
+                       changed from (fromSlotId, toIndex) to (fromSlotId,
+                       targetSlotId, after, baseOrder) — only caller was
+                       wireChainDrag, updated with it. New:
+                       computeLinkedAmpLoopReorder (the linked-pair math),
+                       applyChainOrder (DOM-move logic pulled out of
+                       renderChainRow so the live preview can call it with a
+                       speculative order), chainDragStartOrder/chainPreviewOrder/
+                       chainDragCommitted state. renderChainRow no-ops while
+                       chainDragActive so an incoming chain-map can't fight the
+                       preview. clearDropMarks/.drop-before/.drop-after removed
+                       (dead — the live preview replaced the marker).
                        7/27 REORG: openDistPanel/renderDistKnobs/updateDistKnob/
                        refreshDistPanelAfterChainMap/DIST drag handler and the
                        REVERB equivalents MOVED to fx-panels.js (new file, below)

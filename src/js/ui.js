@@ -838,17 +838,68 @@ document.addEventListener('DOMContentLoaded', function() {
 // last. Both the Avid editor and the hardware front panel resolve this before
 // anything is sent: the editor SNAPS a dropped loop to the nearest legal spot
 // rather than refusing it. We do the same, so an illegal arrangement is never
-// transmitted. Dragging the AMP can also strand the loop, so the loop is
-// re-validated after every move, not just when the loop itself is dragged.
+// transmitted.
 //
-// Returns a reordered copy of currentChain, loop legality already resolved.
-function computeReorder(fromSlotId, toIndex) {
-  const rest = currentChain.filter(b => b.slotId !== fromSlotId);
-  const moved = currentChain.find(b => b.slotId === fromSlotId);
+// AMP-CAB + LOOP "LINKED BLOCK" RULE (confirmed against the Avid editor
+// 7/28/2026, Session Log): dragging AMP-CAB while LOOP sits immediately
+// adjacent to it (either side) moves LOOP along with it, same direction, same
+// distance, until LOOP would be pushed past either end of the chain — at
+// which point LOOP stays parked at that end and further AMP-CAB movement is
+// free (LOOP at position 1 or 10 is legal regardless of AMP-CAB's position).
+// Dragging LOOP directly, or dragging AMP-CAB when LOOP is NOT adjacent to it,
+// uses the plain snap-to-nearest-legal-stop behaviour below (unchanged, and
+// already confirmed correct against a full legality table the same day).
+//
+// baseOrder defaults to currentChain but the live drag preview (wireChainDrag)
+// passes a frozen snapshot taken at dragstart instead, so a chain-map arriving
+// mid-drag can't perturb the on-screen preview (Session Log WATCH FOR, 7/19).
+//
+// Returns a reordered copy of baseOrder, loop legality already resolved.
+function computeReorder(fromSlotId, targetSlotId, after, baseOrder) {
+  const src = baseOrder || currentChain;
+  if (fromSlotId === targetSlotId) return src;
+
+  const ampIdx  = src.findIndex(b => b.slotId === SLOT_AMP);
+  const loopIdx = src.findIndex(b => b.slotId === SLOT_LOOP);
+  // Adjacent alone isn't enough: LOOP already parked at an end (index 0 or
+  // the last index) is legal on its own regardless of AMP-CAB's position, so
+  // it must NOT be dragged along even though it's numerically "adjacent" —
+  // confirmed by simulation: amp=9/loop=10 wrongly pulled loop to 2 before
+  // this guard was added.
+  const loopAtEnd = loopIdx === 0 || loopIdx === src.length - 1;
+  const linked  = fromSlotId === SLOT_AMP && ampIdx >= 0 && loopIdx >= 0
+                  && Math.abs(ampIdx - loopIdx) === 1 && !loopAtEnd;
+
+  if (linked) return computeLinkedAmpLoopReorder(src, targetSlotId, after, ampIdx, loopIdx);
+
+  const rest = src.filter(b => b.slotId !== fromSlotId);
+  const moved = src.find(b => b.slotId === fromSlotId);
   if (!moved) return null;
-  let idx = Math.max(0, Math.min(toIndex, rest.length));
+  let idx = rest.findIndex(b => b.slotId === targetSlotId);
+  if (idx < 0) idx = rest.length;
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(idx, rest.length));
   rest.splice(idx, 0, moved);
   return enforceLoopPlacement(rest);
+}
+
+// Moves AMP-CAB and its adjacent LOOP together as a two-item unit. Removing
+// both from the order and reinserting them as a pair (in their original
+// relative order, so LOOP stays on the same side it started on) means the
+// normal 0..rest.length clamp that already bounds a single-item insertion
+// now bounds the PAIR instead — which is exactly what stops LOOP from ever
+// being pushed past either end. No separate boundary check needed.
+function computeLinkedAmpLoopReorder(src, targetSlotId, after, ampIdx, loopIdx) {
+  const loopBefore = loopIdx < ampIdx;
+  const pair = loopBefore ? [src[loopIdx], src[ampIdx]] : [src[ampIdx], src[loopIdx]];
+  const rest = src.filter(b => b.slotId !== SLOT_AMP && b.slotId !== SLOT_LOOP);
+  let idx = rest.findIndex(b => b.slotId === targetSlotId);
+  if (idx < 0) idx = rest.length;   // hovered over AMP/LOOP itself — park at the end for now
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(idx, rest.length));
+  const result = rest.slice();
+  result.splice(idx, 0, ...pair);
+  return result;
 }
 
 function legalLoopIndices(withoutLoop) {
@@ -882,13 +933,15 @@ function sameOrder(a, b) {
   return true;
 }
 
-let chainDragSlot = null;      // slot ID being dragged
-let chainDragActive = false;   // suppresses the click that follows a drag
-
-function clearDropMarks() {
-  document.querySelectorAll('#chainstrip .drop-before, #chainstrip .drop-after')
-    .forEach(el => el.classList.remove('drop-before','drop-after'));
-}
+let chainDragSlot      = null;   // slot ID being dragged
+let chainDragActive    = false;  // suppresses the click that follows a drag
+let chainDragStartOrder = null;  // currentChain snapshot at dragstart — every
+                                  // preview computation this drag uses THIS,
+                                  // never the live currentChain, so an
+                                  // incoming chain-map broadcast mid-drag
+                                  // cannot yank the preview (WATCH FOR, 7/19)
+let chainPreviewOrder  = null;    // order currently shown on screen
+let chainDragCommitted = false;   // did this drag's drop() actually send an order?
 
 function wireChainDrag() {
   const strip = document.getElementById('chainstrip');
@@ -902,56 +955,63 @@ function wireChainDrag() {
     if (!blk) return;
     chainDragSlot = blk.slotId;
     chainDragActive = true;
+    chainDragStartOrder = currentChain.slice();
+    chainPreviewOrder = chainDragStartOrder;
     cont.classList.add('dragging');
     ev.dataTransfer.effectAllowed = 'move';
     ev.dataTransfer.setData('text/plain', String(blk.slotId));   // Firefox needs a payload
   });
 
+  // LIVE PREVIEW (7/28): the blocks physically shift into the speculative
+  // order as you drag, instead of a static insertion marker that only
+  // resolved on drop. Recomputed off chainDragStartOrder, applied to the DOM
+  // immediately — nothing is sent to hardware until an actual drop.
   strip.addEventListener('dragover', function(ev) {
     if (chainDragSlot === null) return;
     const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
     if (!cont || !strip.contains(cont)) return;
     ev.preventDefault();
     ev.dataTransfer.dropEffect = 'move';
+
+    const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
+    if (!target) return;
     const r = cont.getBoundingClientRect();
     const after = ev.clientX > r.left + r.width / 2;
-    clearDropMarks();
-    cont.classList.add(after ? 'drop-after' : 'drop-before');
-  });
 
-  strip.addEventListener('dragleave', function(ev) {
-    if (!strip.contains(ev.relatedTarget)) clearDropMarks();
+    const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
+    if (next && !sameOrder(next, chainPreviewOrder)) {
+      chainPreviewOrder = next;
+      applyChainOrder(next);
+    }
   });
 
   strip.addEventListener('drop', function(ev) {
     if (chainDragSlot === null) return;
     ev.preventDefault();
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    clearDropMarks();
-    if (cont && strip.contains(cont)) {
-      const target = currentChain.find(b => containerForSlot(b.slotId) === cont);
-      if (target && target.slotId !== chainDragSlot) {
-        const r = cont.getBoundingClientRect();
-        const after = ev.clientX > r.left + r.width / 2;
-        // index within the list that excludes the dragged block
-        const rest = currentChain.filter(b => b.slotId !== chainDragSlot);
-        let ti = rest.findIndex(b => b.slotId === target.slotId);
-        if (after) ti += 1;
-        const next = computeReorder(chainDragSlot, ti);
-        if (next && !sameOrder(next, currentChain)) {
-          sendChainOrder(next);   // hardware replies with a map; renderChainRow adopts it
-        }
-      }
+    chainDragCommitted = false;
+    if (chainPreviewOrder && !sameOrder(chainPreviewOrder, currentChain)) {
+      sendChainOrder(chainPreviewOrder);   // hardware replies with a map; renderChainRow adopts it
+      chainDragCommitted = true;
     }
     chainDragSlot = null;
   });
 
   strip.addEventListener('dragend', function() {
-    clearDropMarks();
     document.querySelectorAll('#chainstrip .dragging')
       .forEach(el => el.classList.remove('dragging'));
     chainDragSlot = null;
-    setTimeout(() => { chainDragActive = false; }, 0);   // let the stray click pass first
+    chainDragStartOrder = null;
+    chainPreviewOrder = null;
+    const committed = chainDragCommitted;
+    chainDragCommitted = false;
+    setTimeout(() => {
+      chainDragActive = false;
+      // A committed drag leaves the preview's DOM alone — the hardware's own
+      // CMD 0x21 reply will call renderChainRow() for real once it lands, and
+      // currentChain will match what's already on screen by then (no visible
+      // jump). A cancelled or no-op drag has nothing coming, so re-sync now.
+      if (!committed) renderChainRow();
+    }, 0);   // let the stray click pass first
   });
 }
 
@@ -970,6 +1030,24 @@ function containerForSlot(slotId) {
 function renderChainRow() {
   const strip = document.getElementById('chainstrip');
   if (!strip || !currentChain.length) return;
+  // A live drag preview (wireChainDrag) is showing its own speculative order
+  // on screen right now — a chain-map arriving mid-drag (front panel, Avid,
+  // an echo) must not fight it. dragend re-syncs for real once the drag ends
+  // (Session Log WATCH FOR, 7/19).
+  if (chainDragActive) return;
+
+  applyChainOrder(currentChain);
+  refreshBlockBypassDisplays();
+  wireChainDrag();
+}
+
+// Moves the chain-slot divs into `order` and repaints the connector arrows.
+// Pulled out of renderChainRow (7/28) so the live drag preview can call it
+// with a SPECULATIVE order while dragging, without touching currentChain or
+// re-running the bypass-paint / drag-wiring side effects.
+function applyChainOrder(order) {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) return;
 
   // Collect the movable pieces before touching anything.
   // The "drag blocks to reorder" hint was removed 7/24/2026 — 10px on #555 was
@@ -980,11 +1058,9 @@ function renderChainRow() {
   const mono   = document.getElementById('mono-indicator');
   const tempo  = document.getElementById('tempo-wrap');
 
-  const containerFor = containerForSlot;
-
   let arrowIdx = 0;
-  currentChain.forEach((blk, i) => {
-    const cont = containerFor(blk.slotId);
+  order.forEach((blk, i) => {
+    const cont = containerForSlot(blk.slotId);
     if (!cont) return;
     strip.appendChild(cont);                       // move, do not clone
     cont.setAttribute('draggable', 'true');
@@ -996,7 +1072,7 @@ function renderChainRow() {
     cont.querySelectorAll('.chain-name, .chain-open').forEach(el => { el.title = tip; });
 
     // Connector after this block: double arrow when this block outputs stereo.
-    if (i < currentChain.length - 1 && arrowIdx < arrows.length) {
+    if (i < order.length - 1 && arrowIdx < arrows.length) {
       const arr = arrows[arrowIdx++];
       const st  = MODEL_OUT_STEREO[blk.modelId];
       // Stacked horizontal lines, fixed width: one = mono, two = stereo.
@@ -1023,9 +1099,6 @@ function renderChainRow() {
   if (conn)  strip.appendChild(conn);
   if (mono)  strip.appendChild(mono);
   if (tempo) strip.appendChild(tempo);
-
-  refreshBlockBypassDisplays();
-  wireChainDrag();
 }
 
 // Paint every non-amp slot from the stored bypass state.

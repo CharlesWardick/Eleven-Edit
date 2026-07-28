@@ -223,8 +223,8 @@
   /* drag to reorder */
   .chain-slot[draggable="true"], .chain-slot-stack[draggable="true"] { cursor: grab; }
   .chain-slot.dragging, .chain-slot-stack.dragging { opacity: 0.35; cursor: grabbing; }
-  .chain-slot.drop-before, .chain-slot-stack.drop-before { box-shadow: -3px 0 0 0 var(--accent); }
-  .chain-slot.drop-after,  .chain-slot-stack.drop-after  { box-shadow:  3px 0 0 0 var(--accent); }
+  /* drop-before/drop-after marker removed 7/28 — the live preview (blocks
+     actually shifting during the drag) replaced it; see ui.js wireChainDrag */
   .chain-name {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
     border-radius: 4px 4px 0 0; border-bottom: none;

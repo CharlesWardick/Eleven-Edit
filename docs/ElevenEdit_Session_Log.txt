@@ -328,6 +328,22 @@ NEXT:        Implement per APPROACH above (live speculative-order preview)
              PLUS the linked-block rule above. Re-confirm the linked-block
              rule empirically during implementation before relying on it,
              per the NOT yet re-checked note.
+STATUS:      IMPLEMENTED 7/28, PENDING CHARLIE'S BUILD TEST — not yet
+             confirmed against the real app/hardware.
+UPDATE 7/28: Built in ui.js (computeReorder rewritten, computeLinkedAmpLoopReorder
+             added, applyChainOrder extracted, renderChainRow guarded against
+             chainDragActive). Before touching the real app, verified the pure
+             reorder math with a standalone Node simulation of every scenario
+             Charlie described (both AMP-then-LOOP and LOOP-then-AMP starting
+             arrangements, dragging AMP, dragging LOOP, hitting both ends).
+             CAUGHT A REAL BUG this way: the first version treated LOOP as
+             "linked" whenever merely adjacent to AMP-CAB, which wrongly kept
+             dragging LOOP along even after it reached position 10 (an end,
+             legal on its own). Fixed: linked now also requires LOOP is NOT
+             already at either end. All scenarios matched after the fix.
+             This does NOT replace a real build test — the simulation only
+             proves the array math, not the actual on-screen drag feel, CSS,
+             or anything DOM/browser-specific, none of which can run here.
 -------------------------------------------------------------------
 
 
