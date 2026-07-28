@@ -537,6 +537,51 @@ NEXT:        (1) Charlie's build test of the drag-handle split + taller row
              Charlie's screen-capture video of Avid's drag flow, for the
              separate "drag smoothness" question.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED, PENDING CHARLIE'S REBUILD TEST
+AREA:        Chain row graphics-ready layout — visual polish pass
+FINDING:     Charlie's first build test of the drag-handle layout: "drag is
+             amazingly better already, but still not solved" (separate,
+             already-tracked issue). Three visual problems from a screenshot:
+               1. Placeholder thumb nearly invisible — #2a2a2a dashed border
+                  on #161616 fill barely showed against #chainstrip's #181818.
+               2. Blocks "butt right up against" what Charlie read as a lower
+                  orange separator, wanting more breathing room. CHECKED THE
+                  ACTUAL CSS: there is only ONE true orange divider in that
+                  area (#topbar's border-bottom, var(--accent-dim)). The
+                  perceived "second" one is almost certainly REVERB's own
+                  selected-state highlight (also amber, since it's the
+                  currently open panel) — not a separator that was built,
+                  just a color coincidence. Real underlying issue: the thumb+
+                  label+caret stack (~106-110px) was filling the 110px row
+                  with essentially zero top or bottom padding.
+               3. INPUT clone / STEREO badge "lost their centered
+                  appearance... clean bookends" — the 7/28 earlier-pass fix
+                  wrapped both in a .chain-label-group + spacer specifically
+                  to bottom-align them with the pedal-thumb slots. That was
+                  the wrong call: they're meant to float centered regardless
+                  of the taller row, independent of the thumb-slots.
+FIX:         (1) .chain-thumb-placeholder recolored to #1e1e1e fill / #555
+             border — reuses the exact DIST/REVERB knob-wrapper palette
+             already established elsewhere, so it's consistent with the
+             app's existing visual language rather than a new one-off color.
+             (2) #chainstrip height 110px->130px, padding 0 16px ->
+             6px 16px 8px — real top and bottom breathing room instead of
+             content touching the row's edges.
+             (3) .chain-label-group/.chain-thumb-spacer REMOVED — reverted
+             #chain-input-wrap and #mono-indicator to their original flat
+             structure with align-self:center directly on each, restoring
+             the pre-7/28 centered "bookend" look regardless of the taller
+             thumb-slots around them. Also widened #mono-indicator 58px ->
+             70px to match #chain-input-wrap's width, per Charlie's own
+             suggested fix ("if stereo/mono button is smaller... increase
+             the stereo/mono to match").
+FILES:       index.html only (CSS + markup revert of the label-group wrapper).
+NEXT:        Charlie's rebuild test. Also: Charlie is trying to get a phone-
+             recorded video of Avid's drag flow to a postable size/bitrate —
+             video editing is unfamiliar territory for him, may take another
+             pass or two to land.
+-------------------------------------------------------------------
 
 
 

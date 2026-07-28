@@ -134,13 +134,16 @@
   /* ══ CHAIN STRIP ══ */
   #chainstrip {
     background: #181818; border-bottom: 2px solid var(--border-dim);
-    display: flex; align-items: flex-end; padding: 0 16px; gap: 5px;
+    display: flex; align-items: flex-end; padding: 6px 16px 8px; gap: 5px;
     /* 7/28: grown from 62px to fit .chain-thumb above the label (Primer's
        original graphics plan called for ~110px). align-items changed from
-       center to flex-end so every child — thumb+label+caret stacks, and the
-       label-only groups (INPUT clone, STEREO badge) — sits flush at the same
-       bottom baseline regardless of its own total height. */
-    height: 110px; flex-shrink: 0; overflow-x: hidden;
+       center to flex-end so the thumb+label+caret stacks sit flush at a
+       consistent bottom baseline (INPUT clone / STEREO badge opt back out
+       of this via their own align-self:center — see their rules). Height
+       bumped again same day + top/bottom padding added — the stacks were
+       filling the row edge-to-edge with no breathing room top or bottom
+       (Charlie: blocks "butt right up against" the boundary above/below). */
+    height: 130px; flex-shrink: 0; overflow-x: hidden;
   }
   /* Connector between blocks. FIXED WIDTH regardless of mono/stereo so the row
      never re-flows when a patch changes — stacked horizontal lines, like the
@@ -168,12 +171,15 @@
      end-group (connector + badge + tempo) parks at the right. */
   #mono-indicator {
     font-size: 11px; font-weight: bold; letter-spacing: 1px;
-    padding: 3px 8px; border-radius: 3px;
+    padding: 3px 8px; border-radius: 3px; align-self: center;
     border: 1px solid; white-space: nowrap; flex-shrink: 0;
     cursor: pointer;
     /* Fixed width so the badge does not resize between the 6-letter STEREO
-       and 4-letter MONO. Sized for STEREO and centred. */
-    width: 58px; text-align: center; box-sizing: border-box;
+       and 4-letter MONO. Sized for STEREO and centred.
+       7/28: widened 58px -> 70px to match #chain-input-wrap's width — Charlie
+       noted it looked smaller than its "bookend" counterpart at the other
+       end of the row. */
+    width: 70px; text-align: center; box-sizing: border-box;
     /* letter-spacing adds a phantom gap after the final letter, pulling the
        text optically left; asymmetric padding puts the space back on the
        right so STEREO/MONO look centred. */
@@ -203,19 +209,19 @@
      stereo/mono state further down the line. */
   #chain-input-wrap {
     font-size: 11px; font-weight: bold; letter-spacing: 1px;
-    padding: 3px 8px; border-radius: 3px;
+    padding: 3px 8px; border-radius: 3px; align-self: center;
     border: 1px solid var(--green); white-space: nowrap; flex-shrink: 0;
     background: #0a2a0a; color: var(--green);
     /* Fixed width sized for the longest label (DIGITAL) so the row doesn't
        shift as the input changes. */
     width: 70px; text-align: center; box-sizing: border-box;
   }
-  /* 7/28: wraps INPUT-clone / STEREO badge so they bottom-align at the same
-     baseline as the pedal-thumb slots (#chainstrip's align-items:flex-end
-     handles the row-level alignment; this just centers each group's own
-     content horizontally, same as .chain-slot does for its taller stack). */
-  .chain-label-group { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
-  .chain-thumb-spacer { height: 68px; flex-shrink: 0; }
+  /* 7/28, REVERTED same day: an earlier pass wrapped this and #mono-indicator
+     in a .chain-label-group + spacer to bottom-align them with the taller
+     pedal-thumb slots. Charlie: they "lost their centred appearance... clean
+     bookends". Reverted to the original flat structure + align-self:center —
+     these two are meant to float centred regardless of the taller row around
+     them, not follow the thumb-slots' bottom alignment. */
 
   /* ══ RIG TEMPO — digital-clock field (CMD 0x50) ══
      Two click-selectable segments (whole BPM and tenths) plus a stepper.
@@ -271,9 +277,14 @@
     cursor: grab;
   }
   .chain-thumb.dragging { opacity: 0.35; cursor: grabbing; }
+  /* 7/28: #2a2a2a dashed on #161616 (against #chainstrip's #181818) was
+     nearly invisible — Charlie: "I can't see the drag handles but I know
+     they are there". Matches the existing knob-wrapper treatment used in
+     the DIST/REVERB panels (#1e1e1e fill, #555 border) so it reads clearly
+     without being a bright, distracting box. */
   .chain-thumb-placeholder {
     width: 100%; height: 100%; border-radius: 3px;
-    border: 1px dashed #2a2a2a; background: #161616;
+    border: 1px dashed #555; background: #1e1e1e;
   }
   .chain-name {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
@@ -676,10 +687,7 @@
   <!-- Passive INPUT clone (7/28) — always the FIRST child, never touched by
        applyChainOrder's reorder loop, so it stays at the start of the row
        regardless of which block currently occupies chain position 1. -->
-  <div class="chain-label-group">
-    <div class="chain-thumb-spacer"></div>
-    <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
-  </div>
+  <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
   <div id="chain-input-connector" class="chain-arr" title="Input"><i></i></div>
 
   <!-- 7/28: .chain-thumb is the DEDICATED drag handle — a placeholder box
@@ -760,10 +768,7 @@
   </div>
 
   <div id="mono-connector" class="chain-arr" title="Stereo/Mono"><i></i><i></i></div>
-  <div class="chain-label-group">
-    <div class="chain-thumb-spacer"></div>
-    <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
-  </div>
+  <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
 
   <!-- RIG TEMPO — CMD 0x50, microseconds per beat. Rig level, not per patch,
        which is why it lives out here beside the Stereo/Mono badge and not in
