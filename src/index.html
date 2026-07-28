@@ -221,7 +221,9 @@
   /* Standard slot: label on top, ▼ underneath */
   .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; }
   /* drag to reorder */
-  .chain-slot[draggable="true"], .chain-slot-stack[draggable="true"] { cursor: grab; }
+  /* Always draggable via mousedown/mousemove tracking (7/28) — no longer
+     gated on an HTML draggable attribute, so this applies unconditionally. */
+  .chain-slot, .chain-slot-stack { cursor: grab; }
   .chain-slot.dragging, .chain-slot-stack.dragging { opacity: 0.35; cursor: grabbing; }
   /* drop-before/drop-after marker removed 7/28 — the live preview (blocks
      actually shifting during the drag) replaced it; see ui.js wireChainDrag */

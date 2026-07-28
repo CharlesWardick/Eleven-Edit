@@ -344,6 +344,32 @@ UPDATE 7/28: Built in ui.js (computeReorder rewritten, computeLinkedAmpLoopReord
              This does NOT replace a real build test — the simulation only
              proves the array math, not the actual on-screen drag feel, CSS,
              or anything DOM/browser-specific, none of which can run here.
+UPDATE 7/28 (later, after Charlie's build test): confirmed exactly the gap
+             flagged above — the reorder MATH was right, but native HTML5
+             drag-and-drop itself was not usable. Symptom: cursor flickered
+             between ok/no-drop, worst on the LOOP<->AMP-CAB swap (9,10) which
+             showed the two block labels flashing back and forth at high
+             speed; some moves that should work felt "impossible" over many
+             attempts. ROOT CAUSE: applyChainOrder moves the actual dragged-
+             over divs in the DOM on every preview update, and native drag-
+             and-drop does its own hit-testing of whatever's under the cursor
+             — moving those elements out from under a native drag confuses
+             that tracking. This is a known limitation of native HTML5 DnD,
+             not something the reorder math could have caught.
+FIX:         Replaced native drag-and-drop with plain mousedown/mousemove/
+             mouseup tracking in wireChainDrag (ui.js) — the same pattern
+             already used for every knob in this app. A movement threshold
+             (CHAIN_DRAG_THRESHOLD = 4px) distinguishes a real drag from a
+             plain click, since native DnD used to do that distinction for
+             free via its own drag-start heuristic. document.elementFromPoint
+             does fresh hit-testing on every move, so it is not confused by
+             applyChainOrder having just relocated things (unlike native DnD's
+             event-target tracking). draggable="true" and its CSS removed —
+             no longer meaningful once native DnD is gone.
+STATUS:      RE-IMPLEMENTED 7/28 on mouse-tracking, PENDING CHARLIE'S REBUILD
+             TEST. The reorder math itself (computeReorder, the linked rule)
+             is unchanged from the version already confirmed correct by
+             simulation — only the input mechanism changed.
 -------------------------------------------------------------------
 
 

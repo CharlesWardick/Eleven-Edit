@@ -328,11 +328,19 @@ WORKING:
     either end of the chain — matching Avid's feel, confirmed against the real
     editor by Charlie 7/27 (see Session Log). Once LOOP is parked at an end,
     AMP-CAB is free to roam alone again; dragging LOOP directly is unchanged
-    (existing jump-between-legal-stops behaviour). PENDING CHARLIE'S BUILD
-    TEST — the underlying reorder math was verified by a standalone Node
-    simulation of every scenario Charlie described (caught and fixed one real
-    bug: LOOP already parked at an end was wrongly still being dragged along),
-    but the actual drag feel in the browser has not been clicked through yet.
+    (existing jump-between-legal-stops behaviour). The reorder math was
+    verified by a standalone Node simulation before the first build (caught
+    and fixed one real bug: LOOP already parked at an end was wrongly still
+    being dragged along).
+    7/28 (same day, after build test): the FIRST build surfaced a real
+    problem the simulation could not have caught — native HTML5 drag-and-
+    drop does not tolerate the dragged-over elements being relocated live,
+    which is exactly what the preview does. Symptom: flickering ok/no-drop
+    cursor, worst on a two-block swap (rapid flashing between the two
+    blocks). FIXED by replacing native drag-and-drop with plain mousedown/
+    mousemove/mouseup tracking (wireChainDrag, ui.js) — the same technique
+    already used for every knob in this app. draggable="true" and its CSS
+    removed; no longer meaningful. PENDING CHARLIE'S REBUILD TEST.
   TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
   Load TFX (memory load) — round-trip verified
   Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto
@@ -548,6 +556,23 @@ CODE FILE MAP
                        chainDragActive so an incoming chain-map can't fight the
                        preview. clearDropMarks/.drop-before/.drop-after removed
                        (dead — the live preview replaced the marker).
+                       7/28 (same day, 2nd pass): wireChainDrag's event model
+                       replaced — native HTML5 dragstart/dragover/drop/dragend
+                       (dataTransfer etc.) OUT, plain mousedown/mousemove/
+                       mouseup/blur IN, matching how every knob already works.
+                       Reason: native drag-and-drop's own hit-testing breaks
+                       when the dragged-over elements move live, which is
+                       what applyChainOrder does every preview tick — surfaced
+                       as a flickering cursor and, on a 2-block swap, the two
+                       blocks flashing back and forth. New state: chainDragPending
+                       (mousedown seen, watching for the CHAIN_DRAG_THRESHOLD=4px
+                       move before treating it as a real drag — replaces the
+                       distinction native DnD used to make for free between a
+                       plain click and a real drag start), chainDragCont. Uses
+                       document.elementFromPoint on every mousemove for live
+                       hit-testing (immune to the DOM-shuffle problem above).
+                       draggable="true" attribute removed from applyChainOrder;
+                       CSS cursor:grab rule updated to apply unconditionally.
                        7/27 REORG: openDistPanel/renderDistKnobs/updateDistKnob/
                        refreshDistPanelAfterChainMap/DIST drag handler and the
                        REVERB equivalents MOVED to fx-panels.js (new file, below)

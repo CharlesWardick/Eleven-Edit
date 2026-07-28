@@ -933,46 +933,79 @@ function sameOrder(a, b) {
   return true;
 }
 
-let chainDragSlot      = null;   // slot ID being dragged
-let chainDragActive    = false;  // suppresses the click that follows a drag
-let chainDragStartOrder = null;  // currentChain snapshot at dragstart — every
-                                  // preview computation this drag uses THIS,
-                                  // never the live currentChain, so an
-                                  // incoming chain-map broadcast mid-drag
-                                  // cannot yank the preview (WATCH FOR, 7/19)
-let chainPreviewOrder  = null;    // order currently shown on screen
-let chainDragCommitted = false;   // did this drag's drop() actually send an order?
+// MOUSE-TRACKED DRAG (rewritten 7/28, replacing native HTML5 drag-and-drop).
+// Native drag-and-drop does its own hit-testing of whatever's under the
+// cursor, and it does not tolerate the dragged-over elements being moved
+// while a native drag is in progress — which is exactly what the live
+// preview does (applyChainOrder relocates divs on every update). Real-world
+// testing showed this as a rapid ok/no-drop cursor flicker and, on a
+// two-block swap, the two blocks flashing back and forth at high speed —
+// the browser's native drag tracking losing and re-finding its target as
+// the DOM shifted under it. Knobs in this app never had this problem
+// because they were never native-drag-based; they use plain mousedown/
+// mousemove/mouseup, same as this rewrite now does for the chain row.
+let chainDragSlot       = null;   // slot ID being dragged
+let chainDragPending    = false;  // mousedown happened; watching for the move
+                                   // threshold before committing to a real drag
+let chainDragActive     = false;  // TRUE once the threshold is crossed — this
+                                   // (not chainDragPending) is what suppresses
+                                   // the click that follows a real drag, so a
+                                   // plain click without movement still reaches
+                                   // the bypass-toggle handler normally
+let chainDragCont       = null;   // container div that was grabbed
+let chainDragStartX     = 0;
+let chainDragStartY     = 0;
+let chainDragStartOrder = null;   // currentChain snapshot at mousedown — every
+                                   // preview computation this drag uses THIS,
+                                   // never the live currentChain, so an
+                                   // incoming chain-map broadcast mid-drag
+                                   // cannot yank the preview (WATCH FOR, 7/19)
+let chainPreviewOrder   = null;   // order currently shown on screen
+const CHAIN_DRAG_THRESHOLD = 4;   // px of movement before it counts as a drag
 
 function wireChainDrag() {
   const strip = document.getElementById('chainstrip');
   if (!strip || strip.dataset.dragWired) return;
   strip.dataset.dragWired = '1';
 
-  strip.addEventListener('dragstart', function(ev) {
+  strip.addEventListener('mousedown', function(ev) {
+    if (ev.button !== 0) return;   // left button only
     const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
     if (!cont || !strip.contains(cont)) return;
     const blk = currentChain.find(b => containerForSlot(b.slotId) === cont);
     if (!blk) return;
     chainDragSlot = blk.slotId;
-    chainDragActive = true;
+    chainDragPending = true;
+    chainDragCont = cont;
+    chainDragStartX = ev.clientX;
+    chainDragStartY = ev.clientY;
     chainDragStartOrder = currentChain.slice();
     chainPreviewOrder = chainDragStartOrder;
-    cont.classList.add('dragging');
-    ev.dataTransfer.effectAllowed = 'move';
-    ev.dataTransfer.setData('text/plain', String(blk.slotId));   // Firefox needs a payload
+    ev.preventDefault();   // no text selection / stray native drag ghost
   });
 
   // LIVE PREVIEW (7/28): the blocks physically shift into the speculative
   // order as you drag, instead of a static insertion marker that only
   // resolved on drop. Recomputed off chainDragStartOrder, applied to the DOM
-  // immediately — nothing is sent to hardware until an actual drop.
-  strip.addEventListener('dragover', function(ev) {
+  // immediately — nothing is sent to hardware until mouseup.
+  window.addEventListener('mousemove', function(ev) {
     if (chainDragSlot === null) return;
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    if (!cont || !strip.contains(cont)) return;
-    ev.preventDefault();
-    ev.dataTransfer.dropEffect = 'move';
+    if (ev.buttons === 0) { endChainDrag(false); return; }   // button released outside the window
 
+    if (chainDragPending) {
+      const dx = ev.clientX - chainDragStartX, dy = ev.clientY - chainDragStartY;
+      if (Math.hypot(dx, dy) < CHAIN_DRAG_THRESHOLD) return;   // still just a click so far
+      chainDragPending = false;
+      chainDragActive = true;
+      chainDragCont.classList.add('dragging');
+    }
+
+    // elementFromPoint does fresh hit-testing against whatever is actually
+    // rendered right now — unlike native drag's event target, it is not
+    // confused by applyChainOrder having just moved things around.
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const cont = el ? el.closest('.chain-slot, .chain-slot-stack') : null;
+    if (!cont || !strip.contains(cont)) return;
     const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
     if (!target) return;
     const r = cont.getBoundingClientRect();
@@ -985,34 +1018,41 @@ function wireChainDrag() {
     }
   });
 
-  strip.addEventListener('drop', function(ev) {
+  window.addEventListener('mouseup', function() {
     if (chainDragSlot === null) return;
-    ev.preventDefault();
-    chainDragCommitted = false;
-    if (chainPreviewOrder && !sameOrder(chainPreviewOrder, currentChain)) {
-      sendChainOrder(chainPreviewOrder);   // hardware replies with a map; renderChainRow adopts it
-      chainDragCommitted = true;
-    }
-    chainDragSlot = null;
+    endChainDrag(true);
   });
 
-  strip.addEventListener('dragend', function() {
-    document.querySelectorAll('#chainstrip .dragging')
-      .forEach(el => el.classList.remove('dragging'));
+  window.addEventListener('blur', function() {
+    if (chainDragSlot === null) return;
+    endChainDrag(false);   // losing focus mid-drag cancels, never commits
+  });
+
+  function endChainDrag(allowCommit) {
+    const wasReallyDragging = chainDragActive;
+    let committed = false;
+    if (allowCommit && wasReallyDragging
+        && chainPreviewOrder && !sameOrder(chainPreviewOrder, currentChain)) {
+      sendChainOrder(chainPreviewOrder);   // hardware replies with a map; renderChainRow adopts it
+      committed = true;
+    }
+    if (chainDragCont) chainDragCont.classList.remove('dragging');
     chainDragSlot = null;
+    chainDragPending = false;
+    chainDragCont = null;
     chainDragStartOrder = null;
     chainPreviewOrder = null;
-    const committed = chainDragCommitted;
-    chainDragCommitted = false;
     setTimeout(() => {
-      chainDragActive = false;
+      chainDragActive = false;   // let the stray click pass first
       // A committed drag leaves the preview's DOM alone — the hardware's own
       // CMD 0x21 reply will call renderChainRow() for real once it lands, and
       // currentChain will match what's already on screen by then (no visible
-      // jump). A cancelled or no-op drag has nothing coming, so re-sync now.
+      // jump). A cancelled/no-op drag, or a plain click that never became a
+      // real drag, has nothing coming, so re-sync now (a no-op if nothing
+      // ever moved).
       if (!committed) renderChainRow();
-    }, 0);   // let the stray click pass first
-  });
+    }, 0);
+  }
 }
 
 // Map a chain slot ID to its (movable) container div in the chain row.
@@ -1063,7 +1103,6 @@ function applyChainOrder(order) {
     const cont = containerForSlot(blk.slotId);
     if (!cont) return;
     strip.appendChild(cont);                       // move, do not clone
-    cont.setAttribute('draggable', 'true');
 
     // Hover text on BOTH the label and the ▼, for a bigger target.
     const model = MODEL_NAMES[blk.modelId];
