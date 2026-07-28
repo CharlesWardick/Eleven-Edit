@@ -412,6 +412,55 @@ UPDATE 7/28 (later still): two follow-ups from the ghost, requested
      transform back to zero) applied inside applyChainOrder. Deferred as its
      own chip rather than folded into this pass.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED, PENDING CHARLIE'S BUILD TEST
+AREA:        Chain drag — position-1 room problem
+FINDING:     Charlie: dragging toward position 1 is hard because there's
+             barely any room between the chain strip and the window's left
+             edge before the drag runs out of space to cross into "before"
+             territory — WAH (or whatever occupies position 1) sits right at
+             x=0 with nothing to its left. Two fixes, both agreed:
+FIX 1        (code only): position 1's ENTIRE width now counts as "land here"
+             — not just its left half past the midpoint, which was the part
+             requiring room that isn't there. No position becomes unreachable:
+             landing right after this same block is still reachable via the
+             SECOND block's left half, so this only removes a cramped,
+             redundant path. ui.js wireChainDrag's mousemove handler: when
+             the hovered target is chainDragStartOrder[0] (whatever started
+             in position 1 for THIS drag), `after` is forced false instead of
+             computed from cursor position.
+FIX 2        (layout): a passive, READ-ONLY clone of the active INPUT
+             selection (GUITAR/MIC/LINE/DIGITAL) now sits at the very start
+             of the chain strip, before position 1, with its own single-line
+             ("mono" styled — it's one signal entering the chain, not a
+             stereo pair) connector leading in. This shifts the whole chain
+             row right, creating the missing room, while giving that space a
+             reason to exist instead of being bare margin (Charlie's framing:
+             filling it with real state reads as deliberate, not broken).
+             NOT a new control — mirrors setInputButtons(), which is the
+             single source of truth already driving the real buttons above;
+             the clone can't drift out of sync because it's set in the same
+             function call, same place. Considered and explicitly REJECTED:
+             a functional input dropdown here replacing the top-row buttons
+             — input switching is its own documented weak spot (Primer:
+             "reflect live input / stop forcing Guitar... future global-
+             settings work") and conflating that unfinished work with a chain-
+             drag usability fix was the wrong scope for this pass.
+GOTCHA FOUND: applyChainOrder's arrow-recycling loop selects `.chain-arr` and
+             excludes #mono-connector by id to avoid hijacking it as a
+             between-block connector — the new #chain-input-connector is also
+             .chain-arr and needed the same exclusion, or the loop would have
+             stolen it as one of the real connectors and thrown the block<->
+             arrow pairing off by one. Fixed before it ever reached a build.
+FILES:       index.html (markup + CSS), ui.js (setInputButtons extended,
+             wireChainDrag's after-calculation, applyChainOrder's arrow
+             selector).
+NEXT:        Charlie's build test. Confirm: (1) can now comfortably drag to
+             position 1, (2) input clone tracks GUITAR/MIC/LINE/DIGITAL
+             correctly and never drifts from the real buttons, (3) connector
+             arrows elsewhere in the chain still pair with the right blocks
+             (the gotcha above, in case anything was missed).
+-------------------------------------------------------------------
 
 
 

@@ -183,6 +183,26 @@
      output: two lines when STEREO, one when MONO. */
   #mono-connector { }
 
+  /* Passive clone of the active INPUT selection (7/28, Charlie's idea), at
+     the START of the chain strip. Two jobs: (1) gives the row somewhere to
+     start besides the window's bare left edge, which was making it hard to
+     get enough room to drag a block all the way to position 1; (2) fills
+     that space with real, already-existing state instead of empty margin, so
+     it reads as deliberate. READ-ONLY — mirrors setInputButtons(), not a
+     control of its own; the actual buttons stay up top unchanged.
+     #chain-input-connector is always a single line (mono) — it represents
+     one signal entering the chain, never two, regardless of the chain's own
+     stereo/mono state further down the line. */
+  #chain-input-wrap {
+    font-size: 11px; font-weight: bold; letter-spacing: 1px;
+    padding: 3px 8px; border-radius: 3px; align-self: center;
+    border: 1px solid var(--green); white-space: nowrap; flex-shrink: 0;
+    background: #0a2a0a; color: var(--green);
+    /* Fixed width sized for the longest label (DIGITAL) so the row doesn't
+       shift as the input changes. */
+    width: 70px; text-align: center; box-sizing: border-box;
+  }
+
   /* ══ RIG TEMPO — digital-clock field (CMD 0x50) ══
      Two click-selectable segments (whole BPM and tenths) plus a stepper.
      Deliberately NOT a spinner or a dropdown: the Avid editor's clock-style
@@ -624,6 +644,12 @@
 
 <!-- ══ CHAIN STRIP ══ -->
 <div id="chainstrip">
+
+  <!-- Passive INPUT clone (7/28) — always the FIRST child, never touched by
+       applyChainOrder's reorder loop, so it stays at the start of the row
+       regardless of which block currently occupies chain position 1. -->
+  <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
+  <div id="chain-input-connector" class="chain-arr" title="Input"><i></i></div>
 
   <div class="chain-slot">
     <div class="chain-name slot-unknown" id="chain-vol"    data-slot="vol"    title="Click to bypass/enable">VOL</div>

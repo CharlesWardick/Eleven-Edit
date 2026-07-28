@@ -360,7 +360,16 @@ WORKING:
     blocks don't visibly react/slide as the ghost passes over them — the
     reorder just snaps once the cursor crosses a midpoint. That needs the
     FLIP animation technique (bigger, separate piece of work), not a small
-    tweak — see Session Log. PENDING CHARLIE'S REBUILD TEST.
+    tweak — see Session Log.
+    7/28 (5th pass, same day): position 1's whole width now counts as a legal
+    landing target (not just its left half) — there wasn't enough window
+    room to reliably cross its midpoint. PLUS a passive read-only clone of
+    the active INPUT selection now sits before position 1 with its own
+    single-line connector, shifting the whole row right so that room exists
+    at all — mirrors setInputButtons(), not a new control (see CODE FILE MAP:
+    index.html, ui.js). A functional input dropdown there was considered and
+    rejected for this pass — input switching is its own separate, already-
+    incomplete feature area. PENDING CHARLIE'S REBUILD TEST.
   TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
   Load TFX (memory load) — round-trip verified
   Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto
@@ -431,6 +440,12 @@ CODE FILE MAP
   preload.js           Electron preload, exposes electronAPI.
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
+                       7/28: #chain-input-wrap + #chain-input-connector added
+                       as the fixed FIRST children of #chainstrip (passive
+                       INPUT clone, chain-drag position-1 room fix — see
+                       Session Log). #chain-input-connector is .chain-arr but
+                       must stay excluded from ui.js applyChainOrder's arrow-
+                       recycling query, same as #mono-connector already is.
                        Phase 13: chain-strip right-hand group — drag-hint div
                        removed, #mono-indicator restyled (green STEREO / amber
                        MONO) and given margin-left:auto, #tempo-wrap digital
@@ -563,6 +578,14 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (6th pass): setInputButtons also updates the
+                       #chain-input-wrap clone (index.html) — one function,
+                       one source of truth, so the clone can't drift.
+                       wireChainDrag's mousemove: position 1 (chainDragStartOrder[0])
+                       now counts as a legal target across its whole width, not
+                       just past its midpoint. applyChainOrder's arrow query
+                       now also excludes #chain-input-connector, same reason
+                       #mono-connector already was excluded.
                        7/28: chain drag rewritten for live preview + the
                        AMP-CAB/LOOP linked rule. computeReorder signature
                        changed from (fromSlotId, toIndex) to (fromSlotId,

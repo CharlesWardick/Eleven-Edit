@@ -274,6 +274,14 @@ function setInputButtons(inputVal) {
   document.getElementById('btn-input-mic').classList.toggle('active',    isMic);
   document.getElementById('btn-input-line').classList.toggle('active',   isLine);
   document.getElementById('btn-input-dig').classList.toggle('active',    isDig);
+
+  // Passive clone at the start of the chain strip (7/28) — same source of
+  // truth as the buttons above, updated in the same place so it can never
+  // drift out of sync with them.
+  const cloneEl = document.getElementById('chain-input-wrap');
+  if (cloneEl) {
+    cloneEl.textContent = isGuitar ? 'GUITAR' : isMic ? 'MIC' : isLine ? 'LINE' : isDig ? 'DIGITAL' : '--';
+  }
 }
 
 // ── Avid editor state — purely informational now. The Java bridge owns
@@ -1121,7 +1129,15 @@ function wireChainDrag() {
     const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
     if (!target) return;
     const r = cont.getBoundingClientRect();
-    const after = ev.clientX > r.left + r.width / 2;
+    // Position 1 gets its whole width as the "before" zone, not just its left
+    // half (7/28, Charlie: not enough room before the window's left edge to
+    // reliably cross the midpoint). No position is lost by this: landing
+    // right after this same block is still reachable via the SECOND block's
+    // left half, so this only removes a redundant, cramped path — it doesn't
+    // block reaching anywhere the plain midpoint math could reach.
+    const after = (target.slotId === chainDragStartOrder[0].slotId)
+                  ? false
+                  : ev.clientX > r.left + r.width / 2;
 
     const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
     if (next && !sameOrder(next, chainPreviewOrder)) {
@@ -1208,7 +1224,12 @@ function applyChainOrder(order) {
   // The "drag blocks to reorder" hint was removed 7/24/2026 — 10px on #555 was
   // unreadable. #mono-indicator now carries the margin-left:auto that pushes
   // the right-hand group to the end of the strip.
-  const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector)'));
+  // #chain-input-connector is also .chain-arr (so it inherits the same line
+  // styling) but it is NOT one of the between-block connectors this loop
+  // assigns — excluded the same way #mono-connector already is, or this loop
+  // would hijack it as a stereo/mono arrow and throw off the block<->arrow
+  // pairing by one (7/28).
+  const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector):not(#chain-input-connector)'));
   const conn   = document.getElementById('mono-connector');
   const mono   = document.getElementById('mono-indicator');
   const tempo  = document.getElementById('tempo-wrap');
