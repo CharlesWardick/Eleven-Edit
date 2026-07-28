@@ -10,37 +10,32 @@ Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
 
 SESSION START — DO THIS BEFORE ANY WORK
 --------------------------------------------------
-CLAUDE: run this check in your first reply. Do not edit code or docs until
-Charlie has answered. It costs one exchange and has already prevented a full
-day of silently reverted work.
+(Rewritten 7/28/2026 — this project moved from upload-a-file-into-chat
+sessions to Claude Code, which reads this git repo directly. Most of what
+used to live here was about surviving that upload/paste-back cycle — a
+chat only knew whatever copy it had been handed, and could silently hand
+back something OLDER under the same filename. That whole class of risk is
+gone: there is one working tree, every session reads it fresh, and every
+edit is visible immediately via `git diff` and the commit history — not a
+line count guessed after the fact. See the Archive for the old version of
+this section and the incidents that shaped it; the lessons are still true
+history, just no longer the operating procedure.)
 
-  1. NEW CHAT — ask Charlie to confirm the project files match his local
-     build folder. A new chat reads the project fresh, so it is exactly as
-     current as his last end-of-day fold-back, and no more.
-
-  2. RESUMED / OLDER CHAT — always ask him to re-upload the live docs plus
-     any code files being touched, and treat those uploads as superseding
-     ANYTHING earlier in the thread. A chat holds whatever copy it was given
-     for its whole life. This is not optional and does not depend on how
-     current the project is: a resumed chat is stale by default.
-
-  3. THE LOCAL BUILD FOLDER IS CANONICAL, not the project and not this thread.
-     If they disagree, the build folder wins — it is what the EXE is built
-     from. Project files are a second copy kept correct only by Charlie's
-     end-of-day fold-back.
-
-  4. LINE-COUNT TELL — when handing files back, state the line count of each
-     against what you started from. A document that comes back SHORTER after
-     a session that only ADDED findings has lost something. On 7/20 a returned
-     Technical Reference was 81 lines short and had silently reverted both a
-     sweep and that same day's GUI documentation. Nothing in it was wrong; it
-     was simply older, under the right filename.
-  5. REVIEW SESSIONS — ASK FOR CODE WHEN THE DOCS ALONE CANNOT SETTLE IT.
+  1. The repo IS the current state. No re-upload, no "which copy is this
+     thread holding" — just read the files that are actually there.
+  2. The one thing that DOES need checking at the start of a work session is
+     git/branch state, per the repo's own branch instructions: is the
+     previous work branch still unmerged (keep building on it) or already
+     merged into main (restart it fresh from main, keep any unmerged work by
+     rebasing it on top)? `git fetch origin main` +
+     `git merge-base --is-ancestor <branch> origin/main` answers this in one
+     step — do it before the first commit of a session, not after.
+  3. REVIEW SESSIONS — ASK FOR CODE WHEN THE DOCS ALONE CANNOT SETTLE IT.
      A review compares documents against each other and cannot see the code
-     unless it is attached to that message; being "in the project folder" does
-     not make it visible. So doc-vs-code drift — a session that documents a
-     fix but ships something slightly different — is invisible by default.
-     REQUEST the specific file, do not wait to be offered it, when:
+     unless it is actually read; being "in the repo" does not make a claim
+     verified on its own. So doc-vs-code drift — a session that documents a
+     fix but ships something slightly different — is invisible unless you go
+     read the file. REQUEST/READ the specific file when:
        - a retraction lands and the withdrawn behaviour may still be in code
        - a named constant or formula is documented (settle times, dB anchors,
          zone arithmetic) and can be checked against the source in seconds
@@ -51,11 +46,11 @@ day of silently reverted work.
      WHERE TO LOOK: transport.js and protocol.js carry most protocol-critical
      claims (send builders, constants, lookup tables, decoders);
      sysex-handler.js for routing and format detection; ui.js for display
-     formulas. Ask for one or two files, never the set.
-     DO NOT ask routinely. A well-scoped additive session does not need it,
-     and the whole set costs context for no return. Expect to catch "the doc
-     says 0.6 and the code says 0.61", not architectural problems — the
-     reviewer reads as an outsider, without the codebase's history.
+     formulas. Read one or two files, never the whole set reflexively.
+     DO NOT read routinely just because you can. A well-scoped additive
+     session does not need it, and reading files that don't inform the task
+     costs context for no return. Expect to catch "the doc says 0.6 and the
+     code says 0.61", not architectural problems.
 
 
 READ THIS FIRST, THEN ONE OTHER DOCUMENT:
@@ -89,6 +84,17 @@ confirmed findings into the masters ONCE, at wrap (see FINALIZATION), editing
 in place and marking each entry [FOLDED IN]. The log trends back toward empty;
 the masters stay current without being touched mid-session. This is what
 prevents the six-overlapping-documents problem.
+  WHY THIS STILL MATTERS UNDER CLAUDE CODE (7/28/2026): the original reason
+  for this split was that a chat session could only rewrite a master doc by
+  having the whole thing pasted back, and a full rewrite risked silently
+  dropping a section. Git removes that specific risk — every edit shows up
+  in `git diff` before it's committed. But the split is worth keeping anyway,
+  for a different reason: the Primer and Technical Reference are what a
+  fresh session reads FIRST to get oriented, every single time. Folding a
+  day's worth of provisional, still-shifting findings straight into them
+  would make that orientation read longer and noisier for no benefit —
+  better to let the log carry the day's mess and fold in only what turned
+  out to matter, once, at wrap.
   ONE EXCEPTION — fold immediately, mid-session, only when a finding changes
   what the next step does: a retraction the next task would otherwise build on,
   or a hardware-safety item. Everything else waits for wrap.
@@ -121,14 +127,20 @@ is wasted effort and adds risk; wait for the wrap signal, then do this in order:
   3. UPDATE PRIMER STATE. Bump the Status line and CURRENT APP STATE phase,
      move the shipped feature into WORKING, trim it from NOT YET IMPLEMENTED,
      and add its functions to the CODE FILE MAP.
-  4. LINE-COUNT TELL. State each returned doc's line count against what you
-     started from. Docs that only gained content must not come back shorter.
-  5. ONE ZIP. Deliver every modified file — code AND the three/four docs — in a
-     single zip for download. Charlie folds that zip into the canonical build
-     folder at end of day; the build folder, not the project or the chat, is
-     canonical (see SESSION START).
-  The point of the zip is that the whole session lands as one consistent set,
-  so nothing is half-folded and no doc is left older than the code it describes.
+  4. REVIEW THE DIFF. Run `git diff` (or check each Edit result) on every
+     doc touched this session before committing. This is the current version
+     of the old "line-count tell" — git shows exactly what changed, including
+     an accidental deletion, instead of inferring one from a line count after
+     the fact (see the 7/20 and 7/23 incidents in the Archive for why that
+     check existed).
+  5. COMMIT AND PUSH. Code and docs land in the SAME commit (or the same
+     small batch of commits) on the session's working branch, then pushed —
+     see the repo's own branch/git-workflow instructions for the exact
+     commands and the merge-base check. Charlie tests the real build off
+     that branch; once confirmed on real hardware, he merges it into main
+     himself (or asks Claude Code to). There is no separate zip/fold-back
+     step — the branch IS the consistent set, and it stays that way until
+     Charlie says to merge.
 
 
 WHAT THIS PROJECT IS
@@ -149,11 +161,11 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - Conclude internally; present the solution or finding, not the reasoning.
   - Always build the EXE for testing — npm start has never worked here.
   - Old eyes: amber-on-dark, readable fonts, generous sizing.
-  - THE OUTPUTS FOLDER IS CANONICAL DURING A SESSION. Project files are read
-    ONCE at the start; after that, always base edits on the files you last
-    presented, never re-copy from the project mid-session or you will silently
-    revert earlier fixes. Charlie folds the final outputs back into the project
-    at end of day.
+  - THE REPO IS CANONICAL, FULL STOP (updated 7/28/2026 — under Claude Code,
+    not the old chat workflow). There is no separate "outputs" snapshot to
+    fall out of sync with: every file read is the actual working tree, every
+    edit lands in it directly, and `git status`/`git diff` show the true
+    current state at any point mid-session. No re-copy risk to guard against.
   - TWO FAILED FIXES = STOP AND RE-DERIVE. If two consecutive changes produce
     no change in observed behaviour, the problem is a wrong assumption, not a
     wrong value. Go back to the raw evidence and re-derive from scratch rather
@@ -183,9 +195,11 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - AN EDIT ANCHORED ON A LOOSE MARKER CAN SILENTLY DELETE A SECTION. Folding
     in on 7/23, "cut from C11 to the next C12" removed Sections 23 and 24 of
     the Technical Reference, because the FLAGGED CONFLICTS entries are not in
-    numeric order and C12's header sits ABOVE C11's. Nothing looked wrong; the
-    line-count tell caught it. Anchor on unique text and check the section
-    headers survive.
+    numeric order and C12's header sits ABOVE C11's. Nothing looked wrong;
+    only a manual line-count check caught it (this was before Claude Code —
+    under it, `git diff` shows a deletion like this immediately, without
+    having to think to check). Anchor on unique text and check the section
+    headers survive either way.
 
 
 CONFIRMED ARCHITECTURE (brief)
