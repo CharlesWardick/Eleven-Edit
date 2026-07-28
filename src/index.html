@@ -186,8 +186,18 @@
     border: 1px solid; white-space: nowrap; flex-shrink: 0;
     cursor: pointer;
     /* 7/28: pins to the bottom of its wrapping .chain-slot, same mechanism
-       as .chain-name — see #chainstrip's comment. */
+       as .chain-name — see #chainstrip's comment.
+       7/28, later same day: the .chain-slot's hidden .chain-open caret was
+       reordered to come BEFORE this element (see the markup), so this now
+       lands flush with the real caret's bottom edge, not the label's — that
+       alone read as too low. The extra translateY(12px) below nudges it
+       back up partway; Charlie picked this exact 12px from a direct side-
+       by-side comparison of several rendered options (0/6/12/18px), landing
+       on the position he remembered from before the 7/28 chain-row graphics
+       rework, not a derived/calculated value — treat 12px as the confirmed
+       answer, not a placeholder. */
     margin-top: auto;
+    transform: translateY(12px);
     /* Fixed width so the badge does not resize between the 6-letter STEREO
        and 4-letter MONO. Sized for STEREO and centred.
        7/28: widened 58px -> 70px to match #chain-input-wrap's width — Charlie
@@ -231,8 +241,11 @@
     background: #0a2a0a; color: var(--green);
     /* 7/28: pins to the bottom of its wrapping .chain-slot — see
        #mono-indicator / #chainstrip's comments for the full reasoning
-       (font-size/padding bumped 11px/3px -> 13px/5px same day, to match). */
+       (font-size/padding bumped 11px/3px -> 13px/5px same day, to match).
+       Same translateY(12px) nudge as #mono-indicator, for the same reason —
+       keep these two in sync if the value ever changes. */
     margin-top: auto;
+    transform: translateY(12px);
     /* Fixed width sized for the longest label (DIGITAL) so the row doesn't
        shift as the input changes. */
     width: 70px; text-align: center; box-sizing: border-box;
@@ -728,8 +741,8 @@
        actual element guarantees the same height as a real caret by
        construction, instead of guessing a spacer number a third time. -->
   <div class="chain-slot">
-    <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
     <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
+    <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
   </div>
   <div id="chain-input-connector" class="chain-arr" title="Input"><i></i></div>
 
@@ -743,28 +756,28 @@
     <div class="chain-name slot-unknown" id="chain-vol"    data-slot="vol"    title="Click to bypass/enable">VOL</div>
     <div class="chain-open"              id="copen-vol"    data-panel="vol">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-wah"    data-slot="wah"    title="Click to bypass/enable">WAH</div>
     <div class="chain-open"              id="copen-wah"    data-panel="wah">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fx1"    data-slot="fx1"    title="Click to bypass/enable">FX1</div>
     <div class="chain-open"              id="copen-fx1"    data-panel="fx1">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-dist"   data-slot="dist"   title="Click to bypass/enable">DIST</div>
     <div class="chain-open"              id="copen-dist"   data-panel="dist">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <!-- AMP + CAB stacked — bypass only, no ▼. One thumb serves the pair,
        matching Avid (the amp head graphic is one image, cab is separate
@@ -774,35 +787,35 @@
     <div class="chain-name-stack slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
     <div class="chain-name-stack slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fxloop" data-slot="fxloop" title="Click to bypass/enable">FX LOOP</div>
     <div class="chain-open"              id="copen-fxloop" data-panel="fxloop">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-mod"    data-slot="mod"    title="Click to bypass/enable">MOD</div>
     <div class="chain-open"              id="copen-mod"    data-panel="mod">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fx2"    data-slot="fx2"    title="Click to bypass/enable">FX2</div>
     <div class="chain-open"              id="copen-fx2"    data-panel="fx2">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-delay"  data-slot="delay"  title="Click to bypass/enable">DELAY</div>
     <div class="chain-open"              id="copen-delay"  data-panel="delay">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
@@ -816,8 +829,8 @@
        same baseline as every other block's label, instead of floating at
        true vertical center of the now much-taller row. -->
   <div class="chain-slot">
-    <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
     <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
+    <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
   </div>
 
   <!-- RIG TEMPO — CMD 0x50, microseconds per beat. Rig level, not per patch,

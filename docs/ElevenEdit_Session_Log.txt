@@ -743,6 +743,75 @@ NEXT:        The bigger, separate piece — replacing the floating ghost with
              recording (no ghost, just the block moving). Deliberately not
              started this session; do it in its own dedicated session/chat.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      RESOLVED by direct visual pick, not derived — final answer for
+             the GUITAR/STEREO bookend height saga
+AREA:        Chain row — GUITAR clone / STEREO badge vertical position
+FINDING:     After the day's earlier bottom-alignment fix (matching WAH's
+             LABEL bottom, 176px), Charlie said the bookends "aligned well
+             just not where I want them." He then asked to lower the whole
+             box and drew the target spot on a screenshot. First attempt
+             (reorder the hidden .chain-open caret to come BEFORE the label,
+             so the box lands flush with the real ARROW's bottom, 194px
+             instead of 176px) landed "too far down." Two misses in a row on
+             this exact spot (earlier "too low" / "too high" reverts, now
+             this) — rather than guess a third number, rendered 4 concrete
+             in-between options (0/6/12/18px further down from the 194px
+             baseline) via CDP and had Charlie pick directly from the
+             pictures instead of describing pixels.
+RESULT:      Charlie picked "offset 12" (194+12 = 206px), confirming it
+             matched how the row looked for many days before the 7/28
+             graphics-ready rework. Also confirmed the same offset looks
+             right in both STEREO and MONO badge states.
+FIX:         #mono-indicator / #chain-input-wrap both get
+             transform: translateY(12px) added on top of the existing
+             margin-top:auto bottom-pin. VERIFIED by re-measuring after
+             applying it for real (not the inline test transform) — both
+             land at bottom=206, pixel-identical to the approved render.
+LESSON:      Two failed guesses on the same spot is exactly the "stop and
+             re-derive" signal — but re-deriving here didn't mean more code
+             reasoning, it meant handing Charlie a small set of concrete
+             visual options and letting him point, since this was a taste
+             call his eyes settle better than any measurement of ours could.
+             NOTE: an earlier edit in this same area (reordering the hidden
+             caret) was made successfully but did not end up reflected in
+             the file when checked later — cause unclear (no destructive git
+             command was run in between), so it was redone and committed
+             immediately this time rather than left uncommitted across
+             several turns. Worth a "did this actually land" git diff check
+             if a change seems to have vanished.
+FILES:       index.html only (#mono-indicator, #chain-input-wrap CSS, plus
+             the two bookends' markup — hidden .chain-open caret now comes
+             before the visible label, not after).
+NEXT:        None — Charlie confirmed this is the correct position.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      CONFIRMED SAFE AND REMOVED
+AREA:        Chain row — leftover "▶" placeholder glyphs between blocks
+FINDING:     Charlie noticed the "▶" arrows between chain blocks only ever
+             appear briefly while the bridge is connecting, and asked
+             whether they still serve any purpose — legacy from the very
+             first chain-row effort, before the stacked-line mono/stereo
+             connector system existed.
+ROOT CAUSE:  Confirmed by reading the code: renderChainRow() (ui.js) returns
+             immediately if currentChain is empty, so applyChainOrder never
+             touches the .chain-arr divs until a real CMD 0x21 chain map
+             arrives. Until then, whatever sits in the static HTML is just
+             sitting there unused — and that static content was the literal
+             "▶" glyph, dead leftover markup with zero functional role.
+FIX:         The nine between-block .chain-arr divs in index.html now start
+             empty (<div class="chain-arr"></div>) instead of containing
+             "▶". #chain-input-connector and #mono-connector were NOT
+             touched — those already start with real <i> line markup, not
+             the legacy glyph, so they were never part of this.
+VERIFIED:    Live CDP check both ways — blank gaps confirmed on a pre-
+             connect static load, AND a simulated CMD 0x21 (calling
+             renderChainRow() with a seeded currentChain) confirmed all nine
+             arrows still correctly repopulate with real <i> line markup,
+             proving nothing reads or depends on the old placeholder text.
+FILES:       index.html only (.chain-arr static markup).
+NEXT:        None.
+-------------------------------------------------------------------
 
 
 
