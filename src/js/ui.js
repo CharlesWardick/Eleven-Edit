@@ -968,7 +968,8 @@ let chainDragActive     = false;  // TRUE once the threshold is crossed — this
                                    // the click that follows a real drag, so a
                                    // plain click without movement still reaches
                                    // the bypass-toggle handler normally
-let chainDragCont       = null;   // container div that was grabbed
+let chainDragCont       = null;   // .chain-slot/.chain-slot-stack container (still what gets reordered)
+let chainDragThumb      = null;   // .chain-thumb inside it — the actual drag handle (7/28)
 let chainDragStartX     = 0;
 let chainDragStartY     = 0;
 let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
@@ -1064,19 +1065,29 @@ function wireChainDrag() {
   if (!strip || strip.dataset.dragWired) return;
   strip.dataset.dragWired = '1';
 
+  // 7/28: drag now starts ONLY from .chain-thumb, not anywhere in the slot.
+  // Previously the whole slot (including the .chain-name label) was the
+  // mousedown target, which is what put the drag-handle and the bypass-toggle
+  // click on the same element — Charlie: "the clicker is also the drag
+  // handle". Splitting them onto separate elements (thumb vs label) removes
+  // that conflict at the source, matching how Avid's own editor works: you
+  // grab the pedal graphic, you click the label.
   strip.addEventListener('mousedown', function(ev) {
     if (ev.button !== 0) return;   // left button only
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    if (!cont || !strip.contains(cont)) return;
+    const thumb = ev.target.closest('.chain-thumb');
+    if (!thumb || !strip.contains(thumb)) return;
+    const cont = thumb.closest('.chain-slot, .chain-slot-stack');
+    if (!cont) return;
     const blk = currentChain.find(b => containerForSlot(b.slotId) === cont);
     if (!blk) return;
     chainDragSlot = blk.slotId;
     chainDragPending = true;
     chainDragCont = cont;
+    chainDragThumb = thumb;
     chainDragStartX = ev.clientX;
     chainDragStartY = ev.clientY;
-    const r = cont.getBoundingClientRect();
-    chainDragOffsetX = ev.clientX - r.left;   // where within the block it was
+    const r = thumb.getBoundingClientRect();
+    chainDragOffsetX = ev.clientX - r.left;   // where within the THUMB it was
     chainDragOffsetY = ev.clientY - r.top;    // grabbed, so the ghost doesn't jump
     chainDragStartOrder = currentChain.slice();
     chainPreviewOrder = chainDragStartOrder;
@@ -1096,7 +1107,7 @@ function wireChainDrag() {
       if (Math.hypot(dx, dy) < CHAIN_DRAG_THRESHOLD) return;   // still just a click so far
       chainDragPending = false;
       chainDragActive = true;
-      chainDragCont.classList.add('dragging');
+      chainDragThumb.classList.add('dragging');
 
       // linkedAmpLoopInfo is checked ONCE here, not every move: chainDragStartOrder
       // is frozen for the whole drag, so whether this is a linked pair can't
@@ -1106,9 +1117,10 @@ function wireChainDrag() {
       if (linkInfo) {
         const partnerBlk = chainDragStartOrder[linkInfo.loopIdx];
         const partnerCont = containerForSlot(partnerBlk.slotId);
-        ghostInfo = createChainDragGhost(chainDragCont, partnerCont, linkInfo.loopBefore);
+        const partnerThumb = partnerCont ? partnerCont.querySelector('.chain-thumb') : null;
+        ghostInfo = createChainDragGhost(chainDragThumb, partnerThumb, linkInfo.loopBefore);
       } else {
-        ghostInfo = createChainDragGhost(chainDragCont, null, false);
+        ghostInfo = createChainDragGhost(chainDragThumb, null, false);
       }
       chainDragGhost = ghostInfo.el;
       chainDragGhostAdjustX = ghostInfo.offsetAdjustX;
@@ -1164,11 +1176,12 @@ function wireChainDrag() {
       sendChainOrder(chainPreviewOrder);   // hardware replies with a map; renderChainRow adopts it
       committed = true;
     }
-    if (chainDragCont) chainDragCont.classList.remove('dragging');
+    if (chainDragThumb) chainDragThumb.classList.remove('dragging');
     if (chainDragGhost) { chainDragGhost.remove(); chainDragGhost = null; }
     chainDragGhostAdjustX = 0;
     document.body.style.cursor = '';
     chainDragSlot = null;
+    chainDragThumb = null;
     chainDragPending = false;
     chainDragCont = null;
     chainDragStartOrder = null;

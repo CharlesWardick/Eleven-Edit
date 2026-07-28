@@ -370,6 +370,28 @@ WORKING:
     index.html, ui.js). A functional input dropdown there was considered and
     rejected for this pass — input switching is its own separate, already-
     incomplete feature area. PENDING CHARLIE'S REBUILD TEST.
+  CHAIN ROW GRAPHICS-READY LAYOUT (7/28) — next evolution of the chain row,
+    aimed at the Avid pedal-graphics plan (GRAPHICS section below) AND at
+    fixing the drag/click conflict at the same time. Row grew 62px->110px
+    (matches the original Primer graphics estimate). Every block now has a
+    .chain-thumb above its label — currently a dashed-border DUMMY PLACEHOLDER
+    box (real Avid pedal/amp/cab images are a separate, not-yet-built step;
+    see NEXT below). The thumb is the ONLY drag handle now — dragging no
+    longer starts from anywhere on the label, which is what previously let a
+    drag attempt sometimes misfire as a bypass toggle and vice versa (Charlie:
+    "the clicker is also the drag handle"). Matches how Avid's own editor
+    works (the pedal graphic is what you grab there too). Label stays the
+    only bypass-click target, unchanged. UNIFORM fallback rule (revised from
+    the original mixed-height plan after a POC the day before): every block
+    gets the same-size thumb whether or not it has a real image — a missing
+    image is a dummy box, not a shorter block, so the row never looks jagged
+    depending on which specific blocks happen to have art. PENDING CHARLIE'S
+    BUILD TEST — drag-handle split not yet exercised on real hardware.
+    NEXT (separate step, deliberately not done in this pass): the actual
+    recursive Avid-graphics-folder scanner (main.js) and the MID-to-filename
+    mapping table (a new dedicated JS data file, not the docs — see the
+    "mapping table" note below and Session Log 7/28 for the real folder
+    listing this will be built from).
   TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
   Load TFX (memory load) — round-trip verified
   Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto
@@ -437,10 +459,23 @@ CODE FILE MAP
   main.js              Electron main process, bridge launch, IPC.
                        New handlers (Phase 4a): browse-avid-dir, get-avid-dir,
                        get-logs-dir. Logs now written to userData/logs/ subfolder.
+                       7/28: browse-avid-dir's dialog title renamed "Choose
+                       Avid Graphics Folder" (was "...Editor Folder") — this
+                       is no longer meant to require a live Avid Editor
+                       install, just a folder containing the plugin image
+                       structure somewhere inside it (see Session Log, chain
+                       row graphics). The recursive scanner that actually
+                       reads it is NOT built yet — this is only the rename.
   preload.js           Electron preload, exposes electronAPI.
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
-                       7/28: #chain-input-wrap + #chain-input-connector added
+                       7/28: chain row rebuilt for the graphics-ready layout —
+                       see the dedicated CHAIN ROW GRAPHICS entry below for
+                       the full change; short version: .chain-thumb (drag
+                       handle, currently a dummy placeholder box) added above
+                       every block's label, row height 62px->110px,
+                       #chainstrip align-items center->flex-end.
+                       Earlier 7/28: #chain-input-wrap + #chain-input-connector added
                        as the fixed FIRST children of #chainstrip (passive
                        INPUT clone, chain-drag position-1 room fix — see
                        Session Log). #chain-input-connector is .chain-arr but
@@ -578,6 +613,19 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (7th pass): drag handle moved from the whole slot
+                       onto .chain-thumb specifically. wireChainDrag's
+                       mousedown now requires ev.target.closest('.chain-thumb')
+                       (was '.chain-slot, .chain-slot-stack'); new chainDragThumb
+                       state var holds it (chainDragCont is still the slot
+                       container — still what gets reordered/appended, just no
+                       longer the drag-initiation target). The .dragging class
+                       and createChainDragGhost's clone source both moved from
+                       chainDragCont to chainDragThumb — the ghost is now just
+                       the thumb-sized icon, not the whole label+caret stack,
+                       which is also a better visual match for Avid's own drag
+                       ghost. The linked-pair ghost now clones each block's
+                       .chain-thumb (via querySelector), not its whole container.
                        7/28 (6th pass): setInputButtons also updates the
                        #chain-input-wrap clone (index.html) — one function,
                        one source of truth, so the clone can't drift.
@@ -770,7 +818,46 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
   it. Avid's row has a tiny image with a tiny label and is hard to scan, which
   is the whole reason this app exists. Thumbnail plus our larger label beats
   either app alone. Keep the hover text too: it costs nothing and covers users
-  without the graphics. Row grows from 62px to roughly 110px.
+  without the graphics. Row grows from 62px to roughly 110px (BUILT 7/28, see
+  WORKING: CHAIN ROW GRAPHICS-READY LAYOUT — currently dummy placeholders,
+  real images are the next step below).
+
+  7/28 UPDATES (folder handling + real data, ahead of actually loading images):
+    SETTING RENAMED "Avid Editor Folder" -> "Avid Graphics Folder" (index.html,
+    main.js) — reflects that this no longer needs to be a live Editor install.
+    FOLDER DEPTH: do NOT require the user to pick an exact folder depth (not
+    the Editor root specifically, not System Plug-Ins specifically). The
+    loader (not yet built) should search recursively for the plugin image
+    structure wherever it sits inside whatever folder is chosen. This is what
+    makes "copy the folder off before uninstalling Avid on a Win11 box"
+    actually work — a fixed-depth picker breaks the moment that copy gets
+    reorganized even slightly, and Win11 users are exactly the ones most
+    likely to only ever have a one-time copied-out folder, never a live
+    install on that machine.
+    REAL FOLDER LISTING obtained (Charlie, full recursive dir listing off a
+    real install, 3934 lines / 3623 PNGs across 11 plugin folders: AmpsCabs,
+    Delay, Distortion, Dynamics, EQ, FX Loop, Modulation, Reverb, Tuner,
+    Volume, WAH). CONFIRMED FACTS from it:
+      - Pedal thumbnails live at <Plugin>.aaxplugin\Contents\Resources\Images\
+        <ModelName>.png (+ a same-named _sel.png — a plain generic amber
+        rounded-rect outline, NOT a per-pedal custom asset, so it can likely
+        just be a CSS border instead of another image dependency).
+      - The Resources ROOT (sibling to Images\) holds only per-model GUI
+        layout XML (<ModelName>GUI.xml) — not images. Easy to grab the wrong
+        level if not checked; confirmed by directly inspecting the Distortion
+        and Reverb folders.
+      - Avid spells it "GreenJVCOD", not "GreenJRCOD" — a real naming quirk,
+        consistent with the "MultiChorus spelled two ways" one already noted
+        above.
+      - AMP IMAGES ARE MANY-TO-ONE: only 17 amp_*.png files exist for 33
+        documented amp models — several modeled amps share one thumbnail
+        (same physical chassis, different channel/mode). The mapping table
+        must account for this; it is not one row per amp model.
+    MAPPING TABLE ARCHITECTURE (decided, not yet built): the MID->filename
+    table itself is CODE DATA, not documentation — it belongs in its own
+    dedicated JS file (like fx-transport.js/fx-panels.js), not pasted into
+    any doc. The docs get a short pointer paragraph (this one) plus gotchas,
+    never the raw table.
 
   EFFECT PANELS: pedal image in the panel HEADER only, for recognition, with
   real sliders and labelled values below — the way our amp panel already

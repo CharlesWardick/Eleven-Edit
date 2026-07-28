@@ -263,7 +263,12 @@ ipcMain.handle('browse-avid-dir', async function() {
   try {
     const win = BrowserWindow.getAllWindows()[0];
     const result = await dialog.showOpenDialog(win, {
-      title: 'Choose Avid Editor Folder',
+      // Renamed 7/28 — this no longer has to be a live Avid Editor install;
+      // the plan is for whatever reads this folder to search it recursively
+      // for the Avid plugin structure rather than assume one exact depth, so
+      // a copied-out subset of the install still works. That loader is not
+      // built yet — this is just the folder picker + rename.
+      title: 'Choose Avid Graphics Folder',
       defaultPath: storeGet('avidDir', 'C:\\Program Files'),
       properties: ['openDirectory']
     });

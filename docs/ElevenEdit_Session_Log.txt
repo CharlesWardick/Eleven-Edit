@@ -461,6 +461,82 @@ NEXT:        Charlie's build test. Confirm: (1) can now comfortably drag to
              arrows elsewhere in the chain still pair with the right blocks
              (the gotcha above, in case anything was missed).
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED (structure), PENDING CHARLIE'S BUILD TEST. Real Avid
+             images NOT wired up yet — see NEXT.
+AREA:        Chain row — graphics-ready layout + drag-handle split
+FINDING:     Charlie shared two screenshots (Avid's real graphic row vs. ours)
+             plus a POC HTML file built the day before, then a full real
+             folder listing off an actual Avid Editor install. Confirmed
+             design, revised from the original 7/19 plan after the POC:
+               - Row grows uniformly to ~110px for EVERY block, always — not
+                 mixed heights depending on which blocks happen to have a
+                 resolved image (the original plan's assumption). A missing
+                 image is a same-size dummy placeholder, never a shorter block.
+               - The image (or dummy box) becomes the drag handle, matching
+                 Avid's own editor. Deliberate secondary benefit: this removes
+                 the drag/bypass-click conflict Charlie reported ("the clicker
+                 is also the drag handle") by giving each control its own
+                 element instead of sharing one.
+             POC file details (chainrowpoc4.html, extracted images actually
+             viewed, not just read as code): .img-area holds either the real
+             pedal <img> or a dashed .img-placeholder div; a "_sel" image
+             turned out to just be a generic amber rounded-rect outline (not
+             a per-pedal custom asset) — worth doing as CSS instead of another
+             image dependency when the real selection-highlight gets built.
+BUILT:       index.html — .chain-thumb (dummy placeholder for now) added
+             above every block's label; #chainstrip height 62px->110px,
+             align-items center->flex-end (bottom-aligns every child,
+             including the INPUT clone / STEREO badge, now wrapped in
+             .chain-label-group with a matching spacer); .chain-arr
+             justify-content center->flex-end + padding-bottom so connector
+             lines sit at label height, not centered in the taller row.
+             ui.js — wireChainDrag's mousedown now requires the target to be
+             inside .chain-thumb specifically (was the whole slot); new
+             chainDragThumb tracks it for the .dragging class and as the
+             drag-ghost clone source (ghost is now thumb-sized, not the whole
+             label+caret stack — also a better match for Avid's own ghost
+             size). Settings panel: "Avid Editor Folder" renamed "Avid
+             Graphics Folder" (index.html, main.js's browse-avid-dir dialog
+             title) — reflects that a live Editor install is no longer
+             required, just a folder containing the plugin structure.
+REAL FOLDER DATA (Charlie provided the actual listing, not a guess):
+             11R_Image_Paths.txt — 3934 lines / 3623 PNGs, 11 plugin folders
+             (AmpsCabs, Delay, Distortion, Dynamics, EQ, FX Loop, Modulation,
+             Reverb, Tuner, Volume, WAH). CONFIRMED: thumbnails live at
+             <Plugin>.aaxplugin\Contents\Resources\Images\<Name>.png (Charlie's
+             own guess of "root of Resources" was one level too shallow —
+             Resources root only holds per-model GUI XML, checked directly
+             against the Distortion and Reverb folders). Avid spells it
+             "GreenJVCOD" not "GreenJRCOD" (same family of quirk as the
+             already-noted "MultiChorus spelled two ways"). AMP IMAGES ARE
+             MANY-TO-ONE: only 17 amp_*.png files exist for 33 documented amp
+             models — several amps share one thumbnail (same physical
+             chassis). The mapping table has to be built with that in mind,
+             not assumed one row per amp. This raw listing lives only in
+             Charlie's upload to this session, same as any other capture
+             evidence (pcapng files etc.) — not committed to the repo.
+FOLDER-DEPTH DECISION: the eventual loader should search the chosen folder
+             RECURSIVELY for the plugin image structure rather than require
+             one exact depth (Editor root vs. System Plug-Ins vs. something
+             else) — this is what lets a copied-out, no-longer-installed
+             subset of Avid's folder still work, which matters most for
+             Windows 11 users who may never run a live Avid install at all
+             (BSOD risk) and would only ever have a one-time copied folder.
+MAPPING TABLE ARCHITECTURE: the MID->filename table is CODE DATA, not
+             documentation — belongs in its own new JS file (pattern: like
+             fx-transport.js/fx-panels.js), never pasted into a doc as a raw
+             table. Docs keep a short pointer + gotchas only (folded into
+             Primer GRAPHICS section same day).
+NEXT:        (1) Charlie's build test of the drag-handle split + taller row
+             (dummy boxes only right now). (2) Separately, later: the
+             recursive graphics-folder scanner (main.js) and the actual
+             MID->filename mapping file, built from the real listing above,
+             with uncertain/ambiguous matches flagged for Charlie to confirm
+             rather than guessed silently. (3) Still waiting, unrelated:
+             Charlie's screen-capture video of Avid's drag flow, for the
+             separate "drag smoothness" question.
+-------------------------------------------------------------------
 
 
 

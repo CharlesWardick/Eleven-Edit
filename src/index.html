@@ -134,15 +134,23 @@
   /* ══ CHAIN STRIP ══ */
   #chainstrip {
     background: #181818; border-bottom: 2px solid var(--border-dim);
-    display: flex; align-items: center; padding: 0 16px; gap: 5px;
-    height: 62px; flex-shrink: 0; overflow-x: hidden;
+    display: flex; align-items: flex-end; padding: 0 16px; gap: 5px;
+    /* 7/28: grown from 62px to fit .chain-thumb above the label (Primer's
+       original graphics plan called for ~110px). align-items changed from
+       center to flex-end so every child — thumb+label+caret stacks, and the
+       label-only groups (INPUT clone, STEREO badge) — sits flush at the same
+       bottom baseline regardless of its own total height. */
+    height: 110px; flex-shrink: 0; overflow-x: hidden;
   }
   /* Connector between blocks. FIXED WIDTH regardless of mono/stereo so the row
      never re-flows when a patch changes — stacked horizontal lines, like the
-     Avid editor, rather than one or two arrow glyphs of different widths. */
+     Avid editor, rather than one or two arrow glyphs of different widths.
+     7/28: justify-content flex-end (was center) + padding-bottom so the line
+     sits at the LABEL's height, not centered in the now much taller row. */
   .chain-arr {
     flex-shrink: 0; width: 16px; height: 100%;
-    display: flex; flex-direction: column; justify-content: center; gap: 4px;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+    padding-bottom: 18px;
   }
   .chain-arr i { display: block; height: 2px; border-radius: 1px; background: #777; }
   /* unknown channel count must NOT look like a confident mono line */
@@ -160,7 +168,7 @@
      end-group (connector + badge + tempo) parks at the right. */
   #mono-indicator {
     font-size: 11px; font-weight: bold; letter-spacing: 1px;
-    padding: 3px 8px; border-radius: 3px; align-self: center;
+    padding: 3px 8px; border-radius: 3px;
     border: 1px solid; white-space: nowrap; flex-shrink: 0;
     cursor: pointer;
     /* Fixed width so the badge does not resize between the 6-letter STEREO
@@ -195,13 +203,19 @@
      stereo/mono state further down the line. */
   #chain-input-wrap {
     font-size: 11px; font-weight: bold; letter-spacing: 1px;
-    padding: 3px 8px; border-radius: 3px; align-self: center;
+    padding: 3px 8px; border-radius: 3px;
     border: 1px solid var(--green); white-space: nowrap; flex-shrink: 0;
     background: #0a2a0a; color: var(--green);
     /* Fixed width sized for the longest label (DIGITAL) so the row doesn't
        shift as the input changes. */
     width: 70px; text-align: center; box-sizing: border-box;
   }
+  /* 7/28: wraps INPUT-clone / STEREO badge so they bottom-align at the same
+     baseline as the pedal-thumb slots (#chainstrip's align-items:flex-end
+     handles the row-level alignment; this just centers each group's own
+     content horizontally, same as .chain-slot does for its taller stack). */
+  .chain-label-group { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .chain-thumb-spacer { height: 68px; flex-shrink: 0; }
 
   /* ══ RIG TEMPO — digital-clock field (CMD 0x50) ══
      Two click-selectable segments (whole BPM and tenths) plus a stepper.
@@ -238,15 +252,29 @@
   }
   #tempo-steps div:hover { color: var(--accent); border-color: var(--accent); }
 
-  /* Standard slot: label on top, ▼ underneath */
+  /* Standard slot: drag-handle thumb, then label, then ▼ underneath.
+     align-items stays stretch — .chain-name/.chain-open rely on it to match
+     each other's width; .chain-thumb has a fixed width and self-centers. */
   .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; }
-  /* drag to reorder */
-  /* Always draggable via mousedown/mousemove tracking (7/28) — no longer
-     gated on an HTML draggable attribute, so this applies unconditionally. */
-  .chain-slot, .chain-slot-stack { cursor: grab; }
-  .chain-slot.dragging, .chain-slot-stack.dragging { opacity: 0.35; cursor: grabbing; }
   /* drop-before/drop-after marker removed 7/28 — the live preview (blocks
      actually shifting during the drag) replaced it; see ui.js wireChainDrag */
+
+  /* 7/28: THE DRAG HANDLE. Moved off the whole slot (which fought with the
+     .chain-name click-to-bypass handler — Charlie: "the clicker is also the
+     drag handle") onto just this thumb, matching how Avid's own editor works
+     (the pedal graphic is what you grab). Placeholder box for now; real Avid
+     pedal/amp/cab graphics are a separate later step (see Session Log). */
+  .chain-thumb {
+    width: 60px; height: 64px; margin-bottom: 4px; flex-shrink: 0;
+    align-self: center;   /* fixed width — parent's stretch would otherwise leave it flush-left */
+    display: flex; align-items: center; justify-content: center;
+    cursor: grab;
+  }
+  .chain-thumb.dragging { opacity: 0.35; cursor: grabbing; }
+  .chain-thumb-placeholder {
+    width: 100%; height: 100%; border-radius: 3px;
+    border: 1px dashed #2a2a2a; background: #161616;
+  }
   .chain-name {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
     border-radius: 4px 4px 0 0; border-bottom: none;
@@ -648,71 +676,94 @@
   <!-- Passive INPUT clone (7/28) — always the FIRST child, never touched by
        applyChainOrder's reorder loop, so it stays at the start of the row
        regardless of which block currently occupies chain position 1. -->
-  <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
+  <div class="chain-label-group">
+    <div class="chain-thumb-spacer"></div>
+    <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
+  </div>
   <div id="chain-input-connector" class="chain-arr" title="Input"><i></i></div>
 
+  <!-- 7/28: .chain-thumb is the DEDICATED drag handle — a placeholder box
+       for now (real Avid pedal graphics are a separate, later step). It is
+       deliberately NOT part of any click handler: dragging starts only from
+       here, bypass-toggle only from .chain-name, so the two can no longer
+       fight over the same click (see ui.js wireChainDrag, Session Log 7/28). -->
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-vol"    data-slot="vol"    title="Click to bypass/enable">VOL</div>
     <div class="chain-open"              id="copen-vol"    data-panel="vol">▼</div>
   </div>
   <div class="chain-arr">▶</div>
 
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-wah"    data-slot="wah"    title="Click to bypass/enable">WAH</div>
     <div class="chain-open"              id="copen-wah"    data-panel="wah">▼</div>
   </div>
   <div class="chain-arr">▶</div>
 
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fx1"    data-slot="fx1"    title="Click to bypass/enable">FX1</div>
     <div class="chain-open"              id="copen-fx1"    data-panel="fx1">▼</div>
   </div>
   <div class="chain-arr">▶</div>
 
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-dist"   data-slot="dist"   title="Click to bypass/enable">DIST</div>
     <div class="chain-open"              id="copen-dist"   data-panel="dist">▼</div>
   </div>
   <div class="chain-arr">▶</div>
 
-  <!-- AMP + CAB stacked — bypass only, no ▼ -->
+  <!-- AMP + CAB stacked — bypass only, no ▼. One thumb serves the pair,
+       matching Avid (the amp head graphic is one image, cab is separate
+       below it — real cab graphic is also a later step). -->
   <div class="chain-slot-stack">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name-stack slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
     <div class="chain-name-stack slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
   </div>
   <div class="chain-arr">▶</div>
 
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fxloop" data-slot="fxloop" title="Click to bypass/enable">FX LOOP</div>
     <div class="chain-open"              id="copen-fxloop" data-panel="fxloop">▼</div>
   </div>
   <div class="chain-arr">▶</div>
 
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-mod"    data-slot="mod"    title="Click to bypass/enable">MOD</div>
     <div class="chain-open"              id="copen-mod"    data-panel="mod">▼</div>
   </div>
   <div class="chain-arr">▶</div>
 
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fx2"    data-slot="fx2"    title="Click to bypass/enable">FX2</div>
     <div class="chain-open"              id="copen-fx2"    data-panel="fx2">▼</div>
   </div>
   <div class="chain-arr">▶</div>
 
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-delay"  data-slot="delay"  title="Click to bypass/enable">DELAY</div>
     <div class="chain-open"              id="copen-delay"  data-panel="delay">▼</div>
   </div>
   <div class="chain-arr">▶</div>
 
   <div class="chain-slot">
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-reverb" data-slot="reverb" title="Click to bypass/enable">REVERB</div>
     <div class="chain-open"              id="copen-reverb" data-panel="reverb">▼</div>
   </div>
 
   <div id="mono-connector" class="chain-arr" title="Stereo/Mono"><i></i><i></i></div>
-  <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
+  <div class="chain-label-group">
+    <div class="chain-thumb-spacer"></div>
+    <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
+  </div>
 
   <!-- RIG TEMPO — CMD 0x50, microseconds per beat. Rig level, not per patch,
        which is why it lives out here beside the Stereo/Mono badge and not in
@@ -1002,7 +1053,7 @@
     </div>
 
     <div class="settings-row">
-      <div class="settings-row-label">Avid Editor Folder</div>
+      <div class="settings-row-label">Avid Graphics Folder</div>
       <div class="settings-row-controls">
         <button class="settings-btn" id="settings-btn-set-avid">Set Folder…</button>
         <div class="settings-path" id="settings-avid-path">—</div>
@@ -1590,7 +1641,7 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
     }).catch(function(){});
   });
 
-  // Set Avid Editor Folder
+  // Set Avid Graphics Folder
   document.getElementById('settings-btn-set-avid').addEventListener('click', function() {
     if (!window.electronAPI) return;
     window.electronAPI.browseAvidDir().then(function(res) {
