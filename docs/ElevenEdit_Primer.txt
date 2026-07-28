@@ -1,6 +1,6 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-27
+Updated: 2026-07-28
 Author: Charles Wardick (charles.wardick@gmail.com)
 Status: Active development — Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
@@ -387,6 +387,20 @@ WORKING:
     image is a dummy box, not a shorter block, so the row never looks jagged
     depending on which specific blocks happen to have art. PENDING CHARLIE'S
     BUILD TEST — drag-handle split not yet exercised on real hardware.
+    7/28 follow-up fix: AMP/CAB's thumb was sitting 10px higher than every
+    other block's thumb (same 64x60 size, read as "smaller" from reduced
+    headroom) — root cause was #chainstrip's align-items:flex-end bottom-
+    aligning each slot at ITS OWN natural content height, and AMP/CAB's
+    2-label stack is naturally 10px taller than a normal 1-label slot.
+    Fixed by switching to align-items:stretch (every slot now stretches to
+    one shared row height) + margin-top:auto on each slot's label element,
+    so the thumb pins top and the label pins bottom regardless of how many
+    labels follow. Also fixed GUITAR/STEREO reading "too high" — their
+    position was already correct (bottoms matched), it was font-size/
+    padding (11px/3px vs the real .chain-name's 13px/5px) making them look
+    lighter; matched the real values. See Session Log 7/28 (thumb position
+    entry) for the full CDP-verified detail. Row height 130px -> 140px,
+    the minimum bump needed — does not touch the effect-panel area below.
     NEXT (separate step, deliberately not done in this pass): the actual
     recursive Avid-graphics-folder scanner (main.js) and the MID-to-filename
     mapping table (a new dedicated JS data file, not the docs — see the
@@ -475,6 +489,15 @@ CODE FILE MAP
                        handle, currently a dummy placeholder box) added above
                        every block's label, row height 62px->110px,
                        #chainstrip align-items center->flex-end.
+                       7/28, later same day: align-items flipped again,
+                       flex-end -> stretch (root-caused AMP/CAB's thumb
+                       sitting 10px higher than every other thumb), row
+                       height 130px->140px, margin-top:auto added to
+                       .chain-name / .chain-name-stack:first-of-type /
+                       #chain-input-wrap / #mono-indicator, and the latter
+                       two's font-size/padding matched to .chain-name's
+                       real values. See CHAIN ROW GRAPHICS entry above and
+                       Session Log 7/28 for the full CDP-verified detail.
                        Earlier 7/28: #chain-input-wrap + #chain-input-connector added
                        as the fixed FIRST children of #chainstrip (passive
                        INPUT clone, chain-drag position-1 room fix — see

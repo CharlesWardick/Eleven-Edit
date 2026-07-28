@@ -641,6 +641,63 @@ FILES:       ui.js only (applyChainOrder's mono resolution).
 NEXT:        Charlie's real rebuild test — this was verified in a synthetic
              headless render, not the actual Electron app end to end.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      ROOT CAUSE FOUND AND FIXED, verified live before shipping
+AREA:        Chain row — AMP/CAB thumb sat 10px higher than every other
+             block's thumb; GUITAR/STEREO bookends still felt "~5px too high"
+FINDING:     Charlie flagged two things off the latest build, both precise:
+             (1) AMP/CAB's dummy thumb looked smaller than the others', and
+             (2) GUITAR/STEREO still read as sitting too high, worried a real
+             fix would "snowball" into growing the whole panel. Measured both
+             via the same live-CDP technique (getBoundingClientRect, not
+             eyeballing) instead of guessing a third time:
+               - AMP thumb and WAH thumb were IDENTICAL size (64x60) — not
+                 smaller at all. But AMP's thumb top sat at y=62 vs WAH's
+                 y=72: same box, 10px higher, read as "smaller" because of
+                 the reduced headroom above it.
+               - GUITAR/STEREO's label BOTTOMS already exactly matched
+                 WAH's label bottom (166=166) — already correctly aligned.
+                 The "too high" feeling was optical weight, not position:
+                 11px font / 3px padding vs. the real .chain-name's 13px /
+                 5px.
+ROOT CAUSE:  #chainstrip used align-items:flex-end, which bottom-aligns each
+             .chain-slot/.chain-slot-stack at ITS OWN natural content height.
+             AMP/CAB's stack (2 stacked name-labels) is naturally 122px vs a
+             normal slot's 112px (1 label + 1 caret) — 10px taller — so its
+             thumb (the first child) started 10px higher to make the bottoms
+             still line up. Same-size box, different top.
+FIX:         #chainstrip switched align-items: flex-end -> stretch, so every
+             slot is stretched to exactly this row's own content-box height
+             (one number, tuned in #chainstrip alone — no duplicated magic
+             height on the slot classes themselves). Inside each slot,
+             margin-top:auto on the label element right after the thumb
+             (.chain-name, .chain-name-stack:first-of-type, and — for the
+             thumb-less GUITAR/STEREO bookends — #chain-input-wrap /
+             #mono-indicator directly) pins the label group to the BOTTOM
+             and lets the GAP above it (between thumb and label) absorb the
+             slot's height instead. Every thumb now starts at the same Y
+             regardless of how many labels follow it. #chainstrip's height
+             bumped 130 -> 140px — the smallest bump that clears AMP/CAB's
+             natural 122px content plus a few px of top breathing room; this
+             does NOT touch or grow the effect-panel area below the chain
+             row, so the "snowball" Charlie was worried about (thumb fix ->
+             taller slots -> bigger panel -> more inconsistency elsewhere)
+             does not happen — it's a single bounded number in one place.
+             GUITAR/STEREO's font-size/padding bumped 11px/3px -> 13px/5px
+             to match .chain-name's real weight (their position was already
+             correct; this was purely visual weight parity).
+VERIFIED:    Live CDP render before shipping (not guessed): reloaded, re-
+             measured — WAH thumb top and AMP thumb top both now 70 (exact
+             match); WAH/GUITAR/STEREO label bottoms all now 176 (exact
+             match); no overflow past #chainstrip's own box. Also re-ran the
+             same simulated-reorder test from the previous entry (set
+             currentChain, call applyChainOrder) against the new markup —
+             STEREO badge stayed correctly wrapped, alignment held through a
+             reorder, not just on static load. Screenshotted both states.
+FILES:       index.html only (#chainstrip, .chain-name, .chain-name-stack,
+             #mono-indicator, #chain-input-wrap CSS).
+NEXT:        Charlie's real rebuild test.
+-------------------------------------------------------------------
 
 
 
