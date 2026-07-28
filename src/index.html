@@ -686,8 +686,18 @@
 
   <!-- Passive INPUT clone (7/28) — always the FIRST child, never touched by
        applyChainOrder's reorder loop, so it stays at the start of the row
-       regardless of which block currently occupies chain position 1. -->
-  <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
+       regardless of which block currently occupies chain position 1.
+       7/28, 2nd revert: true align-self:center sat noticeably HIGHER than
+       the other blocks' labels (those bottom-align, and the row is now
+       130px tall — center-of-130px is well above bottom-of-130px). Wrapped
+       in .chain-slot (bottom-aligns the same way every other block does)
+       with a REAL .chain-open caret, hidden via visibility — reusing the
+       actual element guarantees the same height as a real caret by
+       construction, instead of guessing a spacer number a third time. -->
+  <div class="chain-slot">
+    <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
+    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
+  </div>
   <div id="chain-input-connector" class="chain-arr" title="Input"><i></i></div>
 
   <!-- 7/28: .chain-thumb is the DEDICATED drag handle — a placeholder box
@@ -768,7 +778,14 @@
   </div>
 
   <div id="mono-connector" class="chain-arr" title="Stereo/Mono"><i></i><i></i></div>
-  <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
+  <!-- 7/28, 2nd revert: same fix as the INPUT clone above — wrapped in
+       .chain-slot with a hidden real .chain-open so it bottom-aligns at the
+       same baseline as every other block's label, instead of floating at
+       true vertical center of the now much-taller row. -->
+  <div class="chain-slot">
+    <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
+    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
+  </div>
 
   <!-- RIG TEMPO — CMD 0x50, microseconds per beat. Rig level, not per patch,
        which is why it lives out here beside the Stereo/Mono badge and not in
