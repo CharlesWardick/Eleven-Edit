@@ -854,23 +854,31 @@ document.addEventListener('DOMContentLoaded', function() {
 // passes a frozen snapshot taken at dragstart instead, so a chain-map arriving
 // mid-drag can't perturb the on-screen preview (Session Log WATCH FOR, 7/19).
 //
-// Returns a reordered copy of baseOrder, loop legality already resolved.
-function computeReorder(fromSlotId, targetSlotId, after, baseOrder) {
-  const src = baseOrder || currentChain;
-  if (fromSlotId === targetSlotId) return src;
-
-  const ampIdx  = src.findIndex(b => b.slotId === SLOT_AMP);
-  const loopIdx = src.findIndex(b => b.slotId === SLOT_LOOP);
+// Shared by computeReorder AND the drag-ghost builder (wireChainDrag), so the
+// "is this drag a linked AMP-CAB+LOOP pair" question has exactly one answer
+// used everywhere, not two independently-maintained copies of the same check.
+// Returns null if not linked, else {ampIdx, loopIdx, loopBefore}.
+function linkedAmpLoopInfo(fromSlotId, baseOrder) {
+  if (fromSlotId !== SLOT_AMP) return null;
+  const ampIdx  = baseOrder.findIndex(b => b.slotId === SLOT_AMP);
+  const loopIdx = baseOrder.findIndex(b => b.slotId === SLOT_LOOP);
+  if (ampIdx < 0 || loopIdx < 0 || Math.abs(ampIdx - loopIdx) !== 1) return null;
   // Adjacent alone isn't enough: LOOP already parked at an end (index 0 or
   // the last index) is legal on its own regardless of AMP-CAB's position, so
   // it must NOT be dragged along even though it's numerically "adjacent" —
   // confirmed by simulation: amp=9/loop=10 wrongly pulled loop to 2 before
   // this guard was added.
-  const loopAtEnd = loopIdx === 0 || loopIdx === src.length - 1;
-  const linked  = fromSlotId === SLOT_AMP && ampIdx >= 0 && loopIdx >= 0
-                  && Math.abs(ampIdx - loopIdx) === 1 && !loopAtEnd;
+  if (loopIdx === 0 || loopIdx === baseOrder.length - 1) return null;
+  return { ampIdx, loopIdx, loopBefore: loopIdx < ampIdx };
+}
 
-  if (linked) return computeLinkedAmpLoopReorder(src, targetSlotId, after, ampIdx, loopIdx);
+// Returns a reordered copy of baseOrder, loop legality already resolved.
+function computeReorder(fromSlotId, targetSlotId, after, baseOrder) {
+  const src = baseOrder || currentChain;
+  if (fromSlotId === targetSlotId) return src;
+
+  const linkInfo = linkedAmpLoopInfo(fromSlotId, src);
+  if (linkInfo) return computeLinkedAmpLoopReorder(src, targetSlotId, after, linkInfo.ampIdx, linkInfo.loopIdx);
 
   const rest = src.filter(b => b.slotId !== fromSlotId);
   const moved = src.find(b => b.slotId === fromSlotId);
@@ -961,6 +969,9 @@ let chainDragOffsetY    = 0;      // so the ghost doesn't jump to align its
 let chainDragGhost      = null;   // floating clone that follows the cursor —
                                    // native drag-and-drop drew this for free;
                                    // mouse-tracking has to build it (7/28)
+let chainDragGhostAdjustX = 0;    // extra left-shift when the ghost is a
+                                   // 2-block superblock with the partner
+                                   // placed before the grabbed block
 let chainDragStartOrder = null;   // currentChain snapshot at mousedown — every
                                    // preview computation this drag uses THIS,
                                    // never the live currentChain, so an
@@ -979,25 +990,65 @@ const CHAIN_DRAG_THRESHOLD = 4;   // px of movement before it counts as a drag
 // not decorative: this sits directly over whatever the cursor is hovering,
 // and wireChainDrag's mousemove handler uses document.elementFromPoint to
 // find that — the ghost would otherwise shadow every block underneath it.
-function createChainDragGhost(cont) {
+//
+// partnerCont/partnerBefore (7/28, same day): when the drag is the AMP-CAB +
+// LOOP linked case (linkedAmpLoopInfo), the ghost shows BOTH blocks side by
+// side instead of just the one under the cursor — so the "you're carrying
+// two blocks together" state is visible DURING the drag, not just inferable
+// from where things land afterward (Charlie: "is there a rule in play... can
+// the ghost show the superblock condition").
+//
+// Returns {el, offsetAdjustX} — offsetAdjustX is how much further left the
+// wrap's origin sits than the grabbed block's own left edge, needed only
+// when the partner is placed BEFORE it (so the cursor still tracks the same
+// point it originally grabbed, not the wrap's new outer edge).
+function createChainDragGhost(cont, partnerCont, partnerBefore) {
+  function cloneBlock(c) {
+    const clone = c.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    clone.classList.remove('dragging');
+    const r = c.getBoundingClientRect();
+    clone.style.width = r.width + 'px';
+    clone.style.height = r.height + 'px';
+    clone.style.margin = '0';
+    clone.style.flexShrink = '0';
+    return clone;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'chain-drag-ghost';
+  wrap.style.position = 'fixed';
+  wrap.style.display = 'flex';
+  wrap.style.gap = '4px';
+  wrap.style.pointerEvents = 'none';
+  wrap.style.zIndex = '9999';
+  wrap.style.opacity = '0.9';
+  wrap.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+
+  const mainClone = cloneBlock(cont);
   const r = cont.getBoundingClientRect();
-  const ghost = cont.cloneNode(true);
-  ghost.removeAttribute('id');
-  ghost.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-  ghost.classList.remove('dragging');
-  ghost.classList.add('chain-drag-ghost');
-  ghost.style.position = 'fixed';
-  ghost.style.left = r.left + 'px';
-  ghost.style.top = r.top + 'px';
-  ghost.style.width = r.width + 'px';
-  ghost.style.height = r.height + 'px';
-  ghost.style.margin = '0';
-  ghost.style.pointerEvents = 'none';
-  ghost.style.zIndex = '9999';
-  ghost.style.opacity = '0.9';
-  ghost.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
-  document.body.appendChild(ghost);
-  return ghost;
+  let offsetAdjustX = 0;
+
+  if (partnerCont) {
+    const partnerClone = cloneBlock(partnerCont);
+    if (partnerBefore) {
+      const pr = partnerCont.getBoundingClientRect();
+      wrap.appendChild(partnerClone);
+      wrap.appendChild(mainClone);
+      offsetAdjustX = pr.width + 4;   // partner now sits left of the grabbed block
+    } else {
+      wrap.appendChild(mainClone);
+      wrap.appendChild(partnerClone);
+    }
+  } else {
+    wrap.appendChild(mainClone);
+  }
+
+  wrap.style.left = (r.left - offsetAdjustX) + 'px';
+  wrap.style.top = r.top + 'px';
+  document.body.appendChild(wrap);
+  return { el: wrap, offsetAdjustX: offsetAdjustX };
 }
 
 function wireChainDrag() {
@@ -1038,12 +1089,26 @@ function wireChainDrag() {
       chainDragPending = false;
       chainDragActive = true;
       chainDragCont.classList.add('dragging');
-      chainDragGhost = createChainDragGhost(chainDragCont);
+
+      // linkedAmpLoopInfo is checked ONCE here, not every move: chainDragStartOrder
+      // is frozen for the whole drag, so whether this is a linked pair can't
+      // change mid-drag. If linked, the ghost shows both blocks together.
+      const linkInfo = linkedAmpLoopInfo(chainDragSlot, chainDragStartOrder);
+      let ghostInfo;
+      if (linkInfo) {
+        const partnerBlk = chainDragStartOrder[linkInfo.loopIdx];
+        const partnerCont = containerForSlot(partnerBlk.slotId);
+        ghostInfo = createChainDragGhost(chainDragCont, partnerCont, linkInfo.loopBefore);
+      } else {
+        ghostInfo = createChainDragGhost(chainDragCont, null, false);
+      }
+      chainDragGhost = ghostInfo.el;
+      chainDragGhostAdjustX = ghostInfo.offsetAdjustX;
       document.body.style.cursor = 'grabbing';
     }
 
     if (chainDragGhost) {
-      chainDragGhost.style.left = (ev.clientX - chainDragOffsetX) + 'px';
+      chainDragGhost.style.left = (ev.clientX - chainDragOffsetX - chainDragGhostAdjustX) + 'px';
       chainDragGhost.style.top  = (ev.clientY - chainDragOffsetY) + 'px';
     }
 
@@ -1085,6 +1150,7 @@ function wireChainDrag() {
     }
     if (chainDragCont) chainDragCont.classList.remove('dragging');
     if (chainDragGhost) { chainDragGhost.remove(); chainDragGhost = null; }
+    chainDragGhostAdjustX = 0;
     document.body.style.cursor = '';
     chainDragSlot = null;
     chainDragPending = false;

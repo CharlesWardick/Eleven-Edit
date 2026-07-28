@@ -347,9 +347,20 @@ WORKING:
     Added createChainDragGhost — a cloned, click-through, position:fixed
     element that follows the cursor above everything else, while the
     original block stays in the flex row as the dimmed "where it will land"
-    placeholder. PENDING CHARLIE'S REBUILD TEST. Also PENDING: Charlie's full
-    drag matrix re-test (not yet done), and an unclear "timing var" he
-    noticed — asked him to describe it rather than guess at a fix.
+    placeholder. Also PENDING: Charlie's full drag matrix re-test (not yet
+    done), and an unclear "timing var" he noticed — asked him to describe it
+    rather than guess at a fix.
+    7/28 (4th pass, same day): ghost now shows the SUPERBLOCK condition —
+    when the drag is the linked AMP-CAB+LOOP case, the ghost is both blocks
+    side by side (correct relative order), not just the one under the
+    cursor, so the linked state is visible during the drag, not just
+    inferable from where things land. linkedAmpLoopInfo() extracted as the
+    one shared answer to "is this linked", used by both computeReorder and
+    the ghost builder. STILL OPEN, deferred as a separate chip: the other
+    blocks don't visibly react/slide as the ghost passes over them — the
+    reorder just snaps once the cursor crosses a midpoint. That needs the
+    FLIP animation technique (bigger, separate piece of work), not a small
+    tweak — see Session Log. PENDING CHARLIE'S REBUILD TEST.
   TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
   Load TFX (memory load) — round-trip verified
   Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto

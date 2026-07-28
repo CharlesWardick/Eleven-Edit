@@ -386,6 +386,31 @@ UPDATE 7/28 (later, after 2nd rebuild): mouse-tracking fixed the flicker and
              underneath. Charlie also mentioned "a timing var in play" during
              drags — NOT YET UNDERSTOOD, asked him for specifics (what
              exactly he's seeing) rather than guess at a fix.
+UPDATE 7/28 (later still): two follow-ups from the ghost, requested
+             together but handled as two separate items (Charlie: "chip away
+             at a thing or two", both genuinely coupled to explain at once):
+  1. SUPERBLOCK GHOST — DONE. The code already knows when a drag is the
+     linked AMP-CAB+LOOP case (that was the whole point of computeReorder's
+     "linked" check). Extracted it into linkedAmpLoopInfo(fromSlotId,
+     baseOrder), shared by computeReorder AND createChainDragGhost, so there
+     is exactly one answer to "is this linked" instead of two copies that
+     could drift apart. createChainDragGhost now takes an optional partner
+     container + which side it's on, and builds a two-block ghost (both
+     clones side by side, correct relative order) when linked, a normal
+     single-block ghost otherwise. Verified the refactor changed nothing by
+     re-running the standalone simulation from the earlier pass — identical
+     results before and after extracting the shared helper.
+  2. SMOOTH "BLOCKS REACT AS THE GHOST PASSES" ANIMATION — NOT STARTED,
+     explained but not built. Charlie: dragging shows no equal-and-opposite
+     motion of the blocks the ghost passes over; the reorder just snaps to a
+     new arrangement once the cursor crosses a midpoint, instead of those
+     blocks visibly sliding out of the way as you approach. This is a
+     genuinely separate, bigger animation feature — plain CSS transitions do
+     not animate a flex reorder for free (changing DOM order is an instant
+     reflow); doing it properly needs the FLIP technique (measure position
+     before the reorder, reorder, measure after, animate a compensating CSS
+     transform back to zero) applied inside applyChainOrder. Deferred as its
+     own chip rather than folded into this pass.
 -------------------------------------------------------------------
 
 
