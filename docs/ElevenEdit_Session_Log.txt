@@ -581,6 +581,15 @@ NEXT:        Charlie's rebuild test. Also: Charlie is trying to get a phone-
              recorded video of Avid's drag flow to a postable size/bitrate —
              video editing is unfamiliar territory for him, may take another
              pass or two to land.
+UPDATE 7/28 (same day, immediately after): align-self:center OVERCORRECTED —
+             sat noticeably higher than the other blocks' labels (true center
+             of 130px vs. their bottom-aligned position). FIXED by wrapping
+             both badges in the actual .chain-slot structure with a real,
+             visibility:hidden .chain-open caret underneath — matches the
+             other blocks' baseline by construction (same elements, same
+             height) rather than a third guessed number. Two guesses wrong in
+             a row on this one (too low, then too high) before landing on
+             "reuse the real element" as the reliable fix.
 -------------------------------------------------------------------
 
 
