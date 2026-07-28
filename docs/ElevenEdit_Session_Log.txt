@@ -281,13 +281,53 @@ OPEN:        Does AMP-CAB have a special rule too? Avid drags an adjacent loop
 NEXT:        Deferred by agreement 7/19. Current drag behaviour is correct and
              working; this is feel, not function. Revisit after the effect
              panel work.
-UPDATE 7/27: effect panel work (DIST, REVERB) is done, so this is next in
-             line — Charlie intends to pick it up next session. BEFORE
-             implementing the AMP-CAB+Loop rule above: Charlie will re-verify
-             it directly against the Avid editor first — the OPEN question
-             above was never confirmed, and he flagged that the original
-             finding may not be 100% accurate on a re-look. Do NOT implement
-             that rule from this entry alone; wait for his fresh observation.
+UPDATE 7/27 (evening): effect panel work (DIST, REVERB) is done, so this is
+             next in line. Charlie re-verified both open questions directly
+             against the Avid editor rather than trust the original note.
+
+  STATIC LEGALITY RULE — CONFIRMED, NO CODE CHANGE NEEDED. Charlie supplied a
+  full 10x10 table of every legal AMP-CAB x LOOP position pair. Checked by
+  hand against ui.js's existing legalLoopIndices()/enforceLoopPlacement()
+  (computeReorder's insertion-index math: legal = {0, ampIndex, ampIndex+1,
+  length}) for AMP-CAB at 1, 3, 5, 8, 9 and 10 — every row matched. Plain-
+  English version of the invariant: LOOP is legal ONLY at position 1,
+  position 10, or immediately adjacent to AMP-CAB (either side). That is
+  already what the code enforces today. This was the part of the OPEN
+  question below that turned out to already be correct.
+
+  LIVE-DRAG "LINKED BLOCK" RULE — newly derived from Charlie's direct testing,
+  NOT yet re-checked a second time, treat as strong-but-unconfirmed until
+  implementation testing backs it up:
+    1. Dragging AMP-CAB while LOOP sits immediately adjacent to it (either
+       side, NOT already parked at position 1 or 10): LOOP moves WITH it,
+       same direction, same distance, staying stuck on the same side — i.e.
+       they behave as one linked "super block" while this holds.
+    2. That linked pair stops when LOOP would be pushed past position 1 or
+       10 — LOOP hits the physical end of the chain and the whole drag halts
+       there (AMP-CAB ends up one-in from the end, LOOP AT the end).
+    3. Once LOOP is parked at an end this way, grabbing AMP-CAB again lets it
+       roam completely freely through every other slot — LOOP sitting at an
+       end is legal regardless of AMP-CAB's position, so they un-link.
+    4. Grabbing LOOP directly (AMP-CAB now fixed somewhere) only lets LOOP
+       hop between whatever few slots are legal for that AMP-CAB position —
+       this part is the EXISTING jump-between-legal-stops behaviour (see
+       FINDING above), unchanged.
+    5. Confirmed symmetric: works the same whichever side of AMP-CAB LOOP
+       starts on (mirrors left/right), and the same whichever direction is
+       dragged.
+  So of the two things this entry originally flagged as open, only #1-3 above
+  are actually new work — the jump-between-stops behaviour (#4) was already
+  built. The net new piece is small: "when AMP-CAB moves and LOOP is touching
+  it, move LOOP the same amount until LOOP hits an end."
+
+  WHY THIS MATTERS ENOUGH TO FIX (Charlie's words, paraphrased): with the
+  current drop-only reorder, you can't see what's about to move while
+  dragging, and the missing linked-block behaviour makes some legal
+  arrangements very hard or effectively impossible to land deliberately.
+NEXT:        Implement per APPROACH above (live speculative-order preview)
+             PLUS the linked-block rule above. Re-confirm the linked-block
+             rule empirically during implementation before relying on it,
+             per the NOT yet re-checked note.
 -------------------------------------------------------------------
 
 
