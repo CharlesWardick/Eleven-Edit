@@ -1132,10 +1132,21 @@ function wireChainDrag() {
       chainDragGhost.style.top  = (ev.clientY - chainDragOffsetY) + 'px';
     }
 
+    // Hit-test off the DRAGGED BLOCK'S OWN position, not the raw cursor
+    // (7/28, Charlie: "matters where I place the mouse on the source block").
+    // ev.clientX alone is offset by wherever within the thumb you happened to
+    // grab it — chainDragOffsetX undoes that grab offset the same way the
+    // ghost's own position already does (see chainDragGhost.style.left
+    // above), landing on the dragged thumb's own current center. That makes
+    // the reorder trigger point consistent regardless of where on the block
+    // you clicked, instead of shifting by the grab offset.
+    const dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth  / 2;
+    const dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight / 2;
+
     // elementFromPoint does fresh hit-testing against whatever is actually
     // rendered right now — unlike native drag's event target, it is not
     // confused by applyChainOrder having just moved things around.
-    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const el = document.elementFromPoint(dragCenterX, dragCenterY);
     const cont = el ? el.closest('.chain-slot, .chain-slot-stack') : null;
     if (!cont || !strip.contains(cont)) return;
     const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
@@ -1149,7 +1160,7 @@ function wireChainDrag() {
     // block reaching anywhere the plain midpoint math could reach.
     const after = (target.slotId === chainDragStartOrder[0].slotId)
                   ? false
-                  : ev.clientX > r.left + r.width / 2;
+                  : dragCenterX > r.left + r.width / 2;
 
     const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
     if (next && !sameOrder(next, chainPreviewOrder)) {

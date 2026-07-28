@@ -698,6 +698,51 @@ FILES:       index.html only (#chainstrip, .chain-name, .chain-name-stack,
              #mono-indicator, #chain-input-wrap CSS).
 NEXT:        Charlie's real rebuild test.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      ROOT CAUSE FOUND AND FIXED, verified live before shipping
+AREA:        Chain drag — reorder trigger point depended on where you grabbed
+             the block, not just how far you dragged
+FINDING:     Charlie: "it seem to matter where I place the mouse on the source
+             block with regards to how it triggers... movement of other chain
+             items." Read wireChainDrag's mousemove handler (ui.js) directly
+             rather than guess: the hit-test used the raw cursor position
+             (document.elementFromPoint(ev.clientX, ev.clientY), and the
+             before/after midpoint check ev.clientX > r.left + r.width/2)
+             instead of the dragged block's own position.
+ROOT CAUSE:  chainDragOffsetX (cursor position within the grabbed thumb,
+             captured at mousedown) is already used correctly to keep the
+             ghost visually anchored to the same grab point — but the hit-
+             test math never applied that same offset, so it worked off the
+             naked cursor. Grab the thumb near its left edge vs. its right
+             edge (a ~50px spread on a 60px-wide thumb) and the SAME physical
+             drag motion crosses a neighboring block's trigger boundary at
+             different points, because the cursor's absolute position
+             relative to the dragged block's own edges depends on where you
+             grabbed it.
+FIX:         Compute the dragged block's own effective center once per move —
+               dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth/2
+               dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight/2
+             — and use THAT (not ev.clientX/clientY) for both the
+             elementFromPoint hit-test and the before/after midpoint check.
+             Same pattern the ghost's own positioning already used, just
+             applied to the trigger logic too. No new state, no architecture
+             change, one function.
+VERIFIED:    Live CDP simulation before shipping (not guessed): seeded a
+             chain, dispatched real mousemove events dragging WAH
+             toward FX2 with two very different grab offsets (5px and 55px
+             into the thumb) but back-solved so the DRAGGED BLOCK'S effective
+             center landed at the identical point both times — raw cursor X
+             was 588 in one case and 638 in the other (a 50px spread), yet
+             both produced the exact same resulting order (WAH landing right
+             before FX2). Confirms the trigger point is now a function of the
+             block's own position, not the grab offset.
+FILES:       ui.js only (wireChainDrag's mousemove handler).
+NEXT:        The bigger, separate piece — replacing the floating ghost with
+             the real block sliding smoothly (FLIP-style animation), matching
+             Avid's own drag behavior confirmed from Charlie's screen
+             recording (no ghost, just the block moving). Deliberately not
+             started this session; do it in its own dedicated session/chat.
+-------------------------------------------------------------------
 
 
 
