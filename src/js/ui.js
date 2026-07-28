@@ -1243,9 +1243,19 @@ function applyChainOrder(order) {
   // would hijack it as a stereo/mono arrow and throw off the block<->arrow
   // pairing by one (7/28).
   const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector):not(#chain-input-connector)'));
-  const conn   = document.getElementById('mono-connector');
-  const mono   = document.getElementById('mono-indicator');
-  const tempo  = document.getElementById('tempo-wrap');
+  const conn    = document.getElementById('mono-connector');
+  // 7/28 BUG FIX: #mono-indicator is now wrapped in a .chain-slot (with a
+  // hidden .chain-open) so it bottom-aligns at the same baseline as every
+  // real block's label. Grabbing and re-appending the bare label (as this
+  // used to do) ripped it straight back out of that wrapper on every single
+  // reorder — which is constantly, in the real app — leaving an orphaned
+  // empty wrapper sitting in the row (the extra gap Charlie saw) and the
+  // badge reverting to plain align-self:center (why it drifted back to
+  // looking wrong after any chain-map update, not just on first load).
+  // Move the WRAPPER, not the label.
+  const monoLbl = document.getElementById('mono-indicator');
+  const mono    = monoLbl ? monoLbl.closest('.chain-slot') : null;
+  const tempo   = document.getElementById('tempo-wrap');
 
   let arrowIdx = 0;
   order.forEach((blk, i) => {

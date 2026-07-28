@@ -591,6 +591,56 @@ UPDATE 7/28 (same day, immediately after): align-self:center OVERCORRECTED —
              a row on this one (too low, then too high) before landing on
              "reuse the real element" as the reliable fix.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      ROOT CAUSE FOUND AND FIXED, verified live before shipping
+AREA:        Chain row — STEREO badge orphaned from its wrapper on every reorder
+FINDING:     Charlie's next test: height fix confirmed good (GUITAR now roughly
+             matches REVERB's height), but the WHOLE ROW appeared shifted too
+             far right, with a gap after GUITAR bigger than any other gap.
+             Two wrong guesses in a row on this general area already — this
+             time, rather than guess a third fix, actually rendered the real
+             app: installed ffmpeg + used the pre-installed headless Chromium
+             in this environment to load src/index.html directly and screenshot
+             it via the DevTools protocol, including simulating a real chain
+             reorder (setting currentChain and calling applyChainOrder
+             directly, the same function the live app calls on every CMD 0x21).
+             That reproduced it immediately and made the cause obvious: static
+             page load looked fine, but ANY reorder broke it.
+ROOT CAUSE:  applyChainOrder (ui.js) does
+               const mono = document.getElementById('mono-indicator');
+               ... strip.appendChild(mono);
+             at the end of every call, to keep the STEREO badge pinned to the
+             end of the row. That grabs the bare label — but the 7/28
+             "bookend" fix wrapped #mono-indicator in a .chain-slot (with a
+             hidden real .chain-open caret) so it would bottom-align like every
+             other block. Re-appending the bare label ripped it straight back
+             out of that wrapper. Since applyChainOrder runs on every single
+             chain-map update — i.e. constantly, in the real app — the wrapper
+             fix was being silently undone almost immediately after every nav,
+             leaving an orphaned empty .chain-slot sitting in the flow (the
+             extra gap Charlie saw) and the badge drifting back toward plain
+             align-self:center behavior once orphaned. The #chain-input-wrap
+             (GUITAR) clone was NOT affected — nothing in ui.js moves it
+             directly, only .textContent via setInputButtons.
+FIX:         mono is now resolved as the WRAPPER, not the label:
+               const monoLbl = document.getElementById('mono-indicator');
+               const mono = monoLbl ? monoLbl.closest('.chain-slot') : null;
+             VERIFIED before shipping, not just fixed-and-hoped: re-ran the
+             exact same live reorder test against the fixed code (reload +
+             re-simulate a CMD-0x21-style reorder + screenshot) — GUITAR,
+             REVERB and STEREO all landed on the same baseline with no
+             orphaned gap.
+LESSON:      This environment can actually render and screenshot the app
+             (ffmpeg + headless Chromium + CDP for live JS/reorder simulation
+             were all available/installable) — worth doing THIS, not more
+             guessing, whenever a visual bug survives one attempted fix. The
+             two earlier guesses on the bookend height were reasonable
+             attempts at limited information; this one had the tool to check
+             directly and should have been reached for sooner.
+FILES:       ui.js only (applyChainOrder's mono resolution).
+NEXT:        Charlie's real rebuild test — this was verified in a synthetic
+             headless render, not the actual Electron app end to end.
+-------------------------------------------------------------------
 
 
 

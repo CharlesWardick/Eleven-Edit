@@ -613,6 +613,15 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (8th pass) BUG FIX: applyChainOrder's `mono` var
+                       was re-grabbing the bare #mono-indicator label and
+                       re-appending it on every reorder, ripping it back out
+                       of the .chain-slot wrapper the 7th pass just added (so
+                       the bookend fix silently undid itself on every real
+                       chain-map update). Now resolves .closest('.chain-slot')
+                       instead. Found and verified by actually rendering the
+                       app in headless Chromium and simulating a live reorder
+                       — see Session Log for the full method, worth reusing.
                        7/28 (7th pass): drag handle moved from the whole slot
                        onto .chain-thumb specifically. wireChainDrag's
                        mousedown now requires ev.target.closest('.chain-thumb')
