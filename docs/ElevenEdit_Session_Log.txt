@@ -370,6 +370,22 @@ STATUS:      RE-IMPLEMENTED 7/28 on mouse-tracking, PENDING CHARLIE'S REBUILD
              TEST. The reorder math itself (computeReorder, the linked rule)
              is unchanged from the version already confirmed correct by
              simulation — only the input mechanism changed.
+UPDATE 7/28 (later, after 2nd rebuild): mouse-tracking fixed the flicker and
+             "impossible" moves — Charlie confirmed all moves now seem
+             possible, matrix not yet fully retested. New gap found: no
+             visual follows the cursor while dragging (native DnD used to
+             draw one automatically; mouse-tracking does not). FIXED:
+             createChainDragGhost (ui.js) — a cloned, pointer-events:none,
+             position:fixed element that tracks the cursor with a z-index
+             above everything, offset by where within the block it was
+             grabbed. Original block stays in the flex flow, dimmed, as the
+             "where it will land" placeholder (unchanged from before); the
+             ghost is the separate "what you're carrying" visual on top of
+             it. document.body.cursor forced to 'grabbing' for the duration
+             so the cursor icon stays consistent regardless of what's
+             underneath. Charlie also mentioned "a timing var in play" during
+             drags — NOT YET UNDERSTOOD, asked him for specifics (what
+             exactly he's seeing) rather than guess at a fix.
 -------------------------------------------------------------------
 
 

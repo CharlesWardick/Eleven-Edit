@@ -955,6 +955,12 @@ let chainDragActive     = false;  // TRUE once the threshold is crossed — this
 let chainDragCont       = null;   // container div that was grabbed
 let chainDragStartX     = 0;
 let chainDragStartY     = 0;
+let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
+let chainDragOffsetY    = 0;      // so the ghost doesn't jump to align its
+                                   // corner with the cursor
+let chainDragGhost      = null;   // floating clone that follows the cursor —
+                                   // native drag-and-drop drew this for free;
+                                   // mouse-tracking has to build it (7/28)
 let chainDragStartOrder = null;   // currentChain snapshot at mousedown — every
                                    // preview computation this drag uses THIS,
                                    // never the live currentChain, so an
@@ -962,6 +968,37 @@ let chainDragStartOrder = null;   // currentChain snapshot at mousedown — ever
                                    // cannot yank the preview (WATCH FOR, 7/19)
 let chainPreviewOrder   = null;   // order currently shown on screen
 const CHAIN_DRAG_THRESHOLD = 4;   // px of movement before it counts as a drag
+
+// Floating visual that follows the cursor while dragging a chain block —
+// native drag-and-drop drew one of these automatically; mouse-tracking has to
+// build it by hand (7/28, Charlie: "all I get is the mouse pointer"). A clone
+// rather than the real element, because the real element stays in the flex
+// flow as the placeholder showing where it will land (the live preview from
+// the first mouse-tracking pass) — this is the separate "what you're
+// carrying" visual riding on top of that. pointer-events:none is required,
+// not decorative: this sits directly over whatever the cursor is hovering,
+// and wireChainDrag's mousemove handler uses document.elementFromPoint to
+// find that — the ghost would otherwise shadow every block underneath it.
+function createChainDragGhost(cont) {
+  const r = cont.getBoundingClientRect();
+  const ghost = cont.cloneNode(true);
+  ghost.removeAttribute('id');
+  ghost.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+  ghost.classList.remove('dragging');
+  ghost.classList.add('chain-drag-ghost');
+  ghost.style.position = 'fixed';
+  ghost.style.left = r.left + 'px';
+  ghost.style.top = r.top + 'px';
+  ghost.style.width = r.width + 'px';
+  ghost.style.height = r.height + 'px';
+  ghost.style.margin = '0';
+  ghost.style.pointerEvents = 'none';
+  ghost.style.zIndex = '9999';
+  ghost.style.opacity = '0.9';
+  ghost.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+  document.body.appendChild(ghost);
+  return ghost;
+}
 
 function wireChainDrag() {
   const strip = document.getElementById('chainstrip');
@@ -979,6 +1016,9 @@ function wireChainDrag() {
     chainDragCont = cont;
     chainDragStartX = ev.clientX;
     chainDragStartY = ev.clientY;
+    const r = cont.getBoundingClientRect();
+    chainDragOffsetX = ev.clientX - r.left;   // where within the block it was
+    chainDragOffsetY = ev.clientY - r.top;    // grabbed, so the ghost doesn't jump
     chainDragStartOrder = currentChain.slice();
     chainPreviewOrder = chainDragStartOrder;
     ev.preventDefault();   // no text selection / stray native drag ghost
@@ -998,6 +1038,13 @@ function wireChainDrag() {
       chainDragPending = false;
       chainDragActive = true;
       chainDragCont.classList.add('dragging');
+      chainDragGhost = createChainDragGhost(chainDragCont);
+      document.body.style.cursor = 'grabbing';
+    }
+
+    if (chainDragGhost) {
+      chainDragGhost.style.left = (ev.clientX - chainDragOffsetX) + 'px';
+      chainDragGhost.style.top  = (ev.clientY - chainDragOffsetY) + 'px';
     }
 
     // elementFromPoint does fresh hit-testing against whatever is actually
@@ -1037,6 +1084,8 @@ function wireChainDrag() {
       committed = true;
     }
     if (chainDragCont) chainDragCont.classList.remove('dragging');
+    if (chainDragGhost) { chainDragGhost.remove(); chainDragGhost = null; }
+    document.body.style.cursor = '';
     chainDragSlot = null;
     chainDragPending = false;
     chainDragCont = null;

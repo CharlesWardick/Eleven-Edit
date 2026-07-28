@@ -340,7 +340,16 @@ WORKING:
     blocks). FIXED by replacing native drag-and-drop with plain mousedown/
     mousemove/mouseup tracking (wireChainDrag, ui.js) — the same technique
     already used for every knob in this app. draggable="true" and its CSS
-    removed; no longer meaningful. PENDING CHARLIE'S REBUILD TEST.
+    removed; no longer meaningful.
+    7/28 (3rd pass, same day): mouse-tracking fixed the flicker/impossible
+    moves, but surfaced a expected gap — native DnD used to draw a floating
+    "what you're carrying" visual automatically; mouse-tracking doesn't.
+    Added createChainDragGhost — a cloned, click-through, position:fixed
+    element that follows the cursor above everything else, while the
+    original block stays in the flex row as the dimmed "where it will land"
+    placeholder. PENDING CHARLIE'S REBUILD TEST. Also PENDING: Charlie's full
+    drag matrix re-test (not yet done), and an unclear "timing var" he
+    noticed — asked him to describe it rather than guess at a fix.
   TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
   Load TFX (memory load) — round-trip verified
   Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto
