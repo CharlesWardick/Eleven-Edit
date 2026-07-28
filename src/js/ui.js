@@ -274,6 +274,14 @@ function setInputButtons(inputVal) {
   document.getElementById('btn-input-mic').classList.toggle('active',    isMic);
   document.getElementById('btn-input-line').classList.toggle('active',   isLine);
   document.getElementById('btn-input-dig').classList.toggle('active',    isDig);
+
+  // Passive clone at the start of the chain strip (7/28) — same source of
+  // truth as the buttons above, updated in the same place so it can never
+  // drift out of sync with them.
+  const cloneEl = document.getElementById('chain-input-wrap');
+  if (cloneEl) {
+    cloneEl.textContent = isGuitar ? 'GUITAR' : isMic ? 'MIC' : isLine ? 'LINE' : isDig ? 'DIGITAL' : '--';
+  }
 }
 
 // ── Avid editor state — purely informational now. The Java bridge owns
@@ -838,17 +846,76 @@ document.addEventListener('DOMContentLoaded', function() {
 // last. Both the Avid editor and the hardware front panel resolve this before
 // anything is sent: the editor SNAPS a dropped loop to the nearest legal spot
 // rather than refusing it. We do the same, so an illegal arrangement is never
-// transmitted. Dragging the AMP can also strand the loop, so the loop is
-// re-validated after every move, not just when the loop itself is dragged.
+// transmitted.
 //
-// Returns a reordered copy of currentChain, loop legality already resolved.
-function computeReorder(fromSlotId, toIndex) {
-  const rest = currentChain.filter(b => b.slotId !== fromSlotId);
-  const moved = currentChain.find(b => b.slotId === fromSlotId);
+// AMP-CAB + LOOP "LINKED BLOCK" RULE (confirmed against the Avid editor
+// 7/28/2026, Session Log): dragging AMP-CAB while LOOP sits immediately
+// adjacent to it (either side) moves LOOP along with it, same direction, same
+// distance, until LOOP would be pushed past either end of the chain — at
+// which point LOOP stays parked at that end and further AMP-CAB movement is
+// free (LOOP at position 1 or 10 is legal regardless of AMP-CAB's position).
+// Dragging LOOP directly, or dragging AMP-CAB when LOOP is NOT adjacent to it,
+// uses the plain snap-to-nearest-legal-stop behaviour below (unchanged, and
+// already confirmed correct against a full legality table the same day).
+//
+// baseOrder defaults to currentChain but the live drag preview (wireChainDrag)
+// passes a frozen snapshot taken at dragstart instead, so a chain-map arriving
+// mid-drag can't perturb the on-screen preview (Session Log WATCH FOR, 7/19).
+//
+// Shared by computeReorder AND the drag-ghost builder (wireChainDrag), so the
+// "is this drag a linked AMP-CAB+LOOP pair" question has exactly one answer
+// used everywhere, not two independently-maintained copies of the same check.
+// Returns null if not linked, else {ampIdx, loopIdx, loopBefore}.
+function linkedAmpLoopInfo(fromSlotId, baseOrder) {
+  if (fromSlotId !== SLOT_AMP) return null;
+  const ampIdx  = baseOrder.findIndex(b => b.slotId === SLOT_AMP);
+  const loopIdx = baseOrder.findIndex(b => b.slotId === SLOT_LOOP);
+  if (ampIdx < 0 || loopIdx < 0 || Math.abs(ampIdx - loopIdx) !== 1) return null;
+  // Adjacent alone isn't enough: LOOP already parked at an end (index 0 or
+  // the last index) is legal on its own regardless of AMP-CAB's position, so
+  // it must NOT be dragged along even though it's numerically "adjacent" —
+  // confirmed by simulation: amp=9/loop=10 wrongly pulled loop to 2 before
+  // this guard was added.
+  if (loopIdx === 0 || loopIdx === baseOrder.length - 1) return null;
+  return { ampIdx, loopIdx, loopBefore: loopIdx < ampIdx };
+}
+
+// Returns a reordered copy of baseOrder, loop legality already resolved.
+function computeReorder(fromSlotId, targetSlotId, after, baseOrder) {
+  const src = baseOrder || currentChain;
+  if (fromSlotId === targetSlotId) return src;
+
+  const linkInfo = linkedAmpLoopInfo(fromSlotId, src);
+  if (linkInfo) return computeLinkedAmpLoopReorder(src, targetSlotId, after, linkInfo.ampIdx, linkInfo.loopIdx);
+
+  const rest = src.filter(b => b.slotId !== fromSlotId);
+  const moved = src.find(b => b.slotId === fromSlotId);
   if (!moved) return null;
-  let idx = Math.max(0, Math.min(toIndex, rest.length));
+  let idx = rest.findIndex(b => b.slotId === targetSlotId);
+  if (idx < 0) idx = rest.length;
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(idx, rest.length));
   rest.splice(idx, 0, moved);
   return enforceLoopPlacement(rest);
+}
+
+// Moves AMP-CAB and its adjacent LOOP together as a two-item unit. Removing
+// both from the order and reinserting them as a pair (in their original
+// relative order, so LOOP stays on the same side it started on) means the
+// normal 0..rest.length clamp that already bounds a single-item insertion
+// now bounds the PAIR instead — which is exactly what stops LOOP from ever
+// being pushed past either end. No separate boundary check needed.
+function computeLinkedAmpLoopReorder(src, targetSlotId, after, ampIdx, loopIdx) {
+  const loopBefore = loopIdx < ampIdx;
+  const pair = loopBefore ? [src[loopIdx], src[ampIdx]] : [src[ampIdx], src[loopIdx]];
+  const rest = src.filter(b => b.slotId !== SLOT_AMP && b.slotId !== SLOT_LOOP);
+  let idx = rest.findIndex(b => b.slotId === targetSlotId);
+  if (idx < 0) idx = rest.length;   // hovered over AMP/LOOP itself — park at the end for now
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(idx, rest.length));
+  const result = rest.slice();
+  result.splice(idx, 0, ...pair);
+  return result;
 }
 
 function legalLoopIndices(withoutLoop) {
@@ -882,12 +949,115 @@ function sameOrder(a, b) {
   return true;
 }
 
-let chainDragSlot = null;      // slot ID being dragged
-let chainDragActive = false;   // suppresses the click that follows a drag
+// MOUSE-TRACKED DRAG (rewritten 7/28, replacing native HTML5 drag-and-drop).
+// Native drag-and-drop does its own hit-testing of whatever's under the
+// cursor, and it does not tolerate the dragged-over elements being moved
+// while a native drag is in progress — which is exactly what the live
+// preview does (applyChainOrder relocates divs on every update). Real-world
+// testing showed this as a rapid ok/no-drop cursor flicker and, on a
+// two-block swap, the two blocks flashing back and forth at high speed —
+// the browser's native drag tracking losing and re-finding its target as
+// the DOM shifted under it. Knobs in this app never had this problem
+// because they were never native-drag-based; they use plain mousedown/
+// mousemove/mouseup, same as this rewrite now does for the chain row.
+let chainDragSlot       = null;   // slot ID being dragged
+let chainDragPending    = false;  // mousedown happened; watching for the move
+                                   // threshold before committing to a real drag
+let chainDragActive     = false;  // TRUE once the threshold is crossed — this
+                                   // (not chainDragPending) is what suppresses
+                                   // the click that follows a real drag, so a
+                                   // plain click without movement still reaches
+                                   // the bypass-toggle handler normally
+let chainDragCont       = null;   // .chain-slot/.chain-slot-stack container (still what gets reordered)
+let chainDragThumb      = null;   // .chain-thumb inside it — the actual drag handle (7/28)
+let chainDragStartX     = 0;
+let chainDragStartY     = 0;
+let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
+let chainDragOffsetY    = 0;      // so the ghost doesn't jump to align its
+                                   // corner with the cursor
+let chainDragGhost      = null;   // floating clone that follows the cursor —
+                                   // native drag-and-drop drew this for free;
+                                   // mouse-tracking has to build it (7/28)
+let chainDragGhostAdjustX = 0;    // extra left-shift when the ghost is a
+                                   // 2-block superblock with the partner
+                                   // placed before the grabbed block
+let chainDragStartOrder = null;   // currentChain snapshot at mousedown — every
+                                   // preview computation this drag uses THIS,
+                                   // never the live currentChain, so an
+                                   // incoming chain-map broadcast mid-drag
+                                   // cannot yank the preview (WATCH FOR, 7/19)
+let chainPreviewOrder   = null;   // order currently shown on screen
+const CHAIN_DRAG_THRESHOLD = 4;   // px of movement before it counts as a drag
 
-function clearDropMarks() {
-  document.querySelectorAll('#chainstrip .drop-before, #chainstrip .drop-after')
-    .forEach(el => el.classList.remove('drop-before','drop-after'));
+// Floating visual that follows the cursor while dragging a chain block —
+// native drag-and-drop drew one of these automatically; mouse-tracking has to
+// build it by hand (7/28, Charlie: "all I get is the mouse pointer"). A clone
+// rather than the real element, because the real element stays in the flex
+// flow as the placeholder showing where it will land (the live preview from
+// the first mouse-tracking pass) — this is the separate "what you're
+// carrying" visual riding on top of that. pointer-events:none is required,
+// not decorative: this sits directly over whatever the cursor is hovering,
+// and wireChainDrag's mousemove handler uses document.elementFromPoint to
+// find that — the ghost would otherwise shadow every block underneath it.
+//
+// partnerCont/partnerBefore (7/28, same day): when the drag is the AMP-CAB +
+// LOOP linked case (linkedAmpLoopInfo), the ghost shows BOTH blocks side by
+// side instead of just the one under the cursor — so the "you're carrying
+// two blocks together" state is visible DURING the drag, not just inferable
+// from where things land afterward (Charlie: "is there a rule in play... can
+// the ghost show the superblock condition").
+//
+// Returns {el, offsetAdjustX} — offsetAdjustX is how much further left the
+// wrap's origin sits than the grabbed block's own left edge, needed only
+// when the partner is placed BEFORE it (so the cursor still tracks the same
+// point it originally grabbed, not the wrap's new outer edge).
+function createChainDragGhost(cont, partnerCont, partnerBefore) {
+  function cloneBlock(c) {
+    const clone = c.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    clone.classList.remove('dragging');
+    const r = c.getBoundingClientRect();
+    clone.style.width = r.width + 'px';
+    clone.style.height = r.height + 'px';
+    clone.style.margin = '0';
+    clone.style.flexShrink = '0';
+    return clone;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'chain-drag-ghost';
+  wrap.style.position = 'fixed';
+  wrap.style.display = 'flex';
+  wrap.style.gap = '4px';
+  wrap.style.pointerEvents = 'none';
+  wrap.style.zIndex = '9999';
+  wrap.style.opacity = '0.9';
+  wrap.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+
+  const mainClone = cloneBlock(cont);
+  const r = cont.getBoundingClientRect();
+  let offsetAdjustX = 0;
+
+  if (partnerCont) {
+    const partnerClone = cloneBlock(partnerCont);
+    if (partnerBefore) {
+      const pr = partnerCont.getBoundingClientRect();
+      wrap.appendChild(partnerClone);
+      wrap.appendChild(mainClone);
+      offsetAdjustX = pr.width + 4;   // partner now sits left of the grabbed block
+    } else {
+      wrap.appendChild(mainClone);
+      wrap.appendChild(partnerClone);
+    }
+  } else {
+    wrap.appendChild(mainClone);
+  }
+
+  wrap.style.left = (r.left - offsetAdjustX) + 'px';
+  wrap.style.top = r.top + 'px';
+  document.body.appendChild(wrap);
+  return { el: wrap, offsetAdjustX: offsetAdjustX };
 }
 
 function wireChainDrag() {
@@ -895,64 +1065,138 @@ function wireChainDrag() {
   if (!strip || strip.dataset.dragWired) return;
   strip.dataset.dragWired = '1';
 
-  strip.addEventListener('dragstart', function(ev) {
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    if (!cont || !strip.contains(cont)) return;
+  // 7/28: drag now starts ONLY from .chain-thumb, not anywhere in the slot.
+  // Previously the whole slot (including the .chain-name label) was the
+  // mousedown target, which is what put the drag-handle and the bypass-toggle
+  // click on the same element — Charlie: "the clicker is also the drag
+  // handle". Splitting them onto separate elements (thumb vs label) removes
+  // that conflict at the source, matching how Avid's own editor works: you
+  // grab the pedal graphic, you click the label.
+  strip.addEventListener('mousedown', function(ev) {
+    if (ev.button !== 0) return;   // left button only
+    const thumb = ev.target.closest('.chain-thumb');
+    if (!thumb || !strip.contains(thumb)) return;
+    const cont = thumb.closest('.chain-slot, .chain-slot-stack');
+    if (!cont) return;
     const blk = currentChain.find(b => containerForSlot(b.slotId) === cont);
     if (!blk) return;
     chainDragSlot = blk.slotId;
-    chainDragActive = true;
-    cont.classList.add('dragging');
-    ev.dataTransfer.effectAllowed = 'move';
-    ev.dataTransfer.setData('text/plain', String(blk.slotId));   // Firefox needs a payload
+    chainDragPending = true;
+    chainDragCont = cont;
+    chainDragThumb = thumb;
+    chainDragStartX = ev.clientX;
+    chainDragStartY = ev.clientY;
+    const r = thumb.getBoundingClientRect();
+    chainDragOffsetX = ev.clientX - r.left;   // where within the THUMB it was
+    chainDragOffsetY = ev.clientY - r.top;    // grabbed, so the ghost doesn't jump
+    chainDragStartOrder = currentChain.slice();
+    chainPreviewOrder = chainDragStartOrder;
+    ev.preventDefault();   // no text selection / stray native drag ghost
   });
 
-  strip.addEventListener('dragover', function(ev) {
+  // LIVE PREVIEW (7/28): the blocks physically shift into the speculative
+  // order as you drag, instead of a static insertion marker that only
+  // resolved on drop. Recomputed off chainDragStartOrder, applied to the DOM
+  // immediately — nothing is sent to hardware until mouseup.
+  window.addEventListener('mousemove', function(ev) {
     if (chainDragSlot === null) return;
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    if (!cont || !strip.contains(cont)) return;
-    ev.preventDefault();
-    ev.dataTransfer.dropEffect = 'move';
-    const r = cont.getBoundingClientRect();
-    const after = ev.clientX > r.left + r.width / 2;
-    clearDropMarks();
-    cont.classList.add(after ? 'drop-after' : 'drop-before');
-  });
+    if (ev.buttons === 0) { endChainDrag(false); return; }   // button released outside the window
 
-  strip.addEventListener('dragleave', function(ev) {
-    if (!strip.contains(ev.relatedTarget)) clearDropMarks();
-  });
+    if (chainDragPending) {
+      const dx = ev.clientX - chainDragStartX, dy = ev.clientY - chainDragStartY;
+      if (Math.hypot(dx, dy) < CHAIN_DRAG_THRESHOLD) return;   // still just a click so far
+      chainDragPending = false;
+      chainDragActive = true;
+      chainDragThumb.classList.add('dragging');
 
-  strip.addEventListener('drop', function(ev) {
-    if (chainDragSlot === null) return;
-    ev.preventDefault();
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    clearDropMarks();
-    if (cont && strip.contains(cont)) {
-      const target = currentChain.find(b => containerForSlot(b.slotId) === cont);
-      if (target && target.slotId !== chainDragSlot) {
-        const r = cont.getBoundingClientRect();
-        const after = ev.clientX > r.left + r.width / 2;
-        // index within the list that excludes the dragged block
-        const rest = currentChain.filter(b => b.slotId !== chainDragSlot);
-        let ti = rest.findIndex(b => b.slotId === target.slotId);
-        if (after) ti += 1;
-        const next = computeReorder(chainDragSlot, ti);
-        if (next && !sameOrder(next, currentChain)) {
-          sendChainOrder(next);   // hardware replies with a map; renderChainRow adopts it
-        }
+      // linkedAmpLoopInfo is checked ONCE here, not every move: chainDragStartOrder
+      // is frozen for the whole drag, so whether this is a linked pair can't
+      // change mid-drag. If linked, the ghost shows both blocks together.
+      const linkInfo = linkedAmpLoopInfo(chainDragSlot, chainDragStartOrder);
+      let ghostInfo;
+      if (linkInfo) {
+        const partnerBlk = chainDragStartOrder[linkInfo.loopIdx];
+        const partnerCont = containerForSlot(partnerBlk.slotId);
+        const partnerThumb = partnerCont ? partnerCont.querySelector('.chain-thumb') : null;
+        ghostInfo = createChainDragGhost(chainDragThumb, partnerThumb, linkInfo.loopBefore);
+      } else {
+        ghostInfo = createChainDragGhost(chainDragThumb, null, false);
       }
+      chainDragGhost = ghostInfo.el;
+      chainDragGhostAdjustX = ghostInfo.offsetAdjustX;
+      document.body.style.cursor = 'grabbing';
     }
-    chainDragSlot = null;
+
+    if (chainDragGhost) {
+      chainDragGhost.style.left = (ev.clientX - chainDragOffsetX - chainDragGhostAdjustX) + 'px';
+      chainDragGhost.style.top  = (ev.clientY - chainDragOffsetY) + 'px';
+    }
+
+    // elementFromPoint does fresh hit-testing against whatever is actually
+    // rendered right now — unlike native drag's event target, it is not
+    // confused by applyChainOrder having just moved things around.
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const cont = el ? el.closest('.chain-slot, .chain-slot-stack') : null;
+    if (!cont || !strip.contains(cont)) return;
+    const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
+    if (!target) return;
+    const r = cont.getBoundingClientRect();
+    // Position 1 gets its whole width as the "before" zone, not just its left
+    // half (7/28, Charlie: not enough room before the window's left edge to
+    // reliably cross the midpoint). No position is lost by this: landing
+    // right after this same block is still reachable via the SECOND block's
+    // left half, so this only removes a redundant, cramped path — it doesn't
+    // block reaching anywhere the plain midpoint math could reach.
+    const after = (target.slotId === chainDragStartOrder[0].slotId)
+                  ? false
+                  : ev.clientX > r.left + r.width / 2;
+
+    const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
+    if (next && !sameOrder(next, chainPreviewOrder)) {
+      chainPreviewOrder = next;
+      applyChainOrder(next);
+    }
   });
 
-  strip.addEventListener('dragend', function() {
-    clearDropMarks();
-    document.querySelectorAll('#chainstrip .dragging')
-      .forEach(el => el.classList.remove('dragging'));
-    chainDragSlot = null;
-    setTimeout(() => { chainDragActive = false; }, 0);   // let the stray click pass first
+  window.addEventListener('mouseup', function() {
+    if (chainDragSlot === null) return;
+    endChainDrag(true);
   });
+
+  window.addEventListener('blur', function() {
+    if (chainDragSlot === null) return;
+    endChainDrag(false);   // losing focus mid-drag cancels, never commits
+  });
+
+  function endChainDrag(allowCommit) {
+    const wasReallyDragging = chainDragActive;
+    let committed = false;
+    if (allowCommit && wasReallyDragging
+        && chainPreviewOrder && !sameOrder(chainPreviewOrder, currentChain)) {
+      sendChainOrder(chainPreviewOrder);   // hardware replies with a map; renderChainRow adopts it
+      committed = true;
+    }
+    if (chainDragThumb) chainDragThumb.classList.remove('dragging');
+    if (chainDragGhost) { chainDragGhost.remove(); chainDragGhost = null; }
+    chainDragGhostAdjustX = 0;
+    document.body.style.cursor = '';
+    chainDragSlot = null;
+    chainDragThumb = null;
+    chainDragPending = false;
+    chainDragCont = null;
+    chainDragStartOrder = null;
+    chainPreviewOrder = null;
+    setTimeout(() => {
+      chainDragActive = false;   // let the stray click pass first
+      // A committed drag leaves the preview's DOM alone — the hardware's own
+      // CMD 0x21 reply will call renderChainRow() for real once it lands, and
+      // currentChain will match what's already on screen by then (no visible
+      // jump). A cancelled/no-op drag, or a plain click that never became a
+      // real drag, has nothing coming, so re-sync now (a no-op if nothing
+      // ever moved).
+      if (!committed) renderChainRow();
+    }, 0);
+  }
 }
 
 // Map a chain slot ID to its (movable) container div in the chain row.
@@ -970,24 +1214,54 @@ function containerForSlot(slotId) {
 function renderChainRow() {
   const strip = document.getElementById('chainstrip');
   if (!strip || !currentChain.length) return;
+  // A live drag preview (wireChainDrag) is showing its own speculative order
+  // on screen right now — a chain-map arriving mid-drag (front panel, Avid,
+  // an echo) must not fight it. dragend re-syncs for real once the drag ends
+  // (Session Log WATCH FOR, 7/19).
+  if (chainDragActive) return;
+
+  applyChainOrder(currentChain);
+  refreshBlockBypassDisplays();
+  wireChainDrag();
+}
+
+// Moves the chain-slot divs into `order` and repaints the connector arrows.
+// Pulled out of renderChainRow (7/28) so the live drag preview can call it
+// with a SPECULATIVE order while dragging, without touching currentChain or
+// re-running the bypass-paint / drag-wiring side effects.
+function applyChainOrder(order) {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) return;
 
   // Collect the movable pieces before touching anything.
   // The "drag blocks to reorder" hint was removed 7/24/2026 — 10px on #555 was
   // unreadable. #mono-indicator now carries the margin-left:auto that pushes
   // the right-hand group to the end of the strip.
-  const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector)'));
-  const conn   = document.getElementById('mono-connector');
-  const mono   = document.getElementById('mono-indicator');
-  const tempo  = document.getElementById('tempo-wrap');
-
-  const containerFor = containerForSlot;
+  // #chain-input-connector is also .chain-arr (so it inherits the same line
+  // styling) but it is NOT one of the between-block connectors this loop
+  // assigns — excluded the same way #mono-connector already is, or this loop
+  // would hijack it as a stereo/mono arrow and throw off the block<->arrow
+  // pairing by one (7/28).
+  const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector):not(#chain-input-connector)'));
+  const conn    = document.getElementById('mono-connector');
+  // 7/28 BUG FIX: #mono-indicator is now wrapped in a .chain-slot (with a
+  // hidden .chain-open) so it bottom-aligns at the same baseline as every
+  // real block's label. Grabbing and re-appending the bare label (as this
+  // used to do) ripped it straight back out of that wrapper on every single
+  // reorder — which is constantly, in the real app — leaving an orphaned
+  // empty wrapper sitting in the row (the extra gap Charlie saw) and the
+  // badge reverting to plain align-self:center (why it drifted back to
+  // looking wrong after any chain-map update, not just on first load).
+  // Move the WRAPPER, not the label.
+  const monoLbl = document.getElementById('mono-indicator');
+  const mono    = monoLbl ? monoLbl.closest('.chain-slot') : null;
+  const tempo   = document.getElementById('tempo-wrap');
 
   let arrowIdx = 0;
-  currentChain.forEach((blk, i) => {
-    const cont = containerFor(blk.slotId);
+  order.forEach((blk, i) => {
+    const cont = containerForSlot(blk.slotId);
     if (!cont) return;
     strip.appendChild(cont);                       // move, do not clone
-    cont.setAttribute('draggable', 'true');
 
     // Hover text on BOTH the label and the ▼, for a bigger target.
     const model = MODEL_NAMES[blk.modelId];
@@ -996,7 +1270,7 @@ function renderChainRow() {
     cont.querySelectorAll('.chain-name, .chain-open').forEach(el => { el.title = tip; });
 
     // Connector after this block: double arrow when this block outputs stereo.
-    if (i < currentChain.length - 1 && arrowIdx < arrows.length) {
+    if (i < order.length - 1 && arrowIdx < arrows.length) {
       const arr = arrows[arrowIdx++];
       const st  = MODEL_OUT_STEREO[blk.modelId];
       // Stacked horizontal lines, fixed width: one = mono, two = stereo.
@@ -1023,9 +1297,6 @@ function renderChainRow() {
   if (conn)  strip.appendChild(conn);
   if (mono)  strip.appendChild(mono);
   if (tempo) strip.appendChild(tempo);
-
-  refreshBlockBypassDisplays();
-  wireChainDrag();
 }
 
 // Paint every non-amp slot from the stored bypass state.
@@ -1493,378 +1764,3 @@ initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valToAmpVol, function(v) { sendToA
 // from GUI pending full CMD 0x37 implementation. Code in transport.js and
 // sysex-handler.js preserved for future use.
 
-// ════════════════════════════════════════════════════════════════════
-// DIST EFFECT PANEL
-// ════════════════════════════════════════════════════════════════════
-
-// Called when ▼ opens the DIST slot — populate dropdown, render knobs,
-// query hardware for current values.
-function openDistPanel() {
-  distPanelOpen = true;
-  const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
-  if (!distBlk) {
-    document.getElementById('dist-knob-row').innerHTML =
-      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
-    appLog('openDistPanel: no DIST block in chain map yet');
-    return;
-  }
-  // Sync dropdown to current model
-  const sel = document.getElementById('dist-model-select');
-  if (sel) sel.value = String(distBlk.modelId);
-  // Render knobs for current model
-  renderDistKnobs(distBlk.modelId);
-  // Query hardware for current values
-  requestDistParams();
-  appLog('openDistPanel: mid=0x' + distBlk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + distBlk.handle.toString(16).padStart(2,'0').toUpperCase());
-}
-
-// Called when DIST panel is hidden.
-function closeDistPanel() {
-  distPanelOpen = false;
-}
-
-// Build the knob row DOM for the given model mid.
-// Called on open and when user changes model via dropdown.
-// Build the knob area for a given model mid.
-// Each model defines a rows array: [ row [ {label,lo} | null ] ]
-// null = invisible spacer that holds column alignment (e.g. triangle layout).
-// All rows are wrapped in a single dark framed group matching the gate/amp-out
-// style. Knob IDs are dist-w-{loHex} / dist-v-{loHex} so updateDistKnob can
-// look them up directly by paramLo without tracking array indices.
-function renderDistKnobs(mid) {
-  const container = document.getElementById('dist-knob-row');
-  if (!container) return;
-  const model = DIST_MODEL_BY_MID[mid];
-  if (!model) {
-    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
-    return;
-  }
-  container.innerHTML = '';
-
-  // Outer dark group — same background/border treatment as .gate-group
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
-    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
-
-  model.rows.forEach(function(rowCells) {
-    const rowDiv = document.createElement('div');
-    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
-
-    rowCells.forEach(function(cell) {
-      if (!cell) {
-        // Spacer: invisible, same width as a ctrl-knob so columns align
-        var sp = document.createElement('div');
-        sp.style.cssText = 'width:80px;flex-shrink:0;';
-        rowDiv.appendChild(sp);
-      } else {
-        var loHex = cell.lo.toString(16).padStart(2,'0');
-        var knobDiv = document.createElement('div');
-        knobDiv.className = 'ctrl-knob';
-        knobDiv.innerHTML =
-          '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="dist-w-' + loHex + '" data-value="64" data-base="fx" data-dist-lo="' + loHex + '">'
-          + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
-          + '<span class="knob-val" id="dist-v-' + loHex + '">--</span>';
-        rowDiv.appendChild(knobDiv);
-        drawKnob(knobDiv.querySelector('canvas'), 64);
-      }
-    });
-
-    wrapper.appendChild(rowDiv);
-  });
-
-  container.appendChild(wrapper);
-}
-
-// Update a single DIST knob from a CMD 0x11 broadcast or REQU response.
-// Looks up by paramLo directly — no index arithmetic needed.
-function updateDistKnob(paramLo, val) {
-  const loHex = paramLo.toString(16).padStart(2,'0');
-  const wrap  = document.getElementById('dist-w-' + loHex);
-  const valEl = document.getElementById('dist-v-' + loHex);
-  if (wrap) {
-    // Display the current value; anchor the baseline in the persistent store so
-    // it survives panel close/reopen. First value this patch becomes the truth.
-    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_DIST, loHex, val);
-    wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
-  }
-  if (valEl) valEl.textContent = valDisplay(val);
-}
-
-// Called from sysex-handler CMD 0x21 handler after currentChain is updated.
-// Re-syncs dropdown (model may have changed on patch nav) and re-queries params.
-function refreshDistPanelAfterChainMap() {
-  if (!distPanelOpen) return;
-  const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
-  if (!distBlk) return;
-  const sel = document.getElementById('dist-model-select');
-  if (sel && parseInt(sel.value) !== distBlk.modelId) {
-    sel.value = String(distBlk.modelId);
-    renderDistKnobs(distBlk.modelId);
-    clearFxBaselineForSlot(SLOT_DIST);   // new model = new reference point
-  }
-  // Short delay so firmware handle assignment settles before we query
-  setTimeout(requestDistParams, 150);
-  appLog('refreshDistPanelAfterChainMap: mid=0x' + distBlk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + distBlk.handle.toString(16).padStart(2,'0').toUpperCase());
-}
-
-// ── DIST knob drag — delegated, keyed on data-dist-lo (hex paramLo string) ──
-(function() {
-  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
-
-  document.addEventListener('mousedown', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-dist-lo]');
-    if (!wrap) return;
-    activeParamLo = parseInt(wrap.dataset.distLo, 16);
-    if (isNaN(activeParamLo)) return;
-    activeWrap = wrap;
-    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
-    startY = e.clientY;
-    dragging = true;
-    e.preventDefault();
-  });
-
-  window.addEventListener('mousemove', function(e) {
-    if (!dragging || !activeWrap) return;
-    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }  // released outside the window
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
-    activeWrap.dataset.value = val;
-    drawKnob(activeWrap.querySelector('canvas'), val);
-    var loHex = activeParamLo.toString(16).padStart(2,'0');
-    var vEl = document.getElementById('dist-v-' + loHex);
-    if (vEl) vEl.textContent = valDisplay(val);
-    if (bridgeMidiReady) queueKnobSend('dist:' + activeParamLo, function(v) { sendDistParamWrite(activeParamLo, v); }, val);
-  });
-
-  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-
-  document.addEventListener('dblclick', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-dist-lo]');
-    if (!wrap) return;
-    var paramLo = parseInt(wrap.dataset.distLo, 16);
-    if (isNaN(paramLo)) return;
-    wrap.dataset.value = 64;
-    drawKnob(wrap.querySelector('canvas'), 64);
-    var loHex = paramLo.toString(16).padStart(2,'0');
-    var vEl = document.getElementById('dist-v-' + loHex);
-    if (vEl) vEl.textContent = valDisplay(64);
-    if (bridgeMidiReady) queueKnobSend('dist:' + paramLo, function(v) { sendDistParamWrite(paramLo, v); }, 64);
-  });
-})();
-
-// ════════════════════════════════════════════════════════════════════
-// REVERB EFFECT PANEL
-// Mirror of the DIST panel, plus the Eleven SR Type control (a dropdown
-// and a knob that stay in sync — both drive paramLo 0x05).
-// Knob IDs: reverb-w-{loHex} / reverb-v-{loHex}, keyed by paramLo.
-// ════════════════════════════════════════════════════════════════════
-
-function currentReverbModel() {
-  const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
-  if (!rvBlk) return null;
-  return REVERB_MODEL_BY_MID[rvBlk.modelId] || null;
-}
-
-// Open the REVERB slot panel — sync model dropdown, render controls,
-// query hardware for current values.
-function openReverbPanel() {
-  reverbPanelOpen = true;
-  const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
-  if (!rvBlk) {
-    document.getElementById('reverb-knob-row').innerHTML =
-      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
-    appLog('openReverbPanel: no REVERB block in chain map yet');
-    return;
-  }
-  const model = REVERB_MODEL_BY_MID[rvBlk.modelId];
-  const sel = document.getElementById('reverb-model-select');
-  if (sel && model) sel.value = String(model.mid);   // base mid identifies the model
-  renderReverbKnobs(rvBlk.modelId);
-  requestReverbParams();
-  appLog('openReverbPanel: mid=0x' + rvBlk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase());
-}
-
-function closeReverbPanel() {
-  reverbPanelOpen = false;
-}
-
-// Build the control row for the given model mid. One flat row:
-// [Type dropdown+knob] (Eleven SR only) followed by the knob cells.
-function renderReverbKnobs(mid) {
-  const container = document.getElementById('reverb-knob-row');
-  if (!container) return;
-  const model = REVERB_MODEL_BY_MID[mid];
-  if (!model) {
-    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
-    return;
-  }
-  container.innerHTML = '';
-
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
-    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
-
-  const rowDiv = document.createElement('div');
-  rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
-
-  // ── Type composite cell — knob aligned with the others, a dark-themed
-  // dropdown below it in place of the numeric readout. The dropdown already
-  // shows the type name, so no separate name label is drawn. Cell is a little
-  // wider than a plain knob so the dropdown sits inside the frame. ──
-  if (model.typeControl) {
-    const tc = model.typeControl;
-    const loHex = tc.lo.toString(16).padStart(2,'0');
-    const cell = document.createElement('div');
-    cell.className = 'ctrl-knob';
-    cell.style.width = '120px';
-    let opts = '';
-    tc.list.forEach(function(t, i) { opts += '<option value="' + i + '">' + t.name + '</option>'; });
-    cell.innerHTML =
-      '<label>' + tc.label + '</label>'
-      + '<div class="knob-wrap" id="reverb-w-' + loHex + '" data-value="64" data-base="fx" data-reverb-lo="' + loHex + '">'
-      + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
-      + '<select id="reverb-type-select" style="width:112px;margin-top:2px;'
-      + 'background:#1a1a1a;color:var(--text);border:1px solid var(--border-dim);'
-      + 'border-radius:4px;padding:4px 6px;font-size:12px;">' + opts + '</select>';
-    rowDiv.appendChild(cell);
-    drawKnob(cell.querySelector('canvas'), 64);
-    // Dropdown pick → snap the knob to that zone and send, via the normal path
-    const sel = cell.querySelector('#reverb-type-select');
-    sel.addEventListener('change', function() {
-      const idx = parseInt(this.value, 10);
-      if (isNaN(idx)) return;
-      const v127 = REVERB_TYPE_LIST[idx].v127;
-      updateReverbKnob(tc.lo, v127);                 // move knob locally
-      if (bridgeMidiReady) sendReverbParamWrite(tc.lo, v127);
-    });
-  }
-
-  // ── Standard knob cells ──
-  model.rows[0].forEach(function(cell) {
-    if (!cell) {
-      const sp = document.createElement('div');
-      sp.style.cssText = 'width:80px;flex-shrink:0;';
-      rowDiv.appendChild(sp);
-      return;
-    }
-    const loHex = cell.lo.toString(16).padStart(2,'0');
-    const knobDiv = document.createElement('div');
-    knobDiv.className = 'ctrl-knob';
-    knobDiv.innerHTML =
-      '<label>' + cell.label + '</label>'
-      + '<div class="knob-wrap" id="reverb-w-' + loHex + '" data-value="64" data-base="fx" data-reverb-lo="' + loHex + '">'
-      + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
-      + '<span class="knob-val" id="reverb-v-' + loHex + '">--</span>';
-    rowDiv.appendChild(knobDiv);
-    drawKnob(knobDiv.querySelector('canvas'), 64);
-  });
-
-  wrapper.appendChild(rowDiv);
-  container.appendChild(wrapper);
-}
-
-// Display string for a reverb knob value — honours a cell's `unit`/`max`
-// (e.g. Pre-Delay shows milliseconds over 0-200 instead of the default 0-10).
-// NOTE (7/22): the 0-200 ms mapping is assumed linear pending hardware
-// confirmation of the value the unit shows at full knob.
-function reverbKnobDisplay(paramLo, val) {
-  const model = currentReverbModel();
-  if (model) {
-    for (let r = 0; r < model.rows.length; r++) {
-      const row = model.rows[r];
-      for (let c = 0; c < row.length; c++) {
-        const cell = row[c];
-        if (cell && cell.lo === paramLo && cell.unit === 'ms') {
-          const max = cell.max || 200;
-          return (val / 127 * max).toFixed(1) + ' ms';
-        }
-      }
-    }
-  }
-  return valDisplay(val);
-}
-
-// Update a single REVERB control from a broadcast/REQU response or a local
-// dropdown pick. For the Type control it also moves the dropdown and shows
-// the type name instead of a 0-10 number.
-function updateReverbKnob(paramLo, val) {
-  const loHex = paramLo.toString(16).padStart(2,'0');
-  const wrap  = document.getElementById('reverb-w-' + loHex);
-  const valEl = document.getElementById('reverb-v-' + loHex);
-  if (wrap) {
-    // Baseline anchored in the persistent store — survives panel close/reopen.
-    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_REVERB, loHex, val);
-    wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
-  }
-  const model = currentReverbModel();
-  const isType = model && model.typeControl && model.typeControl.lo === paramLo;
-  if (isType) {
-    const idx = reverbTypeIndexFromV127(val);
-    const sel = document.getElementById('reverb-type-select');
-    if (sel) sel.value = String(idx);
-    if (valEl) valEl.textContent = REVERB_TYPE_LIST[idx].name;
-  } else if (valEl) {
-    valEl.textContent = reverbKnobDisplay(paramLo, val);
-  }
-}
-
-// Re-sync dropdown + knobs after a chain map (model may have changed on
-// patch nav or via our own model switch), then re-query params.
-function refreshReverbPanelAfterChainMap() {
-  if (!reverbPanelOpen) return;
-  const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
-  if (!rvBlk) return;
-  const model = REVERB_MODEL_BY_MID[rvBlk.modelId];
-  const sel = document.getElementById('reverb-model-select');
-  if (sel && model && parseInt(sel.value) !== model.mid) {
-    sel.value = String(model.mid);
-    renderReverbKnobs(rvBlk.modelId);   // model actually changed — rebuild controls
-    clearFxBaselineForSlot(SLOT_REVERB);   // new model = new reference point
-  }
-  setTimeout(requestReverbParams, 150);
-  appLog('refreshReverbPanelAfterChainMap: mid=0x' + rvBlk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase());
-}
-
-// ── REVERB knob drag — delegated, keyed on data-reverb-lo (hex paramLo) ──
-(function() {
-  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
-
-  document.addEventListener('mousedown', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-reverb-lo]');
-    if (!wrap) return;
-    activeParamLo = parseInt(wrap.dataset.reverbLo, 16);
-    if (isNaN(activeParamLo)) return;
-    activeWrap = wrap;
-    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
-    startY = e.clientY;
-    dragging = true;
-    e.preventDefault();
-  });
-
-  window.addEventListener('mousemove', function(e) {
-    if (!dragging || !activeWrap) return;
-    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }  // released outside the window
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
-    updateReverbKnob(activeParamLo, val);
-    if (bridgeMidiReady) queueKnobSend('reverb:' + activeParamLo, function(v) { sendReverbParamWrite(activeParamLo, v); }, val);
-  });
-
-  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-
-  document.addEventListener('dblclick', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-reverb-lo]');
-    if (!wrap) return;
-    var paramLo = parseInt(wrap.dataset.reverbLo, 16);
-    if (isNaN(paramLo)) return;
-    updateReverbKnob(paramLo, 64);
-    if (bridgeMidiReady) queueKnobSend('reverb:' + paramLo, function(v) { sendReverbParamWrite(paramLo, v); }, 64);
-  });
-})();
