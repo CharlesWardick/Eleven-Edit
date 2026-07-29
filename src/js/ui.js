@@ -1342,6 +1342,29 @@ function applyChainOrder(order) {
     const tip   = blk.name + ' — ' + label;
     cont.querySelectorAll('.chain-name, .chain-open').forEach(el => { el.title = tip; });
 
+    // 7/29: real Avid graphic (chain-graphics.js) in place of the dummy
+    // dashed placeholder, where a scan has been run and that model has a
+    // confirmed mapping. The AMP-CAB slot is identified by amp KEY
+    // (currentAmpKey, state.js — the TFX '6dls' identifier), not by
+    // blk.modelId, since every amp shares the same generic chain-map mid
+    // (0x00 'Eleven') regardless of which of the 33 amps is loaded.
+    const thumbWrap = cont.querySelector('.chain-thumb');
+    if (thumbWrap) {
+      const src = (blk.slotId === SLOT_AMP)
+        ? (typeof getAmpThumbSrc === 'function' ? getAmpThumbSrc(currentAmpKey) : null)
+        : (typeof getChainThumbSrc === 'function' ? getChainThumbSrc(blk.modelId) : null);
+      const img = thumbWrap.querySelector('.chain-thumb-img');
+      const ph  = thumbWrap.querySelector('.chain-thumb-placeholder');
+      if (src && img) {
+        img.src = src;
+        img.style.display = '';
+        if (ph) ph.style.display = 'none';
+      } else {
+        if (img) { img.style.display = 'none'; img.removeAttribute('src'); }
+        if (ph) ph.style.display = '';
+      }
+    }
+
     // Connector after this block: double arrow when this block outputs stereo.
     if (i < order.length - 1 && arrowIdx < arrows.length) {
       const arr = arrows[arrowIdx++];

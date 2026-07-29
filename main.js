@@ -314,6 +314,10 @@ function walkForAaxImages(dir, families, depth) {
     const full = path.join(dir, ent.name);
     if (!ent.isDirectory()) continue;
     if (ent.name.toLowerCase().endsWith(AAXPLUGIN_SUFFIX)) {
+      // Real folder name confirmed 7/29/2026 from Charlie's actual install
+      // listing (11R_Image_Paths.txt): "Eleven <Family> UI.aaxplugin", e.g.
+      // "Eleven Distortion UI.aaxplugin" — kept as-is (not stripped/guessed)
+      // so it matches CHAIN_BLOCK_FAMILY_BY_MID (chain-graphics.js) exactly.
       const family = ent.name.slice(0, -AAXPLUGIN_SUFFIX.length);
       const imagesDir = path.join(full, 'Contents', 'Resources', 'Images');
       let pngs = [];
@@ -325,8 +329,8 @@ function walkForAaxImages(dir, families, depth) {
         // rather than guess another depth.
       }
       if (pngs.length) {
-        if (!families[family]) families[family] = [];
-        families[family].push(...pngs);
+        if (!families[family]) families[family] = { dir: imagesDir, files: [] };
+        families[family].files.push(...pngs);
       }
       // An .aaxplugin bundle's own internals aren't searched further.
       continue;
@@ -341,10 +345,10 @@ ipcMain.handle('scan-avid-graphics', function(e, rootDir) {
     if (!dir || !fs.existsSync(dir)) {
       return { ok: false, error: 'Folder not set or does not exist' };
     }
-    const families = {}; // familyName -> [png basenames]
+    const families = {}; // familyName -> { dir: imagesDirPath, files: [png basenames] }
     walkForAaxImages(dir, families, 0);
     let total = 0;
-    Object.keys(families).forEach(f => { total += families[f].length; });
+    Object.keys(families).forEach(f => { total += families[f].files.length; });
     logWrite('Avid graphics scan: ' + Object.keys(families).length
       + ' plugin folder(s), ' + total + ' PNG(s), root=' + dir);
     return { ok: true, root: dir, families: families, totalCount: total };

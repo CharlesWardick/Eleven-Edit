@@ -325,6 +325,10 @@
     width: 100%; height: 100%; border-radius: 3px;
     border: 1px dashed #555; background: #1e1e1e;
   }
+  /* 7/29: real Avid pedal/amp graphic, shown instead of the dashed
+     placeholder once chain-graphics.js resolves a src for that block's
+     model — see ui.js applyChainOrder and chain-graphics.js getChainThumbSrc. */
+  .chain-thumb-img { pointer-events: none; }
   .chain-name {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
     border-radius: 4px 4px 0 0; border-bottom: none;
@@ -753,28 +757,28 @@
        here, bypass-toggle only from .chain-name, so the two can no longer
        fight over the same click (see ui.js wireChainDrag, Session Log 7/28). -->
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-vol"    data-slot="vol"    title="Click to bypass/enable">VOL</div>
     <div class="chain-open"              id="copen-vol"    data-panel="vol">▼</div>
   </div>
   <div class="chain-arr"></div>
 
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-wah"    data-slot="wah"    title="Click to bypass/enable">WAH</div>
     <div class="chain-open"              id="copen-wah"    data-panel="wah">▼</div>
   </div>
   <div class="chain-arr"></div>
 
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-fx1"    data-slot="fx1"    title="Click to bypass/enable">FX1</div>
     <div class="chain-open"              id="copen-fx1"    data-panel="fx1">▼</div>
   </div>
   <div class="chain-arr"></div>
 
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-dist"   data-slot="dist"   title="Click to bypass/enable">DIST</div>
     <div class="chain-open"              id="copen-dist"   data-panel="dist">▼</div>
   </div>
@@ -784,42 +788,42 @@
        matching Avid (the amp head graphic is one image, cab is separate
        below it — real cab graphic is also a later step). -->
   <div class="chain-slot-stack">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name-stack slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
     <div class="chain-name-stack slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
   </div>
   <div class="chain-arr"></div>
 
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-fxloop" data-slot="fxloop" title="Click to bypass/enable">FX LOOP</div>
     <div class="chain-open"              id="copen-fxloop" data-panel="fxloop">▼</div>
   </div>
   <div class="chain-arr"></div>
 
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-mod"    data-slot="mod"    title="Click to bypass/enable">MOD</div>
     <div class="chain-open"              id="copen-mod"    data-panel="mod">▼</div>
   </div>
   <div class="chain-arr"></div>
 
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-fx2"    data-slot="fx2"    title="Click to bypass/enable">FX2</div>
     <div class="chain-open"              id="copen-fx2"    data-panel="fx2">▼</div>
   </div>
   <div class="chain-arr"></div>
 
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-delay"  data-slot="delay"  title="Click to bypass/enable">DELAY</div>
     <div class="chain-open"              id="copen-delay"  data-panel="delay">▼</div>
   </div>
   <div class="chain-arr"></div>
 
   <div class="chain-slot">
-    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
+    <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
     <div class="chain-name slot-unknown" id="chain-reverb" data-slot="reverb" title="Click to bypass/enable">REVERB</div>
     <div class="chain-open"              id="copen-reverb" data-panel="reverb">▼</div>
   </div>
@@ -1728,47 +1732,45 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
   });
 
   // Scan Avid Graphics Folder — recursive search for the .aaxplugin image
-  // structure (main.js: scan-avid-graphics), then a fuzzy name match against
-  // every chain-row block/amp (chain-graphics.js: resolveChainGraphics).
-  // Purely diagnostic right now — nothing here wires a real image into the
-  // chain row yet, since the mapping table has no confirmed entries (see
-  // chain-graphics.js header). This just tells Charlie what the scanner
-  // found and how much of it we could confidently match by name, so the
-  // scanner itself is verified against his real install/copy before any
-  // filename gets hardcoded.
-  document.getElementById('settings-btn-scan-avid').addEventListener('click', function() {
+  // structure (main.js: scan-avid-graphics), stores the result
+  // (chain-graphics.js: setAvidGraphicsManifest) and immediately refreshes
+  // the chain row so any block with a confirmed image (see
+  // CHAIN_BLOCK_THUMB_FILE_BY_MID) swaps its dummy placeholder for the real
+  // Avid graphic without needing a patch nav.
+  function runAvidGraphicsScan(showBusy) {
     if (!window.electronAPI) return;
     const resultEl = document.getElementById('settings-avid-scan-result');
-    resultEl.textContent = 'Scanning…';
-    window.electronAPI.scanAvidGraphics().then(function(res) {
+    if (showBusy && resultEl) resultEl.textContent = 'Scanning…';
+    return window.electronAPI.scanAvidGraphics().then(function(res) {
       if (!res || !res.ok) {
-        resultEl.textContent = 'Scan failed: ' + ((res && res.error) || 'unknown error');
+        if (resultEl) resultEl.textContent = 'Scan failed: ' + ((res && res.error) || 'unknown error');
         return;
       }
       const familyCount = Object.keys(res.families).length;
-      resultEl.textContent = familyCount + ' plugin folder(s), ' + res.totalCount + ' PNG(s) found.';
+      if (resultEl) resultEl.textContent = familyCount + ' plugin folder(s), ' + res.totalCount + ' PNG(s) found.';
       appLog('Avid graphics scan: ' + familyCount + ' folder(s), ' + res.totalCount + ' PNG(s), root=' + res.root);
-      if (typeof resolveChainGraphics === 'function') {
-        const resolved = resolveChainGraphics(res);
-        const nConfident  = Object.keys(resolved.confident).length;
-        const nAmbiguous  = Object.keys(resolved.ambiguous).length;
-        const nUnresolved = resolved.unresolved.length;
-        resultEl.textContent += ' Matched ' + nConfident + ', ambiguous ' + nAmbiguous
-          + ', unresolved ' + nUnresolved + ' (see log for detail).';
-        appLog('Chain graphics match: confident=' + nConfident + ' ambiguous=' + nAmbiguous
-          + ' unresolved=' + nUnresolved);
-        Object.keys(resolved.ambiguous).forEach(function(k) {
-          appLog('  AMBIGUOUS ' + k + ' (' + resolved.ambiguous[k].family + '): '
-            + resolved.ambiguous[k].files.join(', '));
-        });
-        resolved.unresolved.forEach(function(u) {
-          appLog('  UNRESOLVED ' + u.key + ' (' + u.family + '): ' + u.name);
-        });
+      if (typeof setAvidGraphicsManifest === 'function') setAvidGraphicsManifest(res);
+      if (typeof currentChain !== 'undefined' && currentChain.length && typeof renderChainRow === 'function') {
+        renderChainRow();
       }
     }).catch(function(err) {
-      resultEl.textContent = 'Scan failed: ' + (err && err.message ? err.message : String(err));
+      if (resultEl) resultEl.textContent = 'Scan failed: ' + (err && err.message ? err.message : String(err));
     });
+  }
+
+  document.getElementById('settings-btn-scan-avid').addEventListener('click', function() {
+    runAvidGraphicsScan(true);
   });
+
+  // Auto-scan once at startup if a folder is already set, so real graphics
+  // show up without Charlie having to open Settings and click Scan every
+  // launch. Silent (no busy text) and best-effort — a first-run app with no
+  // folder set yet just keeps the dummy placeholders, same as before.
+  if (window.electronAPI) {
+    window.electronAPI.getAvidDir().then(function(d) {
+      if (d) runAvidGraphicsScan(false);
+    }).catch(function(){});
+  }
 
   // Open Logs Folder
   document.getElementById('settings-btn-open-logs').addEventListener('click', function() {

@@ -39,46 +39,93 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
-DATE:        2026-07-29
-STATUS:      provisional — scanner untested against a real Avid folder
-AREA:        Chain row graphics — recursive folder scanner + mapping-table infrastructure
-FINDING:     Picked up the deferred NEXT item from 7/28 (chain row graphics-
-             ready layout). The real folder listing Charlie provided
-             (11R_Image_Paths.txt) lives only in a prior chat session, not
-             this repo, so no real filenames were available this pass —
-             built the infrastructure so it's ready the moment that listing
-             (or a live scan) is available, instead of waiting on it idle.
-BUILT:       main.js — walkForAaxImages() recursively searches the chosen
-             folder for <Family>.aaxplugin\Contents\Resources\Images\*.png
-             (confirmed real layout, Session Log 7/28), tolerant of any
-             depth per the FOLDER-DEPTH DECISION. New IPC scan-avid-graphics
-             returns { families: {FolderName: [pngBasename,...]}, totalCount }.
-             preload.js exposes scanAvidGraphics.
-             src/js/chain-graphics.js (NEW, pattern: like fx-transport.js) —
-             CHAIN_BLOCK_FAMILY_BY_MID maps every effect mid (MODEL_NAMES,
-             protocol.js) to its plugin folder family; resolveChainGraphics()
-             fuzzy-matches each block/amp display name against the scan's
-             filenames and buckets results into confident (exactly one hit),
-             ambiguous (2+, never silently guessed), unresolved (0) — per
-             the 7/28 note to flag uncertain matches for Charlie rather than
-             guess. Known real-file spelling quirk (Green JRC Overdrive ->
-             GreenJVCOD) wired as an alt search token.
-             index.html Settings panel — new "Scan Folder" button next to
-             Avid Graphics Folder; runs the scan + resolve, shows a one-line
-             summary in the panel and full ambiguous/unresolved detail in
-             appLog. Purely diagnostic — nothing wires a real image into the
-             chain row yet.
-CONFLICTS:   none — additive, chain-thumb still renders its dummy placeholder.
-NEXT:        Charlie: (1) set the Avid Graphics Folder (any real install or a
-             copied-out subset) and click Scan Folder — confirms the scanner
-             actually finds the .aaxplugin\...\Images structure on his real
-             machine, first time this has run against real files. (2) Share
-             the resulting ambiguous/unresolved log lines (or re-share
-             11R_Image_Paths.txt) so CHAIN_BLOCK_FAMILY_BY_MID's [best guess]
-             entries (Modulation family assignments, mainly) and the amp
-             many-to-one groups can be confirmed and hardcoded. (3) Once
-             filenames are confirmed, wire the resolved paths into
-             .chain-thumb (currently a dashed dummy box for every block).
+DATE:        2026-07-29 (2nd pass, same day)
+STATUS:      IMPLEMENTED, PENDING CHARLIE'S BUILD TEST — real graphics wired
+             for all 9 non-amp chain-row blocks; amp table deliberately still
+             unresolved (see below)
+AREA:        Chain row graphics — real image wiring, replacing the 1st pass's
+             infrastructure-only scanner
+FINDING:     Charlie shared the real 11R_Image_Paths.txt this session (3934
+             lines, confirmed structure "Eleven <Family> UI.aaxplugin\
+             Contents\Resources\Images\<Name>.png", flat — no further nesting
+             for the ten effect families). This SUPERSEDES the 1st pass's
+             fuzzy-match resolver entirely — with real filenames in hand,
+             direct 1:1 mapping is simpler and safer than guessing via name
+             similarity (which was already shown to false-positive on short
+             names like "EQ" vs "Parametric EQ" during this pass's own
+             design work — dropped before it shipped).
+CONFIRMED REAL FILENAMES (all direct, from the listing, not fuzzy-matched):
+             Distortion: TriKnobFuzz, BlackOpDist, GreenJVCOD (confirms the
+               7/28 spelling-quirk note), WhiteBoost, DCDistortion — 5 images,
+               5 models, no sharing.
+             Delay: TapeEcho, BBDelay, DynDelay (3 images / 7 mids).
+             Modulation: C1Chorus, multichorus, MistressFlanger, OrangePhaser,
+               RotSpeaker, VibePhaser (6 images / 15 mids) — CONFIRMS Roto
+               Speaker belongs to Modulation, which the 1st pass had only
+               flagged [best guess].
+             EQ: EQ, ParaEQ. Dynamics: GrayCompressor, Dyn3. WAH: ShineWah,
+               BlackWah. Volume: Volume (1 image, both variants). FX Loop:
+               FXLoop (1 image, all 7 variants).
+             Reverb: only SpringReverb + StereoReverb (2 images / 5 mids) —
+               names don't literally echo "Blackpanel"/"Eleven SR", so the
+               pairing (Spring->Blackpanel Spring Reverb, Stereo->Eleven SR)
+               is inferred from being the only spring/only-stereo-native
+               model, NOT yet visually confirmed.
+             AmpsCabs: exactly 15 amp_*.png (amp_AC, amp_bass, amp_bogner,
+               amp_DC30, amp_DC_modern, amp_DC_vintage, amp_duo, amp_lead800,
+               amp_lux, amp_M2, amp_plx, amp_sl100, amp_svt, amp_treadplate,
+               amp_tweed) for 32 AMP_SELECT_LIST keys — confirms the 7/28
+               many-to-one note almost exactly (15 vs the earlier "~17"
+               estimate). Tuner: NO flat top-level PNG in Images root at all
+               (only arrows/backgrounds/buttons/knobs/notes subfolders) —
+               unlike every other family; needs its own approach later.
+BUILT:       main.js — walkForAaxImages() families now store {dir, files}
+             (was a flat name array) so the renderer can build a real path,
+             not just know a name exists. Family key is the REAL folder name
+             ("Eleven Distortion UI"), not a guessed short name.
+             src/js/chain-graphics.js — REWRITTEN. CHAIN_BLOCK_FAMILY_BY_MID
+             (real folder names) + CHAIN_BLOCK_THUMB_FILE_BY_MID (direct,
+             confirmed filenames per mid, both above) replace the 1st pass's
+             fuzzy resolver. getChainThumbSrc(modelId) builds a file:// URL
+             from the last scan (pathToFileUrl handles Windows path ->
+             file:// + per-segment encoding for spaces/parens in real Avid
+             folder names). getAmpThumbSrc(ampKey) is the amp-table
+             equivalent — CHAIN_AMP_THUMB_FILE_BY_KEY is INTENTIONALLY EMPTY;
+             the 15-vs-32 grouping needs Charlie's visual confirmation, not a
+             guess (guessing "amp_lux means Lux Vib and Lux Norm but does it
+             also mean Tweed Lux?" is exactly the kind of silent-guess this
+             design was built to avoid).
+             ui.js applyChainOrder — each block's .chain-thumb now shows the
+             real <img> (swapping out the dashed placeholder) when
+             getChainThumbSrc/getAmpThumbSrc resolves one, falling back to
+             the placeholder otherwise (unresolved amps, Tuner, or no scan
+             yet). AMP-CAB's thumb is keyed off currentAmpKey (state.js, the
+             TFX '6dls' identity), not blk.modelId — every amp shares the
+             same generic chain-map mid (0x00 'Eleven'), so modelId alone
+             can't tell them apart.
+             index.html — Settings panel's Scan Folder button now stores the
+             scan (setAvidGraphicsManifest) and immediately calls
+             renderChainRow() so real graphics appear without a patch nav.
+             Also auto-scans once at startup if a folder is already set
+             (silent, best-effort) so a rebuild shows real graphics
+             immediately rather than needing a manual re-scan every launch.
+             New .chain-thumb-img <img> element added to all 10 static chain
+             slots (9 effect blocks + AMP-CAB stack), hidden by default.
+CONFLICTS:   None with app behavior. Supersedes this morning's 1st-pass
+             resolveChainGraphics()/CHAIN_NAME_ALT_TOKENS — deleted, not kept
+             alongside, since the direct table makes it dead code.
+NEXT:        Charlie: (1) Settings -> set Avid Graphics Folder (the real
+             install path he already has: C:\Program Files\Avid\Eleven Rack
+             Editor\System Plug-Ins) -> Scan Folder -> confirm the 9 non-amp
+             effect blocks now show real pedal graphics on their next chain
+             nav. First time this renders in the real app. (2) Visually
+             confirm the Reverb pairing (Spring/Stereo, inferred above) and,
+             separately, work out the amp 15-to-32 grouping (which amp_*.png
+             covers which AMP_SELECT_LIST keys) so
+             CHAIN_AMP_THUMB_FILE_BY_KEY can be filled in — this needs eyes
+             on the actual images, not something to guess from filenames
+             alone. (3) Tuner thumbnail needs a different resolution approach
+             later (no flat top-level image exists for it).
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
