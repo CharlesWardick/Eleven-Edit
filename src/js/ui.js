@@ -1347,7 +1347,13 @@ function applyChainOrder(order) {
   // Move the WRAPPER, not the label.
   const monoLbl = document.getElementById('mono-indicator');
   const mono    = monoLbl ? monoLbl.closest('.chain-slot') : null;
-  const tempo   = document.getElementById('tempo-wrap');
+  // 7/29: #tempo-wrap got the exact same .chain-slot + hidden-caret wrapper
+  // treatment as #mono-indicator above, for the exact same bottom-align
+  // reason — so it needs the exact same fix here. Grabbing the bare
+  // #tempo-wrap (as this used to do) would rip it straight back out of that
+  // wrapper on every reorder, same failure mode as the 7/28 mono bug.
+  const tempoEl = document.getElementById('tempo-wrap');
+  const tempo   = tempoEl ? tempoEl.closest('.chain-slot') : null;
 
   let arrowIdx = 0;
   order.forEach((blk, i) => {

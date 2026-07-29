@@ -268,10 +268,22 @@
      box is the model, and typing "x.x" straight in is the primary path. */
   /* Tempo group: label stacked ABOVE the number box, box nudged down so the
      digits sit low like the INPUT / WINDOW clusters. */
+  /* 7/29: bottom-anchored the same way #mono-indicator/#chain-input-wrap
+     are — margin-top:auto + the same Charlie-confirmed translateY(12px)
+     nudge — instead of floating vertically centered in the now much taller
+     (140px) row. Wrapped in a real .chain-slot with a hidden caret (see the
+     body markup) so it bottom-aligns by construction, same trick used for
+     those two. This deliberately leaves the space ABOVE it (matching a
+     pedal's .chain-thumb height) empty — reserved for a future master-
+     volume control, per Charlie's own plan; not empty by accident.
+     margin-left:auto REMOVED — #mono-connector's wrapper already pushes the
+     whole end-group (connector + badge + tempo) right as one unit, so this
+     was a redundant duplicate, not doing independent work. */
   #tempo-wrap {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
-    margin-left: auto;              /* holds the far right edge of the strip */
     flex-shrink: 0; align-self: center;
+    margin-top: auto;
+    transform: translateY(12px);
   }
   #tempo-label { font-size: 10px; color: #777; letter-spacing: 1px; font-weight: bold; }
   #tempo-row { display: flex; align-items: center; gap: 6px; }
@@ -841,19 +853,28 @@
   <!-- RIG TEMPO — CMD 0x50, microseconds per beat. Rig level, not per patch,
        which is why it lives out here beside the Stereo/Mono badge and not in
        the amp panel. Click a segment then use the arrows / wheel / up-down
-       keys, or just type "120.5" and press Enter. -->
-  <div id="tempo-wrap">
-    <span id="tempo-label">TEMPO</span>
-    <div id="tempo-row">
-      <div id="tempo-box" tabindex="0"
-           title="Rig tempo, 10.0-500.0 BPM&#10;Click a digit group then use the arrows, the mouse wheel or the up/down keys&#10;Or just type a value and press Enter">
-        <span class="tempo-seg seg-on" id="tempo-whole">---</span><span class="tempo-dot">.</span><span class="tempo-seg" id="tempo-tenth">-</span>
-      </div>
-      <div id="tempo-steps">
-        <div id="tempo-up">&#9650;</div>
-        <div id="tempo-dn">&#9660;</div>
+       keys, or just type "120.5" and press Enter.
+       7/29: wrapped in .chain-slot + hidden caret, same trick as the
+       Stereo/Mono badge just above — bottom-aligns TEMPO with the rest of
+       the row instead of it floating vertically centered, and deliberately
+       leaves the space above it (matching a pedal's .chain-thumb height)
+       open for a future master-volume control (Charlie's plan, not an
+       accident). Stays in this same column/panel — not moved to a new row. -->
+  <div class="chain-slot">
+    <div id="tempo-wrap">
+      <span id="tempo-label">TEMPO</span>
+      <div id="tempo-row">
+        <div id="tempo-box" tabindex="0"
+             title="Rig tempo, 10.0-500.0 BPM&#10;Click a digit group then use the arrows, the mouse wheel or the up/down keys&#10;Or just type a value and press Enter">
+          <span class="tempo-seg seg-on" id="tempo-whole">---</span><span class="tempo-dot">.</span><span class="tempo-seg" id="tempo-tenth">-</span>
+        </div>
+        <div id="tempo-steps">
+          <div id="tempo-up">&#9650;</div>
+          <div id="tempo-dn">&#9660;</div>
+        </div>
       </div>
     </div>
+    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
   </div>
 </div>
 

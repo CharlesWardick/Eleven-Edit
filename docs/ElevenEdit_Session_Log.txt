@@ -39,6 +39,51 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (4th pass, same day)
+STATUS:      IMPLEMENTED, verified via headless-Chromium render (static +
+             across repeated reorders); PENDING CHARLIE'S BUILD TEST
+AREA:        Chain strip — TEMPO vertical alignment
+FINDING:     Charlie: once the row grew for the graphics-ready layout, TEMPO
+             got left behind — it still floats vertically centered (its old
+             align-self:center) in the now much-taller 140px row, instead of
+             bottom-aligning with STEREO/the pedal labels like everything
+             else does. Agreed placement after discussion: TEMPO stays in
+             its current column and current panel (between the orange line
+             above #topbar and the row below) — just needs to drop DOWN to
+             the same baseline as the rest of the row. That deliberately
+             opens up the space above it (matching a pedal's .chain-thumb
+             height) as the future home for a not-yet-built master-volume
+             control — not empty by accident.
+ROOT CAUSE / FIX: identical mechanism and identical bug shape to the
+             #mono-indicator fix from 7/28. #tempo-wrap wrapped in a real
+             .chain-slot with a hidden .chain-open caret (same construction-
+             guarantees-the-height trick, not a guessed spacer); CSS gets
+             margin-top:auto + the same Charlie-confirmed translateY(12px)
+             nudge already used for #mono-indicator/#chain-input-wrap
+             (kept in sync, not re-derived). margin-left:auto REMOVED from
+             #tempo-wrap — redundant now that #mono-connector's wrapper
+             already pushes the whole end-group (connector + badge + tempo)
+             right as one unit.
+             CAUGHT BEFORE SHIPPING: applyChainOrder (ui.js) grabbed the bare
+             #tempo-wrap and re-appended it every reorder — exactly the same
+             failure that broke #mono-indicator on 7/28 (ripping the label
+             back out of its wrapper on every single chain-map update, since
+             that runs constantly in the real app). Fixed the same way:
+             resolve tempoEl.closest('.chain-slot') and move THAT, before
+             this ever reached a build. Verified with a live simulated chain
+             (10 blocks + 5 repeated reorder cycles) via headless Chromium —
+             tempo-wrap stayed inside its .chain-slot wrapper throughout, not
+             orphaned, and screenshots confirm it sits on the same visual
+             baseline as STEREO/the pedal labels both before and after
+             reorders.
+FILES:       index.html (CSS + markup), ui.js (applyChainOrder's tempo var).
+CONFLICTS:   none.
+NEXT:        Charlie's rebuild test — confirm TEMPO now sits at the same
+             height as STEREO/the pedal labels, and stays there across a
+             real patch nav / front-panel reorder (not just the simulated
+             one above). Master-volume control itself is still NOT YET
+             IMPLEMENTED — this pass only reserves the space for it.
+-------------------------------------------------------------------
 DATE:        2026-07-29 (3rd pass, same day)
 STATUS:      IMPLEMENTED, PENDING CHARLIE'S BUILD TEST — best-effort, flagged
              by confidence, not filename-confirmed like the effect blocks
