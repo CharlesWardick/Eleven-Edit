@@ -1107,9 +1107,8 @@ NEXT:        Charlie's real rebuild/hardware test. The residual 12px spread
              further unless it's actually perceptible on real hardware.
 -------------------------------------------------------------------
 DATE:        2026-07-28
-STATUS:      REPLACED the pair-center fix with a correct leading-edge fix,
-             verified live via simulated drag — NOT YET tested by Charlie on
-             real hardware
+STATUS:      REPLACED the pair-center fix with a correct leading-edge fix —
+             CONFIRMED by Charlie on real hardware, "call that a success"
 AREA:        Chain drag — linked AMP-CAB+LOOP, the pair-center fix from the
              immediately prior entry degraded the two directions that were
              already correct
@@ -1159,11 +1158,12 @@ VERIFIED:    Live CDP simulation, same 4-combination exact-trigger-distance
 FILES:       ui.js only (chainDragLastX + chainDragMovingRight added;
              hitTestX's computation changed from pair-center to leading-
              edge; both new vars reset in endChainDrag).
-NEXT:        Charlie's real rebuild/hardware test. This should be the
-             correct behavior in all 4 combinations now, not just "more
-             equal" — if a direction still feels off, name which one
-             specifically (leading or trailing) so the report can be
-             compared against what's now confirmed correct in simulation.
+NEXT:        None — confirmed working on real hardware. Closes out this
+             session's whole "finish the chain-row drag mechanics" arc
+             (ghost removal, continuous follow, linked-pair lockstep, linked-
+             pair trigger symmetry). Remaining chain-row work is the
+             separate graphics/image-mapping piece, deliberately not started
+             this session.
 -------------------------------------------------------------------
 
 

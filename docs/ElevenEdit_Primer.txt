@@ -170,6 +170,15 @@ sees; he cannot write or debug code himself and won't fill in gaps.
     produce any real signal to observe. So: a claim like "this needs testing
     without hardware to isolate X" doesn't fit how testing happens here —
     Charlie's confirmation IS the real-hardware test, not a step before it.
+    Two specific mistakes to not repeat (both made 7/28/2026, same session):
+    (1) treating in-conversation feedback ("good," "off," "almost there")
+    as provisional/pending a future hardware test — it is NOT provisional,
+    each round of feedback IS a fresh real-hardware test result, given live
+    while he has the rebuilt EXE running against the rack. Don't sign off
+    with "let me know how it feels once you test" after he has already just
+    told you the result. (2) the app does not run ON the hardware — it runs
+    on Charlie's PC/VM and REMOTE-CONTROLS the Eleven Rack over MIDI via the
+    Java bridge. Get this distinction right when describing the setup.
   - Old eyes: amber-on-dark, readable fonts, generous sizing.
   - THE REPO IS CANONICAL, FULL STOP (updated 7/28/2026 — under Claude Code,
     not the old chat workflow). There is no separate "outputs" snapshot to
