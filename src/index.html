@@ -222,8 +222,20 @@
 
   /* Connector INTO the badge — same stacked-line style as a between-block
      .chain-arr, but its line count tracks the BADGE state, not a block's
-     output: two lines when STEREO, one when MONO. */
-  #mono-connector { }
+     output: two lines when STEREO, one when MONO.
+     7/29 CORRECTION: the comment above (7/24) claiming margin-left:auto
+     "lives on this connector's wrapper" was stale/wrong — this selector was
+     actually empty, and #tempo-wrap's own margin-left:auto (removed this
+     session as an assumed redundant duplicate) was the ONLY thing pushing
+     the whole end-group to the strip's right edge. Removing it left the
+     group flush against nothing, with ~190px of dead space after TEMPO
+     before the true right border (caught by Charlie, not by the earlier
+     headless-Chromium check — that check confirmed vertical alignment and
+     reorder-survival, not horizontal position against the window edge).
+     Restored HERE instead of back on #tempo-wrap so it does what the old
+     comment always claimed: push the group (connector + badge + tempo) as
+     one unit, not tempo alone away from the badge. */
+  #mono-connector { margin-left: auto; }
 
   /* Passive clone of the active INPUT selection (7/28, Charlie's idea), at
      the START of the chain strip. Two jobs: (1) gives the row somewhere to
@@ -276,9 +288,11 @@
      those two. This deliberately leaves the space ABOVE it (matching a
      pedal's .chain-thumb height) empty — reserved for a future master-
      volume control, per Charlie's own plan; not empty by accident.
-     margin-left:auto REMOVED — #mono-connector's wrapper already pushes the
-     whole end-group (connector + badge + tempo) right as one unit, so this
-     was a redundant duplicate, not doing independent work. */
+     margin-left:auto moved OFF this element and onto #mono-connector
+     instead (see that selector's comment) — Charlie caught that removing
+     it outright left the whole end-group with ~190px of dead space before
+     the strip's true right edge; it was the only thing holding the group
+     there, not a redundant duplicate as first assumed. */
   #tempo-wrap {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     flex-shrink: 0; align-self: center;

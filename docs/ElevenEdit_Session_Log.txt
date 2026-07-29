@@ -39,6 +39,45 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (5th pass, same day)
+STATUS:      IMPLEMENTED, verified via headless-Chromium pixel measurement
+             (chainstrip.right - tempoSteps.right == 16px, the strip's own
+             padding, both sides now symmetric); PENDING CHARLIE'S BUILD TEST
+AREA:        Chain strip — TEMPO horizontal position regression from the
+             4th pass, caught by Charlie from the shipped screenshot
+FINDING:     The 4th pass's TEMPO vertical-alignment fix removed
+             #tempo-wrap's margin-left:auto as an "assumed redundant
+             duplicate", reasoning from a 7/24 code comment claiming
+             "margin-left:auto lives on [#mono-connector's] wrapper". That
+             comment was WRONG/stale — #mono-connector's rule was actually
+             empty (`#mono-connector { }`). #tempo-wrap's margin was the
+             ONLY thing holding the whole end-group at the strip's right
+             edge; removing it left ~190px of dead space after TEMPO before
+             the true right border, with the group instead sitting wherever
+             its own content width landed. The earlier headless-Chromium
+             check that pass only measured VERTICAL alignment and reorder-
+             survival — never checked horizontal position against the
+             window edge, so it passed clean while this was already broken.
+             Charlie caught it immediately from the shipped screenshot.
+FIX:         margin-left:auto moved to #mono-connector (the actual first
+             element of the end-group), not restored on #tempo-wrap — this
+             pushes the WHOLE group (connector + badge + tempo) right as one
+             unit, matching original behaviour, rather than pulling tempo
+             away from the badge on its own.
+LESSON:      A stale code comment describing "where a rule lives" was taken
+             as fact instead of verified against the actual CSS before
+             deleting the thing it described. Should have grepped/read the
+             referenced selector directly (`#mono-connector { }`) before
+             removing anything justified by it — the same class of mistake
+             the project's other "ask for code, don't infer" rules exist to
+             prevent, just inside one session instead of across doc-vs-code.
+             Widened this pass's own headless-Chromium check to measure
+             horizontal edge position too, not just vertical baseline.
+FILES:       index.html only (CSS comments + the one margin-left:auto move).
+NEXT:        Charlie's rebuild test — TEMPO should now sit flush at the
+             strip's right edge (matching the left side's padding) AND at
+             the same baseline height as STEREO/the pedal labels.
+-------------------------------------------------------------------
 DATE:        2026-07-29 (4th pass, same day)
 STATUS:      IMPLEMENTED, verified via headless-Chromium render (static +
              across repeated reorders); PENDING CHARLIE'S BUILD TEST
