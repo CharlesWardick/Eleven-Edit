@@ -160,6 +160,16 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - Be concise. Keep explanations outcome-focused, not technical.
   - Conclude internally; present the solution or finding, not the reasoning.
   - Always build the EXE for testing — npm start has never worked here.
+  - CHARLIE ONLY TESTS ON REAL HARDWARE, ALWAYS (confirmed 7/28/2026). He
+    builds this repo's code into an EXE and runs it against the real Eleven
+    Rack over the Java bridge — there is no "dry run" step in his workflow.
+    Without the bridge actually connected to hardware, essentially nothing
+    is testable beyond the about box, the settings panel, and the window's
+    close button; every other feature (chain row, effect panels, knobs,
+    bypass, patch load/save, tuner, etc.) requires a live connection to
+    produce any real signal to observe. So: a claim like "this needs testing
+    without hardware to isolate X" doesn't fit how testing happens here —
+    Charlie's confirmation IS the real-hardware test, not a step before it.
   - Old eyes: amber-on-dark, readable fonts, generous sizing.
   - THE REPO IS CANONICAL, FULL STOP (updated 7/28/2026 — under Claude Code,
     not the old chat workflow). There is no separate "outputs" snapshot to
