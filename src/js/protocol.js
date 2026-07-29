@@ -1374,23 +1374,26 @@ REVERB_MODELS.forEach(function(m) {
 });
 
 // ════════════════════════════════════════════════════════════════════
-// WAH MODELS — Shine Wah and Black Wah, two distinct mids.
-// paramLos 0x02/0x03 are assumed pending Wireshark confirmation on
-// real hardware. Labels: Filter (freq sweep), Vox Cry (contour).
+// WAH MODELS — Shine Wah (0x23) and Black Wah (0x24).
+// paramLos confirmed by Wireshark capture (2026-07-29):
+//   0x02 = Position — continuous pedal sweep, full range. Both models
+//          share the same single paramLo.
+//   0x03 = internal model flag (0x40 on switch-to-Black, 0x3F on
+//          switch-to-Shine); broadcast automatically on model change,
+//          not a user-visible knob. Listed in paramLos for routing
+//          so it doesn't fall through to the mismatch handler.
 // ════════════════════════════════════════════════════════════════════
 const WAH_MODELS = [
   { mid: 0x23, mids: [0x23], name: 'Shine Wah',
     paramLos: [0x02, 0x03],
     rows: [
-      [ {label:'Filter',  lo:0x02},
-        {label:'Vox Cry', lo:0x03} ]
+      [ {label:'Position', lo:0x02} ]
     ]
   },
   { mid: 0x24, mids: [0x24], name: 'Black Wah',
     paramLos: [0x02, 0x03],
     rows: [
-      [ {label:'Filter',  lo:0x02},
-        {label:'Vox Cry', lo:0x03} ]
+      [ {label:'Position', lo:0x02} ]
     ]
   },
 ];

@@ -601,12 +601,18 @@ function handleParamReadback(data) {
   }
 
   // ── WAH parameter routing — same shape as DIST/REVERB.
+  // 0x02 = Position (user knob). 0x03 = internal model flag broadcast
+  // on model change — absorbed here so it doesn't hit the mismatch handler.
   if (wahPanelOpen) {
     const wahBlk = currentChain.find(b => b.slotId === SLOT_WAH);
     if (wahBlk && instId === wahBlk.handle) {
-      if (paramLo >= 0x02 && paramLo <= 0x03) {
+      if (paramLo === 0x02) {
         if (typeof updateWahKnob === 'function') updateWahKnob(paramLo, val);
-        appLog('CMD 0x11 WAH paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+        appLog('CMD 0x11 WAH paramLo=0x02 val=' + val);
+        return;
+      }
+      if (paramLo === 0x03) {
+        appLog('CMD 0x11 WAH paramLo=0x03 (model flag) val=' + val + ' — absorbed');
         return;
       }
     }
