@@ -391,6 +391,8 @@ function handleChainMap(data) {
     // If DIST panel is open, update its dropdown/knobs with the new handle
     if (typeof refreshDistPanelAfterChainMap === 'function') refreshDistPanelAfterChainMap();
     if (typeof refreshReverbPanelAfterChainMap === 'function') refreshReverbPanelAfterChainMap();
+    if (typeof refreshWahPanelAfterChainMap === 'function') refreshWahPanelAfterChainMap();
+    if (typeof refreshVolPanelAfterChainMap === 'function') refreshVolPanelAfterChainMap();
     // Release the post-nav pull's wait: currentParamHi and currentChain are
     // now valid, so amp-block queries can safely be addressed.
     chainMapRxSeq++;
@@ -593,6 +595,30 @@ function handleParamReadback(data) {
       if (paramLo >= 0x02 && paramLo <= 0x06) {
         if (typeof updateReverbKnob === 'function') updateReverbKnob(paramLo, val);
         appLog('CMD 0x11 REVERB paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+        return;
+      }
+    }
+  }
+
+  // ── WAH parameter routing — same shape as DIST/REVERB.
+  if (wahPanelOpen) {
+    const wahBlk = currentChain.find(b => b.slotId === SLOT_WAH);
+    if (wahBlk && instId === wahBlk.handle) {
+      if (paramLo >= 0x02 && paramLo <= 0x03) {
+        if (typeof updateWahKnob === 'function') updateWahKnob(paramLo, val);
+        appLog('CMD 0x11 WAH paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+        return;
+      }
+    }
+  }
+
+  // ── VOL parameter routing — same shape as DIST/REVERB.
+  if (volPanelOpen) {
+    const volBlk = currentChain.find(b => b.slotId === SLOT_VOL);
+    if (volBlk && instId === volBlk.handle) {
+      if (paramLo >= 0x02 && paramLo <= 0x04) {
+        if (typeof updateVolKnob === 'function') updateVolKnob(paramLo, val);
+        appLog('CMD 0x11 VOL paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
       }
     }

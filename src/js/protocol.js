@@ -1372,3 +1372,51 @@ const REVERB_MODEL_BY_MID = {};
 REVERB_MODELS.forEach(function(m) {
   m.mids.forEach(function(mid) { REVERB_MODEL_BY_MID[mid] = m; });
 });
+
+// ════════════════════════════════════════════════════════════════════
+// WAH MODELS — Shine Wah and Black Wah, two distinct mids.
+// paramLos 0x02/0x03 are assumed pending Wireshark confirmation on
+// real hardware. Labels: Filter (freq sweep), Vox Cry (contour).
+// ════════════════════════════════════════════════════════════════════
+const WAH_MODELS = [
+  { mid: 0x23, mids: [0x23], name: 'Shine Wah',
+    paramLos: [0x02, 0x03],
+    rows: [
+      [ {label:'Filter',  lo:0x02},
+        {label:'Vox Cry', lo:0x03} ]
+    ]
+  },
+  { mid: 0x24, mids: [0x24], name: 'Black Wah',
+    paramLos: [0x02, 0x03],
+    rows: [
+      [ {label:'Filter',  lo:0x02},
+        {label:'Vox Cry', lo:0x03} ]
+    ]
+  },
+];
+const WAH_MODEL_BY_MID = {};
+WAH_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { WAH_MODEL_BY_MID[mid] = m; });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// VOL MODELS — Volume Pedal. Firmware picks mono (0x2B) or stereo
+// (0x2C) by chain context; we expose one user-facing model and map
+// both mids to it.
+// paramLos 0x02/0x03/0x04 are assumed pending Wireshark confirmation.
+// Labels: Volume (level), Min Vol (minimum), Taper (response curve).
+// ════════════════════════════════════════════════════════════════════
+const VOL_MODELS = [
+  { mid: 0x2B, mids: [0x2B, 0x2C], name: 'Volume Pedal',
+    paramLos: [0x02, 0x03, 0x04],
+    rows: [
+      [ {label:'Volume',  lo:0x02},
+        {label:'Min Vol', lo:0x03},
+        {label:'Taper',   lo:0x04} ]
+    ]
+  },
+];
+const VOL_MODEL_BY_MID = {};
+VOL_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { VOL_MODEL_BY_MID[mid] = m; });
+});

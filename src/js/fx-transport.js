@@ -139,3 +139,109 @@ function sendReverbParamWrite(paramLo, v127) {
     + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
   return sendPatchWrite(hex);
 }
+
+// ════════════════════════════════════════════════════════════════════
+// WAH EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
+// Two models: Shine Wah (0x23) and Black Wah (0x24). Mirror of DIST.
+// ════════════════════════════════════════════════════════════════════
+function sendWahModelChange(newMid) {
+  if (!bridgeMidiReady) { appLog('sendWahModelChange: bridge not ready'); return false; }
+  if (!currentChainInput || !currentChain.length) {
+    appLog('sendWahModelChange: no chain map yet'); return false;
+  }
+  const b = [0xF0,0x13,0x0B,0x0F,0x00,0x21];
+  b.push(SLOT_INPUT, currentChainInput.modelId, currentChainInput.handle);
+  for (let i = 0; i < 10; i++) {
+    const blk      = currentChain[i];
+    const backLink = (i === 0) ? SLOT_INPUT : currentChain[i-1].slotId;
+    const mid      = (blk.slotId === SLOT_WAH) ? newMid : blk.modelId;
+    const handle   = (blk.slotId === SLOT_WAH) ? 0x00   : blk.handle;
+    b.push(backLink, mid, handle);
+  }
+  b.push(currentChain[9].slotId, 0xF7);
+  const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  appLog('sendWahModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
+  return sendPatchWrite(hex);
+}
+
+function requestWahParams() {
+  if (!bridgeMidiReady) return;
+  const wahBlk = currentChain.find(b => b.slotId === SLOT_WAH);
+  if (!wahBlk) { appLog('requestWahParams: no WAH block in chain'); return; }
+  const model = WAH_MODEL_BY_MID[wahBlk.modelId];
+  if (!model) {
+    appLog('requestWahParams: unknown WAH mid=0x' + wahBlk.modelId.toString(16).padStart(2,'0'));
+    return;
+  }
+  const hh = wahBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  model.paramLos.forEach(function(lo) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
+  });
+  appLog('requestWahParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+}
+
+function sendWahParamWrite(paramLo, v127) {
+  if (!bridgeMidiReady) return false;
+  const wahBlk = currentChain.find(b => b.slotId === SLOT_WAH);
+  if (!wahBlk) { appLog('sendWahParamWrite: no WAH block'); return false; }
+  const v0  = ((v127 + 64) % 128) & 0x7F;
+  const hex = 'F0 13 0B 0F 00 11 '
+    + wahBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+  return sendPatchWrite(hex);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// VOL EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
+// One user-facing model; firmware picks mono (0x2B) or stereo (0x2C).
+// sendVolModelChange is kept for pattern consistency and patch-slot
+// writes (e.g. if the user were to swap the model mid externally).
+// ════════════════════════════════════════════════════════════════════
+function sendVolModelChange(newMid) {
+  if (!bridgeMidiReady) { appLog('sendVolModelChange: bridge not ready'); return false; }
+  if (!currentChainInput || !currentChain.length) {
+    appLog('sendVolModelChange: no chain map yet'); return false;
+  }
+  const b = [0xF0,0x13,0x0B,0x0F,0x00,0x21];
+  b.push(SLOT_INPUT, currentChainInput.modelId, currentChainInput.handle);
+  for (let i = 0; i < 10; i++) {
+    const blk      = currentChain[i];
+    const backLink = (i === 0) ? SLOT_INPUT : currentChain[i-1].slotId;
+    const mid      = (blk.slotId === SLOT_VOL) ? newMid : blk.modelId;
+    const handle   = (blk.slotId === SLOT_VOL) ? 0x00   : blk.handle;
+    b.push(backLink, mid, handle);
+  }
+  b.push(currentChain[9].slotId, 0xF7);
+  const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  appLog('sendVolModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
+  return sendPatchWrite(hex);
+}
+
+function requestVolParams() {
+  if (!bridgeMidiReady) return;
+  const volBlk = currentChain.find(b => b.slotId === SLOT_VOL);
+  if (!volBlk) { appLog('requestVolParams: no VOL block in chain'); return; }
+  const model = VOL_MODEL_BY_MID[volBlk.modelId];
+  if (!model) {
+    appLog('requestVolParams: unknown VOL mid=0x' + volBlk.modelId.toString(16).padStart(2,'0'));
+    return;
+  }
+  const hh = volBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  model.paramLos.forEach(function(lo) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
+  });
+  appLog('requestVolParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+}
+
+function sendVolParamWrite(paramLo, v127) {
+  if (!bridgeMidiReady) return false;
+  const volBlk = currentChain.find(b => b.slotId === SLOT_VOL);
+  if (!volBlk) { appLog('sendVolParamWrite: no VOL block'); return false; }
+  const v0  = ((v127 + 64) % 128) & 0x7F;
+  const hex = 'F0 13 0B 0F 00 11 '
+    + volBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+  return sendPatchWrite(hex);
+}

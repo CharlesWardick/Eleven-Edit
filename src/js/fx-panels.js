@@ -401,3 +401,262 @@ function refreshReverbPanelAfterChainMap() {
     if (bridgeMidiReady) queueKnobSend('reverb:' + paramLo, function(v) { sendReverbParamWrite(paramLo, v); }, 64);
   });
 })();
+
+// ════════════════════════════════════════════════════════════════════
+// WAH EFFECT PANEL
+// ════════════════════════════════════════════════════════════════════
+
+function openWahPanel() {
+  wahPanelOpen = true;
+  const wahBlk = currentChain.find(b => b.slotId === SLOT_WAH);
+  if (!wahBlk) {
+    document.getElementById('wah-knob-row').innerHTML =
+      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
+    appLog('openWahPanel: no WAH block in chain map yet');
+    return;
+  }
+  const sel = document.getElementById('wah-model-select');
+  if (sel) sel.value = String(wahBlk.modelId);
+  renderWahKnobs(wahBlk.modelId);
+  requestWahParams();
+  appLog('openWahPanel: mid=0x' + wahBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + wahBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+function closeWahPanel() {
+  wahPanelOpen = false;
+}
+
+function renderWahKnobs(mid) {
+  const container = document.getElementById('wah-knob-row');
+  if (!container) return;
+  const model = WAH_MODEL_BY_MID[mid];
+  if (!model) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
+    return;
+  }
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
+    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+
+  model.rows.forEach(function(rowCells) {
+    const rowDiv = document.createElement('div');
+    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+
+    rowCells.forEach(function(cell) {
+      if (!cell) {
+        const sp = document.createElement('div');
+        sp.style.cssText = 'width:80px;flex-shrink:0;';
+        rowDiv.appendChild(sp);
+      } else {
+        const loHex = cell.lo.toString(16).padStart(2,'0');
+        const knobDiv = document.createElement('div');
+        knobDiv.className = 'ctrl-knob';
+        knobDiv.innerHTML =
+          '<label>' + cell.label + '</label>'
+          + '<div class="knob-wrap" id="wah-w-' + loHex + '" data-value="64" data-base="fx" data-wah-lo="' + loHex + '">'
+          + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
+          + '<span class="knob-val" id="wah-v-' + loHex + '">--</span>';
+        rowDiv.appendChild(knobDiv);
+        drawKnob(knobDiv.querySelector('canvas'), 64);
+      }
+    });
+
+    wrapper.appendChild(rowDiv);
+  });
+
+  container.appendChild(wrapper);
+}
+
+function updateWahKnob(paramLo, val) {
+  const loHex = paramLo.toString(16).padStart(2,'0');
+  const wrap  = document.getElementById('wah-w-' + loHex);
+  const valEl = document.getElementById('wah-v-' + loHex);
+  if (wrap) {
+    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_WAH, loHex, val);
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) valEl.textContent = valDisplay(val);
+}
+
+function refreshWahPanelAfterChainMap() {
+  if (!wahPanelOpen) return;
+  const wahBlk = currentChain.find(b => b.slotId === SLOT_WAH);
+  if (!wahBlk) return;
+  const model = WAH_MODEL_BY_MID[wahBlk.modelId];
+  const sel = document.getElementById('wah-model-select');
+  if (sel && model && parseInt(sel.value) !== model.mid) {
+    sel.value = String(model.mid);
+    renderWahKnobs(wahBlk.modelId);
+    clearFxBaselineForSlot(SLOT_WAH);
+  }
+  setTimeout(requestWahParams, 150);
+  appLog('refreshWahPanelAfterChainMap: mid=0x' + wahBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + wahBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+// ── WAH knob drag — delegated, keyed on data-wah-lo ──
+(function() {
+  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+
+  document.addEventListener('mousedown', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-wah-lo]');
+    if (!wrap) return;
+    activeParamLo = parseInt(wrap.dataset.wahLo, 16);
+    if (isNaN(activeParamLo)) return;
+    activeWrap = wrap;
+    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    startY = e.clientY;
+    dragging = true;
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging || !activeWrap) return;
+    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
+    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    updateWahKnob(activeParamLo, val);
+    if (bridgeMidiReady) queueKnobSend('wah:' + activeParamLo, function(v) { sendWahParamWrite(activeParamLo, v); }, val);
+  });
+
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+
+  document.addEventListener('dblclick', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-wah-lo]');
+    if (!wrap) return;
+    var paramLo = parseInt(wrap.dataset.wahLo, 16);
+    if (isNaN(paramLo)) return;
+    updateWahKnob(paramLo, 64);
+    if (bridgeMidiReady) queueKnobSend('wah:' + paramLo, function(v) { sendWahParamWrite(paramLo, v); }, 64);
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════
+// VOL EFFECT PANEL
+// Single user-facing model (Volume Pedal); firmware picks mono/stereo.
+// No model dropdown — the knob row is rendered once on open.
+// ════════════════════════════════════════════════════════════════════
+
+function openVolPanel() {
+  volPanelOpen = true;
+  const volBlk = currentChain.find(b => b.slotId === SLOT_VOL);
+  if (!volBlk) {
+    document.getElementById('vol-knob-row').innerHTML =
+      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
+    appLog('openVolPanel: no VOL block in chain map yet');
+    return;
+  }
+  renderVolKnobs(volBlk.modelId);
+  requestVolParams();
+  appLog('openVolPanel: mid=0x' + volBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + volBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+function closeVolPanel() {
+  volPanelOpen = false;
+}
+
+function renderVolKnobs(mid) {
+  const container = document.getElementById('vol-knob-row');
+  if (!container) return;
+  const model = VOL_MODEL_BY_MID[mid];
+  if (!model) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
+    return;
+  }
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
+    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+
+  model.rows.forEach(function(rowCells) {
+    const rowDiv = document.createElement('div');
+    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+
+    rowCells.forEach(function(cell) {
+      if (!cell) {
+        const sp = document.createElement('div');
+        sp.style.cssText = 'width:80px;flex-shrink:0;';
+        rowDiv.appendChild(sp);
+      } else {
+        const loHex = cell.lo.toString(16).padStart(2,'0');
+        const knobDiv = document.createElement('div');
+        knobDiv.className = 'ctrl-knob';
+        knobDiv.innerHTML =
+          '<label>' + cell.label + '</label>'
+          + '<div class="knob-wrap" id="vol-w-' + loHex + '" data-value="64" data-base="fx" data-vol-lo="' + loHex + '">'
+          + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
+          + '<span class="knob-val" id="vol-v-' + loHex + '">--</span>';
+        rowDiv.appendChild(knobDiv);
+        drawKnob(knobDiv.querySelector('canvas'), 64);
+      }
+    });
+
+    wrapper.appendChild(rowDiv);
+  });
+
+  container.appendChild(wrapper);
+}
+
+function updateVolKnob(paramLo, val) {
+  const loHex = paramLo.toString(16).padStart(2,'0');
+  const wrap  = document.getElementById('vol-w-' + loHex);
+  const valEl = document.getElementById('vol-v-' + loHex);
+  if (wrap) {
+    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_VOL, loHex, val);
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) valEl.textContent = valDisplay(val);
+}
+
+function refreshVolPanelAfterChainMap() {
+  if (!volPanelOpen) return;
+  const volBlk = currentChain.find(b => b.slotId === SLOT_VOL);
+  if (!volBlk) return;
+  setTimeout(requestVolParams, 150);
+  appLog('refreshVolPanelAfterChainMap: mid=0x' + volBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + volBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+// ── VOL knob drag — delegated, keyed on data-vol-lo ──
+(function() {
+  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+
+  document.addEventListener('mousedown', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-vol-lo]');
+    if (!wrap) return;
+    activeParamLo = parseInt(wrap.dataset.volLo, 16);
+    if (isNaN(activeParamLo)) return;
+    activeWrap = wrap;
+    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    startY = e.clientY;
+    dragging = true;
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging || !activeWrap) return;
+    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
+    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    updateVolKnob(activeParamLo, val);
+    if (bridgeMidiReady) queueKnobSend('vol:' + activeParamLo, function(v) { sendVolParamWrite(activeParamLo, v); }, val);
+  });
+
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+
+  document.addEventListener('dblclick', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-vol-lo]');
+    if (!wrap) return;
+    var paramLo = parseInt(wrap.dataset.volLo, 16);
+    if (isNaN(paramLo)) return;
+    updateVolKnob(paramLo, 64);
+    if (bridgeMidiReady) queueKnobSend('vol:' + paramLo, function(v) { sendVolParamWrite(paramLo, v); }, 64);
+  });
+})();

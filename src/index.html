@@ -1152,6 +1152,39 @@
     </div>
   </div>
 
+  <!-- WAH EFFECT PANEL — shown when WAH ▼ is clicked -->
+  <div id="panel-wah" style="display:none;" class="scard">
+    <div class="scard-hdr" style="flex-wrap:wrap;gap:10px;">
+      <span class="scard-title">WAH</span>
+      <div class="ctrl-dd">
+        <label>Model</label>
+        <select id="wah-model-select" style="min-width:200px;">
+          <option value="35">Shine Wah</option>
+          <option value="36">Black Wah</option>
+        </select>
+      </div>
+      <button id="btn-wah-close" title="Close"
+        style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 6px;"
+        onmouseover="this.style.color='var(--fg)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+    </div>
+    <div id="wah-knob-row" style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;padding:14px 16px;">
+      <!-- knobs injected dynamically by renderWahKnobs() -->
+    </div>
+  </div>
+
+  <!-- VOL EFFECT PANEL — shown when VOL ▼ is clicked -->
+  <div id="panel-vol" style="display:none;" class="scard">
+    <div class="scard-hdr" style="flex-wrap:wrap;gap:10px;">
+      <span class="scard-title">VOLUME PEDAL</span>
+      <button id="btn-vol-close" title="Close"
+        style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 6px;"
+        onmouseover="this.style.color='var(--fg)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+    </div>
+    <div id="vol-knob-row" style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;padding:14px 16px;">
+      <!-- knobs injected dynamically by renderVolKnobs() -->
+    </div>
+  </div>
+
   <!-- SETTINGS PANEL — shares the amp panel slot, toggled by gear button -->
   <div id="panel-settings">
     <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1380,8 +1413,12 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
       document.getElementById('panel-other').style.display = 'none';
       document.getElementById('panel-dist').style.display = 'none';
       document.getElementById('panel-reverb').style.display = 'none';
+      document.getElementById('panel-wah').style.display = 'none';
+      document.getElementById('panel-vol').style.display = 'none';
       if (typeof closeDistPanel === 'function') closeDistPanel();
       if (typeof closeReverbPanel === 'function') closeReverbPanel();
+      if (typeof closeWahPanel === 'function') closeWahPanel();
+      if (typeof closeVolPanel === 'function') closeVolPanel();
     } else {
       btn.classList.add('panel-open');
       var panel = btn.dataset.panel;
@@ -1392,8 +1429,12 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
       document.getElementById('panel-other').style.display = 'none';
       document.getElementById('panel-dist').style.display = 'none';
       document.getElementById('panel-reverb').style.display = 'none';
+      document.getElementById('panel-wah').style.display = 'none';
+      document.getElementById('panel-vol').style.display = 'none';
       if (typeof closeDistPanel === 'function') closeDistPanel();
       if (typeof closeReverbPanel === 'function') closeReverbPanel();
+      if (typeof closeWahPanel === 'function') closeWahPanel();
+      if (typeof closeVolPanel === 'function') closeVolPanel();
 
       if (panel === 'dist') {
         var dp = document.getElementById('panel-dist');
@@ -1405,6 +1446,16 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
         if (h) rp.style.minHeight = h + 'px';
         rp.style.display = '';
         if (typeof openReverbPanel === 'function') openReverbPanel();
+      } else if (panel === 'wah') {
+        var wp = document.getElementById('panel-wah');
+        if (h) wp.style.minHeight = h + 'px';
+        wp.style.display = '';
+        if (typeof openWahPanel === 'function') openWahPanel();
+      } else if (panel === 'vol') {
+        var vp = document.getElementById('panel-vol');
+        if (h) vp.style.minHeight = h + 'px';
+        vp.style.display = '';
+        if (typeof openVolPanel === 'function') openVolPanel();
       } else {
         var other = document.getElementById('panel-other');
         if (h) other.style.minHeight = h + 'px';
@@ -1447,6 +1498,31 @@ document.getElementById('btn-reverb-close').addEventListener('click', function()
   document.getElementById('panel-reverb').style.display = 'none';
   document.getElementById('panel-ampcab').style.display = '';
   if (typeof closeReverbPanel === 'function') closeReverbPanel();
+});
+
+// WAH model dropdown — switch model on hardware and re-render knobs
+document.getElementById('wah-model-select').addEventListener('change', function() {
+  var newMid = parseInt(this.value, 10);
+  if (isNaN(newMid)) return;
+  if (typeof renderWahKnobs === 'function') renderWahKnobs(newMid);
+  if (typeof sendWahModelChange === 'function') sendWahModelChange(newMid);
+  // refreshWahPanelAfterChainMap fires from the CMD 0x21 response and re-queries params
+});
+
+// WAH panel close button — same effect as clicking ▼ again
+document.getElementById('btn-wah-close').addEventListener('click', function() {
+  document.querySelectorAll('.chain-open').forEach(function(b) { b.classList.remove('panel-open'); });
+  document.getElementById('panel-wah').style.display = 'none';
+  document.getElementById('panel-ampcab').style.display = '';
+  if (typeof closeWahPanel === 'function') closeWahPanel();
+});
+
+// VOL panel close button — same effect as clicking ▼ again
+document.getElementById('btn-vol-close').addEventListener('click', function() {
+  document.querySelectorAll('.chain-open').forEach(function(b) { b.classList.remove('panel-open'); });
+  document.getElementById('panel-vol').style.display = 'none';
+  document.getElementById('panel-ampcab').style.display = '';
+  if (typeof closeVolPanel === 'function') closeVolPanel();
 });
 
 // Patch name box click = open slot matrix
