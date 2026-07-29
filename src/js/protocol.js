@@ -1372,3 +1372,56 @@ const REVERB_MODEL_BY_MID = {};
 REVERB_MODELS.forEach(function(m) {
   m.mids.forEach(function(mid) { REVERB_MODEL_BY_MID[mid] = m; });
 });
+
+// ════════════════════════════════════════════════════════════════════
+// WAH MODELS — Shine Wah (0x23) and Black Wah (0x24).
+// paramLos confirmed by Wireshark capture (2026-07-29):
+//   0x02 = Position — continuous pedal sweep, full range. Both models
+//          share the same single paramLo.
+//   0x03 = internal model flag (0x40 on switch-to-Black, 0x3F on
+//          switch-to-Shine); broadcast automatically on model change,
+//          not a user-visible knob. Listed in paramLos for routing
+//          so it doesn't fall through to the mismatch handler.
+// ════════════════════════════════════════════════════════════════════
+const WAH_MODELS = [
+  { mid: 0x23, mids: [0x23], name: 'Shine Wah',
+    paramLos: [0x02, 0x03],
+    rows: [
+      [ {label:'Position', lo:0x02} ]
+    ]
+  },
+  { mid: 0x24, mids: [0x24], name: 'Black Wah',
+    paramLos: [0x02, 0x03],
+    rows: [
+      [ {label:'Position', lo:0x02} ]
+    ]
+  },
+];
+const WAH_MODEL_BY_MID = {};
+WAH_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { WAH_MODEL_BY_MID[mid] = m; });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// VOL MODELS — Volume Pedal. Firmware picks mono (0x2B) or stereo
+// (0x2C) by chain context; we expose one user-facing model and map
+// both mids to it.
+// paramLos confirmed by Wireshark capture (2026-07-29):
+//   0x02 = Volume (Position) — continuous knob, full range
+//   0x03 = Min Vol — continuous knob, full range
+//   0x04 = Taper — binary toggle: v0=0x40 → Linear, v0=0x3F → Log
+// ════════════════════════════════════════════════════════════════════
+const VOL_MODELS = [
+  { mid: 0x2B, mids: [0x2B, 0x2C], name: 'Volume Pedal',
+    paramLos: [0x02, 0x03, 0x04],
+    rows: [
+      [ {label:'Volume',  lo:0x02},
+        {label:'Min Vol', lo:0x03},
+        {label:'Taper',   lo:0x04, toggle:true, options:['Linear','Log']} ]
+    ]
+  },
+];
+const VOL_MODEL_BY_MID = {};
+VOL_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { VOL_MODEL_BY_MID[mid] = m; });
+});

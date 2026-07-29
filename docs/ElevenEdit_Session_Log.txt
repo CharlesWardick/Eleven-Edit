@@ -39,6 +39,314 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (7th pass, same day)
+STATUS:      IMPLEMENTED, verified via headless-Chromium simulated click/
+             blur/re-focus cycle; PENDING CHARLIE'S BUILD TEST
+AREA:        Rig Tempo field — whole-BPM segment always looked "selected"
+FINDING:     Charlie: the "240" (whole BPM) segment showed its amber
+             seg-on highlight even in a screenshot where the app wasn't the
+             active window — i.e. permanently, not just while actually
+             editing. Two separate causes stacked: (1) tempoSeg (ui.js)
+             defaults to 'w' and renderTempoField's seg-on toggle never
+             checked real focus, only which segment was logically selected,
+             so it painted "selected" from first load regardless of
+             interaction; (2) the markup itself hardcoded class="tempo-seg
+             seg-on" on #tempo-whole, so even before JS ran once it would
+             already show highlighted.
+FIX:         renderTempoField (ui.js) now gates both segments' seg-on on
+             `document.activeElement === box`, not just tempoSeg alone.
+             Added a focus listener on #tempo-box to repaint (picks up Tab-
+             focus, not just the click handlers which already repaint via
+             selectSeg). Static seg-on class removed from the HTML markup.
+             CAUGHT DURING VERIFICATION, not assumed: the blur handler only
+             called commitTempoTyping(), which no-ops (no repaint) when
+             nothing was mid-typed — the common "clicked a segment, clicked
+             away" case — so the highlight would have SURVIVED a blur with
+             no typing involved, silently reintroducing the same bug through
+             a different path. Blur handler now always calls
+             renderTempoField() after commitTempoTyping(), not only when
+             there was something to commit.
+FILES:       ui.js (renderTempoField, focus/blur listeners), index.html
+             (static seg-on class removed from markup).
+NEXT:        Charlie's rebuild test — the whole-BPM segment should look
+             plain (same as tenths) until actually clicked/tabbed into, and
+             should go back to plain immediately on clicking away, with no
+             stuck-highlighted state in normal use.
+-------------------------------------------------------------------
+DATE:        2026-07-29 (6th pass, same day)
+STATUS:      IMPLEMENTED, verified via headless-Chromium pixel measurement
+             (gapChainToStereo=5px normal spacing, gapStereoToTempo=181px,
+             rightPad=16px matching the left side, survives 5 simulated
+             reorders); PENDING CHARLIE'S BUILD TEST
+AREA:        Chain strip — TEMPO/STEREO split positioning (Charlie's
+             one-word review of the 5th pass's fix: "unfuckingbelievable" —
+             but then asked to move STEREO back)
+FINDING:     The 5th pass's fix (margin-left:auto on #mono-connector) was
+             technically correct by its own logic — verified pixel-exact
+             that the whole end-group sat flush at the strip's right edge —
+             but that's not what Charlie actually wanted once he saw it
+             rendered: pushing the WHOLE group together pulled STEREO away
+             from the chain with a big gap that didn't read right. He wants
+             TEMPO alone anchored to the true right edge, and STEREO back to
+             sitting immediately after the last chain block like it always
+             did — i.e. the visible gap belongs between STEREO and TEMPO,
+             not between the chain and STEREO. Third placement in three
+             passes for this one small area — not a mistake each time, a
+             genuine "reasoned about it, still needed the render in front of
+             him to know for sure" case, same as the 7/28 thumb-alignment
+             saga.
+FIX:         margin-left:auto moved OFF #mono-connector (reverted to empty,
+             its original state) and onto a NEW id — #tempo-slot — added to
+             TEMPO's wrapping .chain-slot (was unnamed, just class="chain-
+             slot"). This anchors ONLY the tempo column to the right edge;
+             STEREO and its connector go back to plain in-flow positioning,
+             landing 5px after the last chain block same as any other
+             block-to-block gap.
+FILES:       index.html only (one id added to markup, CSS moved).
+NEXT:        Charlie's rebuild test — STEREO should sit tight against the
+             last chain block again, TEMPO should stay flush at the strip's
+             right edge, with the (now expected, intentional) gap between
+             them.
+-------------------------------------------------------------------
+DATE:        2026-07-29 (5th pass, same day)
+STATUS:      IMPLEMENTED, verified via headless-Chromium pixel measurement
+             (chainstrip.right - tempoSteps.right == 16px, the strip's own
+             padding, both sides now symmetric); PENDING CHARLIE'S BUILD TEST
+AREA:        Chain strip — TEMPO horizontal position regression from the
+             4th pass, caught by Charlie from the shipped screenshot
+FINDING:     The 4th pass's TEMPO vertical-alignment fix removed
+             #tempo-wrap's margin-left:auto as an "assumed redundant
+             duplicate", reasoning from a 7/24 code comment claiming
+             "margin-left:auto lives on [#mono-connector's] wrapper". That
+             comment was WRONG/stale — #mono-connector's rule was actually
+             empty (`#mono-connector { }`). #tempo-wrap's margin was the
+             ONLY thing holding the whole end-group at the strip's right
+             edge; removing it left ~190px of dead space after TEMPO before
+             the true right border, with the group instead sitting wherever
+             its own content width landed. The earlier headless-Chromium
+             check that pass only measured VERTICAL alignment and reorder-
+             survival — never checked horizontal position against the
+             window edge, so it passed clean while this was already broken.
+             Charlie caught it immediately from the shipped screenshot.
+FIX:         margin-left:auto moved to #mono-connector (the actual first
+             element of the end-group), not restored on #tempo-wrap — this
+             pushes the WHOLE group (connector + badge + tempo) right as one
+             unit, matching original behaviour, rather than pulling tempo
+             away from the badge on its own.
+LESSON:      A stale code comment describing "where a rule lives" was taken
+             as fact instead of verified against the actual CSS before
+             deleting the thing it described. Should have grepped/read the
+             referenced selector directly (`#mono-connector { }`) before
+             removing anything justified by it — the same class of mistake
+             the project's other "ask for code, don't infer" rules exist to
+             prevent, just inside one session instead of across doc-vs-code.
+             Widened this pass's own headless-Chromium check to measure
+             horizontal edge position too, not just vertical baseline.
+FILES:       index.html only (CSS comments + the one margin-left:auto move).
+NEXT:        Charlie's rebuild test — TEMPO should now sit flush at the
+             strip's right edge (matching the left side's padding) AND at
+             the same baseline height as STEREO/the pedal labels.
+-------------------------------------------------------------------
+DATE:        2026-07-29 (4th pass, same day)
+STATUS:      IMPLEMENTED, verified via headless-Chromium render (static +
+             across repeated reorders); PENDING CHARLIE'S BUILD TEST
+AREA:        Chain strip — TEMPO vertical alignment
+FINDING:     Charlie: once the row grew for the graphics-ready layout, TEMPO
+             got left behind — it still floats vertically centered (its old
+             align-self:center) in the now much-taller 140px row, instead of
+             bottom-aligning with STEREO/the pedal labels like everything
+             else does. Agreed placement after discussion: TEMPO stays in
+             its current column and current panel (between the orange line
+             above #topbar and the row below) — just needs to drop DOWN to
+             the same baseline as the rest of the row. That deliberately
+             opens up the space above it (matching a pedal's .chain-thumb
+             height) as the future home for a not-yet-built master-volume
+             control — not empty by accident.
+ROOT CAUSE / FIX: identical mechanism and identical bug shape to the
+             #mono-indicator fix from 7/28. #tempo-wrap wrapped in a real
+             .chain-slot with a hidden .chain-open caret (same construction-
+             guarantees-the-height trick, not a guessed spacer); CSS gets
+             margin-top:auto + the same Charlie-confirmed translateY(12px)
+             nudge already used for #mono-indicator/#chain-input-wrap
+             (kept in sync, not re-derived). margin-left:auto REMOVED from
+             #tempo-wrap — redundant now that #mono-connector's wrapper
+             already pushes the whole end-group (connector + badge + tempo)
+             right as one unit.
+             CAUGHT BEFORE SHIPPING: applyChainOrder (ui.js) grabbed the bare
+             #tempo-wrap and re-appended it every reorder — exactly the same
+             failure that broke #mono-indicator on 7/28 (ripping the label
+             back out of its wrapper on every single chain-map update, since
+             that runs constantly in the real app). Fixed the same way:
+             resolve tempoEl.closest('.chain-slot') and move THAT, before
+             this ever reached a build. Verified with a live simulated chain
+             (10 blocks + 5 repeated reorder cycles) via headless Chromium —
+             tempo-wrap stayed inside its .chain-slot wrapper throughout, not
+             orphaned, and screenshots confirm it sits on the same visual
+             baseline as STEREO/the pedal labels both before and after
+             reorders.
+FILES:       index.html (CSS + markup), ui.js (applyChainOrder's tempo var).
+CONFLICTS:   none.
+NEXT:        Charlie's rebuild test — confirm TEMPO now sits at the same
+             height as STEREO/the pedal labels, and stays there across a
+             real patch nav / front-panel reorder (not just the simulated
+             one above). Master-volume control itself is still NOT YET
+             IMPLEMENTED — this pass only reserves the space for it.
+-------------------------------------------------------------------
+DATE:        2026-07-29 (3rd pass, same day)
+STATUS:      IMPLEMENTED, PENDING CHARLIE'S BUILD TEST — best-effort, flagged
+             by confidence, not filename-confirmed like the effect blocks
+AREA:        Chain row graphics — AMP-CAB thumbnail grouping
+FINDING:     Charlie confirmed the 2nd pass's real graphics on his own build
+             (screenshot: VOL/WAH/DIST/FX LOOP/MOD/DELAY/REVERB all showing
+             real pedal art, scaling correctly with the window +/- zoom
+             controls; DIST/REVERB also correctly swap art on a model
+             change). Asked to fill the still-blank AMP/CAB thumb next,
+             since we do have the 15 amp_*.png assets.
+DECISION:    Unlike the effect blocks (each had an exact 1:1 filename match),
+             the amp table genuinely has no way to be filename-confirmed —
+             15 images for 33 keys, no naming scheme that resolves it fully.
+             Shipped anyway (all 33 keys assigned across the 15 images) with
+             per-group confidence flagged in chain-graphics.js comments:
+               HIGH   — key literally names the image (amp_tweed, amp_bass,
+                        amp_duo, amp_AC, amp_lead800, amp_M2, amp_plx x3,
+                        amp_sl100 x3, amp_treadplate x2, amp_DC_modern x4,
+                        amp_DC_vintage x3, amp_lux x2 [lux_vib/lux_norm])
+               MEDIUM — semantic inference: amp_svt (iconic bass-amp shape)
+                        -> dc_bass; amp_bogner -> rb01b_red/blue/green (the
+                        red/blue/green channel-color naming matches Bogner's
+                        own convention)
+               LOW    — amp_lux reused for black_vib/black_sr/black_mini
+                        (same blackface-Fender era/look as lux_vib/lux_norm,
+                        not a name match); amp_DC30 as a catch-all for the
+                        three true leftovers (j45, blueline, ms30) with no
+                        naming or semantic link found at all — MOST LIKELY
+                        WRONG of the whole table, flagged first-to-check.
+             This is safe to ship best-effort BECAUSE it's cheap to verify:
+             every entry renders as an actual picture next to the AMP MODEL
+             dropdown, so Charlie can click through all 33 amps and spot a
+             wrong grouping on sight — unlike a silent data mistake, a wrong
+             thumbnail is immediately obvious next to the correct dropdown
+             label sitting right beside it.
+BUILT:       chain-graphics.js — CHAIN_AMP_THUMB_FILE_BY_KEY filled (was
+             empty), all 33 keys covered, comments group by confidence as
+             above. Also added CHAIN_CAB_THUMB_FILE_BY_NAME + getCabThumbSrc
+             — 5 of CAB_TYPE_LIST's 15 entries have a real, name-confirmed
+             image (cab_1x12_tweed_lux.png etc., filename literally echoes
+             the dropdown label); the other 10 cab types have NO asset in
+             Avid's own install at all (a real gap, not a mapping miss).
+             BUILT BUT NOT WIRED INTO THE UI YET — the AMP-CAB block only has
+             ONE .chain-thumb box today (shared, amp-only); showing the cab
+             image too needs a second image area in that stack, which is a
+             layout change (the row height/alignment has already broken and
+             been fixed three separate times this project — Session Log
+             7/28 — not something to touch without a live test loop). Left
+             for a dedicated pass.
+             ui.js — setChainThumbImage() extracted as the one shared
+             function both applyChainOrder (every block, on chain-map/
+             reorder) and setCurrentAmp (the AMP-CAB slot specifically) call,
+             so the amp thumbnail also updates immediately on an amp-model
+             change (Phase 12's "amp change refresh" path) instead of lagging
+             one full nav behind the amp-name-display text right next to it.
+CONFLICTS:   none.
+NEXT:        Charlie: click through the AMP MODEL dropdown (all 33) on a
+             rebuild and flag any thumbnail that looks wrong — check the LOW
+             confidence ones first (j45, blueline, ms30, and the three
+             blackface-family entries reusing amp_lux). Separately: wiring
+             the CAB image into the stack is a deliberately deferred, own
+             pass (layout risk, not a data problem).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-07-29 (2nd pass, same day)
+STATUS:      IMPLEMENTED, PENDING CHARLIE'S BUILD TEST — real graphics wired
+             for all 9 non-amp chain-row blocks; amp table deliberately still
+             unresolved (see below)
+AREA:        Chain row graphics — real image wiring, replacing the 1st pass's
+             infrastructure-only scanner
+FINDING:     Charlie shared the real 11R_Image_Paths.txt this session (3934
+             lines, confirmed structure "Eleven <Family> UI.aaxplugin\
+             Contents\Resources\Images\<Name>.png", flat — no further nesting
+             for the ten effect families). This SUPERSEDES the 1st pass's
+             fuzzy-match resolver entirely — with real filenames in hand,
+             direct 1:1 mapping is simpler and safer than guessing via name
+             similarity (which was already shown to false-positive on short
+             names like "EQ" vs "Parametric EQ" during this pass's own
+             design work — dropped before it shipped).
+CONFIRMED REAL FILENAMES (all direct, from the listing, not fuzzy-matched):
+             Distortion: TriKnobFuzz, BlackOpDist, GreenJVCOD (confirms the
+               7/28 spelling-quirk note), WhiteBoost, DCDistortion — 5 images,
+               5 models, no sharing.
+             Delay: TapeEcho, BBDelay, DynDelay (3 images / 7 mids).
+             Modulation: C1Chorus, multichorus, MistressFlanger, OrangePhaser,
+               RotSpeaker, VibePhaser (6 images / 15 mids) — CONFIRMS Roto
+               Speaker belongs to Modulation, which the 1st pass had only
+               flagged [best guess].
+             EQ: EQ, ParaEQ. Dynamics: GrayCompressor, Dyn3. WAH: ShineWah,
+               BlackWah. Volume: Volume (1 image, both variants). FX Loop:
+               FXLoop (1 image, all 7 variants).
+             Reverb: only SpringReverb + StereoReverb (2 images / 5 mids) —
+               names don't literally echo "Blackpanel"/"Eleven SR", so the
+               pairing (Spring->Blackpanel Spring Reverb, Stereo->Eleven SR)
+               is inferred from being the only spring/only-stereo-native
+               model, NOT yet visually confirmed.
+             AmpsCabs: exactly 15 amp_*.png (amp_AC, amp_bass, amp_bogner,
+               amp_DC30, amp_DC_modern, amp_DC_vintage, amp_duo, amp_lead800,
+               amp_lux, amp_M2, amp_plx, amp_sl100, amp_svt, amp_treadplate,
+               amp_tweed) for 32 AMP_SELECT_LIST keys — confirms the 7/28
+               many-to-one note almost exactly (15 vs the earlier "~17"
+               estimate). Tuner: NO flat top-level PNG in Images root at all
+               (only arrows/backgrounds/buttons/knobs/notes subfolders) —
+               unlike every other family; needs its own approach later.
+BUILT:       main.js — walkForAaxImages() families now store {dir, files}
+             (was a flat name array) so the renderer can build a real path,
+             not just know a name exists. Family key is the REAL folder name
+             ("Eleven Distortion UI"), not a guessed short name.
+             src/js/chain-graphics.js — REWRITTEN. CHAIN_BLOCK_FAMILY_BY_MID
+             (real folder names) + CHAIN_BLOCK_THUMB_FILE_BY_MID (direct,
+             confirmed filenames per mid, both above) replace the 1st pass's
+             fuzzy resolver. getChainThumbSrc(modelId) builds a file:// URL
+             from the last scan (pathToFileUrl handles Windows path ->
+             file:// + per-segment encoding for spaces/parens in real Avid
+             folder names). getAmpThumbSrc(ampKey) is the amp-table
+             equivalent — CHAIN_AMP_THUMB_FILE_BY_KEY is INTENTIONALLY EMPTY;
+             the 15-vs-32 grouping needs Charlie's visual confirmation, not a
+             guess (guessing "amp_lux means Lux Vib and Lux Norm but does it
+             also mean Tweed Lux?" is exactly the kind of silent-guess this
+             design was built to avoid).
+             ui.js applyChainOrder — each block's .chain-thumb now shows the
+             real <img> (swapping out the dashed placeholder) when
+             getChainThumbSrc/getAmpThumbSrc resolves one, falling back to
+             the placeholder otherwise (unresolved amps, Tuner, or no scan
+             yet). AMP-CAB's thumb is keyed off currentAmpKey (state.js, the
+             TFX '6dls' identity), not blk.modelId — every amp shares the
+             same generic chain-map mid (0x00 'Eleven'), so modelId alone
+             can't tell them apart.
+             index.html — Settings panel's Scan Folder button now stores the
+             scan (setAvidGraphicsManifest) and immediately calls
+             renderChainRow() so real graphics appear without a patch nav.
+             Also auto-scans once at startup if a folder is already set
+             (silent, best-effort) so a rebuild shows real graphics
+             immediately rather than needing a manual re-scan every launch.
+             New .chain-thumb-img <img> element added to all 10 static chain
+             slots (9 effect blocks + AMP-CAB stack), hidden by default.
+CONFLICTS:   None with app behavior. Supersedes this morning's 1st-pass
+             resolveChainGraphics()/CHAIN_NAME_ALT_TOKENS — deleted, not kept
+             alongside, since the direct table makes it dead code.
+NEXT:        Charlie: (1) Settings -> set Avid Graphics Folder (the real
+             install path he already has: C:\Program Files\Avid\Eleven Rack
+             Editor\System Plug-Ins) -> Scan Folder -> confirm the 9 non-amp
+             effect blocks now show real pedal graphics on their next chain
+             nav. First time this renders in the real app. (2) Visually
+             confirm the Reverb pairing (Spring/Stereo, inferred above) and,
+             separately, work out the amp 15-to-32 grouping (which amp_*.png
+             covers which AMP_SELECT_LIST keys) so
+             CHAIN_AMP_THUMB_FILE_BY_KEY can be filled in — this needs eyes
+             on the actual images, not something to guess from filenames
+             alone. (3) Tuner thumbnail needs a different resolution approach
+             later (no flat top-level image exists for it).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-07-27 (review)
 STATUS:      [FOLDED IN: Technical Reference Sec 14 (WorB annotation +
              operating-mode hypothesis), Sec 24]
@@ -281,6 +589,939 @@ OPEN:        Does AMP-CAB have a special rule too? Avid drags an adjacent loop
 NEXT:        Deferred by agreement 7/19. Current drag behaviour is correct and
              working; this is feel, not function. Revisit after the effect
              panel work.
+UPDATE 7/27 (evening): effect panel work (DIST, REVERB) is done, so this is
+             next in line. Charlie re-verified both open questions directly
+             against the Avid editor rather than trust the original note.
+
+  STATIC LEGALITY RULE — CONFIRMED, NO CODE CHANGE NEEDED. Charlie supplied a
+  full 10x10 table of every legal AMP-CAB x LOOP position pair. Checked by
+  hand against ui.js's existing legalLoopIndices()/enforceLoopPlacement()
+  (computeReorder's insertion-index math: legal = {0, ampIndex, ampIndex+1,
+  length}) for AMP-CAB at 1, 3, 5, 8, 9 and 10 — every row matched. Plain-
+  English version of the invariant: LOOP is legal ONLY at position 1,
+  position 10, or immediately adjacent to AMP-CAB (either side). That is
+  already what the code enforces today. This was the part of the OPEN
+  question below that turned out to already be correct.
+
+  LIVE-DRAG "LINKED BLOCK" RULE — newly derived from Charlie's direct testing,
+  NOT yet re-checked a second time, treat as strong-but-unconfirmed until
+  implementation testing backs it up:
+    1. Dragging AMP-CAB while LOOP sits immediately adjacent to it (either
+       side, NOT already parked at position 1 or 10): LOOP moves WITH it,
+       same direction, same distance, staying stuck on the same side — i.e.
+       they behave as one linked "super block" while this holds.
+    2. That linked pair stops when LOOP would be pushed past position 1 or
+       10 — LOOP hits the physical end of the chain and the whole drag halts
+       there (AMP-CAB ends up one-in from the end, LOOP AT the end).
+    3. Once LOOP is parked at an end this way, grabbing AMP-CAB again lets it
+       roam completely freely through every other slot — LOOP sitting at an
+       end is legal regardless of AMP-CAB's position, so they un-link.
+    4. Grabbing LOOP directly (AMP-CAB now fixed somewhere) only lets LOOP
+       hop between whatever few slots are legal for that AMP-CAB position —
+       this part is the EXISTING jump-between-legal-stops behaviour (see
+       FINDING above), unchanged.
+    5. Confirmed symmetric: works the same whichever side of AMP-CAB LOOP
+       starts on (mirrors left/right), and the same whichever direction is
+       dragged.
+  So of the two things this entry originally flagged as open, only #1-3 above
+  are actually new work — the jump-between-stops behaviour (#4) was already
+  built. The net new piece is small: "when AMP-CAB moves and LOOP is touching
+  it, move LOOP the same amount until LOOP hits an end."
+
+  WHY THIS MATTERS ENOUGH TO FIX (Charlie's words, paraphrased): with the
+  current drop-only reorder, you can't see what's about to move while
+  dragging, and the missing linked-block behaviour makes some legal
+  arrangements very hard or effectively impossible to land deliberately.
+NEXT:        Implement per APPROACH above (live speculative-order preview)
+             PLUS the linked-block rule above. Re-confirm the linked-block
+             rule empirically during implementation before relying on it,
+             per the NOT yet re-checked note.
+STATUS:      IMPLEMENTED 7/28, PENDING CHARLIE'S BUILD TEST — not yet
+             confirmed against the real app/hardware.
+UPDATE 7/28: Built in ui.js (computeReorder rewritten, computeLinkedAmpLoopReorder
+             added, applyChainOrder extracted, renderChainRow guarded against
+             chainDragActive). Before touching the real app, verified the pure
+             reorder math with a standalone Node simulation of every scenario
+             Charlie described (both AMP-then-LOOP and LOOP-then-AMP starting
+             arrangements, dragging AMP, dragging LOOP, hitting both ends).
+             CAUGHT A REAL BUG this way: the first version treated LOOP as
+             "linked" whenever merely adjacent to AMP-CAB, which wrongly kept
+             dragging LOOP along even after it reached position 10 (an end,
+             legal on its own). Fixed: linked now also requires LOOP is NOT
+             already at either end. All scenarios matched after the fix.
+             This does NOT replace a real build test — the simulation only
+             proves the array math, not the actual on-screen drag feel, CSS,
+             or anything DOM/browser-specific, none of which can run here.
+UPDATE 7/28 (later, after Charlie's build test): confirmed exactly the gap
+             flagged above — the reorder MATH was right, but native HTML5
+             drag-and-drop itself was not usable. Symptom: cursor flickered
+             between ok/no-drop, worst on the LOOP<->AMP-CAB swap (9,10) which
+             showed the two block labels flashing back and forth at high
+             speed; some moves that should work felt "impossible" over many
+             attempts. ROOT CAUSE: applyChainOrder moves the actual dragged-
+             over divs in the DOM on every preview update, and native drag-
+             and-drop does its own hit-testing of whatever's under the cursor
+             — moving those elements out from under a native drag confuses
+             that tracking. This is a known limitation of native HTML5 DnD,
+             not something the reorder math could have caught.
+FIX:         Replaced native drag-and-drop with plain mousedown/mousemove/
+             mouseup tracking in wireChainDrag (ui.js) — the same pattern
+             already used for every knob in this app. A movement threshold
+             (CHAIN_DRAG_THRESHOLD = 4px) distinguishes a real drag from a
+             plain click, since native DnD used to do that distinction for
+             free via its own drag-start heuristic. document.elementFromPoint
+             does fresh hit-testing on every move, so it is not confused by
+             applyChainOrder having just relocated things (unlike native DnD's
+             event-target tracking). draggable="true" and its CSS removed —
+             no longer meaningful once native DnD is gone.
+STATUS:      RE-IMPLEMENTED 7/28 on mouse-tracking, PENDING CHARLIE'S REBUILD
+             TEST. The reorder math itself (computeReorder, the linked rule)
+             is unchanged from the version already confirmed correct by
+             simulation — only the input mechanism changed.
+UPDATE 7/28 (later, after 2nd rebuild): mouse-tracking fixed the flicker and
+             "impossible" moves — Charlie confirmed all moves now seem
+             possible, matrix not yet fully retested. New gap found: no
+             visual follows the cursor while dragging (native DnD used to
+             draw one automatically; mouse-tracking does not). FIXED:
+             createChainDragGhost (ui.js) — a cloned, pointer-events:none,
+             position:fixed element that tracks the cursor with a z-index
+             above everything, offset by where within the block it was
+             grabbed. Original block stays in the flex flow, dimmed, as the
+             "where it will land" placeholder (unchanged from before); the
+             ghost is the separate "what you're carrying" visual on top of
+             it. document.body.cursor forced to 'grabbing' for the duration
+             so the cursor icon stays consistent regardless of what's
+             underneath. Charlie also mentioned "a timing var in play" during
+             drags — NOT YET UNDERSTOOD, asked him for specifics (what
+             exactly he's seeing) rather than guess at a fix.
+UPDATE 7/28 (later still): two follow-ups from the ghost, requested
+             together but handled as two separate items (Charlie: "chip away
+             at a thing or two", both genuinely coupled to explain at once):
+  1. SUPERBLOCK GHOST — DONE. The code already knows when a drag is the
+     linked AMP-CAB+LOOP case (that was the whole point of computeReorder's
+     "linked" check). Extracted it into linkedAmpLoopInfo(fromSlotId,
+     baseOrder), shared by computeReorder AND createChainDragGhost, so there
+     is exactly one answer to "is this linked" instead of two copies that
+     could drift apart. createChainDragGhost now takes an optional partner
+     container + which side it's on, and builds a two-block ghost (both
+     clones side by side, correct relative order) when linked, a normal
+     single-block ghost otherwise. Verified the refactor changed nothing by
+     re-running the standalone simulation from the earlier pass — identical
+     results before and after extracting the shared helper.
+  2. SMOOTH "BLOCKS REACT AS THE GHOST PASSES" ANIMATION — NOT STARTED,
+     explained but not built. Charlie: dragging shows no equal-and-opposite
+     motion of the blocks the ghost passes over; the reorder just snaps to a
+     new arrangement once the cursor crosses a midpoint, instead of those
+     blocks visibly sliding out of the way as you approach. This is a
+     genuinely separate, bigger animation feature — plain CSS transitions do
+     not animate a flex reorder for free (changing DOM order is an instant
+     reflow); doing it properly needs the FLIP technique (measure position
+     before the reorder, reorder, measure after, animate a compensating CSS
+     transform back to zero) applied inside applyChainOrder. Deferred as its
+     own chip rather than folded into this pass.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED, PENDING CHARLIE'S BUILD TEST
+AREA:        Chain drag — position-1 room problem
+FINDING:     Charlie: dragging toward position 1 is hard because there's
+             barely any room between the chain strip and the window's left
+             edge before the drag runs out of space to cross into "before"
+             territory — WAH (or whatever occupies position 1) sits right at
+             x=0 with nothing to its left. Two fixes, both agreed:
+FIX 1        (code only): position 1's ENTIRE width now counts as "land here"
+             — not just its left half past the midpoint, which was the part
+             requiring room that isn't there. No position becomes unreachable:
+             landing right after this same block is still reachable via the
+             SECOND block's left half, so this only removes a cramped,
+             redundant path. ui.js wireChainDrag's mousemove handler: when
+             the hovered target is chainDragStartOrder[0] (whatever started
+             in position 1 for THIS drag), `after` is forced false instead of
+             computed from cursor position.
+FIX 2        (layout): a passive, READ-ONLY clone of the active INPUT
+             selection (GUITAR/MIC/LINE/DIGITAL) now sits at the very start
+             of the chain strip, before position 1, with its own single-line
+             ("mono" styled — it's one signal entering the chain, not a
+             stereo pair) connector leading in. This shifts the whole chain
+             row right, creating the missing room, while giving that space a
+             reason to exist instead of being bare margin (Charlie's framing:
+             filling it with real state reads as deliberate, not broken).
+             NOT a new control — mirrors setInputButtons(), which is the
+             single source of truth already driving the real buttons above;
+             the clone can't drift out of sync because it's set in the same
+             function call, same place. Considered and explicitly REJECTED:
+             a functional input dropdown here replacing the top-row buttons
+             — input switching is its own documented weak spot (Primer:
+             "reflect live input / stop forcing Guitar... future global-
+             settings work") and conflating that unfinished work with a chain-
+             drag usability fix was the wrong scope for this pass.
+GOTCHA FOUND: applyChainOrder's arrow-recycling loop selects `.chain-arr` and
+             excludes #mono-connector by id to avoid hijacking it as a
+             between-block connector — the new #chain-input-connector is also
+             .chain-arr and needed the same exclusion, or the loop would have
+             stolen it as one of the real connectors and thrown the block<->
+             arrow pairing off by one. Fixed before it ever reached a build.
+FILES:       index.html (markup + CSS), ui.js (setInputButtons extended,
+             wireChainDrag's after-calculation, applyChainOrder's arrow
+             selector).
+NEXT:        Charlie's build test. Confirm: (1) can now comfortably drag to
+             position 1, (2) input clone tracks GUITAR/MIC/LINE/DIGITAL
+             correctly and never drifts from the real buttons, (3) connector
+             arrows elsewhere in the chain still pair with the right blocks
+             (the gotcha above, in case anything was missed).
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED (structure), PENDING CHARLIE'S BUILD TEST. Real Avid
+             images NOT wired up yet — see NEXT.
+AREA:        Chain row — graphics-ready layout + drag-handle split
+FINDING:     Charlie shared two screenshots (Avid's real graphic row vs. ours)
+             plus a POC HTML file built the day before, then a full real
+             folder listing off an actual Avid Editor install. Confirmed
+             design, revised from the original 7/19 plan after the POC:
+               - Row grows uniformly to ~110px for EVERY block, always — not
+                 mixed heights depending on which blocks happen to have a
+                 resolved image (the original plan's assumption). A missing
+                 image is a same-size dummy placeholder, never a shorter block.
+               - The image (or dummy box) becomes the drag handle, matching
+                 Avid's own editor. Deliberate secondary benefit: this removes
+                 the drag/bypass-click conflict Charlie reported ("the clicker
+                 is also the drag handle") by giving each control its own
+                 element instead of sharing one.
+             POC file details (chainrowpoc4.html, extracted images actually
+             viewed, not just read as code): .img-area holds either the real
+             pedal <img> or a dashed .img-placeholder div; a "_sel" image
+             turned out to just be a generic amber rounded-rect outline (not
+             a per-pedal custom asset) — worth doing as CSS instead of another
+             image dependency when the real selection-highlight gets built.
+BUILT:       index.html — .chain-thumb (dummy placeholder for now) added
+             above every block's label; #chainstrip height 62px->110px,
+             align-items center->flex-end (bottom-aligns every child,
+             including the INPUT clone / STEREO badge, now wrapped in
+             .chain-label-group with a matching spacer); .chain-arr
+             justify-content center->flex-end + padding-bottom so connector
+             lines sit at label height, not centered in the taller row.
+             ui.js — wireChainDrag's mousedown now requires the target to be
+             inside .chain-thumb specifically (was the whole slot); new
+             chainDragThumb tracks it for the .dragging class and as the
+             drag-ghost clone source (ghost is now thumb-sized, not the whole
+             label+caret stack — also a better match for Avid's own ghost
+             size). Settings panel: "Avid Editor Folder" renamed "Avid
+             Graphics Folder" (index.html, main.js's browse-avid-dir dialog
+             title) — reflects that a live Editor install is no longer
+             required, just a folder containing the plugin structure.
+REAL FOLDER DATA (Charlie provided the actual listing, not a guess):
+             11R_Image_Paths.txt — 3934 lines / 3623 PNGs, 11 plugin folders
+             (AmpsCabs, Delay, Distortion, Dynamics, EQ, FX Loop, Modulation,
+             Reverb, Tuner, Volume, WAH). CONFIRMED: thumbnails live at
+             <Plugin>.aaxplugin\Contents\Resources\Images\<Name>.png (Charlie's
+             own guess of "root of Resources" was one level too shallow —
+             Resources root only holds per-model GUI XML, checked directly
+             against the Distortion and Reverb folders). Avid spells it
+             "GreenJVCOD" not "GreenJRCOD" (same family of quirk as the
+             already-noted "MultiChorus spelled two ways"). AMP IMAGES ARE
+             MANY-TO-ONE: only 17 amp_*.png files exist for 33 documented amp
+             models — several amps share one thumbnail (same physical
+             chassis). The mapping table has to be built with that in mind,
+             not assumed one row per amp. This raw listing lives only in
+             Charlie's upload to this session, same as any other capture
+             evidence (pcapng files etc.) — not committed to the repo.
+FOLDER-DEPTH DECISION: the eventual loader should search the chosen folder
+             RECURSIVELY for the plugin image structure rather than require
+             one exact depth (Editor root vs. System Plug-Ins vs. something
+             else) — this is what lets a copied-out, no-longer-installed
+             subset of Avid's folder still work, which matters most for
+             Windows 11 users who may never run a live Avid install at all
+             (BSOD risk) and would only ever have a one-time copied folder.
+MAPPING TABLE ARCHITECTURE: the MID->filename table is CODE DATA, not
+             documentation — belongs in its own new JS file (pattern: like
+             fx-transport.js/fx-panels.js), never pasted into a doc as a raw
+             table. Docs keep a short pointer + gotchas only (folded into
+             Primer GRAPHICS section same day).
+NEXT:        (1) Charlie's build test of the drag-handle split + taller row
+             (dummy boxes only right now). (2) Separately, later: the
+             recursive graphics-folder scanner (main.js) and the actual
+             MID->filename mapping file, built from the real listing above,
+             with uncertain/ambiguous matches flagged for Charlie to confirm
+             rather than guessed silently. (3) Still waiting, unrelated:
+             Charlie's screen-capture video of Avid's drag flow, for the
+             separate "drag smoothness" question.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED, PENDING CHARLIE'S REBUILD TEST
+AREA:        Chain row graphics-ready layout — visual polish pass
+FINDING:     Charlie's first build test of the drag-handle layout: "drag is
+             amazingly better already, but still not solved" (separate,
+             already-tracked issue). Three visual problems from a screenshot:
+               1. Placeholder thumb nearly invisible — #2a2a2a dashed border
+                  on #161616 fill barely showed against #chainstrip's #181818.
+               2. Blocks "butt right up against" what Charlie read as a lower
+                  orange separator, wanting more breathing room. CHECKED THE
+                  ACTUAL CSS: there is only ONE true orange divider in that
+                  area (#topbar's border-bottom, var(--accent-dim)). The
+                  perceived "second" one is almost certainly REVERB's own
+                  selected-state highlight (also amber, since it's the
+                  currently open panel) — not a separator that was built,
+                  just a color coincidence. Real underlying issue: the thumb+
+                  label+caret stack (~106-110px) was filling the 110px row
+                  with essentially zero top or bottom padding.
+               3. INPUT clone / STEREO badge "lost their centered
+                  appearance... clean bookends" — the 7/28 earlier-pass fix
+                  wrapped both in a .chain-label-group + spacer specifically
+                  to bottom-align them with the pedal-thumb slots. That was
+                  the wrong call: they're meant to float centered regardless
+                  of the taller row, independent of the thumb-slots.
+FIX:         (1) .chain-thumb-placeholder recolored to #1e1e1e fill / #555
+             border — reuses the exact DIST/REVERB knob-wrapper palette
+             already established elsewhere, so it's consistent with the
+             app's existing visual language rather than a new one-off color.
+             (2) #chainstrip height 110px->130px, padding 0 16px ->
+             6px 16px 8px — real top and bottom breathing room instead of
+             content touching the row's edges.
+             (3) .chain-label-group/.chain-thumb-spacer REMOVED — reverted
+             #chain-input-wrap and #mono-indicator to their original flat
+             structure with align-self:center directly on each, restoring
+             the pre-7/28 centered "bookend" look regardless of the taller
+             thumb-slots around them. Also widened #mono-indicator 58px ->
+             70px to match #chain-input-wrap's width, per Charlie's own
+             suggested fix ("if stereo/mono button is smaller... increase
+             the stereo/mono to match").
+FILES:       index.html only (CSS + markup revert of the label-group wrapper).
+NEXT:        Charlie's rebuild test. Also: Charlie is trying to get a phone-
+             recorded video of Avid's drag flow to a postable size/bitrate —
+             video editing is unfamiliar territory for him, may take another
+             pass or two to land.
+UPDATE 7/28 (same day, immediately after): align-self:center OVERCORRECTED —
+             sat noticeably higher than the other blocks' labels (true center
+             of 130px vs. their bottom-aligned position). FIXED by wrapping
+             both badges in the actual .chain-slot structure with a real,
+             visibility:hidden .chain-open caret underneath — matches the
+             other blocks' baseline by construction (same elements, same
+             height) rather than a third guessed number. Two guesses wrong in
+             a row on this one (too low, then too high) before landing on
+             "reuse the real element" as the reliable fix.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      ROOT CAUSE FOUND AND FIXED, verified live before shipping
+AREA:        Chain row — STEREO badge orphaned from its wrapper on every reorder
+FINDING:     Charlie's next test: height fix confirmed good (GUITAR now roughly
+             matches REVERB's height), but the WHOLE ROW appeared shifted too
+             far right, with a gap after GUITAR bigger than any other gap.
+             Two wrong guesses in a row on this general area already — this
+             time, rather than guess a third fix, actually rendered the real
+             app: installed ffmpeg + used the pre-installed headless Chromium
+             in this environment to load src/index.html directly and screenshot
+             it via the DevTools protocol, including simulating a real chain
+             reorder (setting currentChain and calling applyChainOrder
+             directly, the same function the live app calls on every CMD 0x21).
+             That reproduced it immediately and made the cause obvious: static
+             page load looked fine, but ANY reorder broke it.
+ROOT CAUSE:  applyChainOrder (ui.js) does
+               const mono = document.getElementById('mono-indicator');
+               ... strip.appendChild(mono);
+             at the end of every call, to keep the STEREO badge pinned to the
+             end of the row. That grabs the bare label — but the 7/28
+             "bookend" fix wrapped #mono-indicator in a .chain-slot (with a
+             hidden real .chain-open caret) so it would bottom-align like every
+             other block. Re-appending the bare label ripped it straight back
+             out of that wrapper. Since applyChainOrder runs on every single
+             chain-map update — i.e. constantly, in the real app — the wrapper
+             fix was being silently undone almost immediately after every nav,
+             leaving an orphaned empty .chain-slot sitting in the flow (the
+             extra gap Charlie saw) and the badge drifting back toward plain
+             align-self:center behavior once orphaned. The #chain-input-wrap
+             (GUITAR) clone was NOT affected — nothing in ui.js moves it
+             directly, only .textContent via setInputButtons.
+FIX:         mono is now resolved as the WRAPPER, not the label:
+               const monoLbl = document.getElementById('mono-indicator');
+               const mono = monoLbl ? monoLbl.closest('.chain-slot') : null;
+             VERIFIED before shipping, not just fixed-and-hoped: re-ran the
+             exact same live reorder test against the fixed code (reload +
+             re-simulate a CMD-0x21-style reorder + screenshot) — GUITAR,
+             REVERB and STEREO all landed on the same baseline with no
+             orphaned gap.
+LESSON:      This environment can actually render and screenshot the app
+             (ffmpeg + headless Chromium + CDP for live JS/reorder simulation
+             were all available/installable) — worth doing THIS, not more
+             guessing, whenever a visual bug survives one attempted fix. The
+             two earlier guesses on the bookend height were reasonable
+             attempts at limited information; this one had the tool to check
+             directly and should have been reached for sooner.
+FILES:       ui.js only (applyChainOrder's mono resolution).
+NEXT:        Charlie's real rebuild test — this was verified in a synthetic
+             headless render, not the actual Electron app end to end.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      ROOT CAUSE FOUND AND FIXED, verified live before shipping
+AREA:        Chain row — AMP/CAB thumb sat 10px higher than every other
+             block's thumb; GUITAR/STEREO bookends still felt "~5px too high"
+FINDING:     Charlie flagged two things off the latest build, both precise:
+             (1) AMP/CAB's dummy thumb looked smaller than the others', and
+             (2) GUITAR/STEREO still read as sitting too high, worried a real
+             fix would "snowball" into growing the whole panel. Measured both
+             via the same live-CDP technique (getBoundingClientRect, not
+             eyeballing) instead of guessing a third time:
+               - AMP thumb and WAH thumb were IDENTICAL size (64x60) — not
+                 smaller at all. But AMP's thumb top sat at y=62 vs WAH's
+                 y=72: same box, 10px higher, read as "smaller" because of
+                 the reduced headroom above it.
+               - GUITAR/STEREO's label BOTTOMS already exactly matched
+                 WAH's label bottom (166=166) — already correctly aligned.
+                 The "too high" feeling was optical weight, not position:
+                 11px font / 3px padding vs. the real .chain-name's 13px /
+                 5px.
+ROOT CAUSE:  #chainstrip used align-items:flex-end, which bottom-aligns each
+             .chain-slot/.chain-slot-stack at ITS OWN natural content height.
+             AMP/CAB's stack (2 stacked name-labels) is naturally 122px vs a
+             normal slot's 112px (1 label + 1 caret) — 10px taller — so its
+             thumb (the first child) started 10px higher to make the bottoms
+             still line up. Same-size box, different top.
+FIX:         #chainstrip switched align-items: flex-end -> stretch, so every
+             slot is stretched to exactly this row's own content-box height
+             (one number, tuned in #chainstrip alone — no duplicated magic
+             height on the slot classes themselves). Inside each slot,
+             margin-top:auto on the label element right after the thumb
+             (.chain-name, .chain-name-stack:first-of-type, and — for the
+             thumb-less GUITAR/STEREO bookends — #chain-input-wrap /
+             #mono-indicator directly) pins the label group to the BOTTOM
+             and lets the GAP above it (between thumb and label) absorb the
+             slot's height instead. Every thumb now starts at the same Y
+             regardless of how many labels follow it. #chainstrip's height
+             bumped 130 -> 140px — the smallest bump that clears AMP/CAB's
+             natural 122px content plus a few px of top breathing room; this
+             does NOT touch or grow the effect-panel area below the chain
+             row, so the "snowball" Charlie was worried about (thumb fix ->
+             taller slots -> bigger panel -> more inconsistency elsewhere)
+             does not happen — it's a single bounded number in one place.
+             GUITAR/STEREO's font-size/padding bumped 11px/3px -> 13px/5px
+             to match .chain-name's real weight (their position was already
+             correct; this was purely visual weight parity).
+VERIFIED:    Live CDP render before shipping (not guessed): reloaded, re-
+             measured — WAH thumb top and AMP thumb top both now 70 (exact
+             match); WAH/GUITAR/STEREO label bottoms all now 176 (exact
+             match); no overflow past #chainstrip's own box. Also re-ran the
+             same simulated-reorder test from the previous entry (set
+             currentChain, call applyChainOrder) against the new markup —
+             STEREO badge stayed correctly wrapped, alignment held through a
+             reorder, not just on static load. Screenshotted both states.
+FILES:       index.html only (#chainstrip, .chain-name, .chain-name-stack,
+             #mono-indicator, #chain-input-wrap CSS).
+NEXT:        Charlie's real rebuild test.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      ROOT CAUSE FOUND AND FIXED, verified live before shipping
+AREA:        Chain drag — reorder trigger point depended on where you grabbed
+             the block, not just how far you dragged
+FINDING:     Charlie: "it seem to matter where I place the mouse on the source
+             block with regards to how it triggers... movement of other chain
+             items." Read wireChainDrag's mousemove handler (ui.js) directly
+             rather than guess: the hit-test used the raw cursor position
+             (document.elementFromPoint(ev.clientX, ev.clientY), and the
+             before/after midpoint check ev.clientX > r.left + r.width/2)
+             instead of the dragged block's own position.
+ROOT CAUSE:  chainDragOffsetX (cursor position within the grabbed thumb,
+             captured at mousedown) is already used correctly to keep the
+             ghost visually anchored to the same grab point — but the hit-
+             test math never applied that same offset, so it worked off the
+             naked cursor. Grab the thumb near its left edge vs. its right
+             edge (a ~50px spread on a 60px-wide thumb) and the SAME physical
+             drag motion crosses a neighboring block's trigger boundary at
+             different points, because the cursor's absolute position
+             relative to the dragged block's own edges depends on where you
+             grabbed it.
+FIX:         Compute the dragged block's own effective center once per move —
+               dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth/2
+               dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight/2
+             — and use THAT (not ev.clientX/clientY) for both the
+             elementFromPoint hit-test and the before/after midpoint check.
+             Same pattern the ghost's own positioning already used, just
+             applied to the trigger logic too. No new state, no architecture
+             change, one function.
+VERIFIED:    Live CDP simulation before shipping (not guessed): seeded a
+             chain, dispatched real mousemove events dragging WAH
+             toward FX2 with two very different grab offsets (5px and 55px
+             into the thumb) but back-solved so the DRAGGED BLOCK'S effective
+             center landed at the identical point both times — raw cursor X
+             was 588 in one case and 638 in the other (a 50px spread), yet
+             both produced the exact same resulting order (WAH landing right
+             before FX2). Confirms the trigger point is now a function of the
+             block's own position, not the grab offset.
+FILES:       ui.js only (wireChainDrag's mousemove handler).
+NEXT:        The bigger, separate piece — replacing the floating ghost with
+             the real block sliding smoothly (FLIP-style animation), matching
+             Avid's own drag behavior confirmed from Charlie's screen
+             recording (no ghost, just the block moving). Deliberately not
+             started this session; do it in its own dedicated session/chat.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      RESOLVED — verified pixel-for-pixel against the approved render,
+             after shipping the wrong mechanism once
+AREA:        Chain row — GUITAR clone / STEREO badge vertical position
+FINDING:     After the day's earlier bottom-alignment fix (matching WAH's
+             LABEL bottom, 176px), Charlie said the bookends "aligned well
+             just not where I want them." He then asked to lower the whole
+             box and drew the target spot on a screenshot. Rather than guess
+             a pixel number, rendered 4 concrete options (translateY 0/6/12/
+             18px, applied on top of whatever the loaded page's CURRENT
+             structure was) and had Charlie pick directly from the pictures.
+             He picked "offset 12."
+MISTAKE:     Shipped the wrong thing anyway. Wrongly assumed the "baseline"
+             for that 4-way test was a markup change made earlier the same
+             session (reordering the hidden .chain-open caret to come BEFORE
+             the label, so the box would land flush with the real ARROW's
+             bottom instead of the label's, bottom=194 instead of 176) — that
+             edit had in fact NOT persisted to the file when the 4-way test
+             was generated (never fully explained why; no destructive git
+             command ran in between). So "offset 12" was actually rendered
+             against the ORIGINAL unswapped structure (176px baseline), not
+             the swapped one. Finalized CSS as swapped-structure + 12px
+             (bottom=206) without re-checking against the approved picture
+             first — Charlie caught it immediately on the real rebuild:
+             "we agreed to what I attached not what you just created."
+FIX:         Reverted the caret-reorder entirely — back to the ORIGINAL
+             markup (visible label first, hidden caret second). The ONLY
+             real change is transform: translateY(12px) on #mono-indicator
+             and #chain-input-wrap, added on top of the existing
+             margin-top:auto bottom-pin, applied to the unswapped structure.
+VERIFIED:    This time by PIXEL COMPARISON, not just CDP coordinates — used
+             Pillow to scan the actual approved screenshot
+             (bookend_offset_12.png) for the green box's rendered rows
+             (161-187), then rendered the corrected code and scanned it the
+             same way: also 161-187, exact match. Also ran a full-image diff
+             between the two renders — the only remaining difference is the
+             already-separately-approved arrow-glyph removal (see next
+             entry), nothing in the bookend area.
+LESSON:      CDP's getBoundingClientRect is only ground truth for the DOM
+             state actually on screen — it can't catch "the structural
+             change I think is active isn't actually the one that's active."
+             When a fix depends on an earlier edit that was made across
+             several tool calls / turns, re-verify that earlier edit is
+             STILL PRESENT (git diff, or re-read the file) before building
+             the next step on top of it, rather than trusting memory that it
+             landed. For a visual "does this match the picture I approved"
+             question specifically, compare actual pixels (or at minimum the
+             same measurement method) against the approved file itself, not
+             a re-derived number.
+FILES:       index.html only (#mono-indicator, #chain-input-wrap CSS —
+             transform: translateY(12px) — markup is back to original,
+             untouched).
+NEXT:        None — Charlie confirmed this is the correct position.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      CONFIRMED SAFE AND REMOVED
+AREA:        Chain row — leftover "▶" placeholder glyphs between blocks
+FINDING:     Charlie noticed the "▶" arrows between chain blocks only ever
+             appear briefly while the bridge is connecting, and asked
+             whether they still serve any purpose — legacy from the very
+             first chain-row effort, before the stacked-line mono/stereo
+             connector system existed.
+ROOT CAUSE:  Confirmed by reading the code: renderChainRow() (ui.js) returns
+             immediately if currentChain is empty, so applyChainOrder never
+             touches the .chain-arr divs until a real CMD 0x21 chain map
+             arrives. Until then, whatever sits in the static HTML is just
+             sitting there unused — and that static content was the literal
+             "▶" glyph, dead leftover markup with zero functional role.
+FIX:         The nine between-block .chain-arr divs in index.html now start
+             empty (<div class="chain-arr"></div>) instead of containing
+             "▶". #chain-input-connector and #mono-connector were NOT
+             touched — those already start with real <i> line markup, not
+             the legacy glyph, so they were never part of this.
+VERIFIED:    Live CDP check both ways — blank gaps confirmed on a pre-
+             connect static load, AND a simulated CMD 0x21 (calling
+             renderChainRow() with a seeded currentChain) confirmed all nine
+             arrows still correctly repopulate with real <i> line markup,
+             proving nothing reads or depends on the old placeholder text.
+FILES:       index.html only (.chain-arr static markup).
+NEXT:        None.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED, verified live via simulated drag — NOT YET tested
+             by Charlie on real hardware (new session, real-hardware test
+             comes later)
+AREA:        Chain drag — removed the floating ghost, real blocks slide
+FINDING:     Charlie's screen recording of Avid's own editor (reviewed
+             earlier this session) showed no separate ghost during a drag at
+             all — just the real block sliding smoothly into its new spot as
+             you drag over neighbors. Our own drag used a cloned floating
+             element (createChainDragGhost) that followed the cursor while
+             the real blocks snapped instantly into their preview positions
+             underneath it — functionally fine, but visually nothing like
+             Avid's feel, and flagged as its own follow-up back when the
+             thumb-position/bookend work was done the same day.
+FIX:         Deleted createChainDragGhost() and all its state
+             (chainDragGhost, chainDragGhostAdjustX) entirely — no more
+             clone, no more separate "what you're carrying" visual. Added
+             applyChainOrderAnimated(order), a FLIP animation (First/Last/
+             Invert/Play) that wraps the existing applyChainOrder: sample
+             every mover's (.chain-slot/.chain-slot-stack/.chain-arr)
+             on-screen rect before the reorder, let the existing instant
+             DOM-move happen, then paint each moved element back at its OLD
+             spot via translateX and animate it to its new spot with a CSS
+             transition — so the REAL blocks slide instead of snapping.
+             wireChainDrag's live-preview call site now calls
+             applyChainOrderAnimated(next) instead of applyChainOrder(next)
+             directly. renderChainRow() (the real-hardware chain-map path)
+             was deliberately LEFT UNANIMATED — this only touches the live
+             drag preview, matching the scope of what was asked.
+             Slide duration is a new constant, CHAIN_SLIDE_MS = 150 — a
+             first-guess common UI default, explicitly NOT derived from
+             anything Avid-specific (the video showed smoothness, not a
+             measured duration). Treat it as the one number to tune after
+             Charlie's real feel-check, not a finalized value.
+             Bonus simplification: the old ghost had special-case code to
+             show BOTH blocks side-by-side when dragging the linked AMP-CAB+
+             LOOP pair, so "these two travel together" was visible during
+             the drag. That's no longer needed — since both blocks are REAL
+             DOM elements now (not a clone), they both get FLIP-animated
+             together automatically when the linked reorder moves them, so
+             they visibly slide in sync with no dedicated code for it.
+VERIFIED:    Live CDP simulation (real hardware not available for this
+             session — Charlie confirmed 7/28 he only ever tests against the
+             actual EXE connected to real hardware, so this is deliberately
+             flagged unverified end-to-end): simulated a full mousedown /
+             mousemove / mousemove / mouseup drag sequence dragging WAH
+             toward FX2 on a seeded currentChain. Confirmed: (1) zero
+             .chain-drag-ghost elements exist at any point during the drag,
+             (2) six affected elements (including the dragged WAH block
+             itself, not just its neighbors) show transition:"transform
+             150ms" actively set immediately after a reorder-triggering
+             move, proving the animation genuinely engages on the real
+             elements, (3) chainPreviewOrder ends correct (WAH landed before
+             FX2 as expected), (4) chainDragSlot properly resets to null
+             after mouseup, (5) no stale transition/transform inline styles
+             remain ~400ms after the drag ends — the transitionend cleanup
+             fires correctly, (6) a mid-drag screenshot shows a clean,
+             correctly-ordered row with no visual artifacts.
+FILES:       ui.js only (createChainDragGhost removed; applyChainOrderAnimated
+             + CHAIN_SLIDE_MS added; wireChainDrag's mousedown/mousemove/
+             endChainDrag trimmed of all ghost bookkeeping).
+NEXT:        Charlie's real rebuild/hardware test — this is the first
+             priority the next time he can test, since it's the main piece
+             of the "finish the chain-row drag mechanics" ask. If the slide
+             feels too slow/fast, CHAIN_SLIDE_MS is the one number to change.
+             If any residual jank shows up only on real hardware timing
+             (unlikely, but the simulation can't rule it out), report exactly
+             what it looks like rather than a general "it's not right" — this
+             is new, more complex code than a CSS tweak.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED, verified live via simulated drag — NOT YET tested
+             by Charlie on real hardware (new session, real-hardware test
+             comes later)
+AREA:        Chain drag — dragged block now continuously follows the cursor
+FINDING:     Charlie confirmed CHAIN_SLIDE_MS=1000 (his own edit, pulled in
+             fine) reads well, but flagged a real remaining gap: "With Avid
+             it is immediately as soon I click, hold move the block(s) are
+             in motion... I get a hand cursor, the placeholder box dims,
+             the hand moves practically to edge or the next block then they
+             suddenly swap places." Diagnosed: this wasn't a tunable number,
+             it was architectural. Nothing tracked the cursor at all during
+             a drag — the dragged block sat still (dimmed) in its own slot
+             until the cursor's effective position crossed fully into a
+             neighbor's territory, at which point a reorder fired and ONLY
+             THEN did the (now smooth, thanks to the prior entry) slide
+             play. Removing the ghost had removed the one thing that WAS
+             providing continuous tracking (the ghost always followed the
+             mouse 1:1) without replacing it with anything on the real
+             block.
+FIX:         The dragged block's own container (chainDragCont) now follows
+             the cursor continuously, every mousemove, via a directly-set
+             transform (no transition — an instant 1:1 snap every frame, not
+             an eased catch-up): clear the transform, measure the thumb's
+             TRUE natural (untransformed) position, compute the delta needed
+             to put the thumb's center exactly at dragCenterX/Y (the same
+             grab-offset-corrected point already used for hit-testing), and
+             apply it. This recomputation happens AFTER any reorder that
+             fires in the same mousemove tick, so it's always working off
+             the block's up-to-date slot position, never a stale one.
+             Two supporting changes were required for this to work at all:
+               - chainDragCont.style.pointerEvents = 'none' for the whole
+                 drag — otherwise document.elementFromPoint would always hit
+                 the dragged block itself (since it now visually sits right
+                 where the cursor is), and could never find the real
+                 neighbor underneath it to trigger a reorder. Same trick the
+                 old floating ghost got for free by being a separate overlay
+                 with pointer-events:none; now applied to the real element.
+               - applyChainOrderAnimated gained an excludeEl parameter — the
+                 OTHER blocks still get the FLIP slide-in from the previous
+                 entry, but the dragged block itself is excluded from that
+                 treatment, since its position is owned by the continuous-
+                 follow code above and would otherwise fight over the same
+                 element's transform on the same frame.
+             chainDragCont.style.transition is forced to 'none' for the
+             whole drag (only the OTHER blocks get an eased transition), so
+             the follow is always an instant snap to the cursor.
+             endChainDrag resets transform/transition/pointerEvents on the
+             dragged block back to '' — no settle animation needed, since
+             its natural DOM position (from the last live reorder) was
+             already exactly where the cursor left it.
+VERIFIED:    Live CDP drag simulation, stepping the cursor toward FX2 in 6
+             increments and checking EVERY intermediate step, not just start/
+             end: the dragged thumb's rendered center matched the cursor's X
+             position within <1px at all 6 steps, including across the exact
+             moments a live reorder fired (contLeft jumping, transform value
+             adjusting to compensate so the VISUAL position stayed pinned to
+             the cursor throughout) — this is the core claim of "continuous
+             follow" and it held at every sampled point, not just before/
+             after. Also confirmed: pointer-events/transition/transform all
+             correctly applied when dragging starts and correctly cleared
+             (empty string) after mouseup; zero ghost elements at any point;
+             final reorder result correct (WAH landed before FX2 as
+             expected); a mid-drag screenshot shows a clean, uncorrupted
+             layout.
+FILES:       ui.js only (wireChainDrag's mousemove handler restructured;
+             applyChainOrderAnimated gained excludeEl; endChainDrag resets
+             the three new inline styles).
+NEXT:        Charlie's real rebuild/hardware test — this is the piece that
+             should make the drag actually FEEL like Avid's, per his own
+             description of what was missing. Same caveat as the previous
+             entry: this is real interaction-model code, not a CSS number, so
+             report specifics (which part, at what point in the drag) rather
+             than a general "still not right" if anything's off.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      TWO REAL BUGS FOUND AND FIXED, verified live via simulated drag
+             — NOT YET tested by Charlie on real hardware
+AREA:        Chain drag — linked AMP-CAB+LOOP pair misbehaving under the new
+             continuous-follow drag (previous entry)
+FINDING:     Charlie, after confirming the plain continuous-follow drag was
+             "pretty dang good": dragging the linked AMP-CAB+LOOP pair showed
+             two distinct problems. (1) LOOP trailing "at least one block
+             behind" AMP-CAB instead of staying close. (2) Dragging AMP
+             toward the far end, LOOP would "shoot to slot 10 then back" —
+             a real ricochet, repeated multiple times over a 4-position drag
+             — though the pair always landed correctly by mouseup either way.
+             Precise enough to diagnose directly from the description alone.
+ROOT CAUSE 1 (the ricochet): computeLinkedAmpLoopReorder (ui.js) filters
+             BOTH AMP and LOOP out of `rest` before searching for the hit-
+             tested target's index. If elementFromPoint ever returned LOOP
+             itself as the target — likely with continuous-follow, since
+             LOOP (unlike the dragged AMP-CAB block) had no pointer-events:
+             none and could genuinely be found under the cursor as AMP-CAB
+             passed near/over it — `rest.findIndex` for SLOT_LOOP always
+             returned -1 (LOOP isn't IN rest), and the old fallback
+             (`idx = rest.length`) parked the whole pair at the very end.
+             That IS the "shoot to slot 10" — a real logic bug, not a timing/
+             animation artifact.
+ROOT CAUSE 2 (the lag): LOOP had no special handling at all in the new
+             continuous-follow code (previous entry) — it was just another
+             "other block" getting applyChainOrderAnimated's FLIP slide-in,
+             now running at Charlie's own CHAIN_SLIDE_MS=1000. Since a real
+             drag re-triggers a reorder far more often than once per second,
+             LOOP's slide could never fully catch up before the next one
+             restarted it, so it visually lagged behind AMP-CAB instead of
+             looking glued to it.
+FIX 1:       computeLinkedAmpLoopReorder: idx < 0 (target not found in rest,
+             meaning the hit-test landed on AMP or LOOP itself) now returns
+             `src` unchanged — a no-op, matching how the plain single-block
+             path already handles targeting yourself — instead of jumping to
+             the end.
+FIX 2:       New state var chainDragLinkedCont, set at drag-start alongside
+             chainDragCont whenever linkedAmpLoopInfo confirms this is a
+             linked drag. It gets the SAME pointer-events:none + transition:
+             none treatment as the dragged block, is excluded from
+             applyChainOrderAnimated's mover list (which now takes an array
+             of exclusions, not just one), and — critically — receives the
+             EXACT SAME translateX delta as chainDragCont every frame,
+             rather than computing its own. Since LOOP's natural DOM position
+             is always kept immediately adjacent to AMP-CAB's by
+             computeLinkedAmpLoopReorder, applying an identical shift to both
+             preserves their gap exactly, giving true lockstep movement.
+VERIFIED:    Live CDP drag simulation across all four combinations (LOOP
+             before/after AMP-CAB, dragging left/right), 8-10 steps each,
+             measuring the gap between the two blocks' rendered rects at
+             EVERY step: the gap was PERFECTLY CONSTANT (86px or 111px
+             depending on config) across every single step in all four
+             tests, with the reorder sequence progressing cleanly block-by-
+             block and no ricochet observed at any point. Also caught and
+             corrected a false alarm in my own testing: an early screenshot
+             showed AMP-CAB visually overlapping FX1, which looked like a
+             bug — turned out to be a pure test artifact (60 mousemoves fired
+             with zero real elapsed time between them, so FX1's 1000ms
+             slide-out animation never got a chance to render a frame).
+             Redone with real ~50ms delays between steps confirmed clean,
+             non-overlapping layout once actual time is allowed to pass —
+             worth remembering for any future drag verification: a tight
+             synchronous event-firing loop does not represent real drag
+             timing for anything that depends on CSS transitions.
+FILES:       ui.js only (computeLinkedAmpLoopReorder's idx<0 fix;
+             chainDragLinkedCont added; wireChainDrag's pending-transition,
+             hit-test's applyChainOrderAnimated call, continuous-follow
+             block, and endChainDrag all extended to handle it).
+NEXT:        Charlie's real rebuild/hardware test. If the linked pair still
+             feels off, the specific thing to check is whether the reported
+             symptom is the SAME as before (ricochet/lag) or something new —
+             the two root causes here were narrow and specific, not a
+             general "linked dragging is unreliable" issue.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      ROOT CAUSE FOUND AND FIXED, verified live via simulated drag —
+             NOT YET tested by Charlie on real hardware
+AREA:        Chain drag — linked AMP-CAB+LOOP pair needed asymmetric travel
+             to trigger a reorder depending on which side LOOP was on
+FINDING:     Charlie, very precisely: 2 of the 4 direction/config
+             combinations were good (whichever direction has LOOP trailing
+             behind AMP-CAB), 2 were off (LOOP leading) — "I need to drag to
+             slot [4 positions right] before a tile move[s]... more precise:
+             move from slot 2 to slot 3, I have to drag amp to slot 4 before
+             slot 4 moves to 2." Also confirmed individual AMP moves,
+             individual LOOP moves, and ordinary multi-block slides were all
+             already fine — this was specific to the linked pair.
+ROOT CAUSE:  A direct consequence of the previous entry's lockstep fix, not
+             a separate bug in that fix. Once LOOP moves in perfect lockstep
+             with AMP-CAB (identical transform every frame), LOOP physically
+             occupies the space directly ahead of AMP-CAB WHENEVER it's on
+             the leading side of the drag direction — meaning the cursor has
+             to travel across LOOP's own entire width before reaching any
+             REAL neighbor to hit-test against (LOOP itself is pointer-
+             events:none and can't be a target). The hit-test was built off
+             AMP-CAB's own center only (dragCenterX), so that "wasted" width
+             cost real travel distance whenever LOOP led, but cost nothing
+             when LOOP trailed (nothing in the way) — hence the exact
+             asymmetry Charlie described, and the two-slot jump once it
+             finally triggered (the pair moving as an atomic 2-wide unit
+             across a target it had to travel THROUGH rather than approach).
+FIX:         Hit-test off the PAIR's center instead of AMP-CAB's own center,
+             for the linked case only. New chainDragLinkedGapX, measured
+             ONCE at drag start (before either block has any transform) as
+             the signed distance between LOOP's and AMP-CAB's thumb centers
+             — constant for the whole drag since they move in lockstep.
+             hitTestX = dragCenterX + chainDragLinkedGapX/2 replaces
+             dragCenterX in both the elementFromPoint call and the before/
+             after midpoint check; chainDragLinkedGapX is 0 for a normal
+             (non-linked) drag, so hitTestX reduces to plain dragCenterX
+             there — no change to any of the already-confirmed-good
+             individual-block or ordinary-multi-block-slide behavior. Only
+             the TRIGGER point changed; the actual visual continuous-follow
+             positions of both blocks (previous entry) are untouched.
+VERIFIED:    Live CDP simulation, two angles: (1) measured the EXACT cursor
+             travel distance (1px increments) needed to trigger the first
+             reorder in all 4 combinations — before this fix the asymmetry
+             would have been on the order of a full block's width or more
+             (matching Charlie's "drag to slot 4" description); after the
+             fix, all 4 combinations needed 136-148px, a 12px spread instead
+             of that. (2) Re-ran the full step-by-step drag from the
+             previous entry's "good" scenario in the previously-broken
+             direction (AMP-CAB leading, LOOP trailing behind it, dragging
+             toward FX2): the order now progresses ONE step at a time
+             cleanly (no skipped intermediate state, no jump), with the
+             86px lockstep gap held constant throughout — matching the
+             already-good direction's behavior instead of differing from it.
+FILES:       ui.js only (chainDragLinkedGapX added; measured at drag-start
+             alongside chainDragLinkedCont; hitTestX introduced and used in
+             place of dragCenterX for the hit-test and after-check only —
+             the continuous-follow transform code is unchanged).
+NEXT:        Charlie's real rebuild/hardware test. The residual 12px spread
+             between combinations is expected (differing block/connector
+             widths between configurations) and not something to chase
+             further unless it's actually perceptible on real hardware.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      REPLACED the pair-center fix with a correct leading-edge fix —
+             CONFIRMED by Charlie on real hardware, "call that a success"
+AREA:        Chain drag — linked AMP-CAB+LOOP, the pair-center fix from the
+             immediately prior entry degraded the two directions that were
+             already correct
+FINDING:     Charlie, sharp catch: "could the changes you just made have
+             impacted the two m[oves] previously noted as good? Those seem a
+             bit off now but consistent with what the fix did for the
+             problem in the other direction." Correct diagnosis on his part
+             — averaging AMP's and LOOP's centers to symmetrize the trigger
+             distance necessarily worked in both directions: it moved the
+             trigger point CLOSER to the target for the previously-broken
+             (LOOP-leading) directions, but by the same arithmetic moved it
+             FARTHER for the previously-correct (LOOP-trailing) directions.
+             Net result: the asymmetry shrank, but both directions were now
+             uniformly a bit wrong instead of one being right and one wrong.
+ROOT CAUSE:  The pair-center approach was the wrong model. The physically
+             correct reference point for "has the pair reached the next
+             block" is whichever of AMP/LOOP is actually OUT IN FRONT in the
+             CURRENT direction of travel — not a fixed halfway compromise
+             that ignores which way you're actually moving.
+FIX:         Hit-test now tracks the drag's instantaneous direction (new
+             chainDragLastX, compared each mousemove against the previous
+             frame's clientX; new chainDragMovingRight, only updated on an
+             actual nonzero horizontal delta so a zero-delta frame can't
+             flip it) and picks whichever block is leading FOR THAT
+             DIRECTION: hitTestX = dragCenterX + (movingRight ?
+             Math.max(0, chainDragLinkedGapX) : Math.min(0, chainDragLinkedGapX)).
+             When AMP leads, this reduces to plain dragCenterX (zero offset)
+             — the exact original, already-correct behavior for that
+             direction, untouched. When LOOP leads, this uses LOOP's actual
+             center (the full gap), not a halfway point.
+VERIFIED:    Live CDP simulation, same 4-combination exact-trigger-distance
+             measurement as before, PLUS a plain single-block drag (WAH) as
+             a baseline for comparison: the two previously-good (trailing)
+             directions now measure 86px/87px — matching the single-block
+             baseline (87px/86px) almost exactly, i.e. genuinely restored,
+             not just "less wrong." The two previously-broken (leading)
+             directions now measure 99px/99px — consistent with EACH OTHER
+             and only ~12-13px more than the baseline (the real, expected
+             cost of crossing the connector arrow between AMP-CAB and LOOP),
+             a small fraction of the original near-block-width asymmetry.
+             Also specifically tested a direction REVERSAL mid-drag (drag
+             right 250px, then back left past the start point) to check for
+             a hiccup at the exact moment chainDragMovingRight flips — the
+             order sequence reversed cleanly step-by-step with no oscillation
+             or double-jump at the transition. Confirmed clean layout via a
+             real-time-paced screenshot too.
+FILES:       ui.js only (chainDragLastX + chainDragMovingRight added;
+             hitTestX's computation changed from pair-center to leading-
+             edge; both new vars reset in endChainDrag).
+NEXT:        None — confirmed working on real hardware. Closes out this
+             session's whole "finish the chain-row drag mechanics" arc
+             (ghost removal, continuous follow, linked-pair lockstep, linked-
+             pair trigger symmetry). Remaining chain-row work is the
+             separate graphics/image-mapping piece, deliberately not started
+             this session.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      DESIGN AGREED, DEFERRED — not started, Charlie wants chain-row
+             work finished first
+AREA:        Startup — no "can't find the rack" gate like Avid's editor has
+FINDING:     Charlie: Avid's editor won't load to its main screen if it
+             can't find the rack — pops a message, "try again or quit."
+             He's occasionally forgotten to power the rack on first and
+             would like the same protection here, since our app currently
+             just sits there with a small status-bar message instead of
+             anything unmissable.
+AGREED DESIGN (build later, do not re-litigate these points without a
+             reason):
+  - GO/NO-GO SIGNAL: bridgeMidiReady, not just bridgeReady/bridge-process-
+    alive. Charlie confirmed directly: "the Java bridge will not go to a
+    connected state unless it sees the hardware" — so bridgeMidiReady
+    already IS the correct "rack found" signal, no separate port-
+    enumeration check needed on top of it.
+  - SCOPE: STARTUP ONLY, matching Avid's own behavior (the check happens
+    when the program loads). Explicitly NOT a gate on later disconnects —
+    Charlie: Avid warns and shuts down if you power off the rack or unplug
+    USB mid-session, but "our program just working... doesn't warn or
+    anything" while auto-advance or the user keeps interacting — and that's
+    fine as-is for now. We already have a status-bar disconnect indicator
+    and a retry-connect button for the mid-session case; this feature is
+    additive for startup only, not a replacement for that.
+  - LIKELY IMPLEMENTATION (not yet built): reuse the existing blocking
+    modal-overlay pattern already in the app (the watchdog dialog —
+    #watchdog-overlay / .open class in index.html, ui.js) rather than
+    inventing new UI, with "Try Again" / "Quit" buttons instead of "OK".
+    Needs a short timeout (a few seconds) before declaring failure, not an
+    instant pop on page load, to allow for normal connection latency.
+NEXT:        Build this once the chain-row work (graphics/drag-handles +
+             remaining effect panels) is done — Charlie's explicit priority
+             order.
+-------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IDEA NOTED, not yet decided — a question for a LATER session
+AREA:        Chain row — how effect panels get opened (dropdown ▼ vs
+             clicking the block itself, matching Avid)
+FINDING:     Charlie's stated plan, in order: (1) graphics/drag-handle work
+             next session, (2) remaining effect panels after that, (3) THEN
+             decide whether the current interaction (click the ▼ caret under
+             a block to open its panel) should stay, or whether the chain
+             row should mimic Avid's own interaction now that it has all the
+             same visual elements (real thumbnails, drag) and behaves the
+             same way during drag. Explicitly deferred until after (1) and
+             (2) — not a decision to make now, just don't let it get lost.
+NEXT:        Revisit once graphics + remaining panels are done, per
+             Charlie's own ordering.
 -------------------------------------------------------------------
 
 

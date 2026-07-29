@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   browseAvidDir:  ()              => ipcRenderer.invoke('browse-avid-dir'),
   getAvidDir:     ()              => ipcRenderer.invoke('get-avid-dir'),
   getLogsDir:     ()              => ipcRenderer.invoke('get-logs-dir'),
+  scanAvidGraphics: (rootDir)     => ipcRenderer.invoke('scan-avid-graphics', rootDir),
 
   platform:   process.platform,
   isElectron: true,

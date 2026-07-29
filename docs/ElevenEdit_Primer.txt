@@ -1,6 +1,6 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-24
+Updated: 2026-07-28
 Author: Charles Wardick (charles.wardick@gmail.com)
 Status: Active development — Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
@@ -10,37 +10,32 @@ Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
 
 SESSION START — DO THIS BEFORE ANY WORK
 --------------------------------------------------
-CLAUDE: run this check in your first reply. Do not edit code or docs until
-Charlie has answered. It costs one exchange and has already prevented a full
-day of silently reverted work.
+(Rewritten 7/28/2026 — this project moved from upload-a-file-into-chat
+sessions to Claude Code, which reads this git repo directly. Most of what
+used to live here was about surviving that upload/paste-back cycle — a
+chat only knew whatever copy it had been handed, and could silently hand
+back something OLDER under the same filename. That whole class of risk is
+gone: there is one working tree, every session reads it fresh, and every
+edit is visible immediately via `git diff` and the commit history — not a
+line count guessed after the fact. See the Archive for the old version of
+this section and the incidents that shaped it; the lessons are still true
+history, just no longer the operating procedure.)
 
-  1. NEW CHAT — ask Charlie to confirm the project files match his local
-     build folder. A new chat reads the project fresh, so it is exactly as
-     current as his last end-of-day fold-back, and no more.
-
-  2. RESUMED / OLDER CHAT — always ask him to re-upload the live docs plus
-     any code files being touched, and treat those uploads as superseding
-     ANYTHING earlier in the thread. A chat holds whatever copy it was given
-     for its whole life. This is not optional and does not depend on how
-     current the project is: a resumed chat is stale by default.
-
-  3. THE LOCAL BUILD FOLDER IS CANONICAL, not the project and not this thread.
-     If they disagree, the build folder wins — it is what the EXE is built
-     from. Project files are a second copy kept correct only by Charlie's
-     end-of-day fold-back.
-
-  4. LINE-COUNT TELL — when handing files back, state the line count of each
-     against what you started from. A document that comes back SHORTER after
-     a session that only ADDED findings has lost something. On 7/20 a returned
-     Technical Reference was 81 lines short and had silently reverted both a
-     sweep and that same day's GUI documentation. Nothing in it was wrong; it
-     was simply older, under the right filename.
-  5. REVIEW SESSIONS — ASK FOR CODE WHEN THE DOCS ALONE CANNOT SETTLE IT.
+  1. The repo IS the current state. No re-upload, no "which copy is this
+     thread holding" — just read the files that are actually there.
+  2. The one thing that DOES need checking at the start of a work session is
+     git/branch state, per the repo's own branch instructions: is the
+     previous work branch still unmerged (keep building on it) or already
+     merged into main (restart it fresh from main, keep any unmerged work by
+     rebasing it on top)? `git fetch origin main` +
+     `git merge-base --is-ancestor <branch> origin/main` answers this in one
+     step — do it before the first commit of a session, not after.
+  3. REVIEW SESSIONS — ASK FOR CODE WHEN THE DOCS ALONE CANNOT SETTLE IT.
      A review compares documents against each other and cannot see the code
-     unless it is attached to that message; being "in the project folder" does
-     not make it visible. So doc-vs-code drift — a session that documents a
-     fix but ships something slightly different — is invisible by default.
-     REQUEST the specific file, do not wait to be offered it, when:
+     unless it is actually read; being "in the repo" does not make a claim
+     verified on its own. So doc-vs-code drift — a session that documents a
+     fix but ships something slightly different — is invisible unless you go
+     read the file. REQUEST/READ the specific file when:
        - a retraction lands and the withdrawn behaviour may still be in code
        - a named constant or formula is documented (settle times, dB anchors,
          zone arithmetic) and can be checked against the source in seconds
@@ -51,11 +46,11 @@ day of silently reverted work.
      WHERE TO LOOK: transport.js and protocol.js carry most protocol-critical
      claims (send builders, constants, lookup tables, decoders);
      sysex-handler.js for routing and format detection; ui.js for display
-     formulas. Ask for one or two files, never the set.
-     DO NOT ask routinely. A well-scoped additive session does not need it,
-     and the whole set costs context for no return. Expect to catch "the doc
-     says 0.6 and the code says 0.61", not architectural problems — the
-     reviewer reads as an outsider, without the codebase's history.
+     formulas. Read one or two files, never the whole set reflexively.
+     DO NOT read routinely just because you can. A well-scoped additive
+     session does not need it, and reading files that don't inform the task
+     costs context for no return. Expect to catch "the doc says 0.6 and the
+     code says 0.61", not architectural problems.
 
 
 READ THIS FIRST, THEN ONE OTHER DOCUMENT:
@@ -89,6 +84,17 @@ confirmed findings into the masters ONCE, at wrap (see FINALIZATION), editing
 in place and marking each entry [FOLDED IN]. The log trends back toward empty;
 the masters stay current without being touched mid-session. This is what
 prevents the six-overlapping-documents problem.
+  WHY THIS STILL MATTERS UNDER CLAUDE CODE (7/28/2026): the original reason
+  for this split was that a chat session could only rewrite a master doc by
+  having the whole thing pasted back, and a full rewrite risked silently
+  dropping a section. Git removes that specific risk — every edit shows up
+  in `git diff` before it's committed. But the split is worth keeping anyway,
+  for a different reason: the Primer and Technical Reference are what a
+  fresh session reads FIRST to get oriented, every single time. Folding a
+  day's worth of provisional, still-shifting findings straight into them
+  would make that orientation read longer and noisier for no benefit —
+  better to let the log carry the day's mess and fold in only what turned
+  out to matter, once, at wrap.
   ONE EXCEPTION — fold immediately, mid-session, only when a finding changes
   what the next step does: a retraction the next task would otherwise build on,
   or a hardware-safety item. Everything else waits for wrap.
@@ -121,14 +127,20 @@ is wasted effort and adds risk; wait for the wrap signal, then do this in order:
   3. UPDATE PRIMER STATE. Bump the Status line and CURRENT APP STATE phase,
      move the shipped feature into WORKING, trim it from NOT YET IMPLEMENTED,
      and add its functions to the CODE FILE MAP.
-  4. LINE-COUNT TELL. State each returned doc's line count against what you
-     started from. Docs that only gained content must not come back shorter.
-  5. ONE ZIP. Deliver every modified file — code AND the three/four docs — in a
-     single zip for download. Charlie folds that zip into the canonical build
-     folder at end of day; the build folder, not the project or the chat, is
-     canonical (see SESSION START).
-  The point of the zip is that the whole session lands as one consistent set,
-  so nothing is half-folded and no doc is left older than the code it describes.
+  4. REVIEW THE DIFF. Run `git diff` (or check each Edit result) on every
+     doc touched this session before committing. This is the current version
+     of the old "line-count tell" — git shows exactly what changed, including
+     an accidental deletion, instead of inferring one from a line count after
+     the fact (see the 7/20 and 7/23 incidents in the Archive for why that
+     check existed).
+  5. COMMIT AND PUSH. Code and docs land in the SAME commit (or the same
+     small batch of commits) on the session's working branch, then pushed —
+     see the repo's own branch/git-workflow instructions for the exact
+     commands and the merge-base check. Charlie tests the real build off
+     that branch; once confirmed on real hardware, he merges it into main
+     himself (or asks Claude Code to). There is no separate zip/fold-back
+     step — the branch IS the consistent set, and it stays that way until
+     Charlie says to merge.
 
 
 WHAT THIS PROJECT IS
@@ -148,12 +160,31 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - Be concise. Keep explanations outcome-focused, not technical.
   - Conclude internally; present the solution or finding, not the reasoning.
   - Always build the EXE for testing — npm start has never worked here.
+  - CHARLIE ONLY TESTS ON REAL HARDWARE, ALWAYS (confirmed 7/28/2026). He
+    builds this repo's code into an EXE and runs it against the real Eleven
+    Rack over the Java bridge — there is no "dry run" step in his workflow.
+    Without the bridge actually connected to hardware, essentially nothing
+    is testable beyond the about box, the settings panel, and the window's
+    close button; every other feature (chain row, effect panels, knobs,
+    bypass, patch load/save, tuner, etc.) requires a live connection to
+    produce any real signal to observe. So: a claim like "this needs testing
+    without hardware to isolate X" doesn't fit how testing happens here —
+    Charlie's confirmation IS the real-hardware test, not a step before it.
+    Two specific mistakes to not repeat (both made 7/28/2026, same session):
+    (1) treating in-conversation feedback ("good," "off," "almost there")
+    as provisional/pending a future hardware test — it is NOT provisional,
+    each round of feedback IS a fresh real-hardware test result, given live
+    while he has the rebuilt EXE running against the rack. Don't sign off
+    with "let me know how it feels once you test" after he has already just
+    told you the result. (2) the app does not run ON the hardware — it runs
+    on Charlie's PC/VM and REMOTE-CONTROLS the Eleven Rack over MIDI via the
+    Java bridge. Get this distinction right when describing the setup.
   - Old eyes: amber-on-dark, readable fonts, generous sizing.
-  - THE OUTPUTS FOLDER IS CANONICAL DURING A SESSION. Project files are read
-    ONCE at the start; after that, always base edits on the files you last
-    presented, never re-copy from the project mid-session or you will silently
-    revert earlier fixes. Charlie folds the final outputs back into the project
-    at end of day.
+  - THE REPO IS CANONICAL, FULL STOP (updated 7/28/2026 — under Claude Code,
+    not the old chat workflow). There is no separate "outputs" snapshot to
+    fall out of sync with: every file read is the actual working tree, every
+    edit lands in it directly, and `git status`/`git diff` show the true
+    current state at any point mid-session. No re-copy risk to guard against.
   - TWO FAILED FIXES = STOP AND RE-DERIVE. If two consecutive changes produce
     no change in observed behaviour, the problem is a wrong assumption, not a
     wrong value. Go back to the raw evidence and re-derive from scratch rather
@@ -183,9 +214,11 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - AN EDIT ANCHORED ON A LOOSE MARKER CAN SILENTLY DELETE A SECTION. Folding
     in on 7/23, "cut from C11 to the next C12" removed Sections 23 and 24 of
     the Technical Reference, because the FLAGGED CONFLICTS entries are not in
-    numeric order and C12's header sits ABOVE C11's. Nothing looked wrong; the
-    line-count tell caught it. Anchor on unique text and check the section
-    headers survive.
+    numeric order and C12's header sits ABOVE C11's. Nothing looked wrong;
+    only a manual line-count check caught it (this was before Claude Code —
+    under it, `git diff` shows a deletion like this immediately, without
+    having to think to check). Anchor on unique text and check the section
+    headers survive either way.
 
 
 CONFIRMED ARCHITECTURE (brief)
@@ -204,6 +237,26 @@ CONFIRMED ARCHITECTURE (brief)
 CURRENT APP STATE (Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
+
+7/27/2026 EVENING — CODE REORGANIZATION + one display fix (tested by Charlie
+  same day; no protocol or behaviour changes except where noted):
+  sysex-handler.js — parseSysEx was one 700+ line function running every
+    incoming CMD byte as a sequential if-chain. Split into one handleXxx(data)
+    function per command, dispatched from a thin switch; CMD 0x11 further
+    split into routeBypassMessage / routeFormatBAmpMessage / routeAmpBlockParam.
+  transport.js and ui.js — both grew by one repeated chunk per effect panel
+    (DIST, REVERB so far; 7 more planned). The per-effect send functions moved
+    out of transport.js into new fx-transport.js; the per-effect panel UI moved
+    out of ui.js into new fx-panels.js. Neither core file grows further as
+    panels are added — new panels' code belongs in the two new files (see
+    their header comments for the copy-this-pattern template).
+  Gate Release readout — was a bare rounded integer below 1000ms ("10 ms")
+    while every other readout (Gate Threshold, Rig Vol, Amp Out, To Amp Vol)
+    already showed one decimal place. Now consistent ("10.0 ms"). ACTUAL
+    DISPLAY CHANGE, not a pure reorg — scale/formula untouched.
+  See CODE FILE MAP below for the per-file detail; all three changes are on
+  branch claude/elevenedit-primer-review-njmhy5 (check git for current merge
+  status — that's tracked in git, not restated here).
 
 7/27/2026 FIXES (tested by Charlie same day; details in Tech Ref Sec 15/21/24):
   Startup SAVE no longer green — sendCC marks the patch dirty only for per-patch
@@ -300,8 +353,92 @@ WORKING:
   Chain row — true per-patch order, model name on hover, stereo shown as
     stacked double connector lines (49 of 52 models resolved).
   Chain reorder — drag and drop, with FX Loop placement enforced client-side.
-    Note: unlike Avid, dragging the amp does NOT drag an adjacent loop with it
-    (intentional, see Tech Ref Sec 4).
+    7/28: LIVE PREVIEW — blocks physically shift into place during the drag
+    itself (applyChainOrder), not just on drop; a chain-map arriving mid-drag
+    no longer fights the preview (renderChainRow no-ops while chainDragActive).
+    AMP-CAB + LOOP LINKED DRAG — dragging AMP-CAB while LOOP sits immediately
+    adjacent now moves LOOP with it, same direction/distance, until LOOP hits
+    either end of the chain — matching Avid's feel, confirmed against the real
+    editor by Charlie 7/27 (see Session Log). Once LOOP is parked at an end,
+    AMP-CAB is free to roam alone again; dragging LOOP directly is unchanged
+    (existing jump-between-legal-stops behaviour). The reorder math was
+    verified by a standalone Node simulation before the first build (caught
+    and fixed one real bug: LOOP already parked at an end was wrongly still
+    being dragged along).
+    7/28 (same day, after build test): the FIRST build surfaced a real
+    problem the simulation could not have caught — native HTML5 drag-and-
+    drop does not tolerate the dragged-over elements being relocated live,
+    which is exactly what the preview does. Symptom: flickering ok/no-drop
+    cursor, worst on a two-block swap (rapid flashing between the two
+    blocks). FIXED by replacing native drag-and-drop with plain mousedown/
+    mousemove/mouseup tracking (wireChainDrag, ui.js) — the same technique
+    already used for every knob in this app. draggable="true" and its CSS
+    removed; no longer meaningful.
+    7/28 (3rd pass, same day): mouse-tracking fixed the flicker/impossible
+    moves, but surfaced a expected gap — native DnD used to draw a floating
+    "what you're carrying" visual automatically; mouse-tracking doesn't.
+    Added createChainDragGhost — a cloned, click-through, position:fixed
+    element that follows the cursor above everything else, while the
+    original block stays in the flex row as the dimmed "where it will land"
+    placeholder. Also PENDING: Charlie's full drag matrix re-test (not yet
+    done), and an unclear "timing var" he noticed — asked him to describe it
+    rather than guess at a fix.
+    7/28 (4th pass, same day): ghost now shows the SUPERBLOCK condition —
+    when the drag is the linked AMP-CAB+LOOP case, the ghost is both blocks
+    side by side (correct relative order), not just the one under the
+    cursor, so the linked state is visible during the drag, not just
+    inferable from where things land. linkedAmpLoopInfo() extracted as the
+    one shared answer to "is this linked", used by both computeReorder and
+    the ghost builder. [RESOLVED 7/28, 9th pass ui.js — see CODE FILE MAP:
+    the ghost itself was removed entirely and replaced with a FLIP animation
+    on the real blocks, once Charlie's screen recording of Avid's own editor
+    showed it uses no ghost at all. Left here for history since this note is
+    what correctly predicted the fix would need FLIP.]
+    7/28 (5th pass, same day): position 1's whole width now counts as a legal
+    landing target (not just its left half) — there wasn't enough window
+    room to reliably cross its midpoint. PLUS a passive read-only clone of
+    the active INPUT selection now sits before position 1 with its own
+    single-line connector, shifting the whole row right so that room exists
+    at all — mirrors setInputButtons(), not a new control (see CODE FILE MAP:
+    index.html, ui.js). A functional input dropdown there was considered and
+    rejected for this pass — input switching is its own separate, already-
+    incomplete feature area. PENDING CHARLIE'S REBUILD TEST.
+  CHAIN ROW GRAPHICS-READY LAYOUT (7/28) — next evolution of the chain row,
+    aimed at the Avid pedal-graphics plan (GRAPHICS section below) AND at
+    fixing the drag/click conflict at the same time. Row grew 62px->110px
+    (matches the original Primer graphics estimate). Every block now has a
+    .chain-thumb above its label — currently a dashed-border DUMMY PLACEHOLDER
+    box (real Avid pedal/amp/cab images are a separate, not-yet-built step;
+    see NEXT below). The thumb is the ONLY drag handle now — dragging no
+    longer starts from anywhere on the label, which is what previously let a
+    drag attempt sometimes misfire as a bypass toggle and vice versa (Charlie:
+    "the clicker is also the drag handle"). Matches how Avid's own editor
+    works (the pedal graphic is what you grab there too). Label stays the
+    only bypass-click target, unchanged. UNIFORM fallback rule (revised from
+    the original mixed-height plan after a POC the day before): every block
+    gets the same-size thumb whether or not it has a real image — a missing
+    image is a dummy box, not a shorter block, so the row never looks jagged
+    depending on which specific blocks happen to have art. PENDING CHARLIE'S
+    BUILD TEST — drag-handle split not yet exercised on real hardware.
+    7/28 follow-up fix: AMP/CAB's thumb was sitting 10px higher than every
+    other block's thumb (same 64x60 size, read as "smaller" from reduced
+    headroom) — root cause was #chainstrip's align-items:flex-end bottom-
+    aligning each slot at ITS OWN natural content height, and AMP/CAB's
+    2-label stack is naturally 10px taller than a normal 1-label slot.
+    Fixed by switching to align-items:stretch (every slot now stretches to
+    one shared row height) + margin-top:auto on each slot's label element,
+    so the thumb pins top and the label pins bottom regardless of how many
+    labels follow. Also fixed GUITAR/STEREO reading "too high" — their
+    position was already correct (bottoms matched), it was font-size/
+    padding (11px/3px vs the real .chain-name's 13px/5px) making them look
+    lighter; matched the real values. See Session Log 7/28 (thumb position
+    entry) for the full CDP-verified detail. Row height 130px -> 140px,
+    the minimum bump needed — does not touch the effect-panel area below.
+    NEXT (separate step, deliberately not done in this pass): the actual
+    recursive Avid-graphics-folder scanner (main.js) and the MID-to-filename
+    mapping table (a new dedicated JS data file, not the docs — see the
+    "mapping table" note below and Session Log 7/28 for the real folder
+    listing this will be built from).
   TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
   Load TFX (memory load) — round-trip verified
   Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto
@@ -369,9 +506,37 @@ CODE FILE MAP
   main.js              Electron main process, bridge launch, IPC.
                        New handlers (Phase 4a): browse-avid-dir, get-avid-dir,
                        get-logs-dir. Logs now written to userData/logs/ subfolder.
+                       7/28: browse-avid-dir's dialog title renamed "Choose
+                       Avid Graphics Folder" (was "...Editor Folder") — this
+                       is no longer meant to require a live Avid Editor
+                       install, just a folder containing the plugin image
+                       structure somewhere inside it (see Session Log, chain
+                       row graphics). The recursive scanner that actually
+                       reads it is NOT built yet — this is only the rename.
   preload.js           Electron preload, exposes electronAPI.
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
+                       7/28: chain row rebuilt for the graphics-ready layout —
+                       see the dedicated CHAIN ROW GRAPHICS entry below for
+                       the full change; short version: .chain-thumb (drag
+                       handle, currently a dummy placeholder box) added above
+                       every block's label, row height 62px->110px,
+                       #chainstrip align-items center->flex-end.
+                       7/28, later same day: align-items flipped again,
+                       flex-end -> stretch (root-caused AMP/CAB's thumb
+                       sitting 10px higher than every other thumb), row
+                       height 130px->140px, margin-top:auto added to
+                       .chain-name / .chain-name-stack:first-of-type /
+                       #chain-input-wrap / #mono-indicator, and the latter
+                       two's font-size/padding matched to .chain-name's
+                       real values. See CHAIN ROW GRAPHICS entry above and
+                       Session Log 7/28 for the full CDP-verified detail.
+                       Earlier 7/28: #chain-input-wrap + #chain-input-connector added
+                       as the fixed FIRST children of #chainstrip (passive
+                       INPUT clone, chain-drag position-1 room fix — see
+                       Session Log). #chain-input-connector is .chain-arr but
+                       must stay excluded from ui.js applyChainOrder's arrow-
+                       recycling query, same as #mono-connector already is.
                        Phase 13: chain-strip right-hand group — drag-hint div
                        removed, #mono-indicator restyled (green STEREO / amber
                        MONO) and given margin-left:auto, #tempo-wrap digital
@@ -412,6 +577,12 @@ CODE FILE MAP
                        Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
                        REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
   transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       7/27 REORG: sendDistModelChange/requestDistParams/
+                       sendDistParamWrite and the REVERB equivalents MOVED to
+                       fx-transport.js (new file, below) — this file no longer
+                       grows with each new effect panel. PURE RELOCATION, no
+                       logic changed. Everything below dated 7/23 and earlier
+                       still describes this file correctly.
                        7/26: sendPatchWrite(hex) wrapper — the 13 per-patch
                        write functions send through it so the SAVE dirty latch
                        lights (queries/readbacks keep calling sendHex directly);
@@ -446,9 +617,30 @@ CODE FILE MAP
                        again with no other change.
                        Phase 11: nav pull adds 0x12/0x13 on tremolo amps;
                        sendParamWrite sends true endpoint sentinels.
-                       Phase 9: sendDistModelChange, requestDistParams, sendDistParamWrite.
-                       Phase 10: sendReverbModelChange, requestReverbParams, sendReverbParamWrite.
+                       Phase 9/10 functions (sendDistModelChange etc.) now live
+                       in fx-transport.js — see that entry below.
+  fx-transport.js      NEW 7/27. Per-effect-block SEND functions, one
+                       model-change/request-params/param-write trio per block,
+                       split out of transport.js so that file stops growing as
+                       panels are added. Currently holds: sendDistModelChange,
+                       requestDistParams, sendDistParamWrite, sendReverbModelChange,
+                       requestReverbParams, sendReverbParamWrite. THE NEXT SEVEN
+                       PANELS' send functions belong HERE, not in transport.js —
+                       copy the DIST trio as the template (see file header).
   sysex-handler.js     Incoming message routing.
+                       7/27 REORG: parseSysEx was one 700+ line function with a
+                       sequential if-chain over every CMD byte — hard to follow
+                       and the reason this file kept needing "ask for it by
+                       name" treatment in reviews. Split into one handleXxx(data)
+                       function per CMD (handleBulkTfxData, handleSlotConfirm,
+                       handleChainMap, handleParamReadback, etc.), dispatched
+                       from a thin switch in parseSysEx. CMD 0x11 (the biggest
+                       branch) further split into routeBypassMessage,
+                       routeFormatBAmpMessage, routeAmpBlockParam. PURE
+                       REORGANIZATION — every guard, branch and comment moved
+                       verbatim; no behaviour changed. Dead unused var dirByte
+                       dropped. Verify against this entry, not against memory
+                       of the old single-function layout.
                        7/27: save/capture bulk branches (isSave + manual/disk)
                        only setCurrentAmp and repaint the continuous knobs from
                        the body when (ampChanged || REQUEST_BULK_ON_NAV) — a
@@ -477,6 +669,188 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (13th pass): the 12th pass's pair-CENTER hit-test
+                       fix was itself wrong — Charlie caught it: averaging
+                       necessarily degraded the two directions that were
+                       already correct while fixing the two that weren't,
+                       netting "more equal but both a bit off" instead of
+                       actually correct. Replaced with a leading-edge
+                       approach: new chainDragLastX/chainDragMovingRight
+                       track the drag's instantaneous direction each frame,
+                       and the hit-test uses whichever of AMP/LOOP is
+                       actually out in front for THAT direction (LOOP's
+                       center when moving toward LOOP's side, plain
+                       dragCenterX — i.e. AMP's own, unchanged — when moving
+                       the other way). Verified against a plain single-block
+                       drag as a baseline: the two previously-good directions
+                       now measure within 1px of the single-block baseline
+                       (genuinely restored, not just less-wrong), the two
+                       previously-broken directions now measure ~12-13px more
+                       than baseline (the real cost of crossing the connector
+                       arrow between the two blocks) instead of a near-full-
+                       block-width asymmetry. Also verified a direction
+                       reversal mid-drag doesn't glitch at the transition.
+                       7/28 (12th pass): fixed the linked AMP-CAB+LOOP drag's
+                       asymmetric trigger distance — Charlie precisely: 2 of
+                       4 direction/config combos needed way more drag travel
+                       than the other 2 (whichever had LOOP LEADING instead
+                       of trailing), landing correctly but only after a big
+                       jump. Direct consequence of the 11th pass's lockstep
+                       fix: LOOP now always occupies the space directly ahead
+                       of AMP-CAB when it's the leading side, so the cursor
+                       had to travel across LOOP's own width (wasted, since
+                       LOOP is pointer-events:none and can't be a target)
+                       before reaching a real neighbor — costing nothing when
+                       LOOP trailed instead. Fixed by hit-testing off the
+                       PAIR's center (new chainDragLinkedGapX, the constant
+                       signed distance between the two thumbs' centers,
+                       measured once at drag-start) instead of AMP-CAB's own
+                       center alone — halves the wasted distance symmetrically
+                       in both directions. Only affects the linked case;
+                       chainDragLinkedGapX is 0 otherwise. Verified by
+                       measuring the exact px travel needed to trigger in all
+                       4 combinations: asymmetry dropped from roughly a full
+                       block's width to a 12px spread (136-148px), and a full
+                       step-by-step re-test of the previously-broken
+                       direction now shows clean one-step-at-a-time
+                       reordering instead of a 2-slot jump.
+                       7/28 (11th pass): fixed two real bugs in the linked
+                       AMP-CAB+LOOP drag, surfaced by the 10th pass's
+                       continuous-follow. (1) computeLinkedAmpLoopReorder's
+                       idx<0 fallback used to jump the pair to the very end
+                       (rest.length) whenever the hit-test landed on AMP or
+                       LOOP itself — now a no-op (return src unchanged),
+                       matching the plain single-block self-target case. This
+                       was the "loop shoots to slot 10 then back" ricochet
+                       Charlie saw. (2) New chainDragLinkedCont: when the
+                       drag is the linked case, LOOP now gets pointer-events:
+                       none + the EXACT SAME translateX delta as chainDragCont
+                       every frame (not its own recomputed one), instead of
+                       the other blocks' slower FLIP slide-in — this is what
+                       keeps LOOP glued to AMP-CAB at a constant visual gap
+                       instead of trailing behind on Charlie's now-1000ms
+                       CHAIN_SLIDE_MS. Verified via live CDP simulation across
+                       all 4 combinations (LOOP before/after AMP, dragging
+                       left/right) — gap between the two blocks held exactly
+                       constant at every sampled step in all 4 tests, no
+                       ricochet. See Session Log for full detail, including a
+                       caught false alarm in the verification method itself
+                       (a tight synchronous test loop doesn't give CSS
+                       transitions real time to render — worth remembering
+                       for future drag verification).
+                       7/28 (10th pass): the dragged block now continuously
+                       follows the cursor (every mousemove, instant 1:1
+                       transform, no transition) instead of sitting still
+                       until a reorder fires — Charlie, after confirming
+                       CHAIN_SLIDE_MS=1000 felt right: "with Avid it is
+                       immediately... in motion... [ours] moves practically
+                       to edge or next block then they suddenly swap." Needed
+                       two supporting changes: chainDragCont gets
+                       pointer-events:none for the whole drag (so
+                       elementFromPoint sees THROUGH the dragged block to the
+                       real neighbor underneath it, instead of always hitting
+                       itself — same trick the old ghost got for free as a
+                       separate overlay); applyChainOrderAnimated gained an
+                       excludeEl param so the dragged block's own position
+                       isn't ALSO touched by the other blocks' FLIP slide-in
+                       (would fight the continuous-follow code for the same
+                       transform). Verified via live CDP simulation stepping
+                       the cursor in 6 increments toward a target and
+                       checking the dragged thumb's rendered center against
+                       the cursor at EVERY step (not just start/end) — matched
+                       within <1px throughout, including across a live
+                       reorder mid-drag. See Session Log for full detail.
+                       7/28 (9th pass): removed the floating drag ghost
+                       entirely (createChainDragGhost + its state deleted).
+                       Charlie's screen recording of Avid's own editor showed
+                       no separate ghost during a drag — just the real block
+                       sliding smoothly. New applyChainOrderAnimated(order)
+                       wraps applyChainOrder with a FLIP animation (sample
+                       every mover's rect, do the existing instant reorder,
+                       then paint-and-transition each moved element from its
+                       old spot to its new one via translateX); the live-drag
+                       preview call site uses this instead of calling
+                       applyChainOrder directly. renderChainRow (the real
+                       hardware chain-map path) is deliberately still
+                       unanimated — scope was the drag preview only.
+                       CHAIN_SLIDE_MS: shipped as a 150ms first guess,
+                       Charlie changed it to 1000 himself and confirmed that
+                       reads well — current value is his, not derived.
+                       Verified via live CDP drag simulation only (zero ghost
+                       elements, six affected blocks including the dragged
+                       one show the transition engaging, correct final
+                       order, clean style cleanup afterward) — this is new,
+                       more complex code than the earlier CSS-only fixes, so
+                       treat it as unverified on real hardware until
+                       Charlie's next test session says otherwise.
+                       7/28 (8th pass) BUG FIX: applyChainOrder's `mono` var
+                       was re-grabbing the bare #mono-indicator label and
+                       re-appending it on every reorder, ripping it back out
+                       of the .chain-slot wrapper the 7th pass just added (so
+                       the bookend fix silently undid itself on every real
+                       chain-map update). Now resolves .closest('.chain-slot')
+                       instead. Found and verified by actually rendering the
+                       app in headless Chromium and simulating a live reorder
+                       — see Session Log for the full method, worth reusing.
+                       7/28 (7th pass): drag handle moved from the whole slot
+                       onto .chain-thumb specifically. wireChainDrag's
+                       mousedown now requires ev.target.closest('.chain-thumb')
+                       (was '.chain-slot, .chain-slot-stack'); new chainDragThumb
+                       state var holds it (chainDragCont is still the slot
+                       container — still what gets reordered/appended, just no
+                       longer the drag-initiation target). The .dragging class
+                       and createChainDragGhost's clone source both moved from
+                       chainDragCont to chainDragThumb — the ghost is now just
+                       the thumb-sized icon, not the whole label+caret stack,
+                       which is also a better visual match for Avid's own drag
+                       ghost. The linked-pair ghost now clones each block's
+                       .chain-thumb (via querySelector), not its whole container.
+                       7/28 (6th pass): setInputButtons also updates the
+                       #chain-input-wrap clone (index.html) — one function,
+                       one source of truth, so the clone can't drift.
+                       wireChainDrag's mousemove: position 1 (chainDragStartOrder[0])
+                       now counts as a legal target across its whole width, not
+                       just past its midpoint. applyChainOrder's arrow query
+                       now also excludes #chain-input-connector, same reason
+                       #mono-connector already was excluded.
+                       7/28: chain drag rewritten for live preview + the
+                       AMP-CAB/LOOP linked rule. computeReorder signature
+                       changed from (fromSlotId, toIndex) to (fromSlotId,
+                       targetSlotId, after, baseOrder) — only caller was
+                       wireChainDrag, updated with it. New:
+                       computeLinkedAmpLoopReorder (the linked-pair math),
+                       applyChainOrder (DOM-move logic pulled out of
+                       renderChainRow so the live preview can call it with a
+                       speculative order), chainDragStartOrder/chainPreviewOrder/
+                       chainDragCommitted state. renderChainRow no-ops while
+                       chainDragActive so an incoming chain-map can't fight the
+                       preview. clearDropMarks/.drop-before/.drop-after removed
+                       (dead — the live preview replaced the marker).
+                       7/28 (same day, 2nd pass): wireChainDrag's event model
+                       replaced — native HTML5 dragstart/dragover/drop/dragend
+                       (dataTransfer etc.) OUT, plain mousedown/mousemove/
+                       mouseup/blur IN, matching how every knob already works.
+                       Reason: native drag-and-drop's own hit-testing breaks
+                       when the dragged-over elements move live, which is
+                       what applyChainOrder does every preview tick — surfaced
+                       as a flickering cursor and, on a 2-block swap, the two
+                       blocks flashing back and forth. New state: chainDragPending
+                       (mousedown seen, watching for the CHAIN_DRAG_THRESHOLD=4px
+                       move before treating it as a real drag — replaces the
+                       distinction native DnD used to make for free between a
+                       plain click and a real drag start), chainDragCont. Uses
+                       document.elementFromPoint on every mousemove for live
+                       hit-testing (immune to the DOM-shuffle problem above).
+                       draggable="true" attribute removed from applyChainOrder;
+                       CSS cursor:grab rule updated to apply unconditionally.
+                       7/27 REORG: openDistPanel/renderDistKnobs/updateDistKnob/
+                       refreshDistPanelAfterChainMap/DIST drag handler and the
+                       REVERB equivalents MOVED to fx-panels.js (new file, below)
+                       — this file no longer grows with each new effect panel.
+                       PURE RELOCATION, no logic changed. Everything below dated
+                       7/26 and earlier that is NOT about DIST/REVERB still
+                       describes this file correctly; the Phase 9/10 lines at
+                       the bottom of this entry now describe fx-panels.js instead.
                        7/26: KNOB_COLORS + knobColor() (amber/green base, red on
                        change); captureKnobBaselines()/clearMainKnobBaselines()
                        (main-panel baseline); fxBaseline store + helpers
@@ -507,6 +881,17 @@ CODE FILE MAP
                        updateReverbKnob, reverbKnobDisplay (ms), currentReverbModel,
                        refreshReverbPanelAfterChainMap, REVERB knob drag handler.
                        Knob drag start-value zero-guard fixed (DIST + REVERB).
+  fx-panels.js         NEW 7/27. Per-effect-panel UI, split out of ui.js so that
+                       file stops growing as panels are added. Currently holds
+                       the DIST panel (openDistPanel, renderDistKnobs,
+                       updateDistKnob, refreshDistPanelAfterChainMap, drag
+                       handler) and the REVERB panel (same set plus
+                       currentReverbModel, reverbKnobDisplay for the ms unit,
+                       and the Type dropdown+knob linkage). THE NEXT SEVEN
+                       PANELS' UI belongs HERE, not in ui.js — copy the DIST
+                       set as the template (see file header); REVERB's extra
+                       pieces are the template for any block that needs a
+                       linked selector or a non-default unit/scale.
   app-init.js          Startup wiring
   patch-nav.js         Patch navigation logic.
                        7/23: sendPC() now emits the CMD 0x02 absolute-slot
@@ -612,7 +997,46 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
   it. Avid's row has a tiny image with a tiny label and is hard to scan, which
   is the whole reason this app exists. Thumbnail plus our larger label beats
   either app alone. Keep the hover text too: it costs nothing and covers users
-  without the graphics. Row grows from 62px to roughly 110px.
+  without the graphics. Row grows from 62px to roughly 110px (BUILT 7/28, see
+  WORKING: CHAIN ROW GRAPHICS-READY LAYOUT — currently dummy placeholders,
+  real images are the next step below).
+
+  7/28 UPDATES (folder handling + real data, ahead of actually loading images):
+    SETTING RENAMED "Avid Editor Folder" -> "Avid Graphics Folder" (index.html,
+    main.js) — reflects that this no longer needs to be a live Editor install.
+    FOLDER DEPTH: do NOT require the user to pick an exact folder depth (not
+    the Editor root specifically, not System Plug-Ins specifically). The
+    loader (not yet built) should search recursively for the plugin image
+    structure wherever it sits inside whatever folder is chosen. This is what
+    makes "copy the folder off before uninstalling Avid on a Win11 box"
+    actually work — a fixed-depth picker breaks the moment that copy gets
+    reorganized even slightly, and Win11 users are exactly the ones most
+    likely to only ever have a one-time copied-out folder, never a live
+    install on that machine.
+    REAL FOLDER LISTING obtained (Charlie, full recursive dir listing off a
+    real install, 3934 lines / 3623 PNGs across 11 plugin folders: AmpsCabs,
+    Delay, Distortion, Dynamics, EQ, FX Loop, Modulation, Reverb, Tuner,
+    Volume, WAH). CONFIRMED FACTS from it:
+      - Pedal thumbnails live at <Plugin>.aaxplugin\Contents\Resources\Images\
+        <ModelName>.png (+ a same-named _sel.png — a plain generic amber
+        rounded-rect outline, NOT a per-pedal custom asset, so it can likely
+        just be a CSS border instead of another image dependency).
+      - The Resources ROOT (sibling to Images\) holds only per-model GUI
+        layout XML (<ModelName>GUI.xml) — not images. Easy to grab the wrong
+        level if not checked; confirmed by directly inspecting the Distortion
+        and Reverb folders.
+      - Avid spells it "GreenJVCOD", not "GreenJRCOD" — a real naming quirk,
+        consistent with the "MultiChorus spelled two ways" one already noted
+        above.
+      - AMP IMAGES ARE MANY-TO-ONE: only 17 amp_*.png files exist for 33
+        documented amp models — several modeled amps share one thumbnail
+        (same physical chassis, different channel/mode). The mapping table
+        must account for this; it is not one row per amp model.
+    MAPPING TABLE ARCHITECTURE (decided, not yet built): the MID->filename
+    table itself is CODE DATA, not documentation — it belongs in its own
+    dedicated JS file (like fx-transport.js/fx-panels.js), not pasted into
+    any doc. The docs get a short pointer paragraph (this one) plus gotchas,
+    never the raw table.
 
   EFFECT PANELS: pedal image in the panel HEADER only, for recognition, with
   real sliders and labelled values below — the way our amp panel already

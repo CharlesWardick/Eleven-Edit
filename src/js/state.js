@@ -137,6 +137,12 @@ let distPanelOpen = false;
 // REVERB panel open flag — same role as distPanelOpen, for the REVERB slot.
 let reverbPanelOpen = false;
 
+// WAH panel open flag — same role as distPanelOpen, for the WAH slot.
+let wahPanelOpen = false;
+
+// VOL panel open flag — same role as distPanelOpen, for the VOL slot.
+let volPanelOpen = false;
+
 // ── Amp Select receipt counter.
 // Incremented every time a CMD 0x11 paramLo 0x0F (Amp Select) reply is
 // processed. The post-nav pull waits for this to advance before building the

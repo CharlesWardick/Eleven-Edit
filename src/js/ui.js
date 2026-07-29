@@ -200,11 +200,16 @@ function valGateThresh(v127) {
 
 // Gate Release: logarithmic 10ms to 3000ms
 // Hardware shows ~198ms at midpoint — log scale confirmed
+// One decimal place throughout (7/27), matching every other readout
+// (Gate Threshold, Rig Vol, Amp Out, To Amp Vol) — was showing a bare
+// rounded integer below 1000ms ("10 ms") while the seconds branch above
+// 1000ms already used .toFixed(1). The v127=0 special case is gone too:
+// the formula already lands exactly on 10 at v127=0, so toFixed(1) alone
+// gives "10.0 ms" with no separate branch needed.
 function valGateRelease(v127) {
-  if (v127 === 0) return '10 ms';
   // Logarithmic: ms = 10 * (300)^(v/127)
   const ms = 10 * Math.pow(300, v127 / 127);
-  return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
+  return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
 }
 
 // Rig Volume: 0-127 maps -24dB to 0dB
@@ -269,6 +274,14 @@ function setInputButtons(inputVal) {
   document.getElementById('btn-input-mic').classList.toggle('active',    isMic);
   document.getElementById('btn-input-line').classList.toggle('active',   isLine);
   document.getElementById('btn-input-dig').classList.toggle('active',    isDig);
+
+  // Passive clone at the start of the chain strip (7/28) — same source of
+  // truth as the buttons above, updated in the same place so it can never
+  // drift out of sync with them.
+  const cloneEl = document.getElementById('chain-input-wrap');
+  if (cloneEl) {
+    cloneEl.textContent = isGuitar ? 'GUITAR' : isMic ? 'MIC' : isLine ? 'LINE' : isDig ? 'DIGITAL' : '--';
+  }
 }
 
 // ── Avid editor state — purely informational now. The Java bridge owns
@@ -686,8 +699,16 @@ function renderTempoField() {
     wEl.textContent = String(Math.floor(currentTempoTenths / 10));
     tEl.textContent = String(currentTempoTenths % 10);
   }
-  wEl.classList.toggle('seg-on', tempoSeg === 'w');
-  tEl.classList.toggle('seg-on', tempoSeg === 't');
+  // 7/29: Charlie caught the whole-BPM segment showing amber "selected"
+  // (seg-on) at all times, including when the app window wasn't even
+  // focused — tempoSeg defaults to 'w' and nothing gated the highlight on
+  // whether the box was actually clicked into. Now requires real focus too,
+  // so the segment only lights up while the user is actually in the box
+  // (clicked a segment, or tabbed/focused it) — matches the tenths side's
+  // plain look the rest of the time.
+  const focused = document.activeElement === box;
+  wEl.classList.toggle('seg-on', focused && tempoSeg === 'w');
+  tEl.classList.toggle('seg-on', focused && tempoSeg === 't');
 }
 
 // Called by the CMD 0x50 handler for every broadcast, echo and query reply.
@@ -807,7 +828,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  box.addEventListener('blur', function() { commitTempoTyping(); });
+  // commitTempoTyping() no-ops (no repaint) when nothing was mid-typed —
+  // the common case of "clicked a segment, then clicked elsewhere" — so the
+  // seg-on highlight would otherwise survive a blur with no typing involved.
+  // Always repaint after, not just when there was something to commit.
+  box.addEventListener('blur', function() { commitTempoTyping(); renderTempoField(); });
+  // Repaint on focus too, not just blur — this is what actually lights up
+  // the seg-on highlight now that it's gated on real focus (see
+  // renderTempoField). Reachable via Tab, not just the mousedown handlers
+  // above (those already call renderTempoField themselves via selectSeg).
+  box.addEventListener('focus', function() { renderTempoField(); });
 
   renderTempoField();
 });
@@ -833,17 +863,83 @@ document.addEventListener('DOMContentLoaded', function() {
 // last. Both the Avid editor and the hardware front panel resolve this before
 // anything is sent: the editor SNAPS a dropped loop to the nearest legal spot
 // rather than refusing it. We do the same, so an illegal arrangement is never
-// transmitted. Dragging the AMP can also strand the loop, so the loop is
-// re-validated after every move, not just when the loop itself is dragged.
+// transmitted.
 //
-// Returns a reordered copy of currentChain, loop legality already resolved.
-function computeReorder(fromSlotId, toIndex) {
-  const rest = currentChain.filter(b => b.slotId !== fromSlotId);
-  const moved = currentChain.find(b => b.slotId === fromSlotId);
+// AMP-CAB + LOOP "LINKED BLOCK" RULE (confirmed against the Avid editor
+// 7/28/2026, Session Log): dragging AMP-CAB while LOOP sits immediately
+// adjacent to it (either side) moves LOOP along with it, same direction, same
+// distance, until LOOP would be pushed past either end of the chain — at
+// which point LOOP stays parked at that end and further AMP-CAB movement is
+// free (LOOP at position 1 or 10 is legal regardless of AMP-CAB's position).
+// Dragging LOOP directly, or dragging AMP-CAB when LOOP is NOT adjacent to it,
+// uses the plain snap-to-nearest-legal-stop behaviour below (unchanged, and
+// already confirmed correct against a full legality table the same day).
+//
+// baseOrder defaults to currentChain but the live drag preview (wireChainDrag)
+// passes a frozen snapshot taken at dragstart instead, so a chain-map arriving
+// mid-drag can't perturb the on-screen preview (Session Log WATCH FOR, 7/19).
+//
+// Shared by computeReorder AND the drag-ghost builder (wireChainDrag), so the
+// "is this drag a linked AMP-CAB+LOOP pair" question has exactly one answer
+// used everywhere, not two independently-maintained copies of the same check.
+// Returns null if not linked, else {ampIdx, loopIdx, loopBefore}.
+function linkedAmpLoopInfo(fromSlotId, baseOrder) {
+  if (fromSlotId !== SLOT_AMP) return null;
+  const ampIdx  = baseOrder.findIndex(b => b.slotId === SLOT_AMP);
+  const loopIdx = baseOrder.findIndex(b => b.slotId === SLOT_LOOP);
+  if (ampIdx < 0 || loopIdx < 0 || Math.abs(ampIdx - loopIdx) !== 1) return null;
+  // Adjacent alone isn't enough: LOOP already parked at an end (index 0 or
+  // the last index) is legal on its own regardless of AMP-CAB's position, so
+  // it must NOT be dragged along even though it's numerically "adjacent" —
+  // confirmed by simulation: amp=9/loop=10 wrongly pulled loop to 2 before
+  // this guard was added.
+  if (loopIdx === 0 || loopIdx === baseOrder.length - 1) return null;
+  return { ampIdx, loopIdx, loopBefore: loopIdx < ampIdx };
+}
+
+// Returns a reordered copy of baseOrder, loop legality already resolved.
+function computeReorder(fromSlotId, targetSlotId, after, baseOrder) {
+  const src = baseOrder || currentChain;
+  if (fromSlotId === targetSlotId) return src;
+
+  const linkInfo = linkedAmpLoopInfo(fromSlotId, src);
+  if (linkInfo) return computeLinkedAmpLoopReorder(src, targetSlotId, after, linkInfo.ampIdx, linkInfo.loopIdx);
+
+  const rest = src.filter(b => b.slotId !== fromSlotId);
+  const moved = src.find(b => b.slotId === fromSlotId);
   if (!moved) return null;
-  let idx = Math.max(0, Math.min(toIndex, rest.length));
+  let idx = rest.findIndex(b => b.slotId === targetSlotId);
+  if (idx < 0) idx = rest.length;
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(idx, rest.length));
   rest.splice(idx, 0, moved);
   return enforceLoopPlacement(rest);
+}
+
+// Moves AMP-CAB and its adjacent LOOP together as a two-item unit. Removing
+// both from the order and reinserting them as a pair (in their original
+// relative order, so LOOP stays on the same side it started on) means the
+// normal 0..rest.length clamp that already bounds a single-item insertion
+// now bounds the PAIR instead — which is exactly what stops LOOP from ever
+// being pushed past either end. No separate boundary check needed.
+function computeLinkedAmpLoopReorder(src, targetSlotId, after, ampIdx, loopIdx) {
+  const loopBefore = loopIdx < ampIdx;
+  const pair = loopBefore ? [src[loopIdx], src[ampIdx]] : [src[ampIdx], src[loopIdx]];
+  const rest = src.filter(b => b.slotId !== SLOT_AMP && b.slotId !== SLOT_LOOP);
+  let idx = rest.findIndex(b => b.slotId === targetSlotId);
+  // 7/28, 11th pass BUG FIX: target not found in `rest` means the hit-test
+  // landed on AMP or LOOP itself — part of what's being carried, not a real
+  // drop target. Used to fall through to idx = rest.length ("park at the
+  // end"), which is why the pair would ricochet to slot 10 and back whenever
+  // the cursor happened to pass over LOOP mid-drag (Charlie: "the loop
+  // shoots to slot 10 then back"). No-op instead, same as the plain
+  // fromSlotId===targetSlotId self-target case elsewhere.
+  if (idx < 0) return src;
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(idx, rest.length));
+  const result = rest.slice();
+  result.splice(idx, 0, ...pair);
+  return result;
 }
 
 function legalLoopIndices(withoutLoop) {
@@ -877,80 +973,342 @@ function sameOrder(a, b) {
   return true;
 }
 
-let chainDragSlot = null;      // slot ID being dragged
-let chainDragActive = false;   // suppresses the click that follows a drag
+// MOUSE-TRACKED DRAG (rewritten 7/28, replacing native HTML5 drag-and-drop).
+// Native drag-and-drop does its own hit-testing of whatever's under the
+// cursor, and it does not tolerate the dragged-over elements being moved
+// while a native drag is in progress — which is exactly what the live
+// preview does (applyChainOrder relocates divs on every update). Real-world
+// testing showed this as a rapid ok/no-drop cursor flicker and, on a
+// two-block swap, the two blocks flashing back and forth at high speed —
+// the browser's native drag tracking losing and re-finding its target as
+// the DOM shifted under it. Knobs in this app never had this problem
+// because they were never native-drag-based; they use plain mousedown/
+// mousemove/mouseup, same as this rewrite now does for the chain row.
+let chainDragSlot       = null;   // slot ID being dragged
+let chainDragPending    = false;  // mousedown happened; watching for the move
+                                   // threshold before committing to a real drag
+let chainDragActive     = false;  // TRUE once the threshold is crossed — this
+                                   // (not chainDragPending) is what suppresses
+                                   // the click that follows a real drag, so a
+                                   // plain click without movement still reaches
+                                   // the bypass-toggle handler normally
+let chainDragCont       = null;   // .chain-slot/.chain-slot-stack container (still what gets reordered)
+let chainDragThumb      = null;   // .chain-thumb inside it — the actual drag handle (7/28)
+let chainDragLinkedCont = null;   // LOOP's container, ONLY set when dragging AMP in the
+                                   // linked AMP-CAB+LOOP case (7/28, 11th pass) — carried in
+                                   // lockstep with chainDragCont via the same transform delta,
+                                   // instead of getting the other blocks' slide-in treatment,
+                                   // so the pair visually stays glued together during the drag
+let chainDragLinkedGapX = 0;      // signed distance, LOOP's thumb center minus AMP's, measured
+                                   // ONCE at drag start before any transform (7/28, 12th/13th
+                                   // pass) — constant for the whole drag since the pair always
+                                   // moves in lockstep. Used with chainDragMovingRight below to
+                                   // hit-test off whichever block is currently LEADING the drag
+                                   // direction, not always AMP's own center (see mousemove)
+let chainDragLastX      = 0;      // previous mousemove's clientX (7/28, 13th pass) — compared
+                                   // against the current one to detect instantaneous drag
+                                   // direction, only meaningful for the linked-pair hit-test
+let chainDragMovingRight = true;  // this drag's current direction, updated only on an actual
+                                   // nonzero horizontal move so a zero-delta frame (e.g. a purely
+                                   // vertical jiggle) can't flip it — default is arbitrary, gets
+                                   // set for real on the first real movement past the threshold
+let chainDragStartX     = 0;
+let chainDragStartY     = 0;
+let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
+let chainDragOffsetY    = 0;      // used for grab-offset-independent hit
+                                   // testing (see mousemove below)
+let chainDragStartOrder = null;   // currentChain snapshot at mousedown — every
+                                   // preview computation this drag uses THIS,
+                                   // never the live currentChain, so an
+                                   // incoming chain-map broadcast mid-drag
+                                   // cannot yank the preview (WATCH FOR, 7/19)
+let chainPreviewOrder   = null;   // order currently shown on screen
+const CHAIN_DRAG_THRESHOLD = 4;   // px of movement before it counts as a drag
 
-function clearDropMarks() {
-  document.querySelectorAll('#chainstrip .drop-before, #chainstrip .drop-after')
-    .forEach(el => el.classList.remove('drop-before','drop-after'));
-}
+// 7/28 (2nd pass): the floating ghost clone that used to live here is gone.
+// Charlie's screen recording of Avid's own editor showed no separate ghost at
+// all during a drag — just the real block sliding smoothly into its new
+// spot. Removed the clone entirely; applyChainOrderAnimated (defined right
+// after applyChainOrder below, since it wraps it) gives the REAL blocks that
+// same smooth slide via a FLIP animation, so the "what am I carrying" cue is
+// now just the dragged thumb's own .dragging opacity plus it visibly sliding
+// with everything else — no clone needed, and the old linked-pair "show both
+// blocks in the ghost" special case is no longer needed either: since both
+// blocks in a linked AMP-CAB/LOOP move for real now, they simply slide
+// together in sync, which already reads as "these two travel together"
+// without any dedicated code for it.
 
 function wireChainDrag() {
   const strip = document.getElementById('chainstrip');
   if (!strip || strip.dataset.dragWired) return;
   strip.dataset.dragWired = '1';
 
-  strip.addEventListener('dragstart', function(ev) {
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    if (!cont || !strip.contains(cont)) return;
+  // 7/28: drag now starts ONLY from .chain-thumb, not anywhere in the slot.
+  // Previously the whole slot (including the .chain-name label) was the
+  // mousedown target, which is what put the drag-handle and the bypass-toggle
+  // click on the same element — Charlie: "the clicker is also the drag
+  // handle". Splitting them onto separate elements (thumb vs label) removes
+  // that conflict at the source, matching how Avid's own editor works: you
+  // grab the pedal graphic, you click the label.
+  strip.addEventListener('mousedown', function(ev) {
+    if (ev.button !== 0) return;   // left button only
+    const thumb = ev.target.closest('.chain-thumb');
+    if (!thumb || !strip.contains(thumb)) return;
+    const cont = thumb.closest('.chain-slot, .chain-slot-stack');
+    if (!cont) return;
     const blk = currentChain.find(b => containerForSlot(b.slotId) === cont);
     if (!blk) return;
     chainDragSlot = blk.slotId;
-    chainDragActive = true;
-    cont.classList.add('dragging');
-    ev.dataTransfer.effectAllowed = 'move';
-    ev.dataTransfer.setData('text/plain', String(blk.slotId));   // Firefox needs a payload
+    chainDragPending = true;
+    chainDragCont = cont;
+    chainDragThumb = thumb;
+    chainDragStartX = ev.clientX;
+    chainDragStartY = ev.clientY;
+    chainDragLastX  = ev.clientX;
+    const r = thumb.getBoundingClientRect();
+    chainDragOffsetX = ev.clientX - r.left;   // where within the THUMB it was
+    chainDragOffsetY = ev.clientY - r.top;    // grabbed, so the ghost doesn't jump
+    chainDragStartOrder = currentChain.slice();
+    chainPreviewOrder = chainDragStartOrder;
+    ev.preventDefault();   // no text selection / stray native drag ghost
   });
 
-  strip.addEventListener('dragover', function(ev) {
+  // LIVE PREVIEW (7/28): the blocks physically shift into the speculative
+  // order as you drag, instead of a static insertion marker that only
+  // resolved on drop. Recomputed off chainDragStartOrder, applied to the DOM
+  // immediately — nothing is sent to hardware until mouseup.
+  window.addEventListener('mousemove', function(ev) {
     if (chainDragSlot === null) return;
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    if (!cont || !strip.contains(cont)) return;
-    ev.preventDefault();
-    ev.dataTransfer.dropEffect = 'move';
-    const r = cont.getBoundingClientRect();
-    const after = ev.clientX > r.left + r.width / 2;
-    clearDropMarks();
-    cont.classList.add(after ? 'drop-after' : 'drop-before');
-  });
+    if (ev.buttons === 0) { endChainDrag(false); return; }   // button released outside the window
 
-  strip.addEventListener('dragleave', function(ev) {
-    if (!strip.contains(ev.relatedTarget)) clearDropMarks();
-  });
+    if (chainDragPending) {
+      const dx = ev.clientX - chainDragStartX, dy = ev.clientY - chainDragStartY;
+      if (Math.hypot(dx, dy) < CHAIN_DRAG_THRESHOLD) return;   // still just a click so far
+      chainDragPending = false;
+      chainDragActive = true;
+      chainDragThumb.classList.add('dragging');
+      document.body.style.cursor = 'grabbing';
+      // 7/28, 10th pass: the dragged block now follows the cursor for real
+      // (see the bottom of this handler) instead of sitting still until a
+      // reorder fires — Charlie: Avid's own drag is "immediately... in
+      // motion" the moment you move, not "drag to the edge, then sudden
+      // swap". pointer-events:none lets elementFromPoint below see THROUGH
+      // the dragged block to whatever it's now visually overlapping (the
+      // same trick the old floating ghost got for free by being a separate
+      // overlay). transition:none for the whole drag guarantees the follow
+      // is always an instant 1:1 snap to the cursor, never an animated
+      // catch-up — only the OTHER blocks (via applyChainOrderAnimated) get
+      // an eased transition.
+      chainDragCont.style.pointerEvents = 'none';
+      chainDragCont.style.transition = 'none';
 
-  strip.addEventListener('drop', function(ev) {
-    if (chainDragSlot === null) return;
-    ev.preventDefault();
-    const cont = ev.target.closest('.chain-slot, .chain-slot-stack');
-    clearDropMarks();
-    if (cont && strip.contains(cont)) {
-      const target = currentChain.find(b => containerForSlot(b.slotId) === cont);
-      if (target && target.slotId !== chainDragSlot) {
-        const r = cont.getBoundingClientRect();
-        const after = ev.clientX > r.left + r.width / 2;
-        // index within the list that excludes the dragged block
-        const rest = currentChain.filter(b => b.slotId !== chainDragSlot);
-        let ti = rest.findIndex(b => b.slotId === target.slotId);
-        if (after) ti += 1;
-        const next = computeReorder(chainDragSlot, ti);
-        if (next && !sameOrder(next, currentChain)) {
-          sendChainOrder(next);   // hardware replies with a map; renderChainRow adopts it
+      // 7/28, 11th pass: if this is the linked AMP-CAB+LOOP case, LOOP rides
+      // along with the SAME transform every frame (below), instead of
+      // getting the other blocks' eased slide-in — Charlie: "the loop
+      // doesn't stay in close proximity with amp, it's at least one block
+      // behind" (it was on the slow CHAIN_SLIDE_MS transition, re-triggered
+      // on every incremental reorder during a fast real drag, so it could
+      // never fully catch up). pointer-events:none here also closes the
+      // ricochet bug fixed in computeLinkedAmpLoopReorder — without it,
+      // elementFromPoint could land ON LOOP directly, which used to be
+      // treated as a real target.
+      const linkInfo = linkedAmpLoopInfo(chainDragSlot, chainDragStartOrder);
+      if (linkInfo) {
+        const partnerBlk = chainDragStartOrder[linkInfo.loopIdx];
+        chainDragLinkedCont = containerForSlot(partnerBlk.slotId);
+        if (chainDragLinkedCont) {
+          chainDragLinkedCont.style.pointerEvents = 'none';
+          chainDragLinkedCont.style.transition = 'none';
+          // Measured HERE, before either block has any transform applied —
+          // the one moment guaranteed to reflect their true natural gap.
+          const linkedThumb = chainDragLinkedCont.querySelector('.chain-thumb');
+          const ampNatural  = chainDragThumb.getBoundingClientRect();
+          const loopNatural = linkedThumb.getBoundingClientRect();
+          chainDragLinkedGapX = (loopNatural.left + loopNatural.width / 2)
+                               - (ampNatural.left  + ampNatural.width  / 2);
         }
       }
     }
-    chainDragSlot = null;
+
+    // Hit-test off the DRAGGED BLOCK'S OWN position, not the raw cursor
+    // (7/28, Charlie: "matters where I place the mouse on the source block").
+    // ev.clientX alone is offset by wherever within the thumb you happened to
+    // grab it — chainDragOffsetX undoes that grab offset, landing on the
+    // dragged thumb's own current center. That makes the reorder trigger
+    // point consistent regardless of where on the block you clicked, instead
+    // of shifting by the grab offset. It is also, as of the 10th pass, the
+    // exact point the block's own visual center is being driven to below —
+    // so this hit-test is now testing against where the block ACTUALLY is,
+    // not just a computed proxy for it.
+    const dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth  / 2;
+    const dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight / 2;
+
+    // 7/28, 13th pass: for the linked case, hit-test off whichever block —
+    // AMP or LOOP — is actually LEADING the current drag direction, not a
+    // fixed compromise point. The 12th pass tried splitting the difference
+    // (the pair's CENTER) after Charlie found LOOP-leading directions needed
+    // a full extra block's width of travel while LOOP-trailing directions
+    // were already correct — but averaging just spread that wrongness onto
+    // BOTH directions evenly instead of fixing it (Charlie caught this: "the
+    // two [previously good] seem a bit off now... consistent with what the
+    // fix did for the problem in the other direction"). The actually correct
+    // reference point is the block that's physically out in front: use
+    // LOOP's center when moving toward LOOP's side, AMP's own (dragCenterX,
+    // unchanged) when moving toward AMP's side — that restores the
+    // already-good trailing direction to exactly its original behavior
+    // while giving the leading direction its TRUE edge instead of a halfway
+    // compromise. chainDragLinkedGapX's sign says which side LOOP is on;
+    // Math.max/min picks the more-advanced point for the CURRENT direction
+    // without needing to know which literal side that is. 0 for a non-linked
+    // drag either way, so hitTestX reduces to plain dragCenterX there.
+    if (ev.clientX !== chainDragLastX) {
+      chainDragMovingRight = ev.clientX > chainDragLastX;
+    }
+    chainDragLastX = ev.clientX;
+    const linkedLeadOffset = chainDragMovingRight
+      ? Math.max(0, chainDragLinkedGapX)
+      : Math.min(0, chainDragLinkedGapX);
+    const hitTestX = dragCenterX + linkedLeadOffset;
+
+    if (chainDragActive) {
+      // elementFromPoint does fresh hit-testing against whatever is actually
+      // rendered right now — unlike native drag's event target, it is not
+      // confused by applyChainOrder having just moved things around. With
+      // pointer-events:none on the dragged block (above), this naturally
+      // finds whatever real neighbor the dragged block is now visually
+      // overlapping, instead of just finding itself.
+      const el = document.elementFromPoint(hitTestX, dragCenterY);
+      const cont = el ? el.closest('.chain-slot, .chain-slot-stack') : null;
+      if (cont && strip.contains(cont)) {
+        const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
+        if (target) {
+          const r = cont.getBoundingClientRect();
+          // Position 1 gets its whole width as the "before" zone, not just its
+          // left half (7/28, Charlie: not enough room before the window's left
+          // edge to reliably cross the midpoint). No position is lost by this:
+          // landing right after this same block is still reachable via the
+          // SECOND block's left half, so this only removes a redundant,
+          // cramped path — it doesn't block reaching anywhere the plain
+          // midpoint math could reach.
+          const after = (target.slotId === chainDragStartOrder[0].slotId)
+                        ? false
+                        : hitTestX > r.left + r.width / 2;
+          const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
+          if (next && !sameOrder(next, chainPreviewOrder)) {
+            chainPreviewOrder = next;
+            // Exclude the dragged block (and its linked LOOP partner, if any)
+            // from the OTHER blocks' slide-in animation — their position is
+            // driven continuously below, not by a discrete slide, and would
+            // otherwise fight with that.
+            applyChainOrderAnimated(next, [chainDragCont, chainDragLinkedCont]);
+          }
+        }
+      }
+
+      // CONTINUOUS FOLLOW (7/28, 10th pass): keep the dragged thumb's visual
+      // center pinned to dragCenterX/Y at all times, recomputed AFTER any
+      // reorder above so it reflects the block's up-to-date slot position,
+      // not a stale one from before the DOM move. Clearing the transform to
+      // measure, then reapplying, is the only reliable way to get the block's
+      // true CURRENT natural (untransformed) position — there's no cheaper
+      // shortcut that stays correct across an interrupted/mid-reorder drag.
+      chainDragCont.style.transform = 'none';
+      const thumbNatural = chainDragThumb.getBoundingClientRect();
+      const naturalCenterX = thumbNatural.left + thumbNatural.width / 2;
+      const followDx = dragCenterX - naturalCenterX;
+      chainDragCont.style.transform = `translateX(${followDx}px)`;
+
+      // 7/28, 11th pass: LOOP (if linked) gets the EXACT SAME delta, not its
+      // own recomputed one — that's what keeps it glued to AMP-CAB at a
+      // constant visual distance instead of independently chasing the
+      // cursor. Its own natural DOM position already sits correctly adjacent
+      // to AMP-CAB's (computeLinkedAmpLoopReorder always keeps the pair
+      // together), so applying the same shift to both preserves that gap.
+      if (chainDragLinkedCont) {
+        chainDragLinkedCont.style.transform = `translateX(${followDx}px)`;
+      }
+    }
   });
 
-  strip.addEventListener('dragend', function() {
-    clearDropMarks();
-    document.querySelectorAll('#chainstrip .dragging')
-      .forEach(el => el.classList.remove('dragging'));
-    chainDragSlot = null;
-    setTimeout(() => { chainDragActive = false; }, 0);   // let the stray click pass first
+  window.addEventListener('mouseup', function() {
+    if (chainDragSlot === null) return;
+    endChainDrag(true);
   });
+
+  window.addEventListener('blur', function() {
+    if (chainDragSlot === null) return;
+    endChainDrag(false);   // losing focus mid-drag cancels, never commits
+  });
+
+  function endChainDrag(allowCommit) {
+    const wasReallyDragging = chainDragActive;
+    let committed = false;
+    if (allowCommit && wasReallyDragging
+        && chainPreviewOrder && !sameOrder(chainPreviewOrder, currentChain)) {
+      sendChainOrder(chainPreviewOrder);   // hardware replies with a map; renderChainRow adopts it
+      committed = true;
+    }
+    if (chainDragThumb) chainDragThumb.classList.remove('dragging');
+    if (chainDragCont) {
+      // Clear the continuous-follow transform/pointer-events (7/28, 10th
+      // pass) — the block's NATURAL slot position is already correct (every
+      // reorder during the drag actually moved it in the DOM), so clearing
+      // the transform just lets it sit there normally; no settle animation
+      // needed since the visual position was already tracking the cursor
+      // right up to release.
+      chainDragCont.style.transform = '';
+      chainDragCont.style.transition = '';
+      chainDragCont.style.pointerEvents = '';
+    }
+    if (chainDragLinkedCont) {   // LOOP's lockstep styles (7/28, 11th pass), same reasoning
+      chainDragLinkedCont.style.transform = '';
+      chainDragLinkedCont.style.transition = '';
+      chainDragLinkedCont.style.pointerEvents = '';
+    }
+    document.body.style.cursor = '';
+    chainDragSlot = null;
+    chainDragThumb = null;
+    chainDragPending = false;
+    chainDragCont = null;
+    chainDragLinkedCont = null;
+    chainDragLinkedGapX = 0;
+    chainDragLastX = 0;
+    chainDragMovingRight = true;
+    chainDragStartOrder = null;
+    chainPreviewOrder = null;
+    setTimeout(() => {
+      chainDragActive = false;   // let the stray click pass first
+      // A committed drag leaves the preview's DOM alone — the hardware's own
+      // CMD 0x21 reply will call renderChainRow() for real once it lands, and
+      // currentChain will match what's already on screen by then (no visible
+      // jump). A cancelled/no-op drag, or a plain click that never became a
+      // real drag, has nothing coming, so re-sync now (a no-op if nothing
+      // ever moved).
+      if (!committed) renderChainRow();
+    }, 0);
+  }
 }
 
 // Map a chain slot ID to its (movable) container div in the chain row.
+// Shared by applyChainOrder (every block, on chain-map/reorder) and
+// setCurrentAmp (the AMP-CAB slot specifically, on an amp change that
+// doesn't move the chain map at all — Phase 12's "amp model change refresh"
+// path). Swaps in the real Avid graphic when src resolves, otherwise keeps
+// the dashed dummy placeholder — never both, never neither.
+function setChainThumbImage(thumbWrap, src) {
+  if (!thumbWrap) return;
+  const img = thumbWrap.querySelector('.chain-thumb-img');
+  const ph  = thumbWrap.querySelector('.chain-thumb-placeholder');
+  if (src && img) {
+    img.src = src;
+    img.style.display = '';
+    if (ph) ph.style.display = 'none';
+  } else {
+    if (img) { img.style.display = 'none'; img.removeAttribute('src'); }
+    if (ph) ph.style.display = '';
+  }
+}
+
 function containerForSlot(slotId) {
   if (slotId === SLOT_AMP) {
     const el = document.getElementById('chain-amp');
@@ -965,24 +1323,60 @@ function containerForSlot(slotId) {
 function renderChainRow() {
   const strip = document.getElementById('chainstrip');
   if (!strip || !currentChain.length) return;
+  // A live drag preview (wireChainDrag) is showing its own speculative order
+  // on screen right now — a chain-map arriving mid-drag (front panel, Avid,
+  // an echo) must not fight it. dragend re-syncs for real once the drag ends
+  // (Session Log WATCH FOR, 7/19).
+  if (chainDragActive) return;
+
+  applyChainOrder(currentChain);
+  refreshBlockBypassDisplays();
+  wireChainDrag();
+}
+
+// Moves the chain-slot divs into `order` and repaints the connector arrows.
+// Pulled out of renderChainRow (7/28) so the live drag preview can call it
+// with a SPECULATIVE order while dragging, without touching currentChain or
+// re-running the bypass-paint / drag-wiring side effects.
+function applyChainOrder(order) {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) return;
 
   // Collect the movable pieces before touching anything.
   // The "drag blocks to reorder" hint was removed 7/24/2026 — 10px on #555 was
   // unreadable. #mono-indicator now carries the margin-left:auto that pushes
   // the right-hand group to the end of the strip.
-  const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector)'));
-  const conn   = document.getElementById('mono-connector');
-  const mono   = document.getElementById('mono-indicator');
-  const tempo  = document.getElementById('tempo-wrap');
-
-  const containerFor = containerForSlot;
+  // #chain-input-connector is also .chain-arr (so it inherits the same line
+  // styling) but it is NOT one of the between-block connectors this loop
+  // assigns — excluded the same way #mono-connector already is, or this loop
+  // would hijack it as a stereo/mono arrow and throw off the block<->arrow
+  // pairing by one (7/28).
+  const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector):not(#chain-input-connector)'));
+  const conn    = document.getElementById('mono-connector');
+  // 7/28 BUG FIX: #mono-indicator is now wrapped in a .chain-slot (with a
+  // hidden .chain-open) so it bottom-aligns at the same baseline as every
+  // real block's label. Grabbing and re-appending the bare label (as this
+  // used to do) ripped it straight back out of that wrapper on every single
+  // reorder — which is constantly, in the real app — leaving an orphaned
+  // empty wrapper sitting in the row (the extra gap Charlie saw) and the
+  // badge reverting to plain align-self:center (why it drifted back to
+  // looking wrong after any chain-map update, not just on first load).
+  // Move the WRAPPER, not the label.
+  const monoLbl = document.getElementById('mono-indicator');
+  const mono    = monoLbl ? monoLbl.closest('.chain-slot') : null;
+  // 7/29: #tempo-wrap got the exact same .chain-slot + hidden-caret wrapper
+  // treatment as #mono-indicator above, for the exact same bottom-align
+  // reason — so it needs the exact same fix here. Grabbing the bare
+  // #tempo-wrap (as this used to do) would rip it straight back out of that
+  // wrapper on every reorder, same failure mode as the 7/28 mono bug.
+  const tempoEl = document.getElementById('tempo-wrap');
+  const tempo   = tempoEl ? tempoEl.closest('.chain-slot') : null;
 
   let arrowIdx = 0;
-  currentChain.forEach((blk, i) => {
-    const cont = containerFor(blk.slotId);
+  order.forEach((blk, i) => {
+    const cont = containerForSlot(blk.slotId);
     if (!cont) return;
     strip.appendChild(cont);                       // move, do not clone
-    cont.setAttribute('draggable', 'true');
 
     // Hover text on BOTH the label and the ▼, for a bigger target.
     const model = MODEL_NAMES[blk.modelId];
@@ -990,8 +1384,22 @@ function renderChainRow() {
     const tip   = blk.name + ' — ' + label;
     cont.querySelectorAll('.chain-name, .chain-open').forEach(el => { el.title = tip; });
 
+    // 7/29: real Avid graphic (chain-graphics.js) in place of the dummy
+    // dashed placeholder, where a scan has been run and that model has a
+    // confirmed mapping. The AMP-CAB slot is identified by amp KEY
+    // (currentAmpKey, state.js — the TFX '6dls' identifier), not by
+    // blk.modelId, since every amp shares the same generic chain-map mid
+    // (0x00 'Eleven') regardless of which of the 33 amps is loaded.
+    const thumbWrap = cont.querySelector('.chain-thumb');
+    if (thumbWrap) {
+      const src = (blk.slotId === SLOT_AMP)
+        ? (typeof getAmpThumbSrc === 'function' ? getAmpThumbSrc(currentAmpKey) : null)
+        : (typeof getChainThumbSrc === 'function' ? getChainThumbSrc(blk.modelId) : null);
+      setChainThumbImage(thumbWrap, src);
+    }
+
     // Connector after this block: double arrow when this block outputs stereo.
-    if (i < currentChain.length - 1 && arrowIdx < arrows.length) {
+    if (i < order.length - 1 && arrowIdx < arrows.length) {
       const arr = arrows[arrowIdx++];
       const st  = MODEL_OUT_STEREO[blk.modelId];
       // Stacked horizontal lines, fixed width: one = mono, two = stereo.
@@ -1018,9 +1426,72 @@ function renderChainRow() {
   if (conn)  strip.appendChild(conn);
   if (mono)  strip.appendChild(mono);
   if (tempo) strip.appendChild(tempo);
+}
 
-  refreshBlockBypassDisplays();
-  wireChainDrag();
+// How long the live-drag slide takes. First guess (a common, unremarkable UI
+// default), NOT yet confirmed against real hardware — Charlie's own feel-check
+// on a real rebuild is the actual test; adjust this one number if it reads as
+// too sluggish or too snappy.
+const CHAIN_SLIDE_MS = 1000;
+
+// FLIP-animates a reorder instead of letting applyChainOrder's instant
+// DOM move snap into place — used ONLY for the live drag preview (7/28, 2nd
+// pass: replaces the floating ghost clone, see the comment above where that
+// used to live). Avid's own editor has no separate "carried" visual during a
+// drag — just the real block sliding smoothly — so this makes the REAL
+// blocks slide instead of adding anything extra on top.
+//
+// FLIP = First (record where things are), Last (do the actual instant DOM
+// move), Invert (paint each moved element back at its OLD spot via a
+// transform, so nothing appears to have moved yet), Play (clear the
+// transform with a transition enabled, so the browser animates the actual
+// slide). Only translateX is needed — every mover here sits in a single
+// horizontal row, nothing changes rows.
+//
+// Sampling live rects (not tracking some idealized target) is what makes
+// this safe to call again before a previous slide has finished: a rapid drag
+// fires many of these in quick succession, and each call just captures
+// wherever things visually are AT THAT INSTANT (mid-slide or settled) as its
+// own "First" — no queuing or cancellation bookkeeping needed.
+//
+// excludeEls (7/28, 10th/11th pass): the dragged block — and, for the linked
+// AMP-CAB+LOOP case, its LOOP partner too — are left out of the mover list.
+// Both positions are driven every frame by wireChainDrag's own continuous
+// cursor-follow, not by sliding into a slot — including either here too
+// would mean two different pieces of code fighting over the same element's
+// transform on the same frame. Accepts an array (nulls ignored) since the
+// linked case needs two exclusions, not one.
+function applyChainOrderAnimated(order, excludeEls) {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) { applyChainOrder(order); return; }
+
+  // excludeEls may hold nulls (e.g. no linked partner this drag) — Set
+  // silently ignores those, no filtering needed for that case specifically.
+  const excluded = new Set(Array.isArray(excludeEls) ? excludeEls : [excludeEls]);
+  const movers = Array.from(strip.querySelectorAll('.chain-slot, .chain-slot-stack, .chain-arr'))
+    .filter(el => !excluded.has(el));
+  const firstRects = new Map();
+  movers.forEach(el => firstRects.set(el, el.getBoundingClientRect()));
+
+  applyChainOrder(order);   // Last — the real, instant reorder
+
+  movers.forEach(el => {
+    const first = firstRects.get(el);
+    const last  = el.getBoundingClientRect();
+    const dx = first.left - last.left;
+    if (Math.abs(dx) < 0.5) return;   // didn't actually move, nothing to animate
+
+    el.style.transition = 'none';
+    el.style.transform  = `translateX(${dx}px)`;   // Invert — paint at the old spot
+    void el.offsetWidth;                             // force a reflow so the browser commits that starting point
+    el.style.transition = `transform ${CHAIN_SLIDE_MS}ms ease`;
+    el.style.transform  = '';                          // Play — animate back to natural position
+
+    el.addEventListener('transitionend', function cleanup() {
+      el.style.transition = '';
+      el.style.transform  = '';
+    }, { once: true });
+  });
 }
 
 // Paint every non-amp slot from the stored bypass state.
@@ -1124,6 +1595,15 @@ function setCurrentAmp(key) {
   syncAmpSelectDropdown(key);
   updateToneKnobs(key);
   updateBrightVisibility(key);
+  // 7/29: refresh the AMP-CAB chain-thumb here too, not just on the next
+  // chain-map/reorder (applyChainOrder) — an amp change (Phase 12) doesn't
+  // move the chain map at all, so without this the thumbnail would lag one
+  // full nav behind the dropdown/amp-name-display above it.
+  const ampThumb = document.getElementById('chain-amp');
+  if (ampThumb && typeof getAmpThumbSrc === 'function') {
+    setChainThumbImage(ampThumb.closest('.chain-slot-stack').querySelector('.chain-thumb'),
+      getAmpThumbSrc(key));
+  }
   appLog('Amp identified: ' + (currentAmpName || 'unknown') + ' key=' + key);
 }
 
@@ -1488,378 +1968,3 @@ initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valToAmpVol, function(v) { sendToA
 // from GUI pending full CMD 0x37 implementation. Code in transport.js and
 // sysex-handler.js preserved for future use.
 
-// ════════════════════════════════════════════════════════════════════
-// DIST EFFECT PANEL
-// ════════════════════════════════════════════════════════════════════
-
-// Called when ▼ opens the DIST slot — populate dropdown, render knobs,
-// query hardware for current values.
-function openDistPanel() {
-  distPanelOpen = true;
-  const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
-  if (!distBlk) {
-    document.getElementById('dist-knob-row').innerHTML =
-      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
-    appLog('openDistPanel: no DIST block in chain map yet');
-    return;
-  }
-  // Sync dropdown to current model
-  const sel = document.getElementById('dist-model-select');
-  if (sel) sel.value = String(distBlk.modelId);
-  // Render knobs for current model
-  renderDistKnobs(distBlk.modelId);
-  // Query hardware for current values
-  requestDistParams();
-  appLog('openDistPanel: mid=0x' + distBlk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + distBlk.handle.toString(16).padStart(2,'0').toUpperCase());
-}
-
-// Called when DIST panel is hidden.
-function closeDistPanel() {
-  distPanelOpen = false;
-}
-
-// Build the knob row DOM for the given model mid.
-// Called on open and when user changes model via dropdown.
-// Build the knob area for a given model mid.
-// Each model defines a rows array: [ row [ {label,lo} | null ] ]
-// null = invisible spacer that holds column alignment (e.g. triangle layout).
-// All rows are wrapped in a single dark framed group matching the gate/amp-out
-// style. Knob IDs are dist-w-{loHex} / dist-v-{loHex} so updateDistKnob can
-// look them up directly by paramLo without tracking array indices.
-function renderDistKnobs(mid) {
-  const container = document.getElementById('dist-knob-row');
-  if (!container) return;
-  const model = DIST_MODEL_BY_MID[mid];
-  if (!model) {
-    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
-    return;
-  }
-  container.innerHTML = '';
-
-  // Outer dark group — same background/border treatment as .gate-group
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
-    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
-
-  model.rows.forEach(function(rowCells) {
-    const rowDiv = document.createElement('div');
-    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
-
-    rowCells.forEach(function(cell) {
-      if (!cell) {
-        // Spacer: invisible, same width as a ctrl-knob so columns align
-        var sp = document.createElement('div');
-        sp.style.cssText = 'width:80px;flex-shrink:0;';
-        rowDiv.appendChild(sp);
-      } else {
-        var loHex = cell.lo.toString(16).padStart(2,'0');
-        var knobDiv = document.createElement('div');
-        knobDiv.className = 'ctrl-knob';
-        knobDiv.innerHTML =
-          '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="dist-w-' + loHex + '" data-value="64" data-base="fx" data-dist-lo="' + loHex + '">'
-          + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
-          + '<span class="knob-val" id="dist-v-' + loHex + '">--</span>';
-        rowDiv.appendChild(knobDiv);
-        drawKnob(knobDiv.querySelector('canvas'), 64);
-      }
-    });
-
-    wrapper.appendChild(rowDiv);
-  });
-
-  container.appendChild(wrapper);
-}
-
-// Update a single DIST knob from a CMD 0x11 broadcast or REQU response.
-// Looks up by paramLo directly — no index arithmetic needed.
-function updateDistKnob(paramLo, val) {
-  const loHex = paramLo.toString(16).padStart(2,'0');
-  const wrap  = document.getElementById('dist-w-' + loHex);
-  const valEl = document.getElementById('dist-v-' + loHex);
-  if (wrap) {
-    // Display the current value; anchor the baseline in the persistent store so
-    // it survives panel close/reopen. First value this patch becomes the truth.
-    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_DIST, loHex, val);
-    wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
-  }
-  if (valEl) valEl.textContent = valDisplay(val);
-}
-
-// Called from sysex-handler CMD 0x21 handler after currentChain is updated.
-// Re-syncs dropdown (model may have changed on patch nav) and re-queries params.
-function refreshDistPanelAfterChainMap() {
-  if (!distPanelOpen) return;
-  const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
-  if (!distBlk) return;
-  const sel = document.getElementById('dist-model-select');
-  if (sel && parseInt(sel.value) !== distBlk.modelId) {
-    sel.value = String(distBlk.modelId);
-    renderDistKnobs(distBlk.modelId);
-    clearFxBaselineForSlot(SLOT_DIST);   // new model = new reference point
-  }
-  // Short delay so firmware handle assignment settles before we query
-  setTimeout(requestDistParams, 150);
-  appLog('refreshDistPanelAfterChainMap: mid=0x' + distBlk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + distBlk.handle.toString(16).padStart(2,'0').toUpperCase());
-}
-
-// ── DIST knob drag — delegated, keyed on data-dist-lo (hex paramLo string) ──
-(function() {
-  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
-
-  document.addEventListener('mousedown', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-dist-lo]');
-    if (!wrap) return;
-    activeParamLo = parseInt(wrap.dataset.distLo, 16);
-    if (isNaN(activeParamLo)) return;
-    activeWrap = wrap;
-    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
-    startY = e.clientY;
-    dragging = true;
-    e.preventDefault();
-  });
-
-  window.addEventListener('mousemove', function(e) {
-    if (!dragging || !activeWrap) return;
-    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }  // released outside the window
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
-    activeWrap.dataset.value = val;
-    drawKnob(activeWrap.querySelector('canvas'), val);
-    var loHex = activeParamLo.toString(16).padStart(2,'0');
-    var vEl = document.getElementById('dist-v-' + loHex);
-    if (vEl) vEl.textContent = valDisplay(val);
-    if (bridgeMidiReady) queueKnobSend('dist:' + activeParamLo, function(v) { sendDistParamWrite(activeParamLo, v); }, val);
-  });
-
-  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-
-  document.addEventListener('dblclick', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-dist-lo]');
-    if (!wrap) return;
-    var paramLo = parseInt(wrap.dataset.distLo, 16);
-    if (isNaN(paramLo)) return;
-    wrap.dataset.value = 64;
-    drawKnob(wrap.querySelector('canvas'), 64);
-    var loHex = paramLo.toString(16).padStart(2,'0');
-    var vEl = document.getElementById('dist-v-' + loHex);
-    if (vEl) vEl.textContent = valDisplay(64);
-    if (bridgeMidiReady) queueKnobSend('dist:' + paramLo, function(v) { sendDistParamWrite(paramLo, v); }, 64);
-  });
-})();
-
-// ════════════════════════════════════════════════════════════════════
-// REVERB EFFECT PANEL
-// Mirror of the DIST panel, plus the Eleven SR Type control (a dropdown
-// and a knob that stay in sync — both drive paramLo 0x05).
-// Knob IDs: reverb-w-{loHex} / reverb-v-{loHex}, keyed by paramLo.
-// ════════════════════════════════════════════════════════════════════
-
-function currentReverbModel() {
-  const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
-  if (!rvBlk) return null;
-  return REVERB_MODEL_BY_MID[rvBlk.modelId] || null;
-}
-
-// Open the REVERB slot panel — sync model dropdown, render controls,
-// query hardware for current values.
-function openReverbPanel() {
-  reverbPanelOpen = true;
-  const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
-  if (!rvBlk) {
-    document.getElementById('reverb-knob-row').innerHTML =
-      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
-    appLog('openReverbPanel: no REVERB block in chain map yet');
-    return;
-  }
-  const model = REVERB_MODEL_BY_MID[rvBlk.modelId];
-  const sel = document.getElementById('reverb-model-select');
-  if (sel && model) sel.value = String(model.mid);   // base mid identifies the model
-  renderReverbKnobs(rvBlk.modelId);
-  requestReverbParams();
-  appLog('openReverbPanel: mid=0x' + rvBlk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase());
-}
-
-function closeReverbPanel() {
-  reverbPanelOpen = false;
-}
-
-// Build the control row for the given model mid. One flat row:
-// [Type dropdown+knob] (Eleven SR only) followed by the knob cells.
-function renderReverbKnobs(mid) {
-  const container = document.getElementById('reverb-knob-row');
-  if (!container) return;
-  const model = REVERB_MODEL_BY_MID[mid];
-  if (!model) {
-    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
-    return;
-  }
-  container.innerHTML = '';
-
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
-    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
-
-  const rowDiv = document.createElement('div');
-  rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
-
-  // ── Type composite cell — knob aligned with the others, a dark-themed
-  // dropdown below it in place of the numeric readout. The dropdown already
-  // shows the type name, so no separate name label is drawn. Cell is a little
-  // wider than a plain knob so the dropdown sits inside the frame. ──
-  if (model.typeControl) {
-    const tc = model.typeControl;
-    const loHex = tc.lo.toString(16).padStart(2,'0');
-    const cell = document.createElement('div');
-    cell.className = 'ctrl-knob';
-    cell.style.width = '120px';
-    let opts = '';
-    tc.list.forEach(function(t, i) { opts += '<option value="' + i + '">' + t.name + '</option>'; });
-    cell.innerHTML =
-      '<label>' + tc.label + '</label>'
-      + '<div class="knob-wrap" id="reverb-w-' + loHex + '" data-value="64" data-base="fx" data-reverb-lo="' + loHex + '">'
-      + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
-      + '<select id="reverb-type-select" style="width:112px;margin-top:2px;'
-      + 'background:#1a1a1a;color:var(--text);border:1px solid var(--border-dim);'
-      + 'border-radius:4px;padding:4px 6px;font-size:12px;">' + opts + '</select>';
-    rowDiv.appendChild(cell);
-    drawKnob(cell.querySelector('canvas'), 64);
-    // Dropdown pick → snap the knob to that zone and send, via the normal path
-    const sel = cell.querySelector('#reverb-type-select');
-    sel.addEventListener('change', function() {
-      const idx = parseInt(this.value, 10);
-      if (isNaN(idx)) return;
-      const v127 = REVERB_TYPE_LIST[idx].v127;
-      updateReverbKnob(tc.lo, v127);                 // move knob locally
-      if (bridgeMidiReady) sendReverbParamWrite(tc.lo, v127);
-    });
-  }
-
-  // ── Standard knob cells ──
-  model.rows[0].forEach(function(cell) {
-    if (!cell) {
-      const sp = document.createElement('div');
-      sp.style.cssText = 'width:80px;flex-shrink:0;';
-      rowDiv.appendChild(sp);
-      return;
-    }
-    const loHex = cell.lo.toString(16).padStart(2,'0');
-    const knobDiv = document.createElement('div');
-    knobDiv.className = 'ctrl-knob';
-    knobDiv.innerHTML =
-      '<label>' + cell.label + '</label>'
-      + '<div class="knob-wrap" id="reverb-w-' + loHex + '" data-value="64" data-base="fx" data-reverb-lo="' + loHex + '">'
-      + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
-      + '<span class="knob-val" id="reverb-v-' + loHex + '">--</span>';
-    rowDiv.appendChild(knobDiv);
-    drawKnob(knobDiv.querySelector('canvas'), 64);
-  });
-
-  wrapper.appendChild(rowDiv);
-  container.appendChild(wrapper);
-}
-
-// Display string for a reverb knob value — honours a cell's `unit`/`max`
-// (e.g. Pre-Delay shows milliseconds over 0-200 instead of the default 0-10).
-// NOTE (7/22): the 0-200 ms mapping is assumed linear pending hardware
-// confirmation of the value the unit shows at full knob.
-function reverbKnobDisplay(paramLo, val) {
-  const model = currentReverbModel();
-  if (model) {
-    for (let r = 0; r < model.rows.length; r++) {
-      const row = model.rows[r];
-      for (let c = 0; c < row.length; c++) {
-        const cell = row[c];
-        if (cell && cell.lo === paramLo && cell.unit === 'ms') {
-          const max = cell.max || 200;
-          return (val / 127 * max).toFixed(1) + ' ms';
-        }
-      }
-    }
-  }
-  return valDisplay(val);
-}
-
-// Update a single REVERB control from a broadcast/REQU response or a local
-// dropdown pick. For the Type control it also moves the dropdown and shows
-// the type name instead of a 0-10 number.
-function updateReverbKnob(paramLo, val) {
-  const loHex = paramLo.toString(16).padStart(2,'0');
-  const wrap  = document.getElementById('reverb-w-' + loHex);
-  const valEl = document.getElementById('reverb-v-' + loHex);
-  if (wrap) {
-    // Baseline anchored in the persistent store — survives panel close/reopen.
-    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_REVERB, loHex, val);
-    wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
-  }
-  const model = currentReverbModel();
-  const isType = model && model.typeControl && model.typeControl.lo === paramLo;
-  if (isType) {
-    const idx = reverbTypeIndexFromV127(val);
-    const sel = document.getElementById('reverb-type-select');
-    if (sel) sel.value = String(idx);
-    if (valEl) valEl.textContent = REVERB_TYPE_LIST[idx].name;
-  } else if (valEl) {
-    valEl.textContent = reverbKnobDisplay(paramLo, val);
-  }
-}
-
-// Re-sync dropdown + knobs after a chain map (model may have changed on
-// patch nav or via our own model switch), then re-query params.
-function refreshReverbPanelAfterChainMap() {
-  if (!reverbPanelOpen) return;
-  const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
-  if (!rvBlk) return;
-  const model = REVERB_MODEL_BY_MID[rvBlk.modelId];
-  const sel = document.getElementById('reverb-model-select');
-  if (sel && model && parseInt(sel.value) !== model.mid) {
-    sel.value = String(model.mid);
-    renderReverbKnobs(rvBlk.modelId);   // model actually changed — rebuild controls
-    clearFxBaselineForSlot(SLOT_REVERB);   // new model = new reference point
-  }
-  setTimeout(requestReverbParams, 150);
-  appLog('refreshReverbPanelAfterChainMap: mid=0x' + rvBlk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase());
-}
-
-// ── REVERB knob drag — delegated, keyed on data-reverb-lo (hex paramLo) ──
-(function() {
-  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
-
-  document.addEventListener('mousedown', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-reverb-lo]');
-    if (!wrap) return;
-    activeParamLo = parseInt(wrap.dataset.reverbLo, 16);
-    if (isNaN(activeParamLo)) return;
-    activeWrap = wrap;
-    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
-    startY = e.clientY;
-    dragging = true;
-    e.preventDefault();
-  });
-
-  window.addEventListener('mousemove', function(e) {
-    if (!dragging || !activeWrap) return;
-    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }  // released outside the window
-    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
-    updateReverbKnob(activeParamLo, val);
-    if (bridgeMidiReady) queueKnobSend('reverb:' + activeParamLo, function(v) { sendReverbParamWrite(activeParamLo, v); }, val);
-  });
-
-  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-
-  document.addEventListener('dblclick', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-reverb-lo]');
-    if (!wrap) return;
-    var paramLo = parseInt(wrap.dataset.reverbLo, 16);
-    if (isNaN(paramLo)) return;
-    updateReverbKnob(paramLo, 64);
-    if (bridgeMidiReady) queueKnobSend('reverb:' + paramLo, function(v) { sendReverbParamWrite(paramLo, v); }, 64);
-  });
-})();
