@@ -973,14 +973,8 @@ let chainDragThumb      = null;   // .chain-thumb inside it — the actual drag 
 let chainDragStartX     = 0;
 let chainDragStartY     = 0;
 let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
-let chainDragOffsetY    = 0;      // so the ghost doesn't jump to align its
-                                   // corner with the cursor
-let chainDragGhost      = null;   // floating clone that follows the cursor —
-                                   // native drag-and-drop drew this for free;
-                                   // mouse-tracking has to build it (7/28)
-let chainDragGhostAdjustX = 0;    // extra left-shift when the ghost is a
-                                   // 2-block superblock with the partner
-                                   // placed before the grabbed block
+let chainDragOffsetY    = 0;      // used for grab-offset-independent hit
+                                   // testing (see mousemove below)
 let chainDragStartOrder = null;   // currentChain snapshot at mousedown — every
                                    // preview computation this drag uses THIS,
                                    // never the live currentChain, so an
@@ -989,76 +983,18 @@ let chainDragStartOrder = null;   // currentChain snapshot at mousedown — ever
 let chainPreviewOrder   = null;   // order currently shown on screen
 const CHAIN_DRAG_THRESHOLD = 4;   // px of movement before it counts as a drag
 
-// Floating visual that follows the cursor while dragging a chain block —
-// native drag-and-drop drew one of these automatically; mouse-tracking has to
-// build it by hand (7/28, Charlie: "all I get is the mouse pointer"). A clone
-// rather than the real element, because the real element stays in the flex
-// flow as the placeholder showing where it will land (the live preview from
-// the first mouse-tracking pass) — this is the separate "what you're
-// carrying" visual riding on top of that. pointer-events:none is required,
-// not decorative: this sits directly over whatever the cursor is hovering,
-// and wireChainDrag's mousemove handler uses document.elementFromPoint to
-// find that — the ghost would otherwise shadow every block underneath it.
-//
-// partnerCont/partnerBefore (7/28, same day): when the drag is the AMP-CAB +
-// LOOP linked case (linkedAmpLoopInfo), the ghost shows BOTH blocks side by
-// side instead of just the one under the cursor — so the "you're carrying
-// two blocks together" state is visible DURING the drag, not just inferable
-// from where things land afterward (Charlie: "is there a rule in play... can
-// the ghost show the superblock condition").
-//
-// Returns {el, offsetAdjustX} — offsetAdjustX is how much further left the
-// wrap's origin sits than the grabbed block's own left edge, needed only
-// when the partner is placed BEFORE it (so the cursor still tracks the same
-// point it originally grabbed, not the wrap's new outer edge).
-function createChainDragGhost(cont, partnerCont, partnerBefore) {
-  function cloneBlock(c) {
-    const clone = c.cloneNode(true);
-    clone.removeAttribute('id');
-    clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-    clone.classList.remove('dragging');
-    const r = c.getBoundingClientRect();
-    clone.style.width = r.width + 'px';
-    clone.style.height = r.height + 'px';
-    clone.style.margin = '0';
-    clone.style.flexShrink = '0';
-    return clone;
-  }
-
-  const wrap = document.createElement('div');
-  wrap.className = 'chain-drag-ghost';
-  wrap.style.position = 'fixed';
-  wrap.style.display = 'flex';
-  wrap.style.gap = '4px';
-  wrap.style.pointerEvents = 'none';
-  wrap.style.zIndex = '9999';
-  wrap.style.opacity = '0.9';
-  wrap.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
-
-  const mainClone = cloneBlock(cont);
-  const r = cont.getBoundingClientRect();
-  let offsetAdjustX = 0;
-
-  if (partnerCont) {
-    const partnerClone = cloneBlock(partnerCont);
-    if (partnerBefore) {
-      const pr = partnerCont.getBoundingClientRect();
-      wrap.appendChild(partnerClone);
-      wrap.appendChild(mainClone);
-      offsetAdjustX = pr.width + 4;   // partner now sits left of the grabbed block
-    } else {
-      wrap.appendChild(mainClone);
-      wrap.appendChild(partnerClone);
-    }
-  } else {
-    wrap.appendChild(mainClone);
-  }
-
-  wrap.style.left = (r.left - offsetAdjustX) + 'px';
-  wrap.style.top = r.top + 'px';
-  document.body.appendChild(wrap);
-  return { el: wrap, offsetAdjustX: offsetAdjustX };
-}
+// 7/28 (2nd pass): the floating ghost clone that used to live here is gone.
+// Charlie's screen recording of Avid's own editor showed no separate ghost at
+// all during a drag — just the real block sliding smoothly into its new
+// spot. Removed the clone entirely; applyChainOrderAnimated (defined right
+// after applyChainOrder below, since it wraps it) gives the REAL blocks that
+// same smooth slide via a FLIP animation, so the "what am I carrying" cue is
+// now just the dragged thumb's own .dragging opacity plus it visibly sliding
+// with everything else — no clone needed, and the old linked-pair "show both
+// blocks in the ghost" special case is no longer needed either: since both
+// blocks in a linked AMP-CAB/LOOP move for real now, they simply slide
+// together in sync, which already reads as "these two travel together"
+// without any dedicated code for it.
 
 function wireChainDrag() {
   const strip = document.getElementById('chainstrip');
@@ -1108,38 +1044,16 @@ function wireChainDrag() {
       chainDragPending = false;
       chainDragActive = true;
       chainDragThumb.classList.add('dragging');
-
-      // linkedAmpLoopInfo is checked ONCE here, not every move: chainDragStartOrder
-      // is frozen for the whole drag, so whether this is a linked pair can't
-      // change mid-drag. If linked, the ghost shows both blocks together.
-      const linkInfo = linkedAmpLoopInfo(chainDragSlot, chainDragStartOrder);
-      let ghostInfo;
-      if (linkInfo) {
-        const partnerBlk = chainDragStartOrder[linkInfo.loopIdx];
-        const partnerCont = containerForSlot(partnerBlk.slotId);
-        const partnerThumb = partnerCont ? partnerCont.querySelector('.chain-thumb') : null;
-        ghostInfo = createChainDragGhost(chainDragThumb, partnerThumb, linkInfo.loopBefore);
-      } else {
-        ghostInfo = createChainDragGhost(chainDragThumb, null, false);
-      }
-      chainDragGhost = ghostInfo.el;
-      chainDragGhostAdjustX = ghostInfo.offsetAdjustX;
       document.body.style.cursor = 'grabbing';
-    }
-
-    if (chainDragGhost) {
-      chainDragGhost.style.left = (ev.clientX - chainDragOffsetX - chainDragGhostAdjustX) + 'px';
-      chainDragGhost.style.top  = (ev.clientY - chainDragOffsetY) + 'px';
     }
 
     // Hit-test off the DRAGGED BLOCK'S OWN position, not the raw cursor
     // (7/28, Charlie: "matters where I place the mouse on the source block").
     // ev.clientX alone is offset by wherever within the thumb you happened to
-    // grab it — chainDragOffsetX undoes that grab offset the same way the
-    // ghost's own position already does (see chainDragGhost.style.left
-    // above), landing on the dragged thumb's own current center. That makes
-    // the reorder trigger point consistent regardless of where on the block
-    // you clicked, instead of shifting by the grab offset.
+    // grab it — chainDragOffsetX undoes that grab offset, landing on the
+    // dragged thumb's own current center. That makes the reorder trigger
+    // point consistent regardless of where on the block you clicked, instead
+    // of shifting by the grab offset.
     const dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth  / 2;
     const dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight / 2;
 
@@ -1165,7 +1079,7 @@ function wireChainDrag() {
     const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
     if (next && !sameOrder(next, chainPreviewOrder)) {
       chainPreviewOrder = next;
-      applyChainOrder(next);
+      applyChainOrderAnimated(next);
     }
   });
 
@@ -1188,8 +1102,6 @@ function wireChainDrag() {
       committed = true;
     }
     if (chainDragThumb) chainDragThumb.classList.remove('dragging');
-    if (chainDragGhost) { chainDragGhost.remove(); chainDragGhost = null; }
-    chainDragGhostAdjustX = 0;
     document.body.style.cursor = '';
     chainDragSlot = null;
     chainDragThumb = null;
@@ -1308,6 +1220,60 @@ function applyChainOrder(order) {
   if (conn)  strip.appendChild(conn);
   if (mono)  strip.appendChild(mono);
   if (tempo) strip.appendChild(tempo);
+}
+
+// How long the live-drag slide takes. First guess (a common, unremarkable UI
+// default), NOT yet confirmed against real hardware — Charlie's own feel-check
+// on a real rebuild is the actual test; adjust this one number if it reads as
+// too sluggish or too snappy.
+const CHAIN_SLIDE_MS = 150;
+
+// FLIP-animates a reorder instead of letting applyChainOrder's instant
+// DOM move snap into place — used ONLY for the live drag preview (7/28, 2nd
+// pass: replaces the floating ghost clone, see the comment above where that
+// used to live). Avid's own editor has no separate "carried" visual during a
+// drag — just the real block sliding smoothly — so this makes the REAL
+// blocks slide instead of adding anything extra on top.
+//
+// FLIP = First (record where things are), Last (do the actual instant DOM
+// move), Invert (paint each moved element back at its OLD spot via a
+// transform, so nothing appears to have moved yet), Play (clear the
+// transform with a transition enabled, so the browser animates the actual
+// slide). Only translateX is needed — every mover here sits in a single
+// horizontal row, nothing changes rows.
+//
+// Sampling live rects (not tracking some idealized target) is what makes
+// this safe to call again before a previous slide has finished: a rapid drag
+// fires many of these in quick succession, and each call just captures
+// wherever things visually are AT THAT INSTANT (mid-slide or settled) as its
+// own "First" — no queuing or cancellation bookkeeping needed.
+function applyChainOrderAnimated(order) {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) { applyChainOrder(order); return; }
+
+  const movers = Array.from(strip.querySelectorAll('.chain-slot, .chain-slot-stack, .chain-arr'));
+  const firstRects = new Map();
+  movers.forEach(el => firstRects.set(el, el.getBoundingClientRect()));
+
+  applyChainOrder(order);   // Last — the real, instant reorder
+
+  movers.forEach(el => {
+    const first = firstRects.get(el);
+    const last  = el.getBoundingClientRect();
+    const dx = first.left - last.left;
+    if (Math.abs(dx) < 0.5) return;   // didn't actually move, nothing to animate
+
+    el.style.transition = 'none';
+    el.style.transform  = `translateX(${dx}px)`;   // Invert — paint at the old spot
+    void el.offsetWidth;                             // force a reflow so the browser commits that starting point
+    el.style.transition = `transform ${CHAIN_SLIDE_MS}ms ease`;
+    el.style.transform  = '';                          // Play — animate back to natural position
+
+    el.addEventListener('transitionend', function cleanup() {
+      el.style.transition = '';
+      el.style.transform  = '';
+    }, { once: true });
+  });
 }
 
 // Paint every non-amp slot from the stored bypass state.

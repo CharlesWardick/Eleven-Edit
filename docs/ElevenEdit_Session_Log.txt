@@ -824,6 +824,76 @@ VERIFIED:    Live CDP check both ways — blank gaps confirmed on a pre-
 FILES:       index.html only (.chain-arr static markup).
 NEXT:        None.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED, verified live via simulated drag — NOT YET tested
+             by Charlie on real hardware (new session, real-hardware test
+             comes later)
+AREA:        Chain drag — removed the floating ghost, real blocks slide
+FINDING:     Charlie's screen recording of Avid's own editor (reviewed
+             earlier this session) showed no separate ghost during a drag at
+             all — just the real block sliding smoothly into its new spot as
+             you drag over neighbors. Our own drag used a cloned floating
+             element (createChainDragGhost) that followed the cursor while
+             the real blocks snapped instantly into their preview positions
+             underneath it — functionally fine, but visually nothing like
+             Avid's feel, and flagged as its own follow-up back when the
+             thumb-position/bookend work was done the same day.
+FIX:         Deleted createChainDragGhost() and all its state
+             (chainDragGhost, chainDragGhostAdjustX) entirely — no more
+             clone, no more separate "what you're carrying" visual. Added
+             applyChainOrderAnimated(order), a FLIP animation (First/Last/
+             Invert/Play) that wraps the existing applyChainOrder: sample
+             every mover's (.chain-slot/.chain-slot-stack/.chain-arr)
+             on-screen rect before the reorder, let the existing instant
+             DOM-move happen, then paint each moved element back at its OLD
+             spot via translateX and animate it to its new spot with a CSS
+             transition — so the REAL blocks slide instead of snapping.
+             wireChainDrag's live-preview call site now calls
+             applyChainOrderAnimated(next) instead of applyChainOrder(next)
+             directly. renderChainRow() (the real-hardware chain-map path)
+             was deliberately LEFT UNANIMATED — this only touches the live
+             drag preview, matching the scope of what was asked.
+             Slide duration is a new constant, CHAIN_SLIDE_MS = 150 — a
+             first-guess common UI default, explicitly NOT derived from
+             anything Avid-specific (the video showed smoothness, not a
+             measured duration). Treat it as the one number to tune after
+             Charlie's real feel-check, not a finalized value.
+             Bonus simplification: the old ghost had special-case code to
+             show BOTH blocks side-by-side when dragging the linked AMP-CAB+
+             LOOP pair, so "these two travel together" was visible during
+             the drag. That's no longer needed — since both blocks are REAL
+             DOM elements now (not a clone), they both get FLIP-animated
+             together automatically when the linked reorder moves them, so
+             they visibly slide in sync with no dedicated code for it.
+VERIFIED:    Live CDP simulation (real hardware not available for this
+             session — Charlie confirmed 7/28 he only ever tests against the
+             actual EXE connected to real hardware, so this is deliberately
+             flagged unverified end-to-end): simulated a full mousedown /
+             mousemove / mousemove / mouseup drag sequence dragging WAH
+             toward FX2 on a seeded currentChain. Confirmed: (1) zero
+             .chain-drag-ghost elements exist at any point during the drag,
+             (2) six affected elements (including the dragged WAH block
+             itself, not just its neighbors) show transition:"transform
+             150ms" actively set immediately after a reorder-triggering
+             move, proving the animation genuinely engages on the real
+             elements, (3) chainPreviewOrder ends correct (WAH landed before
+             FX2 as expected), (4) chainDragSlot properly resets to null
+             after mouseup, (5) no stale transition/transform inline styles
+             remain ~400ms after the drag ends — the transitionend cleanup
+             fires correctly, (6) a mid-drag screenshot shows a clean,
+             correctly-ordered row with no visual artifacts.
+FILES:       ui.js only (createChainDragGhost removed; applyChainOrderAnimated
+             + CHAIN_SLIDE_MS added; wireChainDrag's mousedown/mousemove/
+             endChainDrag trimmed of all ghost bookkeeping).
+NEXT:        Charlie's real rebuild/hardware test — this is the first
+             priority the next time he can test, since it's the main piece
+             of the "finish the chain-row drag mechanics" ask. If the slide
+             feels too slow/fast, CHAIN_SLIDE_MS is the one number to change.
+             If any residual jank shows up only on real hardware timing
+             (unlikely, but the simulation can't rule it out), report exactly
+             what it looks like rather than a general "it's not right" — this
+             is new, more complex code than a CSS tweak.
+-------------------------------------------------------------------
 
 
 

@@ -380,11 +380,11 @@ WORKING:
     cursor, so the linked state is visible during the drag, not just
     inferable from where things land. linkedAmpLoopInfo() extracted as the
     one shared answer to "is this linked", used by both computeReorder and
-    the ghost builder. STILL OPEN, deferred as a separate chip: the other
-    blocks don't visibly react/slide as the ghost passes over them — the
-    reorder just snaps once the cursor crosses a midpoint. That needs the
-    FLIP animation technique (bigger, separate piece of work), not a small
-    tweak — see Session Log.
+    the ghost builder. [RESOLVED 7/28, 9th pass ui.js — see CODE FILE MAP:
+    the ghost itself was removed entirely and replaced with a FLIP animation
+    on the real blocks, once Charlie's screen recording of Avid's own editor
+    showed it uses no ghost at all. Left here for history since this note is
+    what correctly predicted the fix would need FLIP.]
     7/28 (5th pass, same day): position 1's whole width now counts as a legal
     landing target (not just its left half) — there wasn't enough window
     room to reliably cross its midpoint. PLUS a passive read-only clone of
@@ -660,6 +660,28 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (9th pass): removed the floating drag ghost
+                       entirely (createChainDragGhost + its state deleted).
+                       Charlie's screen recording of Avid's own editor showed
+                       no separate ghost during a drag — just the real block
+                       sliding smoothly. New applyChainOrderAnimated(order)
+                       wraps applyChainOrder with a FLIP animation (sample
+                       every mover's rect, do the existing instant reorder,
+                       then paint-and-transition each moved element from its
+                       old spot to its new one via translateX); the live-drag
+                       preview call site uses this instead of calling
+                       applyChainOrder directly. renderChainRow (the real
+                       hardware chain-map path) is deliberately still
+                       unanimated — scope was the drag preview only.
+                       CHAIN_SLIDE_MS = 150 is a first-guess duration, NOT
+                       confirmed against real hardware feel yet — see Session
+                       Log NEXT. Verified via live CDP drag simulation only
+                       (zero ghost elements, six affected blocks including
+                       the dragged one show the transition engaging, correct
+                       final order, clean style cleanup afterward) — this is
+                       new, more complex code than the earlier CSS-only
+                       fixes, so treat it as unverified on real hardware
+                       until Charlie's next test session says otherwise.
                        7/28 (8th pass) BUG FIX: applyChainOrder's `mono` var
                        was re-grabbing the bare #mono-indicator label and
                        re-appending it on every reorder, ripping it back out
