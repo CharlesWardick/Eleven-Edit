@@ -187,15 +187,16 @@
     cursor: pointer;
     /* 7/28: pins to the bottom of its wrapping .chain-slot, same mechanism
        as .chain-name — see #chainstrip's comment.
-       7/28, later same day: the .chain-slot's hidden .chain-open caret was
-       reordered to come BEFORE this element (see the markup), so this now
-       lands flush with the real caret's bottom edge, not the label's — that
-       alone read as too low. The extra translateY(12px) below nudges it
-       back up partway; Charlie picked this exact 12px from a direct side-
-       by-side comparison of several rendered options (0/6/12/18px), landing
-       on the position he remembered from before the 7/28 chain-row graphics
-       rework, not a derived/calculated value — treat 12px as the confirmed
-       answer, not a placeholder. */
+       7/28, later same day: still felt "too high" at that flush-bottom
+       position. Rather than guess another number, rendered four concrete
+       options (0/6/12/18px further down) and had Charlie pick directly off
+       the pictures — he chose 12px, confirming it matched how the row
+       looked for years before the 7/28 chain-row graphics rework. Verified
+       pixel-for-pixel against the approved render before shipping (Session
+       Log has the full story, including an earlier wrong attempt that
+       swapped the hidden caret's markup order instead — reverted, this
+       plain translateY on the ORIGINAL markup is the whole fix). Treat
+       12px as Charlie's confirmed answer, not a placeholder. */
     margin-top: auto;
     transform: translateY(12px);
     /* Fixed width so the badge does not resize between the 6-letter STEREO
@@ -741,8 +742,8 @@
        actual element guarantees the same height as a real caret by
        construction, instead of guessing a spacer number a third time. -->
   <div class="chain-slot">
-    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
     <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
+    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
   </div>
   <div id="chain-input-connector" class="chain-arr" title="Input"><i></i></div>
 
@@ -829,8 +830,8 @@
        same baseline as every other block's label, instead of floating at
        true vertical center of the now much-taller row. -->
   <div class="chain-slot">
-    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
     <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
+    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
   </div>
 
   <!-- RIG TEMPO — CMD 0x50, microseconds per beat. Rig level, not per patch,

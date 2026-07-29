@@ -744,45 +744,57 @@ NEXT:        The bigger, separate piece — replacing the floating ghost with
              started this session; do it in its own dedicated session/chat.
 -------------------------------------------------------------------
 DATE:        2026-07-28
-STATUS:      RESOLVED by direct visual pick, not derived — final answer for
-             the GUITAR/STEREO bookend height saga
+STATUS:      RESOLVED — verified pixel-for-pixel against the approved render,
+             after shipping the wrong mechanism once
 AREA:        Chain row — GUITAR clone / STEREO badge vertical position
 FINDING:     After the day's earlier bottom-alignment fix (matching WAH's
              LABEL bottom, 176px), Charlie said the bookends "aligned well
              just not where I want them." He then asked to lower the whole
-             box and drew the target spot on a screenshot. First attempt
-             (reorder the hidden .chain-open caret to come BEFORE the label,
-             so the box lands flush with the real ARROW's bottom, 194px
-             instead of 176px) landed "too far down." Two misses in a row on
-             this exact spot (earlier "too low" / "too high" reverts, now
-             this) — rather than guess a third number, rendered 4 concrete
-             in-between options (0/6/12/18px further down from the 194px
-             baseline) via CDP and had Charlie pick directly from the
-             pictures instead of describing pixels.
-RESULT:      Charlie picked "offset 12" (194+12 = 206px), confirming it
-             matched how the row looked for many days before the 7/28
-             graphics-ready rework. Also confirmed the same offset looks
-             right in both STEREO and MONO badge states.
-FIX:         #mono-indicator / #chain-input-wrap both get
-             transform: translateY(12px) added on top of the existing
-             margin-top:auto bottom-pin. VERIFIED by re-measuring after
-             applying it for real (not the inline test transform) — both
-             land at bottom=206, pixel-identical to the approved render.
-LESSON:      Two failed guesses on the same spot is exactly the "stop and
-             re-derive" signal — but re-deriving here didn't mean more code
-             reasoning, it meant handing Charlie a small set of concrete
-             visual options and letting him point, since this was a taste
-             call his eyes settle better than any measurement of ours could.
-             NOTE: an earlier edit in this same area (reordering the hidden
-             caret) was made successfully but did not end up reflected in
-             the file when checked later — cause unclear (no destructive git
-             command was run in between), so it was redone and committed
-             immediately this time rather than left uncommitted across
-             several turns. Worth a "did this actually land" git diff check
-             if a change seems to have vanished.
-FILES:       index.html only (#mono-indicator, #chain-input-wrap CSS, plus
-             the two bookends' markup — hidden .chain-open caret now comes
-             before the visible label, not after).
+             box and drew the target spot on a screenshot. Rather than guess
+             a pixel number, rendered 4 concrete options (translateY 0/6/12/
+             18px, applied on top of whatever the loaded page's CURRENT
+             structure was) and had Charlie pick directly from the pictures.
+             He picked "offset 12."
+MISTAKE:     Shipped the wrong thing anyway. Wrongly assumed the "baseline"
+             for that 4-way test was a markup change made earlier the same
+             session (reordering the hidden .chain-open caret to come BEFORE
+             the label, so the box would land flush with the real ARROW's
+             bottom instead of the label's, bottom=194 instead of 176) — that
+             edit had in fact NOT persisted to the file when the 4-way test
+             was generated (never fully explained why; no destructive git
+             command ran in between). So "offset 12" was actually rendered
+             against the ORIGINAL unswapped structure (176px baseline), not
+             the swapped one. Finalized CSS as swapped-structure + 12px
+             (bottom=206) without re-checking against the approved picture
+             first — Charlie caught it immediately on the real rebuild:
+             "we agreed to what I attached not what you just created."
+FIX:         Reverted the caret-reorder entirely — back to the ORIGINAL
+             markup (visible label first, hidden caret second). The ONLY
+             real change is transform: translateY(12px) on #mono-indicator
+             and #chain-input-wrap, added on top of the existing
+             margin-top:auto bottom-pin, applied to the unswapped structure.
+VERIFIED:    This time by PIXEL COMPARISON, not just CDP coordinates — used
+             Pillow to scan the actual approved screenshot
+             (bookend_offset_12.png) for the green box's rendered rows
+             (161-187), then rendered the corrected code and scanned it the
+             same way: also 161-187, exact match. Also ran a full-image diff
+             between the two renders — the only remaining difference is the
+             already-separately-approved arrow-glyph removal (see next
+             entry), nothing in the bookend area.
+LESSON:      CDP's getBoundingClientRect is only ground truth for the DOM
+             state actually on screen — it can't catch "the structural
+             change I think is active isn't actually the one that's active."
+             When a fix depends on an earlier edit that was made across
+             several tool calls / turns, re-verify that earlier edit is
+             STILL PRESENT (git diff, or re-read the file) before building
+             the next step on top of it, rather than trusting memory that it
+             landed. For a visual "does this match the picture I approved"
+             question specifically, compare actual pixels (or at minimum the
+             same measurement method) against the approved file itself, not
+             a re-derived number.
+FILES:       index.html only (#mono-indicator, #chain-input-wrap CSS —
+             transform: translateY(12px) — markup is back to original,
+             untouched).
 NEXT:        None — Charlie confirmed this is the correct position.
 -------------------------------------------------------------------
 DATE:        2026-07-28
