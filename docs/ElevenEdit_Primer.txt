@@ -160,6 +160,25 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - Be concise. Keep explanations outcome-focused, not technical.
   - Conclude internally; present the solution or finding, not the reasoning.
   - Always build the EXE for testing — npm start has never worked here.
+  - CHARLIE ONLY TESTS ON REAL HARDWARE, ALWAYS (confirmed 7/28/2026). He
+    builds this repo's code into an EXE and runs it against the real Eleven
+    Rack over the Java bridge — there is no "dry run" step in his workflow.
+    Without the bridge actually connected to hardware, essentially nothing
+    is testable beyond the about box, the settings panel, and the window's
+    close button; every other feature (chain row, effect panels, knobs,
+    bypass, patch load/save, tuner, etc.) requires a live connection to
+    produce any real signal to observe. So: a claim like "this needs testing
+    without hardware to isolate X" doesn't fit how testing happens here —
+    Charlie's confirmation IS the real-hardware test, not a step before it.
+    Two specific mistakes to not repeat (both made 7/28/2026, same session):
+    (1) treating in-conversation feedback ("good," "off," "almost there")
+    as provisional/pending a future hardware test — it is NOT provisional,
+    each round of feedback IS a fresh real-hardware test result, given live
+    while he has the rebuilt EXE running against the rack. Don't sign off
+    with "let me know how it feels once you test" after he has already just
+    told you the result. (2) the app does not run ON the hardware — it runs
+    on Charlie's PC/VM and REMOTE-CONTROLS the Eleven Rack over MIDI via the
+    Java bridge. Get this distinction right when describing the setup.
   - Old eyes: amber-on-dark, readable fonts, generous sizing.
   - THE REPO IS CANONICAL, FULL STOP (updated 7/28/2026 — under Claude Code,
     not the old chat workflow). There is no separate "outputs" snapshot to
@@ -370,11 +389,11 @@ WORKING:
     cursor, so the linked state is visible during the drag, not just
     inferable from where things land. linkedAmpLoopInfo() extracted as the
     one shared answer to "is this linked", used by both computeReorder and
-    the ghost builder. STILL OPEN, deferred as a separate chip: the other
-    blocks don't visibly react/slide as the ghost passes over them — the
-    reorder just snaps once the cursor crosses a midpoint. That needs the
-    FLIP animation technique (bigger, separate piece of work), not a small
-    tweak — see Session Log.
+    the ghost builder. [RESOLVED 7/28, 9th pass ui.js — see CODE FILE MAP:
+    the ghost itself was removed entirely and replaced with a FLIP animation
+    on the real blocks, once Charlie's screen recording of Avid's own editor
+    showed it uses no ghost at all. Left here for history since this note is
+    what correctly predicted the fix would need FLIP.]
     7/28 (5th pass, same day): position 1's whole width now counts as a legal
     landing target (not just its left half) — there wasn't enough window
     room to reliably cross its midpoint. PLUS a passive read-only clone of
@@ -650,6 +669,120 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (13th pass): the 12th pass's pair-CENTER hit-test
+                       fix was itself wrong — Charlie caught it: averaging
+                       necessarily degraded the two directions that were
+                       already correct while fixing the two that weren't,
+                       netting "more equal but both a bit off" instead of
+                       actually correct. Replaced with a leading-edge
+                       approach: new chainDragLastX/chainDragMovingRight
+                       track the drag's instantaneous direction each frame,
+                       and the hit-test uses whichever of AMP/LOOP is
+                       actually out in front for THAT direction (LOOP's
+                       center when moving toward LOOP's side, plain
+                       dragCenterX — i.e. AMP's own, unchanged — when moving
+                       the other way). Verified against a plain single-block
+                       drag as a baseline: the two previously-good directions
+                       now measure within 1px of the single-block baseline
+                       (genuinely restored, not just less-wrong), the two
+                       previously-broken directions now measure ~12-13px more
+                       than baseline (the real cost of crossing the connector
+                       arrow between the two blocks) instead of a near-full-
+                       block-width asymmetry. Also verified a direction
+                       reversal mid-drag doesn't glitch at the transition.
+                       7/28 (12th pass): fixed the linked AMP-CAB+LOOP drag's
+                       asymmetric trigger distance — Charlie precisely: 2 of
+                       4 direction/config combos needed way more drag travel
+                       than the other 2 (whichever had LOOP LEADING instead
+                       of trailing), landing correctly but only after a big
+                       jump. Direct consequence of the 11th pass's lockstep
+                       fix: LOOP now always occupies the space directly ahead
+                       of AMP-CAB when it's the leading side, so the cursor
+                       had to travel across LOOP's own width (wasted, since
+                       LOOP is pointer-events:none and can't be a target)
+                       before reaching a real neighbor — costing nothing when
+                       LOOP trailed instead. Fixed by hit-testing off the
+                       PAIR's center (new chainDragLinkedGapX, the constant
+                       signed distance between the two thumbs' centers,
+                       measured once at drag-start) instead of AMP-CAB's own
+                       center alone — halves the wasted distance symmetrically
+                       in both directions. Only affects the linked case;
+                       chainDragLinkedGapX is 0 otherwise. Verified by
+                       measuring the exact px travel needed to trigger in all
+                       4 combinations: asymmetry dropped from roughly a full
+                       block's width to a 12px spread (136-148px), and a full
+                       step-by-step re-test of the previously-broken
+                       direction now shows clean one-step-at-a-time
+                       reordering instead of a 2-slot jump.
+                       7/28 (11th pass): fixed two real bugs in the linked
+                       AMP-CAB+LOOP drag, surfaced by the 10th pass's
+                       continuous-follow. (1) computeLinkedAmpLoopReorder's
+                       idx<0 fallback used to jump the pair to the very end
+                       (rest.length) whenever the hit-test landed on AMP or
+                       LOOP itself — now a no-op (return src unchanged),
+                       matching the plain single-block self-target case. This
+                       was the "loop shoots to slot 10 then back" ricochet
+                       Charlie saw. (2) New chainDragLinkedCont: when the
+                       drag is the linked case, LOOP now gets pointer-events:
+                       none + the EXACT SAME translateX delta as chainDragCont
+                       every frame (not its own recomputed one), instead of
+                       the other blocks' slower FLIP slide-in — this is what
+                       keeps LOOP glued to AMP-CAB at a constant visual gap
+                       instead of trailing behind on Charlie's now-1000ms
+                       CHAIN_SLIDE_MS. Verified via live CDP simulation across
+                       all 4 combinations (LOOP before/after AMP, dragging
+                       left/right) — gap between the two blocks held exactly
+                       constant at every sampled step in all 4 tests, no
+                       ricochet. See Session Log for full detail, including a
+                       caught false alarm in the verification method itself
+                       (a tight synchronous test loop doesn't give CSS
+                       transitions real time to render — worth remembering
+                       for future drag verification).
+                       7/28 (10th pass): the dragged block now continuously
+                       follows the cursor (every mousemove, instant 1:1
+                       transform, no transition) instead of sitting still
+                       until a reorder fires — Charlie, after confirming
+                       CHAIN_SLIDE_MS=1000 felt right: "with Avid it is
+                       immediately... in motion... [ours] moves practically
+                       to edge or next block then they suddenly swap." Needed
+                       two supporting changes: chainDragCont gets
+                       pointer-events:none for the whole drag (so
+                       elementFromPoint sees THROUGH the dragged block to the
+                       real neighbor underneath it, instead of always hitting
+                       itself — same trick the old ghost got for free as a
+                       separate overlay); applyChainOrderAnimated gained an
+                       excludeEl param so the dragged block's own position
+                       isn't ALSO touched by the other blocks' FLIP slide-in
+                       (would fight the continuous-follow code for the same
+                       transform). Verified via live CDP simulation stepping
+                       the cursor in 6 increments toward a target and
+                       checking the dragged thumb's rendered center against
+                       the cursor at EVERY step (not just start/end) — matched
+                       within <1px throughout, including across a live
+                       reorder mid-drag. See Session Log for full detail.
+                       7/28 (9th pass): removed the floating drag ghost
+                       entirely (createChainDragGhost + its state deleted).
+                       Charlie's screen recording of Avid's own editor showed
+                       no separate ghost during a drag — just the real block
+                       sliding smoothly. New applyChainOrderAnimated(order)
+                       wraps applyChainOrder with a FLIP animation (sample
+                       every mover's rect, do the existing instant reorder,
+                       then paint-and-transition each moved element from its
+                       old spot to its new one via translateX); the live-drag
+                       preview call site uses this instead of calling
+                       applyChainOrder directly. renderChainRow (the real
+                       hardware chain-map path) is deliberately still
+                       unanimated — scope was the drag preview only.
+                       CHAIN_SLIDE_MS: shipped as a 150ms first guess,
+                       Charlie changed it to 1000 himself and confirmed that
+                       reads well — current value is his, not derived.
+                       Verified via live CDP drag simulation only (zero ghost
+                       elements, six affected blocks including the dragged
+                       one show the transition engaging, correct final
+                       order, clean style cleanup afterward) — this is new,
+                       more complex code than the earlier CSS-only fixes, so
+                       treat it as unverified on real hardware until
+                       Charlie's next test session says otherwise.
                        7/28 (8th pass) BUG FIX: applyChainOrder's `mono` var
                        was re-grabbing the bare #mono-indicator label and
                        re-appending it on every reorder, ripping it back out

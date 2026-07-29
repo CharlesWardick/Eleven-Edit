@@ -186,8 +186,19 @@
     border: 1px solid; white-space: nowrap; flex-shrink: 0;
     cursor: pointer;
     /* 7/28: pins to the bottom of its wrapping .chain-slot, same mechanism
-       as .chain-name — see #chainstrip's comment. */
+       as .chain-name — see #chainstrip's comment.
+       7/28, later same day: still felt "too high" at that flush-bottom
+       position. Rather than guess another number, rendered four concrete
+       options (0/6/12/18px further down) and had Charlie pick directly off
+       the pictures — he chose 12px, confirming it matched how the row
+       looked for years before the 7/28 chain-row graphics rework. Verified
+       pixel-for-pixel against the approved render before shipping (Session
+       Log has the full story, including an earlier wrong attempt that
+       swapped the hidden caret's markup order instead — reverted, this
+       plain translateY on the ORIGINAL markup is the whole fix). Treat
+       12px as Charlie's confirmed answer, not a placeholder. */
     margin-top: auto;
+    transform: translateY(12px);
     /* Fixed width so the badge does not resize between the 6-letter STEREO
        and 4-letter MONO. Sized for STEREO and centred.
        7/28: widened 58px -> 70px to match #chain-input-wrap's width — Charlie
@@ -231,8 +242,11 @@
     background: #0a2a0a; color: var(--green);
     /* 7/28: pins to the bottom of its wrapping .chain-slot — see
        #mono-indicator / #chainstrip's comments for the full reasoning
-       (font-size/padding bumped 11px/3px -> 13px/5px same day, to match). */
+       (font-size/padding bumped 11px/3px -> 13px/5px same day, to match).
+       Same translateY(12px) nudge as #mono-indicator, for the same reason —
+       keep these two in sync if the value ever changes. */
     margin-top: auto;
+    transform: translateY(12px);
     /* Fixed width sized for the longest label (DIGITAL) so the row doesn't
        shift as the input changes. */
     width: 70px; text-align: center; box-sizing: border-box;
@@ -743,28 +757,28 @@
     <div class="chain-name slot-unknown" id="chain-vol"    data-slot="vol"    title="Click to bypass/enable">VOL</div>
     <div class="chain-open"              id="copen-vol"    data-panel="vol">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-wah"    data-slot="wah"    title="Click to bypass/enable">WAH</div>
     <div class="chain-open"              id="copen-wah"    data-panel="wah">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fx1"    data-slot="fx1"    title="Click to bypass/enable">FX1</div>
     <div class="chain-open"              id="copen-fx1"    data-panel="fx1">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-dist"   data-slot="dist"   title="Click to bypass/enable">DIST</div>
     <div class="chain-open"              id="copen-dist"   data-panel="dist">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <!-- AMP + CAB stacked — bypass only, no ▼. One thumb serves the pair,
        matching Avid (the amp head graphic is one image, cab is separate
@@ -774,35 +788,35 @@
     <div class="chain-name-stack slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
     <div class="chain-name-stack slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fxloop" data-slot="fxloop" title="Click to bypass/enable">FX LOOP</div>
     <div class="chain-open"              id="copen-fxloop" data-panel="fxloop">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-mod"    data-slot="mod"    title="Click to bypass/enable">MOD</div>
     <div class="chain-open"              id="copen-mod"    data-panel="mod">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-fx2"    data-slot="fx2"    title="Click to bypass/enable">FX2</div>
     <div class="chain-open"              id="copen-fx2"    data-panel="fx2">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
     <div class="chain-name slot-unknown" id="chain-delay"  data-slot="delay"  title="Click to bypass/enable">DELAY</div>
     <div class="chain-open"              id="copen-delay"  data-panel="delay">▼</div>
   </div>
-  <div class="chain-arr">▶</div>
+  <div class="chain-arr"></div>
 
   <div class="chain-slot">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"></div></div>
