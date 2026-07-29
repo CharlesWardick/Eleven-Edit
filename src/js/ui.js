@@ -1226,7 +1226,7 @@ function applyChainOrder(order) {
 // default), NOT yet confirmed against real hardware — Charlie's own feel-check
 // on a real rebuild is the actual test; adjust this one number if it reads as
 // too sluggish or too snappy.
-const CHAIN_SLIDE_MS = 150;
+const CHAIN_SLIDE_MS = 1000;
 
 // FLIP-animates a reorder instead of letting applyChainOrder's instant
 // DOM move snap into place — used ONLY for the live drag preview (7/28, 2nd
