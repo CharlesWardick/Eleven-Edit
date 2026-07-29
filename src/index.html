@@ -1422,9 +1422,7 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
     } else {
       btn.classList.add('panel-open');
       var panel = btn.dataset.panel;
-      var ampPanel = document.getElementById('panel-ampcab');
-      var h = ampPanel.offsetHeight;
-      ampPanel.style.display = 'none';
+      document.getElementById('panel-ampcab').style.display = 'none';
       // Hide all effect panel slots before showing the right one
       document.getElementById('panel-other').style.display = 'none';
       document.getElementById('panel-dist').style.display = 'none';
@@ -1437,28 +1435,19 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
       if (typeof closeVolPanel === 'function') closeVolPanel();
 
       if (panel === 'dist') {
-        var dp = document.getElementById('panel-dist');
-        if (h) dp.style.minHeight = h + 'px';
-        dp.style.display = '';
+        document.getElementById('panel-dist').style.display = '';
         if (typeof openDistPanel === 'function') openDistPanel();
       } else if (panel === 'reverb') {
-        var rp = document.getElementById('panel-reverb');
-        if (h) rp.style.minHeight = h + 'px';
-        rp.style.display = '';
+        document.getElementById('panel-reverb').style.display = '';
         if (typeof openReverbPanel === 'function') openReverbPanel();
       } else if (panel === 'wah') {
-        var wp = document.getElementById('panel-wah');
-        if (h) wp.style.minHeight = h + 'px';
-        wp.style.display = '';
+        document.getElementById('panel-wah').style.display = '';
         if (typeof openWahPanel === 'function') openWahPanel();
       } else if (panel === 'vol') {
-        var vp = document.getElementById('panel-vol');
-        if (h) vp.style.minHeight = h + 'px';
-        vp.style.display = '';
+        document.getElementById('panel-vol').style.display = '';
         if (typeof openVolPanel === 'function') openVolPanel();
       } else {
         var other = document.getElementById('panel-other');
-        if (h) other.style.minHeight = h + 'px';
         other.style.display = '';
         other.textContent = panel.toUpperCase() + ' — effect controls (coming soon)';
       }
