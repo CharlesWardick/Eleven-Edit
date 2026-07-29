@@ -969,6 +969,81 @@ NEXT:        Charlie's real rebuild/hardware test — this is the piece that
              report specifics (which part, at what point in the drag) rather
              than a general "still not right" if anything's off.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      TWO REAL BUGS FOUND AND FIXED, verified live via simulated drag
+             — NOT YET tested by Charlie on real hardware
+AREA:        Chain drag — linked AMP-CAB+LOOP pair misbehaving under the new
+             continuous-follow drag (previous entry)
+FINDING:     Charlie, after confirming the plain continuous-follow drag was
+             "pretty dang good": dragging the linked AMP-CAB+LOOP pair showed
+             two distinct problems. (1) LOOP trailing "at least one block
+             behind" AMP-CAB instead of staying close. (2) Dragging AMP
+             toward the far end, LOOP would "shoot to slot 10 then back" —
+             a real ricochet, repeated multiple times over a 4-position drag
+             — though the pair always landed correctly by mouseup either way.
+             Precise enough to diagnose directly from the description alone.
+ROOT CAUSE 1 (the ricochet): computeLinkedAmpLoopReorder (ui.js) filters
+             BOTH AMP and LOOP out of `rest` before searching for the hit-
+             tested target's index. If elementFromPoint ever returned LOOP
+             itself as the target — likely with continuous-follow, since
+             LOOP (unlike the dragged AMP-CAB block) had no pointer-events:
+             none and could genuinely be found under the cursor as AMP-CAB
+             passed near/over it — `rest.findIndex` for SLOT_LOOP always
+             returned -1 (LOOP isn't IN rest), and the old fallback
+             (`idx = rest.length`) parked the whole pair at the very end.
+             That IS the "shoot to slot 10" — a real logic bug, not a timing/
+             animation artifact.
+ROOT CAUSE 2 (the lag): LOOP had no special handling at all in the new
+             continuous-follow code (previous entry) — it was just another
+             "other block" getting applyChainOrderAnimated's FLIP slide-in,
+             now running at Charlie's own CHAIN_SLIDE_MS=1000. Since a real
+             drag re-triggers a reorder far more often than once per second,
+             LOOP's slide could never fully catch up before the next one
+             restarted it, so it visually lagged behind AMP-CAB instead of
+             looking glued to it.
+FIX 1:       computeLinkedAmpLoopReorder: idx < 0 (target not found in rest,
+             meaning the hit-test landed on AMP or LOOP itself) now returns
+             `src` unchanged — a no-op, matching how the plain single-block
+             path already handles targeting yourself — instead of jumping to
+             the end.
+FIX 2:       New state var chainDragLinkedCont, set at drag-start alongside
+             chainDragCont whenever linkedAmpLoopInfo confirms this is a
+             linked drag. It gets the SAME pointer-events:none + transition:
+             none treatment as the dragged block, is excluded from
+             applyChainOrderAnimated's mover list (which now takes an array
+             of exclusions, not just one), and — critically — receives the
+             EXACT SAME translateX delta as chainDragCont every frame,
+             rather than computing its own. Since LOOP's natural DOM position
+             is always kept immediately adjacent to AMP-CAB's by
+             computeLinkedAmpLoopReorder, applying an identical shift to both
+             preserves their gap exactly, giving true lockstep movement.
+VERIFIED:    Live CDP drag simulation across all four combinations (LOOP
+             before/after AMP-CAB, dragging left/right), 8-10 steps each,
+             measuring the gap between the two blocks' rendered rects at
+             EVERY step: the gap was PERFECTLY CONSTANT (86px or 111px
+             depending on config) across every single step in all four
+             tests, with the reorder sequence progressing cleanly block-by-
+             block and no ricochet observed at any point. Also caught and
+             corrected a false alarm in my own testing: an early screenshot
+             showed AMP-CAB visually overlapping FX1, which looked like a
+             bug — turned out to be a pure test artifact (60 mousemoves fired
+             with zero real elapsed time between them, so FX1's 1000ms
+             slide-out animation never got a chance to render a frame).
+             Redone with real ~50ms delays between steps confirmed clean,
+             non-overlapping layout once actual time is allowed to pass —
+             worth remembering for any future drag verification: a tight
+             synchronous event-firing loop does not represent real drag
+             timing for anything that depends on CSS transitions.
+FILES:       ui.js only (computeLinkedAmpLoopReorder's idx<0 fix;
+             chainDragLinkedCont added; wireChainDrag's pending-transition,
+             hit-test's applyChainOrderAnimated call, continuous-follow
+             block, and endChainDrag all extended to handle it).
+NEXT:        Charlie's real rebuild/hardware test. If the linked pair still
+             feels off, the specific thing to check is whether the reported
+             symptom is the SAME as before (ricochet/lag) or something new —
+             the two root causes here were narrow and specific, not a
+             general "linked dragging is unreliable" issue.
+-------------------------------------------------------------------
 
 
 

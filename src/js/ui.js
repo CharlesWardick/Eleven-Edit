@@ -910,7 +910,14 @@ function computeLinkedAmpLoopReorder(src, targetSlotId, after, ampIdx, loopIdx) 
   const pair = loopBefore ? [src[loopIdx], src[ampIdx]] : [src[ampIdx], src[loopIdx]];
   const rest = src.filter(b => b.slotId !== SLOT_AMP && b.slotId !== SLOT_LOOP);
   let idx = rest.findIndex(b => b.slotId === targetSlotId);
-  if (idx < 0) idx = rest.length;   // hovered over AMP/LOOP itself — park at the end for now
+  // 7/28, 11th pass BUG FIX: target not found in `rest` means the hit-test
+  // landed on AMP or LOOP itself — part of what's being carried, not a real
+  // drop target. Used to fall through to idx = rest.length ("park at the
+  // end"), which is why the pair would ricochet to slot 10 and back whenever
+  // the cursor happened to pass over LOOP mid-drag (Charlie: "the loop
+  // shoots to slot 10 then back"). No-op instead, same as the plain
+  // fromSlotId===targetSlotId self-target case elsewhere.
+  if (idx < 0) return src;
   if (after) idx += 1;
   idx = Math.max(0, Math.min(idx, rest.length));
   const result = rest.slice();
@@ -970,6 +977,11 @@ let chainDragActive     = false;  // TRUE once the threshold is crossed — this
                                    // the bypass-toggle handler normally
 let chainDragCont       = null;   // .chain-slot/.chain-slot-stack container (still what gets reordered)
 let chainDragThumb      = null;   // .chain-thumb inside it — the actual drag handle (7/28)
+let chainDragLinkedCont = null;   // LOOP's container, ONLY set when dragging AMP in the
+                                   // linked AMP-CAB+LOOP case (7/28, 11th pass) — carried in
+                                   // lockstep with chainDragCont via the same transform delta,
+                                   // instead of getting the other blocks' slide-in treatment,
+                                   // so the pair visually stays glued together during the drag
 let chainDragStartX     = 0;
 let chainDragStartY     = 0;
 let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
@@ -1058,6 +1070,26 @@ function wireChainDrag() {
       // an eased transition.
       chainDragCont.style.pointerEvents = 'none';
       chainDragCont.style.transition = 'none';
+
+      // 7/28, 11th pass: if this is the linked AMP-CAB+LOOP case, LOOP rides
+      // along with the SAME transform every frame (below), instead of
+      // getting the other blocks' eased slide-in — Charlie: "the loop
+      // doesn't stay in close proximity with amp, it's at least one block
+      // behind" (it was on the slow CHAIN_SLIDE_MS transition, re-triggered
+      // on every incremental reorder during a fast real drag, so it could
+      // never fully catch up). pointer-events:none here also closes the
+      // ricochet bug fixed in computeLinkedAmpLoopReorder — without it,
+      // elementFromPoint could land ON LOOP directly, which used to be
+      // treated as a real target.
+      const linkInfo = linkedAmpLoopInfo(chainDragSlot, chainDragStartOrder);
+      if (linkInfo) {
+        const partnerBlk = chainDragStartOrder[linkInfo.loopIdx];
+        chainDragLinkedCont = containerForSlot(partnerBlk.slotId);
+        if (chainDragLinkedCont) {
+          chainDragLinkedCont.style.pointerEvents = 'none';
+          chainDragLinkedCont.style.transition = 'none';
+        }
+      }
     }
 
     // Hit-test off the DRAGGED BLOCK'S OWN position, not the raw cursor
@@ -1099,10 +1131,11 @@ function wireChainDrag() {
           const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
           if (next && !sameOrder(next, chainPreviewOrder)) {
             chainPreviewOrder = next;
-            // Exclude the dragged block itself from the OTHER blocks' slide-
-            // in animation — its position is driven continuously below, not
-            // by a discrete slide, and would otherwise fight with that.
-            applyChainOrderAnimated(next, chainDragCont);
+            // Exclude the dragged block (and its linked LOOP partner, if any)
+            // from the OTHER blocks' slide-in animation — their position is
+            // driven continuously below, not by a discrete slide, and would
+            // otherwise fight with that.
+            applyChainOrderAnimated(next, [chainDragCont, chainDragLinkedCont]);
           }
         }
       }
@@ -1117,7 +1150,18 @@ function wireChainDrag() {
       chainDragCont.style.transform = 'none';
       const thumbNatural = chainDragThumb.getBoundingClientRect();
       const naturalCenterX = thumbNatural.left + thumbNatural.width / 2;
-      chainDragCont.style.transform = `translateX(${dragCenterX - naturalCenterX}px)`;
+      const followDx = dragCenterX - naturalCenterX;
+      chainDragCont.style.transform = `translateX(${followDx}px)`;
+
+      // 7/28, 11th pass: LOOP (if linked) gets the EXACT SAME delta, not its
+      // own recomputed one — that's what keeps it glued to AMP-CAB at a
+      // constant visual distance instead of independently chasing the
+      // cursor. Its own natural DOM position already sits correctly adjacent
+      // to AMP-CAB's (computeLinkedAmpLoopReorder always keeps the pair
+      // together), so applying the same shift to both preserves that gap.
+      if (chainDragLinkedCont) {
+        chainDragLinkedCont.style.transform = `translateX(${followDx}px)`;
+      }
     }
   });
 
@@ -1151,11 +1195,17 @@ function wireChainDrag() {
       chainDragCont.style.transition = '';
       chainDragCont.style.pointerEvents = '';
     }
+    if (chainDragLinkedCont) {   // LOOP's lockstep styles (7/28, 11th pass), same reasoning
+      chainDragLinkedCont.style.transform = '';
+      chainDragLinkedCont.style.transition = '';
+      chainDragLinkedCont.style.pointerEvents = '';
+    }
     document.body.style.cursor = '';
     chainDragSlot = null;
     chainDragThumb = null;
     chainDragPending = false;
     chainDragCont = null;
+    chainDragLinkedCont = null;
     chainDragStartOrder = null;
     chainPreviewOrder = null;
     setTimeout(() => {
@@ -1297,17 +1347,22 @@ const CHAIN_SLIDE_MS = 1000;
 // wherever things visually are AT THAT INSTANT (mid-slide or settled) as its
 // own "First" — no queuing or cancellation bookkeeping needed.
 //
-// excludeEl (7/28, 10th pass): the dragged block itself is left out of the
-// mover list. Its position is driven every frame by wireChainDrag's own
-// continuous cursor-follow, not by sliding into a slot — including it here
-// too would mean two different pieces of code fighting over the same
-// element's transform on the same frame.
-function applyChainOrderAnimated(order, excludeEl) {
+// excludeEls (7/28, 10th/11th pass): the dragged block — and, for the linked
+// AMP-CAB+LOOP case, its LOOP partner too — are left out of the mover list.
+// Both positions are driven every frame by wireChainDrag's own continuous
+// cursor-follow, not by sliding into a slot — including either here too
+// would mean two different pieces of code fighting over the same element's
+// transform on the same frame. Accepts an array (nulls ignored) since the
+// linked case needs two exclusions, not one.
+function applyChainOrderAnimated(order, excludeEls) {
   const strip = document.getElementById('chainstrip');
   if (!strip) { applyChainOrder(order); return; }
 
+  // excludeEls may hold nulls (e.g. no linked partner this drag) — Set
+  // silently ignores those, no filtering needed for that case specifically.
+  const excluded = new Set(Array.isArray(excludeEls) ? excludeEls : [excludeEls]);
   const movers = Array.from(strip.querySelectorAll('.chain-slot, .chain-slot-stack, .chain-arr'))
-    .filter(el => el !== excludeEl);
+    .filter(el => !excluded.has(el));
   const firstRects = new Map();
   movers.forEach(el => firstRects.set(el, el.getBoundingClientRect()));
 

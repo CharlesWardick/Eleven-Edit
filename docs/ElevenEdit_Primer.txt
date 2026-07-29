@@ -660,6 +660,30 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (11th pass): fixed two real bugs in the linked
+                       AMP-CAB+LOOP drag, surfaced by the 10th pass's
+                       continuous-follow. (1) computeLinkedAmpLoopReorder's
+                       idx<0 fallback used to jump the pair to the very end
+                       (rest.length) whenever the hit-test landed on AMP or
+                       LOOP itself — now a no-op (return src unchanged),
+                       matching the plain single-block self-target case. This
+                       was the "loop shoots to slot 10 then back" ricochet
+                       Charlie saw. (2) New chainDragLinkedCont: when the
+                       drag is the linked case, LOOP now gets pointer-events:
+                       none + the EXACT SAME translateX delta as chainDragCont
+                       every frame (not its own recomputed one), instead of
+                       the other blocks' slower FLIP slide-in — this is what
+                       keeps LOOP glued to AMP-CAB at a constant visual gap
+                       instead of trailing behind on Charlie's now-1000ms
+                       CHAIN_SLIDE_MS. Verified via live CDP simulation across
+                       all 4 combinations (LOOP before/after AMP, dragging
+                       left/right) — gap between the two blocks held exactly
+                       constant at every sampled step in all 4 tests, no
+                       ricochet. See Session Log for full detail, including a
+                       caught false alarm in the verification method itself
+                       (a tight synchronous test loop doesn't give CSS
+                       transitions real time to render — worth remembering
+                       for future drag verification).
                        7/28 (10th pass): the dragged block now continuously
                        follows the cursor (every mousemove, instant 1:1
                        transform, no transition) instead of sitting still
