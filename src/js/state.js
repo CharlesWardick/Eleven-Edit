@@ -130,6 +130,17 @@ let pendingManualCapture = false;
 // Read from TFX on patch load and from CMD 0x0D live broadcast.
 let currentMonoState = null;
 
+// Master (Main) output volume — CMD 0x36 outSel 0x00. null until first
+// readback (query reply or live broadcast).
+let currentMasterVol = null;
+
+// Master Mute state — CMD 0x3B. No query form exists (Tech Ref Sec 18/C13),
+// so these start false ("unmuted") and only change on an actual send/echo —
+// same known limitation as the Input Selector not reflecting live state on
+// connect.
+let muteMainState   = false;
+let mutePhonesState = false;
+
 // DIST panel open flag — controls whether CMD 0x11 DIST broadcasts update
 // the panel knobs. False when the panel is hidden (no-op updates).
 let distPanelOpen = false;

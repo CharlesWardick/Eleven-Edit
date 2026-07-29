@@ -160,6 +160,13 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - Be concise. Keep explanations outcome-focused, not technical.
   - Conclude internally; present the solution or finding, not the reasoning.
   - Always build the EXE for testing — npm start has never worked here.
+  - THE TEST STEP, EXACTLY (Charlie's own words, 7/29/2026): after code is
+    handed over, he runs `npm run build` (electron-builder --win --x64),
+    executes the resulting EXE, and tests it live against the real hardware.
+    There is no other test step and no way to shortcut it — "there is nothing
+    to test when ElevenEdit can't communicate with hardware." Don't propose
+    unit tests, mocked bridges, or "verify without hardware" steps as a
+    substitute; they are not part of how this project gets verified.
   - CHARLIE ONLY TESTS ON REAL HARDWARE, ALWAYS (confirmed 7/28/2026). He
     builds this repo's code into an EXE and runs it against the real Eleven
     Rack over the Java bridge — there is no "dry run" step in his workflow.
@@ -234,9 +241,29 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE (Master Volume/Mute (new, untested) + Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
+
+7/29/2026 — MASTER VOLUME + MUTE (new feature, PENDING CHARLIE'S HARDWARE
+  TEST — nothing below is confirmed working yet, only confirmed from a
+  Wireshark/USBPcap capture of Avid Editor's own traffic):
+  MAIN VOL — a compact value box + stepper (arrows / mouse wheel while
+    focused / up-down keys) added to the chain-strip right-hand group, in
+    the space above TEMPO that was deliberately reserved for it. CMD 0x36
+    outSel 0x00, same wire family as To Amp 1/2 (dB display, valToAmpVol).
+    Re-queried every nav pull; does NOT light the SAVE dirty latch (per-
+    patch-vs-global status is unconfirmed — see Tech Ref).
+  MUTE MAIN / MUTE PHONES — two small buttons below the volume box, dim
+    normally and lit red when muted, matching Avid's own MUTE section.
+    CMD 0x3B, channel 0x00=Main/0x01=Phones. Retracts the old "front-panel
+    only, dead on send" reading of this command — the capture shows Avid's
+    own software sending it successfully. No query form exists, so these
+    default to unmuted on connect/nav and only reflect real state once a
+    send or broadcast has been seen (same limitation as the Input
+    Selector not reflecting live state on connect).
+  See CODE FILE MAP below (protocol.js / transport.js / sysex-handler.js /
+  state.js / index.html / ui.js) and Tech Ref Sec 18/C13 for full detail.
 
 7/27/2026 EVENING — CODE REORGANIZATION + one display fix (tested by Charlie
   same day; no protocol or behaviour changes except where noted):
@@ -516,6 +543,12 @@ CODE FILE MAP
   preload.js           Electron preload, exposes electronAPI.
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
+                       7/29: #master-vol-wrap (MAIN VOL value box/stepper +
+                       MAIN/PHONES mute buttons) added inside #tempo-slot,
+                       above #tempo-wrap — fills the space that comment
+                       block deliberately reserved. New CSS: #master-vol-wrap/
+                       #mvol-label/#mvol-row/#mvol-box/#mvol-steps/.mute-row/
+                       .mute-btn/.mute-btn.mute-active.
                        7/28: chain row rebuilt for the graphics-ready layout —
                        see the dedicated CHAIN ROW GRAPHICS entry below for
                        the full change; short version: .chain-thumb (drag
@@ -553,6 +586,9 @@ CODE FILE MAP
                        branch in chain-open handler; "Volumes" box replaces the
                        right-hand Amp Out/Rig Vol column (scard-col-r CSS now unused).
   state.js             Shared mutable state.
+                       7/29: currentMasterVol (null until first readback),
+                       muteMainState / mutePhonesState (both default false —
+                       no HW query form for CMD 0x3B, see Tech Ref).
                        Phase 9: distPanelOpen flag.
                        Phase 10: reverbPanelOpen flag.
                        7/23: ampSelectRxSeq, chainMapRxSeq (reply-arrival
@@ -566,6 +602,8 @@ CODE FILE MAP
                        Tune NAV_QUERY_GAP and NAV_RECALL_SETTLE only; the two
                        timeouts bound a LOST reply and are not speed controls.
   protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders.
+                       7/29: REQU_MASTER_VOL_READ (CMD 0x36 outSel 0x00),
+                       MUTE_CH_MAIN / MUTE_CH_PHONES (CMD 0x3B channel bytes).
                        Phase 13: REQU_TEMPO_READ, TEMPO_BPM_MIN/MAX,
                        rigTempoDecodeUs, rigTempoUsToBpm, rigTempoBpmToDigits.
                        0x50 dropped from PROBE_DUMP_CMDS — it has a real
@@ -577,6 +615,12 @@ CODE FILE MAP
                        Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
                        REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
   transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       7/29: sendMasterVolume(v127) — CMD 0x36 outSel 0x00,
+                       mirrors sendToAmpVolume; sendMute(channel, muted) —
+                       CMD 0x3B. Neither routes through sendPatchWrite (no
+                       SAVE dirty-latch). Nav pull (requestPatchStateAfterNav,
+                       Phase 4) gains one REQU_MASTER_VOL_READ after the
+                       To Amp 2 read.
                        7/27 REORG: sendDistModelChange/requestDistParams/
                        sendDistParamWrite and the REVERB equivalents MOVED to
                        fx-transport.js (new file, below) — this file no longer
@@ -628,6 +672,10 @@ CODE FILE MAP
                        PANELS' send functions belong HERE, not in transport.js —
                        copy the DIST trio as the template (see file header).
   sysex-handler.js     Incoming message routing.
+                       7/29: handleToAmpVolumeBroadcast (CMD 0x36) gained a
+                       slot=0x00 (Main) branch -> updateMasterVolDisplay; new
+                       handleMasterMuteBroadcast (CMD 0x3B) -> updateMuteButton,
+                       dispatched from the switch same as every other CMD.
                        7/27 REORG: parseSysEx was one 700+ line function with a
                        sequential if-chain over every CMD byte — hard to follow
                        and the reason this file kept needing "ask for it by
@@ -669,6 +717,14 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/29: MASTER VOLUME + MUTE section (new) —
+                       renderMasterVolField/updateMasterVolDisplay/
+                       setMasterVol/stepMasterVol (value box + stepper,
+                       wheel, up/down keys — same family as the RIG TEMPO
+                       field, no canvas knob) and updateMuteButton +
+                       DOMContentLoaded wiring for the two mute buttons
+                       (optimistic display on click, reconciled by the CMD
+                       0x3B echo).
                        7/28 (13th pass): the 12th pass's pair-CENTER hit-test
                        fix was itself wrong — Charlie caught it: averaging
                        necessarily degraded the two directions that were

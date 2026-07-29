@@ -293,6 +293,44 @@
     margin-top: auto;
     transform: translateY(12px);
   }
+
+  /* ══ MASTER (MAIN) VOLUME + MUTE — CMD 0x36 outSel 0x00 / CMD 0x3B ══
+     7/29/2026, new feature. Sits above #tempo-wrap inside the same
+     #tempo-slot column — #tempo-wrap's margin-top:auto pins TEMPO to the
+     bottom, so this sits at the top by construction, no extra positioning
+     needed. Compact value-box + stepper (no canvas knob — this slot is
+     thumb-height, not the amp panel's 80px), same visual family as
+     #tempo-box below it. */
+  #master-vol-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    flex-shrink: 0; align-self: center;
+  }
+  #mvol-label { font-size: 10px; color: #777; letter-spacing: 1px; font-weight: bold; }
+  #mvol-row { display: flex; align-items: center; gap: 4px; }
+  #mvol-box {
+    display: flex; align-items: center; justify-content: center;
+    background: #111; border: 1px solid #666; border-radius: 4px;
+    padding: 3px 8px; cursor: default; outline: none; min-width: 42px;
+    font-family: 'Consolas', monospace; font-size: 13px; font-weight: bold;
+    color: var(--accent); line-height: 1;
+  }
+  #mvol-box:focus { border-color: var(--accent); }
+  #mvol-steps { display: flex; flex-direction: column; gap: 1px; }
+  #mvol-steps div {
+    font-size: 8px; line-height: 8px; color: #999; cursor: pointer;
+    border: 1px solid #555; border-radius: 2px; padding: 1px 4px; background: #2a2a2a;
+    user-select: none;
+  }
+  #mvol-steps div:hover { color: var(--accent); border-color: var(--accent); }
+  .mute-row { display: flex; gap: 4px; }
+  .mute-btn {
+    background: #222; border: 1px solid #555; color: #777; border-radius: 3px;
+    padding: 2px 7px; font-size: 10px; font-weight: bold; letter-spacing: 0.5px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .mute-btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* Lit when muted — matches Avid's dim-normally/lit-when-muting behaviour. */
+  .mute-btn.mute-active { background: #3a0a0a; border-color: #a03030; color: #ff6060; }
   /* 7/29, 6th pass: TEMPO anchors to the strip's true right edge on its
      own — STEREO/#mono-connector deliberately do NOT carry margin-left:auto
      anymore, so STEREO sits immediately after the last chain block instead
@@ -874,7 +912,9 @@
        the row instead of it floating vertically centered, and deliberately
        leaves the space above it (matching a pedal's .chain-thumb height)
        open for a future master-volume control (Charlie's plan, not an
-       accident). Stays in this same column/panel — not moved to a new row.
+       accident) — FILLED IN 7/29 by #master-vol-wrap, see the markup right
+       below #tempo-slot's opening tag. Stays in this same column/panel —
+       not moved to a new row.
        7/29, 6th pass: margin-left:auto moved HERE (id="tempo-slot" below)
        from #mono-connector — Charlie: TEMPO's own right-edge position was
        correct, but pushing the WHOLE end-group together pulled STEREO away
@@ -884,6 +924,30 @@
        true right edge, so the big gap moves to sit between STEREO and
        TEMPO instead of between the chain and STEREO. -->
   <div class="chain-slot" id="tempo-slot">
+    <!-- MASTER (MAIN) VOLUME + MUTE — CMD 0x36 outSel 0x00 / CMD 0x3B.
+         New 7/29/2026. Fills the space above TEMPO that was deliberately
+         left empty for this (see the comment above #tempo-wrap's CSS rule).
+         No canvas knob — this slot is thumb-height, not 80px — so it's a
+         compact value box + stepper, same family as the TEMPO field right
+         below it: click the box then scroll/arrows/up-down keys, or use
+         the small stepper. Mute buttons have no HW query form (Tech Ref),
+         so they start dim and only light from a real send or echo. -->
+    <div id="master-vol-wrap" title="Master (Main) output volume">
+      <span id="mvol-label">MAIN VOL</span>
+      <div id="mvol-row">
+        <div id="mvol-box" tabindex="0" title="Scroll, arrows, or the up/down keys">
+          <span id="mvol-val">--</span>
+        </div>
+        <div id="mvol-steps">
+          <div id="mvol-up">&#9650;</div>
+          <div id="mvol-dn">&#9660;</div>
+        </div>
+      </div>
+      <div class="mute-row">
+        <button class="mute-btn" id="btn-mute-main" title="Mute Main output">MAIN</button>
+        <button class="mute-btn" id="btn-mute-phones" title="Mute Phones output">PHONES</button>
+      </div>
+    </div>
     <div id="tempo-wrap">
       <span id="tempo-label">TEMPO</span>
       <div id="tempo-row">

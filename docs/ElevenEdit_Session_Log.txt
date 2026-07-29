@@ -39,6 +39,38 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (new feature — Master Volume + Mute)
+STATUS:      [FOLDED IN: Technical Reference "MASTER (MAIN) OUTPUT VOLUME
+             (CMD 0x36, outSel 0x00)" and "MASTER MUTE — MAIN / PHONES
+             (CMD 0x3B)"; Primer testing-workflow bullet]
+AREA:        New feature — Main output volume knob + Main/Phones mute
+             buttons, chain-strip right-hand group (right of TEMPO).
+FINDING:     Decoded Master_Volume_Mute_Phones_Capture.pcapng (USBPcap,
+             tshark). Master volume is CMD 0x36 outSel=0x00, same wire
+             family as To Amp 1/2 (confirmed from a live Main-knob drag,
+             10->0->8, streamed as F0 13 0B 0F 02 36 00 [v0] 00 00 00 00 F7).
+             Mute is CMD 0x3B, format F0 13 0B 0F [dir] 3B [channel] [state]
+             F7 — channel 0x00=Main/0x01=Phones, state 0x00/0x01 — captured
+             as clean SW-send (dir 0x00) + HW-echo (dir 0x02) pairs matching
+             Charlie's described sequence exactly (Main mute/unmute x2,
+             Phones mute/unmute x2). This RETRACTS the old CMD 0x3B entry
+             ("Global Mute... Front-panel only. [DEAD-send]") — that note
+             was from a front-panel-only observation and never saw a
+             software send succeed.
+EVIDENCE:    Master_Volume_Mute_Phones_Capture.pcapng, USB CIN framing
+             stripped in groups of 4 (per existing "no 0x04 framing" rule)
+             before reading — first pass without stripping misread the
+             Main-volume stream as a slot-enumeration sweep; correcting the
+             framing-strip fixed that.
+CONFLICTS:   Retracts CMD 0x3B's old summary line (now updated in place)
+             and the [DEAD-send] tag.
+NEXT:        No read/query form was ever captured for CMD 0x3B — GUI
+             defaults to "unmuted" until the first send/broadcast, same
+             known limitation as the Input Selector. Master volume's WRITE
+             direction and its per-patch-vs-global status are both
+             unconfirmed (write mirrors To Amp's pattern by inference, not
+             direct capture) — first hardware build/test will settle both.
+-------------------------------------------------------------------
 DATE:        2026-07-29 (7th pass, same day)
 STATUS:      IMPLEMENTED, verified via headless-Chromium simulated click/
              blur/re-focus cycle; PENDING CHARLIE'S BUILD TEST

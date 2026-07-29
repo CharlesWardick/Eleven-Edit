@@ -422,6 +422,42 @@ function sendToAmpVolume(slot, v127) {
   return sendPatchWrite(hex);
 }
 
+// ── CMD 0x36 outSel 0x00 — Master (Main) output volume.
+// Same wire family as To Amp 1/2 above, outSel goes in the exact same byte
+// position as their "slot" byte. Confirmed 7/29/2026 from Charlie's live
+// Main-knob drag in Avid Editor (Master_Volume_Mute_Phones_Capture.pcapng):
+// the HW/echo side streamed F0 13 0B 0F 02 36 00 [v0] 00 00 00 00 F7 exactly
+// like a To Amp knob. The SW WRITE direction below was not separately
+// captured (a drag only ever shows the echo) — it mirrors sendToAmpVolume's
+// pattern, untested until the first hardware build with this feature.
+// v0 encoding assumed identical to To Amp 1/2 (anchor-at-64 dB, valToAmpVol).
+// PER-PATCH VS GLOBAL UNKNOWN — see Tech Ref. Not sent via sendPatchWrite
+// (does not light the SAVE dirty latch) so an eventual "actually global"
+// answer costs nothing to correct for.
+function sendMasterVolume(v127) {
+  const v0 = ((v127 + 64) % 128) & 0x7F;
+  const hex = 'F0 13 0B 0F 00 36 00 '
+    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+  appLog('sendMasterVolume: v127=' + v127 + ' v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase());
+  return sendHex(hex);
+}
+
+// ── CMD 0x3B — Master Mute (Main / Phones).
+// Confirmed 7/29/2026 from Avid Editor USB capture: SW send AND HW echo use
+// the same 9-byte form. Retracts the old "front-panel only [DEAD-send]"
+// reading of this command — that reading only ever saw a front-panel
+// broadcast, never a software send.
+//   F0 13 0B 0F 00 3B [channel] [state] F7
+// channel: MUTE_CH_MAIN (0x00) / MUTE_CH_PHONES (0x01). state: 0x00/0x01.
+// Global (output/monitoring) setting — plain sendHex, no dirty-latch marking.
+function sendMute(channel, muted) {
+  const hex = 'F0 13 0B 0F 00 3B '
+    + channel.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + (muted ? '01' : '00') + ' F7';
+  appLog('sendMute: channel=' + (channel === MUTE_CH_MAIN ? 'Main' : 'Phones') + ' muted=' + muted);
+  return sendHex(hex);
+}
+
 // ── CMD 0x3A — To Amp source query. slot: 0x00=ToAmp1, 0x01=ToAmp2.
 // Avid editor always sends this REQU before changing the source via CMD 0x37.
 // Confirmed 7/17/2026 from Avid editor capture — skipping this caused HW assert.
@@ -1016,6 +1052,8 @@ async function requestPatchStateAfterNav() {
   sendHex(REQU_TOAMP1_READ);        await sleep(NAV_QUERY_GAP);
   if (stale()) return;
   sendHex(REQU_TOAMP2_READ);        await sleep(NAV_QUERY_GAP);
+  if (stale()) return;
+  sendHex(REQU_MASTER_VOL_READ);    await sleep(NAV_QUERY_GAP);
   if (stale()) return;
   sendHex(REQU_MONO_READ);          await sleep(NAV_QUERY_GAP);
   if (stale()) return;

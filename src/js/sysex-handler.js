@@ -49,6 +49,7 @@ async function parseSysEx(data) {
     case 0x0D: return handleMonoBroadcast(data);
     case 0x50: return handleRigTempoBroadcast(data);
     case 0x36: return handleToAmpVolumeBroadcast(data);
+    case 0x3B: return handleMasterMuteBroadcast(data);
     case 0x3A: return handleToAmpSourceQueryResp(data);
     case 0x37: return handleToAmpSourceBroadcast(data);
     case 0x3D: return handleInputSelectorBroadcast(data);
@@ -462,11 +463,12 @@ function handleRigTempoBroadcast(data) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// CMD 0x36 — To Amp volume hardware knob broadcast
+// CMD 0x36 — To Amp / Master volume hardware knob broadcast
 // ════════════════════════════════════════════════════════════════════
 // Format: F0 13 0B 0F 02 36 [slot] [v0] 00 00 00 00 F7
-// slot: 0x02=ToAmp1, 0x03=ToAmp2. v0 = raw 0x00–0x7F (no formula).
-// Confirmed 7/17/2026 from HW knob capture.
+// slot: 0x00=Main (Master), 0x02=ToAmp1, 0x03=ToAmp2. v0 = raw 0x00–0x7F
+// (no formula). ToAmp1/2 confirmed 7/17/2026 from HW knob capture; Main
+// added 7/29/2026 from Master_Volume_Mute_Phones_Capture.pcapng.
 // Drag flags (toAmp1Dragging / toAmp2Dragging) suppress display update
 // while user is actively dragging the SW knob.
 function handleToAmpVolumeBroadcast(data) {
@@ -474,7 +476,10 @@ function handleToAmpVolumeBroadcast(data) {
   const slot = data[6];
   const v0   = data[7];
   const val  = (v0 >= 0x40) ? (v0 - 0x40) : (v0 + 64);
-  if (slot === 0x02) {
+  if (slot === 0x00) {
+    appLog('CMD 0x36 Master volume: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' (' + valToAmpVol(val) + ')');
+    updateMasterVolDisplay(val);
+  } else if (slot === 0x02) {
     appLog('CMD 0x36 ToAmp1 volume: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' (' + valToAmpVol(val) + ')');
     if (!toAmp1Dragging) {
       const wrap = document.getElementById('toamp1-vol-wrap');
@@ -495,6 +500,24 @@ function handleToAmpVolumeBroadcast(data) {
       }
     }
   }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CMD 0x3B — Master Mute (Main / Phones) broadcast
+// ════════════════════════════════════════════════════════════════════
+// Format: F0 13 0B 0F [dir] 3B [channel] [state] F7 (9 bytes)
+// channel: MUTE_CH_MAIN (0x00) / MUTE_CH_PHONES (0x01).
+// state: 0x00 = unmuted, 0x01 = muted.
+// Confirmed 7/29/2026 (Master_Volume_Mute_Phones_Capture.pcapng) — fires on
+// our own SW send's HW echo the same as every other confirmed send/echo
+// command here, so this one handler keeps the mute buttons lit correctly
+// whether the change came from us, the front panel, or the Avid editor.
+function handleMasterMuteBroadcast(data) {
+  if (data.length < 8) return;
+  const channel = data[6];
+  const muted   = data[7] === 0x01;
+  appLog('CMD 0x3B mute: channel=' + (channel === MUTE_CH_MAIN ? 'Main' : 'Phones') + ' muted=' + muted);
+  updateMuteButton(channel, muted);
 }
 
 // ════════════════════════════════════════════════════════════════════
