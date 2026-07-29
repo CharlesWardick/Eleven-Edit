@@ -894,6 +894,81 @@ NEXT:        Charlie's real rebuild/hardware test — this is the first
              what it looks like rather than a general "it's not right" — this
              is new, more complex code than a CSS tweak.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IMPLEMENTED, verified live via simulated drag — NOT YET tested
+             by Charlie on real hardware (new session, real-hardware test
+             comes later)
+AREA:        Chain drag — dragged block now continuously follows the cursor
+FINDING:     Charlie confirmed CHAIN_SLIDE_MS=1000 (his own edit, pulled in
+             fine) reads well, but flagged a real remaining gap: "With Avid
+             it is immediately as soon I click, hold move the block(s) are
+             in motion... I get a hand cursor, the placeholder box dims,
+             the hand moves practically to edge or the next block then they
+             suddenly swap places." Diagnosed: this wasn't a tunable number,
+             it was architectural. Nothing tracked the cursor at all during
+             a drag — the dragged block sat still (dimmed) in its own slot
+             until the cursor's effective position crossed fully into a
+             neighbor's territory, at which point a reorder fired and ONLY
+             THEN did the (now smooth, thanks to the prior entry) slide
+             play. Removing the ghost had removed the one thing that WAS
+             providing continuous tracking (the ghost always followed the
+             mouse 1:1) without replacing it with anything on the real
+             block.
+FIX:         The dragged block's own container (chainDragCont) now follows
+             the cursor continuously, every mousemove, via a directly-set
+             transform (no transition — an instant 1:1 snap every frame, not
+             an eased catch-up): clear the transform, measure the thumb's
+             TRUE natural (untransformed) position, compute the delta needed
+             to put the thumb's center exactly at dragCenterX/Y (the same
+             grab-offset-corrected point already used for hit-testing), and
+             apply it. This recomputation happens AFTER any reorder that
+             fires in the same mousemove tick, so it's always working off
+             the block's up-to-date slot position, never a stale one.
+             Two supporting changes were required for this to work at all:
+               - chainDragCont.style.pointerEvents = 'none' for the whole
+                 drag — otherwise document.elementFromPoint would always hit
+                 the dragged block itself (since it now visually sits right
+                 where the cursor is), and could never find the real
+                 neighbor underneath it to trigger a reorder. Same trick the
+                 old floating ghost got for free by being a separate overlay
+                 with pointer-events:none; now applied to the real element.
+               - applyChainOrderAnimated gained an excludeEl parameter — the
+                 OTHER blocks still get the FLIP slide-in from the previous
+                 entry, but the dragged block itself is excluded from that
+                 treatment, since its position is owned by the continuous-
+                 follow code above and would otherwise fight over the same
+                 element's transform on the same frame.
+             chainDragCont.style.transition is forced to 'none' for the
+             whole drag (only the OTHER blocks get an eased transition), so
+             the follow is always an instant snap to the cursor.
+             endChainDrag resets transform/transition/pointerEvents on the
+             dragged block back to '' — no settle animation needed, since
+             its natural DOM position (from the last live reorder) was
+             already exactly where the cursor left it.
+VERIFIED:    Live CDP drag simulation, stepping the cursor toward FX2 in 6
+             increments and checking EVERY intermediate step, not just start/
+             end: the dragged thumb's rendered center matched the cursor's X
+             position within <1px at all 6 steps, including across the exact
+             moments a live reorder fired (contLeft jumping, transform value
+             adjusting to compensate so the VISUAL position stayed pinned to
+             the cursor throughout) — this is the core claim of "continuous
+             follow" and it held at every sampled point, not just before/
+             after. Also confirmed: pointer-events/transition/transform all
+             correctly applied when dragging starts and correctly cleared
+             (empty string) after mouseup; zero ghost elements at any point;
+             final reorder result correct (WAH landed before FX2 as
+             expected); a mid-drag screenshot shows a clean, uncorrupted
+             layout.
+FILES:       ui.js only (wireChainDrag's mousemove handler restructured;
+             applyChainOrderAnimated gained excludeEl; endChainDrag resets
+             the three new inline styles).
+NEXT:        Charlie's real rebuild/hardware test — this is the piece that
+             should make the drag actually FEEL like Avid's, per his own
+             description of what was missing. Same caveat as the previous
+             entry: this is real interaction-model code, not a CSS number, so
+             report specifics (which part, at what point in the drag) rather
+             than a general "still not right" if anything's off.
+-------------------------------------------------------------------
 
 
 

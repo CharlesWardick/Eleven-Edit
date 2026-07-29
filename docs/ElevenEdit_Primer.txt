@@ -660,6 +660,28 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (10th pass): the dragged block now continuously
+                       follows the cursor (every mousemove, instant 1:1
+                       transform, no transition) instead of sitting still
+                       until a reorder fires — Charlie, after confirming
+                       CHAIN_SLIDE_MS=1000 felt right: "with Avid it is
+                       immediately... in motion... [ours] moves practically
+                       to edge or next block then they suddenly swap." Needed
+                       two supporting changes: chainDragCont gets
+                       pointer-events:none for the whole drag (so
+                       elementFromPoint sees THROUGH the dragged block to the
+                       real neighbor underneath it, instead of always hitting
+                       itself — same trick the old ghost got for free as a
+                       separate overlay); applyChainOrderAnimated gained an
+                       excludeEl param so the dragged block's own position
+                       isn't ALSO touched by the other blocks' FLIP slide-in
+                       (would fight the continuous-follow code for the same
+                       transform). Verified via live CDP simulation stepping
+                       the cursor in 6 increments toward a target and
+                       checking the dragged thumb's rendered center against
+                       the cursor at EVERY step (not just start/end) — matched
+                       within <1px throughout, including across a live
+                       reorder mid-drag. See Session Log for full detail.
                        7/28 (9th pass): removed the floating drag ghost
                        entirely (createChainDragGhost + its state deleted).
                        Charlie's screen recording of Avid's own editor showed
@@ -673,15 +695,16 @@ CODE FILE MAP
                        applyChainOrder directly. renderChainRow (the real
                        hardware chain-map path) is deliberately still
                        unanimated — scope was the drag preview only.
-                       CHAIN_SLIDE_MS = 150 is a first-guess duration, NOT
-                       confirmed against real hardware feel yet — see Session
-                       Log NEXT. Verified via live CDP drag simulation only
-                       (zero ghost elements, six affected blocks including
-                       the dragged one show the transition engaging, correct
-                       final order, clean style cleanup afterward) — this is
-                       new, more complex code than the earlier CSS-only
-                       fixes, so treat it as unverified on real hardware
-                       until Charlie's next test session says otherwise.
+                       CHAIN_SLIDE_MS: shipped as a 150ms first guess,
+                       Charlie changed it to 1000 himself and confirmed that
+                       reads well — current value is his, not derived.
+                       Verified via live CDP drag simulation only (zero ghost
+                       elements, six affected blocks including the dragged
+                       one show the transition engaging, correct final
+                       order, clean style cleanup afterward) — this is new,
+                       more complex code than the earlier CSS-only fixes, so
+                       treat it as unverified on real hardware until
+                       Charlie's next test session says otherwise.
                        7/28 (8th pass) BUG FIX: applyChainOrder's `mono` var
                        was re-grabbing the bare #mono-indicator label and
                        re-appending it on every reorder, ripping it back out

@@ -1045,6 +1045,19 @@ function wireChainDrag() {
       chainDragActive = true;
       chainDragThumb.classList.add('dragging');
       document.body.style.cursor = 'grabbing';
+      // 7/28, 10th pass: the dragged block now follows the cursor for real
+      // (see the bottom of this handler) instead of sitting still until a
+      // reorder fires — Charlie: Avid's own drag is "immediately... in
+      // motion" the moment you move, not "drag to the edge, then sudden
+      // swap". pointer-events:none lets elementFromPoint below see THROUGH
+      // the dragged block to whatever it's now visually overlapping (the
+      // same trick the old floating ghost got for free by being a separate
+      // overlay). transition:none for the whole drag guarantees the follow
+      // is always an instant 1:1 snap to the cursor, never an animated
+      // catch-up — only the OTHER blocks (via applyChainOrderAnimated) get
+      // an eased transition.
+      chainDragCont.style.pointerEvents = 'none';
+      chainDragCont.style.transition = 'none';
     }
 
     // Hit-test off the DRAGGED BLOCK'S OWN position, not the raw cursor
@@ -1053,33 +1066,58 @@ function wireChainDrag() {
     // grab it — chainDragOffsetX undoes that grab offset, landing on the
     // dragged thumb's own current center. That makes the reorder trigger
     // point consistent regardless of where on the block you clicked, instead
-    // of shifting by the grab offset.
+    // of shifting by the grab offset. It is also, as of the 10th pass, the
+    // exact point the block's own visual center is being driven to below —
+    // so this hit-test is now testing against where the block ACTUALLY is,
+    // not just a computed proxy for it.
     const dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth  / 2;
     const dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight / 2;
 
-    // elementFromPoint does fresh hit-testing against whatever is actually
-    // rendered right now — unlike native drag's event target, it is not
-    // confused by applyChainOrder having just moved things around.
-    const el = document.elementFromPoint(dragCenterX, dragCenterY);
-    const cont = el ? el.closest('.chain-slot, .chain-slot-stack') : null;
-    if (!cont || !strip.contains(cont)) return;
-    const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
-    if (!target) return;
-    const r = cont.getBoundingClientRect();
-    // Position 1 gets its whole width as the "before" zone, not just its left
-    // half (7/28, Charlie: not enough room before the window's left edge to
-    // reliably cross the midpoint). No position is lost by this: landing
-    // right after this same block is still reachable via the SECOND block's
-    // left half, so this only removes a redundant, cramped path — it doesn't
-    // block reaching anywhere the plain midpoint math could reach.
-    const after = (target.slotId === chainDragStartOrder[0].slotId)
-                  ? false
-                  : dragCenterX > r.left + r.width / 2;
+    if (chainDragActive) {
+      // elementFromPoint does fresh hit-testing against whatever is actually
+      // rendered right now — unlike native drag's event target, it is not
+      // confused by applyChainOrder having just moved things around. With
+      // pointer-events:none on the dragged block (above), this naturally
+      // finds whatever real neighbor the dragged block is now visually
+      // overlapping, instead of just finding itself.
+      const el = document.elementFromPoint(dragCenterX, dragCenterY);
+      const cont = el ? el.closest('.chain-slot, .chain-slot-stack') : null;
+      if (cont && strip.contains(cont)) {
+        const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
+        if (target) {
+          const r = cont.getBoundingClientRect();
+          // Position 1 gets its whole width as the "before" zone, not just its
+          // left half (7/28, Charlie: not enough room before the window's left
+          // edge to reliably cross the midpoint). No position is lost by this:
+          // landing right after this same block is still reachable via the
+          // SECOND block's left half, so this only removes a redundant,
+          // cramped path — it doesn't block reaching anywhere the plain
+          // midpoint math could reach.
+          const after = (target.slotId === chainDragStartOrder[0].slotId)
+                        ? false
+                        : dragCenterX > r.left + r.width / 2;
+          const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
+          if (next && !sameOrder(next, chainPreviewOrder)) {
+            chainPreviewOrder = next;
+            // Exclude the dragged block itself from the OTHER blocks' slide-
+            // in animation — its position is driven continuously below, not
+            // by a discrete slide, and would otherwise fight with that.
+            applyChainOrderAnimated(next, chainDragCont);
+          }
+        }
+      }
 
-    const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
-    if (next && !sameOrder(next, chainPreviewOrder)) {
-      chainPreviewOrder = next;
-      applyChainOrderAnimated(next);
+      // CONTINUOUS FOLLOW (7/28, 10th pass): keep the dragged thumb's visual
+      // center pinned to dragCenterX/Y at all times, recomputed AFTER any
+      // reorder above so it reflects the block's up-to-date slot position,
+      // not a stale one from before the DOM move. Clearing the transform to
+      // measure, then reapplying, is the only reliable way to get the block's
+      // true CURRENT natural (untransformed) position — there's no cheaper
+      // shortcut that stays correct across an interrupted/mid-reorder drag.
+      chainDragCont.style.transform = 'none';
+      const thumbNatural = chainDragThumb.getBoundingClientRect();
+      const naturalCenterX = thumbNatural.left + thumbNatural.width / 2;
+      chainDragCont.style.transform = `translateX(${dragCenterX - naturalCenterX}px)`;
     }
   });
 
@@ -1102,6 +1140,17 @@ function wireChainDrag() {
       committed = true;
     }
     if (chainDragThumb) chainDragThumb.classList.remove('dragging');
+    if (chainDragCont) {
+      // Clear the continuous-follow transform/pointer-events (7/28, 10th
+      // pass) — the block's NATURAL slot position is already correct (every
+      // reorder during the drag actually moved it in the DOM), so clearing
+      // the transform just lets it sit there normally; no settle animation
+      // needed since the visual position was already tracking the cursor
+      // right up to release.
+      chainDragCont.style.transform = '';
+      chainDragCont.style.transition = '';
+      chainDragCont.style.pointerEvents = '';
+    }
     document.body.style.cursor = '';
     chainDragSlot = null;
     chainDragThumb = null;
@@ -1247,11 +1296,18 @@ const CHAIN_SLIDE_MS = 1000;
 // fires many of these in quick succession, and each call just captures
 // wherever things visually are AT THAT INSTANT (mid-slide or settled) as its
 // own "First" — no queuing or cancellation bookkeeping needed.
-function applyChainOrderAnimated(order) {
+//
+// excludeEl (7/28, 10th pass): the dragged block itself is left out of the
+// mover list. Its position is driven every frame by wireChainDrag's own
+// continuous cursor-follow, not by sliding into a slot — including it here
+// too would mean two different pieces of code fighting over the same
+// element's transform on the same frame.
+function applyChainOrderAnimated(order, excludeEl) {
   const strip = document.getElementById('chainstrip');
   if (!strip) { applyChainOrder(order); return; }
 
-  const movers = Array.from(strip.querySelectorAll('.chain-slot, .chain-slot-stack, .chain-arr'));
+  const movers = Array.from(strip.querySelectorAll('.chain-slot, .chain-slot-stack, .chain-arr'))
+    .filter(el => el !== excludeEl);
   const firstRects = new Map();
   movers.forEach(el => firstRects.set(el, el.getBoundingClientRect()));
 
