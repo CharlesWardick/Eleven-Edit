@@ -553,6 +553,14 @@ CODE FILE MAP
                        block deliberately reserved. New CSS: #master-vol-wrap/
                        #mvol-label/#mvol-row/#mvol-box/#mvol-steps/.mute-row/
                        .mute-btn/.mute-btn.mute-active.
+                       7/29, same day (after Charlie's hardware test): sized
+                       #mvol-box up to match #tempo-box exactly (13px->15px,
+                       min-width 42->50px) and .mute-btn up proportionally
+                       (10px/2px 7px -> 11px/3px 9px) — Charlie asked for
+                       MAIN VOL to read as prominent as TEMPO without moving
+                       TEMPO itself (worried a TEMPO move would snowball into
+                       the chain row to its left). CSS-only change — #tempo-
+                       wrap and the chain row were not touched.
                        7/28: chain row rebuilt for the graphics-ready layout —
                        see the dedicated CHAIN ROW GRAPHICS entry below for
                        the full change; short version: .chain-thumb (drag
