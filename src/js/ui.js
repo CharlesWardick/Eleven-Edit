@@ -658,11 +658,19 @@ document.addEventListener('DOMContentLoaded', function() {
 // Mute buttons have no query form (Tech Ref) — lit state only ever comes
 // from an actual send/echo, so they start dim ("unmuted") on connect.
 
+// Master Volume is a plain 0-10 linear dial (confirmed 7/29/2026 by Charlie
+// against the real hardware — NOT the To Amp 1/2 -12..+12 dB scale valToAmpVol
+// uses, even though the underlying v0<->v127 byte encoding is identical).
+// v127=0 -> 0.0, v127=127 -> 10.0.
+function valToMasterVol(v127) {
+  return ((v127 / 127) * 10).toFixed(1);
+}
+
 // Repaint the value box from currentMasterVol ('--' until first readback).
 function renderMasterVolField() {
   const el = document.getElementById('mvol-val');
   if (!el) return;
-  el.textContent = (currentMasterVol === null) ? '--' : valToAmpVol(currentMasterVol);
+  el.textContent = (currentMasterVol === null) ? '--' : valToMasterVol(currentMasterVol);
 }
 
 // Called by the CMD 0x36 handler for every broadcast, echo and query reply.

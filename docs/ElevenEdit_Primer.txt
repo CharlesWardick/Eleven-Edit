@@ -241,26 +241,30 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Master Volume/Mute (new, untested) + Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE (Master Volume CONFIRMED WORKING 7/29 + Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
 
-7/29/2026 — MASTER VOLUME + MUTE (new feature, PENDING CHARLIE'S HARDWARE
-  TEST — nothing below is confirmed working yet, only confirmed from a
-  Wireshark/USBPcap capture of Avid Editor's own traffic):
-  MAIN VOL — a compact value box + stepper (arrows / mouse wheel while
-    focused / up-down keys) added to the chain-strip right-hand group, in
-    the space above TEMPO that was deliberately reserved for it. CMD 0x36
-    outSel 0x00, same wire family as To Amp 1/2 (dB display, valToAmpVol).
-    Re-queried every nav pull; does NOT light the SAVE dirty latch (per-
-    patch-vs-global status is unconfirmed — see Tech Ref).
+7/29/2026 — MASTER VOLUME + MUTE (new feature):
+  MAIN VOL — CONFIRMED WORKING on Charlie's first hardware test. A compact
+    value box + stepper (arrows / mouse wheel while focused / up-down keys)
+    added to the chain-strip right-hand group, in the space above TEMPO that
+    was deliberately reserved for it. CMD 0x36 outSel 0x00, same wire family
+    as To Amp 1/2. FIXED SAME DAY: display was initially borrowed from To
+    Amp's -12..+12 dB scale (valToAmpVol) — Charlie's own test explanation
+    said "HW master volume was on 8" while dragging a plain 0-10 dial, and
+    the captured bytes decode exactly to that range. Now valToMasterVol
+    (0-10 linear, one decimal). Re-queried every nav pull; does NOT light
+    the SAVE dirty latch (per-patch-vs-global status still unconfirmed —
+    see Tech Ref).
   MUTE MAIN / MUTE PHONES — two small buttons below the volume box, dim
     normally and lit red when muted, matching Avid's own MUTE section.
     CMD 0x3B, channel 0x00=Main/0x01=Phones. Retracts the old "front-panel
     only, dead on send" reading of this command — the capture shows Avid's
-    own software sending it successfully. No query form exists, so these
-    default to unmuted on connect/nav and only reflect real state once a
-    send or broadcast has been seen (same limitation as the Input
+    own software sending it successfully. NOT YET HARDWARE-TESTED (first
+    test pass covered the volume control only). No query form exists, so
+    these default to unmuted on connect/nav and only reflect real state
+    once a send or broadcast has been seen (same limitation as the Input
     Selector not reflecting live state on connect).
   See CODE FILE MAP below (protocol.js / transport.js / sysex-handler.js /
   state.js / index.html / ui.js) and Tech Ref Sec 18/C13 for full detail.

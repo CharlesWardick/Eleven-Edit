@@ -477,7 +477,7 @@ function handleToAmpVolumeBroadcast(data) {
   const v0   = data[7];
   const val  = (v0 >= 0x40) ? (v0 - 0x40) : (v0 + 64);
   if (slot === 0x00) {
-    appLog('CMD 0x36 Master volume: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' (' + valToAmpVol(val) + ')');
+    appLog('CMD 0x36 Master volume: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' (' + valToMasterVol(val) + ')');
     updateMasterVolDisplay(val);
   } else if (slot === 0x02) {
     appLog('CMD 0x36 ToAmp1 volume: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' (' + valToAmpVol(val) + ')');

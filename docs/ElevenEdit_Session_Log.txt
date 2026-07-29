@@ -39,6 +39,25 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (Master Volume — first hardware test result)
+STATUS:      [FOLDED IN: Technical Reference "MASTER (MAIN) OUTPUT VOLUME
+             (CMD 0x36, outSel 0x00)"; Primer app-state]
+AREA:        Master Volume knob (CMD 0x36 outSel 0x00).
+FINDING:     CONFIRMED WORKING on real hardware — Charlie: "I like that you
+             stuck a mute when at lowest setting the only thing wrong is the
+             scale... My test explanation ... should have been interpreted
+             clearly as 0-10. We ended up with -12 to +12." The v0<->v127
+             byte encoding (SW send + HW readback) was correct from the
+             capture; only the DISPLAY scale was wrong — it borrowed To
+             Amp 1/2's dB formula (valToAmpVol) instead of a plain 0-10
+             linear dial. Fixed with a new valToMasterVol(v127) = (v127/127)
+             *10, one decimal, no MUTE special-case at 0 (that was a
+             leftover of the borrowed dB function, not a real state).
+EVIDENCE:    Charlie's live hardware test, 7/29/2026.
+CONFLICTS:   none — additive fix, no other doc claims touched.
+NEXT:        Mute buttons (Main/Phones) not yet exercised on hardware —
+             this test pass covered the volume knob only.
+-------------------------------------------------------------------
 DATE:        2026-07-29 (new feature — Master Volume + Mute)
 STATUS:      [FOLDED IN: Technical Reference "MASTER (MAIN) OUTPUT VOLUME
              (CMD 0x36, outSel 0x00)" and "MASTER MUTE — MAIN / PHONES

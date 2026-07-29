@@ -430,7 +430,11 @@ function sendToAmpVolume(slot, v127) {
 // like a To Amp knob. The SW WRITE direction below was not separately
 // captured (a drag only ever shows the echo) — it mirrors sendToAmpVolume's
 // pattern, untested until the first hardware build with this feature.
-// v0 encoding assumed identical to To Amp 1/2 (anchor-at-64 dB, valToAmpVol).
+// v0<->v127 byte encoding confirmed identical to To Amp 1/2 (SW send + HW
+// readback tracking both work, per Charlie 7/29/2026) — but the DISPLAY
+// scale is NOT the same: Main Volume is a plain 0-10 linear dial (see
+// valToMasterVol in ui.js), not To Amp's -12..+12 dB (valToAmpVol). Confirmed
+// by Charlie's hardware test the same day (the only thing wrong initially).
 // PER-PATCH VS GLOBAL UNKNOWN — see Tech Ref. Not sent via sendPatchWrite
 // (does not light the SAVE dirty latch) so an eventual "actually global"
 // answer costs nothing to correct for.

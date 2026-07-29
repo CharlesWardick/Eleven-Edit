@@ -1603,16 +1603,25 @@ MASTER (MAIN) OUTPUT VOLUME (CMD 0x36, outSel 0x00):
   produces the HW/echo side), so the SW write is implemented as the same
   0x00-dir mirror of the To Amp write (F0 13 0B 0F 00 36 00 [v0] 00 00 00 00
   F7) — untested until Charlie's first hardware pass with this build.
-  v0 encoding assumed identical to To Amp 1/2 (anchor-at-64 dB scale,
-  valToAmpVol) since it is the same command family.
-  PER-PATCH vs GLOBAL — UNKNOWN. To Amp 1/2 are confirmed per-patch; Main
-  might instead be a global output level (more like a physical monitoring
-  control than a patch parameter). Implemented the cautious way: re-queried
-  on every nav pull like To Amp 1/2 (harmless either way — a global value
-  reads back correctly too), but the SW write does NOT route through
-  sendPatchWrite and so does not light the SAVE dirty latch, since a false
-  "dirty" on a global control would be the more visible mistake of the two.
-  Charlie's hardware test will settle which it actually is.
+  v0<->v127 BYTE ENCODING confirmed identical to To Amp 1/2 (same formula,
+  same command family) — CONFIRMED WORKING 7/29/2026, Charlie's first
+  hardware test: SW send moved the real knob and HW readback tracked it.
+  *** DISPLAY SCALE IS NOT THE SAME, though — corrected 7/29/2026. ***
+  Main Volume is a plain 0-10 LINEAR DIAL (v127=0 -> 0.0, v127=127 -> 10.0),
+  not To Amp's -12..+12 dB scale. Charlie's own test explanation says it
+  plainly: "HW master volume was on 8" while dragging 10->0->8, and the
+  captured v0 values decode exactly to that 0-10 range (v0=0x3F -> v127=127
+  -> 10.0 at the top of the drag; v0=0x40 -> v127=0 -> 0.0 at the bottom).
+  valToAmpVol (dB) was used for the first pass and was the one thing wrong;
+  valToMasterVol (ui.js) is the corrected 0-10 linear display function.
+  PER-PATCH vs GLOBAL — still UNKNOWN. To Amp 1/2 are confirmed per-patch;
+  Main might instead be a global output level (more like a physical
+  monitoring control than a patch parameter). Implemented the cautious way:
+  re-queried on every nav pull like To Amp 1/2 (harmless either way — a
+  global value reads back correctly too), but the SW write does NOT route
+  through sendPatchWrite and so does not light the SAVE dirty latch, since a
+  false "dirty" on a global control would be the more visible mistake of the
+  two. Still open — Charlie's testing has not yet isolated this.
 
 MASTER MUTE — MAIN / PHONES (CMD 0x3B):
   *** RETRACTS the old entry above ("Global Mute... Front-panel only.
@@ -1641,9 +1650,10 @@ MASTER MUTE — MAIN / PHONES (CMD 0x3B):
   No bricking history on this command in either direction (front-panel
   broadcasts have been seen for a long time; the new SW-send confirmation
   adds no new risk profile).
-  STATUS: format confirmed from capture only — first hardware pass with
-  this build (master volume knob + Main/Phones mute buttons, chain-strip
-  right-hand group, right of TEMPO) is still pending Charlie's test.
+  STATUS: Master Volume CONFIRMED WORKING 7/29/2026 (Charlie's first
+  hardware test) once the display scale was fixed (see above). Mute
+  buttons not yet exercised against real hardware — first confirmed test
+  covered the volume control only.
 
 TO AMP SOURCE (CMD 0x37):
   Confirmed wire format 7/17/2026 from Avid editor USB capture:
