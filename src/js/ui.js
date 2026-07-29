@@ -982,6 +982,12 @@ let chainDragLinkedCont = null;   // LOOP's container, ONLY set when dragging AM
                                    // lockstep with chainDragCont via the same transform delta,
                                    // instead of getting the other blocks' slide-in treatment,
                                    // so the pair visually stays glued together during the drag
+let chainDragLinkedGapX = 0;      // signed distance, LOOP's thumb center minus AMP's, measured
+                                   // ONCE at drag start before any transform (7/28, 12th pass) —
+                                   // constant for the whole drag since the pair always moves in
+                                   // lockstep. Used to hit-test off the PAIR's center instead of
+                                   // just AMP's, so it takes equal travel to trigger a reorder
+                                   // whichever side LOOP is on (see the mousemove handler)
 let chainDragStartX     = 0;
 let chainDragStartY     = 0;
 let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
@@ -1088,6 +1094,13 @@ function wireChainDrag() {
         if (chainDragLinkedCont) {
           chainDragLinkedCont.style.pointerEvents = 'none';
           chainDragLinkedCont.style.transition = 'none';
+          // Measured HERE, before either block has any transform applied —
+          // the one moment guaranteed to reflect their true natural gap.
+          const linkedThumb = chainDragLinkedCont.querySelector('.chain-thumb');
+          const ampNatural  = chainDragThumb.getBoundingClientRect();
+          const loopNatural = linkedThumb.getBoundingClientRect();
+          chainDragLinkedGapX = (loopNatural.left + loopNatural.width / 2)
+                               - (ampNatural.left  + ampNatural.width  / 2);
         }
       }
     }
@@ -1105,6 +1118,20 @@ function wireChainDrag() {
     const dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth  / 2;
     const dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight / 2;
 
+    // 7/28, 12th pass: for the linked case, hit-test off the PAIR's center
+    // (AMP's point shifted halfway toward LOOP), not AMP's own center alone.
+    // Charlie: dragging with LOOP trailing needed barely any travel to
+    // trigger a swap, but with LOOP LEADING he had to drag a full extra
+    // block's width before anything moved at all, then it jumped two slots
+    // at once. Cause: LOOP moves in lockstep now, so whichever side it's on
+    // physically sits in the path toward the next real neighbor — testing
+    // off AMP alone means that occupied width is "wasted" travel whenever
+    // LOOP is the leading edge, but costs nothing when LOOP trails. Splitting
+    // the difference (the pair's center, not either block's) makes both
+    // directions need the same amount of travel. chainDragLinkedGapX is 0
+    // when this isn't a linked drag, so hitTestX just equals dragCenterX then.
+    const hitTestX = dragCenterX + chainDragLinkedGapX / 2;
+
     if (chainDragActive) {
       // elementFromPoint does fresh hit-testing against whatever is actually
       // rendered right now — unlike native drag's event target, it is not
@@ -1112,7 +1139,7 @@ function wireChainDrag() {
       // pointer-events:none on the dragged block (above), this naturally
       // finds whatever real neighbor the dragged block is now visually
       // overlapping, instead of just finding itself.
-      const el = document.elementFromPoint(dragCenterX, dragCenterY);
+      const el = document.elementFromPoint(hitTestX, dragCenterY);
       const cont = el ? el.closest('.chain-slot, .chain-slot-stack') : null;
       if (cont && strip.contains(cont)) {
         const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
@@ -1127,7 +1154,7 @@ function wireChainDrag() {
           // midpoint math could reach.
           const after = (target.slotId === chainDragStartOrder[0].slotId)
                         ? false
-                        : dragCenterX > r.left + r.width / 2;
+                        : hitTestX > r.left + r.width / 2;
           const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
           if (next && !sameOrder(next, chainPreviewOrder)) {
             chainPreviewOrder = next;
@@ -1206,6 +1233,7 @@ function wireChainDrag() {
     chainDragPending = false;
     chainDragCont = null;
     chainDragLinkedCont = null;
+    chainDragLinkedGapX = 0;
     chainDragStartOrder = null;
     chainPreviewOrder = null;
     setTimeout(() => {

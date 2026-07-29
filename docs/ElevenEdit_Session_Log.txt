@@ -1044,6 +1044,68 @@ NEXT:        Charlie's real rebuild/hardware test. If the linked pair still
              the two root causes here were narrow and specific, not a
              general "linked dragging is unreliable" issue.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      ROOT CAUSE FOUND AND FIXED, verified live via simulated drag —
+             NOT YET tested by Charlie on real hardware
+AREA:        Chain drag — linked AMP-CAB+LOOP pair needed asymmetric travel
+             to trigger a reorder depending on which side LOOP was on
+FINDING:     Charlie, very precisely: 2 of the 4 direction/config
+             combinations were good (whichever direction has LOOP trailing
+             behind AMP-CAB), 2 were off (LOOP leading) — "I need to drag to
+             slot [4 positions right] before a tile move[s]... more precise:
+             move from slot 2 to slot 3, I have to drag amp to slot 4 before
+             slot 4 moves to 2." Also confirmed individual AMP moves,
+             individual LOOP moves, and ordinary multi-block slides were all
+             already fine — this was specific to the linked pair.
+ROOT CAUSE:  A direct consequence of the previous entry's lockstep fix, not
+             a separate bug in that fix. Once LOOP moves in perfect lockstep
+             with AMP-CAB (identical transform every frame), LOOP physically
+             occupies the space directly ahead of AMP-CAB WHENEVER it's on
+             the leading side of the drag direction — meaning the cursor has
+             to travel across LOOP's own entire width before reaching any
+             REAL neighbor to hit-test against (LOOP itself is pointer-
+             events:none and can't be a target). The hit-test was built off
+             AMP-CAB's own center only (dragCenterX), so that "wasted" width
+             cost real travel distance whenever LOOP led, but cost nothing
+             when LOOP trailed (nothing in the way) — hence the exact
+             asymmetry Charlie described, and the two-slot jump once it
+             finally triggered (the pair moving as an atomic 2-wide unit
+             across a target it had to travel THROUGH rather than approach).
+FIX:         Hit-test off the PAIR's center instead of AMP-CAB's own center,
+             for the linked case only. New chainDragLinkedGapX, measured
+             ONCE at drag start (before either block has any transform) as
+             the signed distance between LOOP's and AMP-CAB's thumb centers
+             — constant for the whole drag since they move in lockstep.
+             hitTestX = dragCenterX + chainDragLinkedGapX/2 replaces
+             dragCenterX in both the elementFromPoint call and the before/
+             after midpoint check; chainDragLinkedGapX is 0 for a normal
+             (non-linked) drag, so hitTestX reduces to plain dragCenterX
+             there — no change to any of the already-confirmed-good
+             individual-block or ordinary-multi-block-slide behavior. Only
+             the TRIGGER point changed; the actual visual continuous-follow
+             positions of both blocks (previous entry) are untouched.
+VERIFIED:    Live CDP simulation, two angles: (1) measured the EXACT cursor
+             travel distance (1px increments) needed to trigger the first
+             reorder in all 4 combinations — before this fix the asymmetry
+             would have been on the order of a full block's width or more
+             (matching Charlie's "drag to slot 4" description); after the
+             fix, all 4 combinations needed 136-148px, a 12px spread instead
+             of that. (2) Re-ran the full step-by-step drag from the
+             previous entry's "good" scenario in the previously-broken
+             direction (AMP-CAB leading, LOOP trailing behind it, dragging
+             toward FX2): the order now progresses ONE step at a time
+             cleanly (no skipped intermediate state, no jump), with the
+             86px lockstep gap held constant throughout — matching the
+             already-good direction's behavior instead of differing from it.
+FILES:       ui.js only (chainDragLinkedGapX added; measured at drag-start
+             alongside chainDragLinkedCont; hitTestX introduced and used in
+             place of dragCenterX for the hit-test and after-check only —
+             the continuous-follow transform code is unchanged).
+NEXT:        Charlie's real rebuild/hardware test. The residual 12px spread
+             between combinations is expected (differing block/connector
+             widths between configurations) and not something to chase
+             further unless it's actually perceptible on real hardware.
+-------------------------------------------------------------------
 
 
 

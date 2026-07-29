@@ -660,6 +660,30 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (12th pass): fixed the linked AMP-CAB+LOOP drag's
+                       asymmetric trigger distance — Charlie precisely: 2 of
+                       4 direction/config combos needed way more drag travel
+                       than the other 2 (whichever had LOOP LEADING instead
+                       of trailing), landing correctly but only after a big
+                       jump. Direct consequence of the 11th pass's lockstep
+                       fix: LOOP now always occupies the space directly ahead
+                       of AMP-CAB when it's the leading side, so the cursor
+                       had to travel across LOOP's own width (wasted, since
+                       LOOP is pointer-events:none and can't be a target)
+                       before reaching a real neighbor — costing nothing when
+                       LOOP trailed instead. Fixed by hit-testing off the
+                       PAIR's center (new chainDragLinkedGapX, the constant
+                       signed distance between the two thumbs' centers,
+                       measured once at drag-start) instead of AMP-CAB's own
+                       center alone — halves the wasted distance symmetrically
+                       in both directions. Only affects the linked case;
+                       chainDragLinkedGapX is 0 otherwise. Verified by
+                       measuring the exact px travel needed to trigger in all
+                       4 combinations: asymmetry dropped from roughly a full
+                       block's width to a 12px spread (136-148px), and a full
+                       step-by-step re-test of the previously-broken
+                       direction now shows clean one-step-at-a-time
+                       reordering instead of a 2-slot jump.
                        7/28 (11th pass): fixed two real bugs in the linked
                        AMP-CAB+LOOP drag, surfaced by the 10th pass's
                        continuous-follow. (1) computeLinkedAmpLoopReorder's
