@@ -223,19 +223,13 @@
   /* Connector INTO the badge — same stacked-line style as a between-block
      .chain-arr, but its line count tracks the BADGE state, not a block's
      output: two lines when STEREO, one when MONO.
-     7/29 CORRECTION: the comment above (7/24) claiming margin-left:auto
-     "lives on this connector's wrapper" was stale/wrong — this selector was
-     actually empty, and #tempo-wrap's own margin-left:auto (removed this
-     session as an assumed redundant duplicate) was the ONLY thing pushing
-     the whole end-group to the strip's right edge. Removing it left the
-     group flush against nothing, with ~190px of dead space after TEMPO
-     before the true right border (caught by Charlie, not by the earlier
-     headless-Chromium check — that check confirmed vertical alignment and
-     reorder-survival, not horizontal position against the window edge).
-     Restored HERE instead of back on #tempo-wrap so it does what the old
-     comment always claimed: push the group (connector + badge + tempo) as
-     one unit, not tempo alone away from the badge. */
-  #mono-connector { margin-left: auto; }
+     7/29 HISTORY: briefly carried margin-left:auto (to fix a regression
+     from removing it off #tempo-wrap) so the whole end-group pushed right
+     together — Charlie then flagged that pulled STEREO away from the chain
+     with a gap that didn't read right. Reverted to empty; see #tempo-slot
+     (body markup) for where the auto margin actually lives now — TEMPO
+     alone anchors right, STEREO stays immediately after the last block. */
+  #mono-connector { }
 
   /* Passive clone of the active INPUT selection (7/28, Charlie's idea), at
      the START of the chain strip. Two jobs: (1) gives the row somewhere to
@@ -288,17 +282,24 @@
      those two. This deliberately leaves the space ABOVE it (matching a
      pedal's .chain-thumb height) empty — reserved for a future master-
      volume control, per Charlie's own plan; not empty by accident.
-     margin-left:auto moved OFF this element and onto #mono-connector
-     instead (see that selector's comment) — Charlie caught that removing
-     it outright left the whole end-group with ~190px of dead space before
-     the strip's true right edge; it was the only thing holding the group
-     there, not a redundant duplicate as first assumed. */
+     margin-left:auto now lives on the WRAPPING #tempo-slot (body markup),
+     not here — see that selector below for why (it moved twice this same
+     day: off #tempo-wrap entirely, briefly onto #mono-connector, then here,
+     each time chasing where Charlie actually wanted the resulting gap to
+     land). */
   #tempo-wrap {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     flex-shrink: 0; align-self: center;
     margin-top: auto;
     transform: translateY(12px);
   }
+  /* 7/29, 6th pass: TEMPO anchors to the strip's true right edge on its
+     own — STEREO/#mono-connector deliberately do NOT carry margin-left:auto
+     anymore, so STEREO sits immediately after the last chain block instead
+     of being dragged along with TEMPO. The visible gap this creates sits
+     between STEREO and TEMPO, not between the chain and STEREO — Charlie's
+     explicit call after seeing both arrangements rendered. */
+  #tempo-slot { margin-left: auto; }
   #tempo-label { font-size: 10px; color: #777; letter-spacing: 1px; font-weight: bold; }
   #tempo-row { display: flex; align-items: center; gap: 6px; }
   #tempo-box {
@@ -873,8 +874,16 @@
        the row instead of it floating vertically centered, and deliberately
        leaves the space above it (matching a pedal's .chain-thumb height)
        open for a future master-volume control (Charlie's plan, not an
-       accident). Stays in this same column/panel — not moved to a new row. -->
-  <div class="chain-slot">
+       accident). Stays in this same column/panel — not moved to a new row.
+       7/29, 6th pass: margin-left:auto moved HERE (id="tempo-slot" below)
+       from #mono-connector — Charlie: TEMPO's own right-edge position was
+       correct, but pushing the WHOLE end-group together pulled STEREO away
+       from the chain with a big gap that didn't read right. STEREO now
+       drops back to sitting immediately after the last block (no auto
+       margin on it or its connector); TEMPO alone anchors to the strip's
+       true right edge, so the big gap moves to sit between STEREO and
+       TEMPO instead of between the chain and STEREO. -->
+  <div class="chain-slot" id="tempo-slot">
     <div id="tempo-wrap">
       <span id="tempo-label">TEMPO</span>
       <div id="tempo-row">

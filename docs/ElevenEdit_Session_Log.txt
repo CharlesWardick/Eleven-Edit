@@ -39,6 +39,41 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (6th pass, same day)
+STATUS:      IMPLEMENTED, verified via headless-Chromium pixel measurement
+             (gapChainToStereo=5px normal spacing, gapStereoToTempo=181px,
+             rightPad=16px matching the left side, survives 5 simulated
+             reorders); PENDING CHARLIE'S BUILD TEST
+AREA:        Chain strip — TEMPO/STEREO split positioning (Charlie's
+             one-word review of the 5th pass's fix: "unfuckingbelievable" —
+             but then asked to move STEREO back)
+FINDING:     The 5th pass's fix (margin-left:auto on #mono-connector) was
+             technically correct by its own logic — verified pixel-exact
+             that the whole end-group sat flush at the strip's right edge —
+             but that's not what Charlie actually wanted once he saw it
+             rendered: pushing the WHOLE group together pulled STEREO away
+             from the chain with a big gap that didn't read right. He wants
+             TEMPO alone anchored to the true right edge, and STEREO back to
+             sitting immediately after the last chain block like it always
+             did — i.e. the visible gap belongs between STEREO and TEMPO,
+             not between the chain and STEREO. Third placement in three
+             passes for this one small area — not a mistake each time, a
+             genuine "reasoned about it, still needed the render in front of
+             him to know for sure" case, same as the 7/28 thumb-alignment
+             saga.
+FIX:         margin-left:auto moved OFF #mono-connector (reverted to empty,
+             its original state) and onto a NEW id — #tempo-slot — added to
+             TEMPO's wrapping .chain-slot (was unnamed, just class="chain-
+             slot"). This anchors ONLY the tempo column to the right edge;
+             STEREO and its connector go back to plain in-flow positioning,
+             landing 5px after the last chain block same as any other
+             block-to-block gap.
+FILES:       index.html only (one id added to markup, CSS moved).
+NEXT:        Charlie's rebuild test — STEREO should sit tight against the
+             last chain block again, TEMPO should stay flush at the strip's
+             right edge, with the (now expected, intentional) gap between
+             them.
+-------------------------------------------------------------------
 DATE:        2026-07-29 (5th pass, same day)
 STATUS:      IMPLEMENTED, verified via headless-Chromium pixel measurement
              (chainstrip.right - tempoSteps.right == 16px, the strip's own
