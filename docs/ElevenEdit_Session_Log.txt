@@ -1165,6 +1165,41 @@ NEXT:        None — confirmed working on real hardware. Closes out this
              separate graphics/image-mapping piece, deliberately not started
              this session.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      DESIGN AGREED, DEFERRED — not started, Charlie wants chain-row
+             work finished first
+AREA:        Startup — no "can't find the rack" gate like Avid's editor has
+FINDING:     Charlie: Avid's editor won't load to its main screen if it
+             can't find the rack — pops a message, "try again or quit."
+             He's occasionally forgotten to power the rack on first and
+             would like the same protection here, since our app currently
+             just sits there with a small status-bar message instead of
+             anything unmissable.
+AGREED DESIGN (build later, do not re-litigate these points without a
+             reason):
+  - GO/NO-GO SIGNAL: bridgeMidiReady, not just bridgeReady/bridge-process-
+    alive. Charlie confirmed directly: "the Java bridge will not go to a
+    connected state unless it sees the hardware" — so bridgeMidiReady
+    already IS the correct "rack found" signal, no separate port-
+    enumeration check needed on top of it.
+  - SCOPE: STARTUP ONLY, matching Avid's own behavior (the check happens
+    when the program loads). Explicitly NOT a gate on later disconnects —
+    Charlie: Avid warns and shuts down if you power off the rack or unplug
+    USB mid-session, but "our program just working... doesn't warn or
+    anything" while auto-advance or the user keeps interacting — and that's
+    fine as-is for now. We already have a status-bar disconnect indicator
+    and a retry-connect button for the mid-session case; this feature is
+    additive for startup only, not a replacement for that.
+  - LIKELY IMPLEMENTATION (not yet built): reuse the existing blocking
+    modal-overlay pattern already in the app (the watchdog dialog —
+    #watchdog-overlay / .open class in index.html, ui.js) rather than
+    inventing new UI, with "Try Again" / "Quit" buttons instead of "OK".
+    Needs a short timeout (a few seconds) before declaring failure, not an
+    instant pop on page load, to allow for normal connection latency.
+NEXT:        Build this once the chain-row work (graphics/drag-handles +
+             remaining effect panels) is done — Charlie's explicit priority
+             order.
+-------------------------------------------------------------------
 
 
 
