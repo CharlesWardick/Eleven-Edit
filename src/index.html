@@ -1125,7 +1125,13 @@
       <div class="settings-row-label">Avid Graphics Folder</div>
       <div class="settings-row-controls">
         <button class="settings-btn" id="settings-btn-set-avid">Set Folder…</button>
+        <button class="settings-btn" id="settings-btn-scan-avid">Scan Folder</button>
         <div class="settings-path" id="settings-avid-path">—</div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <div class="settings-path" id="settings-avid-scan-result">Not scanned yet.</div>
       </div>
     </div>
 
@@ -1716,8 +1722,52 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
     window.electronAPI.browseAvidDir().then(function(res) {
       if (res && res.ok) {
         document.getElementById('settings-avid-path').textContent = res.dir;
+        document.getElementById('settings-avid-scan-result').textContent = 'Not scanned yet.';
       }
     }).catch(function(){});
+  });
+
+  // Scan Avid Graphics Folder — recursive search for the .aaxplugin image
+  // structure (main.js: scan-avid-graphics), then a fuzzy name match against
+  // every chain-row block/amp (chain-graphics.js: resolveChainGraphics).
+  // Purely diagnostic right now — nothing here wires a real image into the
+  // chain row yet, since the mapping table has no confirmed entries (see
+  // chain-graphics.js header). This just tells Charlie what the scanner
+  // found and how much of it we could confidently match by name, so the
+  // scanner itself is verified against his real install/copy before any
+  // filename gets hardcoded.
+  document.getElementById('settings-btn-scan-avid').addEventListener('click', function() {
+    if (!window.electronAPI) return;
+    const resultEl = document.getElementById('settings-avid-scan-result');
+    resultEl.textContent = 'Scanning…';
+    window.electronAPI.scanAvidGraphics().then(function(res) {
+      if (!res || !res.ok) {
+        resultEl.textContent = 'Scan failed: ' + ((res && res.error) || 'unknown error');
+        return;
+      }
+      const familyCount = Object.keys(res.families).length;
+      resultEl.textContent = familyCount + ' plugin folder(s), ' + res.totalCount + ' PNG(s) found.';
+      appLog('Avid graphics scan: ' + familyCount + ' folder(s), ' + res.totalCount + ' PNG(s), root=' + res.root);
+      if (typeof resolveChainGraphics === 'function') {
+        const resolved = resolveChainGraphics(res);
+        const nConfident  = Object.keys(resolved.confident).length;
+        const nAmbiguous  = Object.keys(resolved.ambiguous).length;
+        const nUnresolved = resolved.unresolved.length;
+        resultEl.textContent += ' Matched ' + nConfident + ', ambiguous ' + nAmbiguous
+          + ', unresolved ' + nUnresolved + ' (see log for detail).';
+        appLog('Chain graphics match: confident=' + nConfident + ' ambiguous=' + nAmbiguous
+          + ' unresolved=' + nUnresolved);
+        Object.keys(resolved.ambiguous).forEach(function(k) {
+          appLog('  AMBIGUOUS ' + k + ' (' + resolved.ambiguous[k].family + '): '
+            + resolved.ambiguous[k].files.join(', '));
+        });
+        resolved.unresolved.forEach(function(u) {
+          appLog('  UNRESOLVED ' + u.key + ' (' + u.family + '): ' + u.name);
+        });
+      }
+    }).catch(function(err) {
+      resultEl.textContent = 'Scan failed: ' + (err && err.message ? err.message : String(err));
+    });
   });
 
   // Open Logs Folder
@@ -1746,6 +1796,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <!-- ══ APPLICATION SCRIPTS — load order matters ══ -->
 <script src="js/state.js"></script>
 <script src="js/protocol.js"></script>
+<script src="js/chain-graphics.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/fx-panels.js"></script>   <!-- per-effect-panel UI, split from ui.js 7/27 -->
 <script src="js/transport.js"></script>

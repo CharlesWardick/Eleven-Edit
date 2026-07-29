@@ -39,6 +39,49 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29
+STATUS:      provisional — scanner untested against a real Avid folder
+AREA:        Chain row graphics — recursive folder scanner + mapping-table infrastructure
+FINDING:     Picked up the deferred NEXT item from 7/28 (chain row graphics-
+             ready layout). The real folder listing Charlie provided
+             (11R_Image_Paths.txt) lives only in a prior chat session, not
+             this repo, so no real filenames were available this pass —
+             built the infrastructure so it's ready the moment that listing
+             (or a live scan) is available, instead of waiting on it idle.
+BUILT:       main.js — walkForAaxImages() recursively searches the chosen
+             folder for <Family>.aaxplugin\Contents\Resources\Images\*.png
+             (confirmed real layout, Session Log 7/28), tolerant of any
+             depth per the FOLDER-DEPTH DECISION. New IPC scan-avid-graphics
+             returns { families: {FolderName: [pngBasename,...]}, totalCount }.
+             preload.js exposes scanAvidGraphics.
+             src/js/chain-graphics.js (NEW, pattern: like fx-transport.js) —
+             CHAIN_BLOCK_FAMILY_BY_MID maps every effect mid (MODEL_NAMES,
+             protocol.js) to its plugin folder family; resolveChainGraphics()
+             fuzzy-matches each block/amp display name against the scan's
+             filenames and buckets results into confident (exactly one hit),
+             ambiguous (2+, never silently guessed), unresolved (0) — per
+             the 7/28 note to flag uncertain matches for Charlie rather than
+             guess. Known real-file spelling quirk (Green JRC Overdrive ->
+             GreenJVCOD) wired as an alt search token.
+             index.html Settings panel — new "Scan Folder" button next to
+             Avid Graphics Folder; runs the scan + resolve, shows a one-line
+             summary in the panel and full ambiguous/unresolved detail in
+             appLog. Purely diagnostic — nothing wires a real image into the
+             chain row yet.
+CONFLICTS:   none — additive, chain-thumb still renders its dummy placeholder.
+NEXT:        Charlie: (1) set the Avid Graphics Folder (any real install or a
+             copied-out subset) and click Scan Folder — confirms the scanner
+             actually finds the .aaxplugin\...\Images structure on his real
+             machine, first time this has run against real files. (2) Share
+             the resulting ambiguous/unresolved log lines (or re-share
+             11R_Image_Paths.txt) so CHAIN_BLOCK_FAMILY_BY_MID's [best guess]
+             entries (Modulation family assignments, mainly) and the amp
+             many-to-one groups can be confirmed and hardcoded. (3) Once
+             filenames are confirmed, wire the resolved paths into
+             .chain-thumb (currently a dashed dummy box for every block).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-07-27 (review)
 STATUS:      [FOLDED IN: Technical Reference Sec 14 (WorB annotation +
              operating-mode hypothesis), Sec 24]

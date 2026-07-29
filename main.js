@@ -289,6 +289,71 @@ ipcMain.handle('get-avid-dir', function() {
   return storeGet('avidDir', '');
 });
 
+// ════════════════════════════════════════════════════════════════════
+// AVID GRAPHICS FOLDER SCANNER
+// Recursive on purpose (Session Log 7/28, "FOLDER-DEPTH DECISION"): the
+// chosen folder may be a live Avid Editor install, or just a copied-out
+// subset of one at any depth, so this walks everything under it rather
+// than assuming one fixed layout. Confirmed real-install layout (Charlie's
+// 11R_Image_Paths.txt, 3934 lines / 3623 PNGs, 7/28):
+//   <PluginFamily>.aaxplugin\Contents\Resources\Images\<Name>.png
+// Depth elsewhere in the tree (Resources root, XML, etc.) is not scanned
+// for images — only that Images subfolder of an .aaxplugin bundle counts.
+// ════════════════════════════════════════════════════════════════════
+const AAXPLUGIN_SUFFIX = '.aaxplugin';
+
+function walkForAaxImages(dir, families, depth) {
+  if (depth > 12) return; // sane recursion guard, not a real-world limit
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (e) {
+    return; // unreadable dir (permissions, junction loop, etc.) — skip it
+  }
+  for (const ent of entries) {
+    const full = path.join(dir, ent.name);
+    if (!ent.isDirectory()) continue;
+    if (ent.name.toLowerCase().endsWith(AAXPLUGIN_SUFFIX)) {
+      const family = ent.name.slice(0, -AAXPLUGIN_SUFFIX.length);
+      const imagesDir = path.join(full, 'Contents', 'Resources', 'Images');
+      let pngs = [];
+      try {
+        pngs = fs.readdirSync(imagesDir)
+          .filter(f => f.toLowerCase().endsWith('.png'));
+      } catch (e) {
+        // No Images subfolder at the expected depth — leave family unlisted
+        // rather than guess another depth.
+      }
+      if (pngs.length) {
+        if (!families[family]) families[family] = [];
+        families[family].push(...pngs);
+      }
+      // An .aaxplugin bundle's own internals aren't searched further.
+      continue;
+    }
+    walkForAaxImages(full, families, depth + 1);
+  }
+}
+
+ipcMain.handle('scan-avid-graphics', function(e, rootDir) {
+  try {
+    const dir = rootDir || storeGet('avidDir', '');
+    if (!dir || !fs.existsSync(dir)) {
+      return { ok: false, error: 'Folder not set or does not exist' };
+    }
+    const families = {}; // familyName -> [png basenames]
+    walkForAaxImages(dir, families, 0);
+    let total = 0;
+    Object.keys(families).forEach(f => { total += families[f].length; });
+    logWrite('Avid graphics scan: ' + Object.keys(families).length
+      + ' plugin folder(s), ' + total + ' PNG(s), root=' + dir);
+    return { ok: true, root: dir, families: families, totalCount: total };
+  } catch (e) {
+    logWrite('Avid graphics scan error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('get-logs-dir', function() {
   return path.join(app.getPath('userData'), 'logs');
 });
