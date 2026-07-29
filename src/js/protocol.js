@@ -1403,8 +1403,10 @@ WAH_MODELS.forEach(function(m) {
 // VOL MODELS — Volume Pedal. Firmware picks mono (0x2B) or stereo
 // (0x2C) by chain context; we expose one user-facing model and map
 // both mids to it.
-// paramLos 0x02/0x03/0x04 are assumed pending Wireshark confirmation.
-// Labels: Volume (level), Min Vol (minimum), Taper (response curve).
+// paramLos confirmed by Wireshark capture (2026-07-29):
+//   0x02 = Volume (Position) — continuous knob, full range
+//   0x03 = Min Vol — continuous knob, full range
+//   0x04 = Taper — binary toggle: v0=0x40 → Linear, v0=0x3F → Log
 // ════════════════════════════════════════════════════════════════════
 const VOL_MODELS = [
   { mid: 0x2B, mids: [0x2B, 0x2C], name: 'Volume Pedal',
@@ -1412,7 +1414,7 @@ const VOL_MODELS = [
     rows: [
       [ {label:'Volume',  lo:0x02},
         {label:'Min Vol', lo:0x03},
-        {label:'Taper',   lo:0x04} ]
+        {label:'Taper',   lo:0x04, toggle:true, options:['Linear','Log']} ]
     ]
   },
 ];

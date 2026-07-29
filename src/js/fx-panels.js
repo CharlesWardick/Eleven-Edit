@@ -583,6 +583,33 @@ function renderVolKnobs(mid) {
         const sp = document.createElement('div');
         sp.style.cssText = 'width:80px;flex-shrink:0;';
         rowDiv.appendChild(sp);
+      } else if (cell.toggle) {
+        // Binary toggle cell (e.g. Taper: Linear/Log).
+        // val=0 → options[0] (Linear), val≠0 → options[1] (Log).
+        const loHex = cell.lo.toString(16).padStart(2,'0');
+        const tglDiv = document.createElement('div');
+        tglDiv.className = 'ctrl-knob';
+        tglDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+        const lbl = document.createElement('label');
+        lbl.textContent = cell.label;
+        const btn = document.createElement('button');
+        btn.id = 'vol-tgl-' + loHex;
+        btn.dataset.value = '0';
+        btn.dataset.base = 'fx';
+        btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
+          + 'border:1px solid #666;border-radius:4px;color:var(--fg);cursor:pointer;font-size:12px;';
+        btn.textContent = cell.options[0];
+        btn.addEventListener('mouseover', function() { this.style.borderColor = '#aaa'; });
+        btn.addEventListener('mouseout',  function() { this.style.borderColor = '#666'; });
+        btn.addEventListener('click', function() {
+          var cur = parseInt(btn.dataset.value) || 0;
+          var newVal = (cur === 0) ? 127 : 0;
+          updateVolKnob(cell.lo, newVal);
+          if (typeof sendVolParamWrite === 'function') sendVolParamWrite(cell.lo, newVal);
+        });
+        tglDiv.appendChild(lbl);
+        tglDiv.appendChild(btn);
+        rowDiv.appendChild(tglDiv);
       } else {
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const knobDiv = document.createElement('div');
@@ -605,6 +632,29 @@ function renderVolKnobs(mid) {
 
 function updateVolKnob(paramLo, val) {
   const loHex = paramLo.toString(16).padStart(2,'0');
+  // Check if this paramLo is a toggle cell
+  const volModel = VOL_MODEL_BY_MID[currentChain.find ? (currentChain.find(function(b) { return b.slotId === SLOT_VOL; }) || {}).modelId : undefined];
+  var isToggle = false;
+  var toggleOptions = ['Linear','Log'];
+  if (volModel) {
+    volModel.rows.forEach(function(row) {
+      row.forEach(function(cell) {
+        if (cell && cell.lo === paramLo && cell.toggle) {
+          isToggle = true;
+          if (cell.options) toggleOptions = cell.options;
+        }
+      });
+    });
+  }
+  if (isToggle) {
+    const btn = document.getElementById('vol-tgl-' + loHex);
+    if (btn) {
+      btn.dataset.orig  = fxBaselineSetIfUnset(SLOT_VOL, loHex, val);
+      btn.dataset.value = val;
+      btn.textContent   = (val === 0) ? toggleOptions[0] : toggleOptions[1];
+    }
+    return;
+  }
   const wrap  = document.getElementById('vol-w-' + loHex);
   const valEl = document.getElementById('vol-v-' + loHex);
   if (wrap) {
