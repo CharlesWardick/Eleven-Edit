@@ -649,6 +649,99 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// MASTER (MAIN) VOLUME + MUTE — CMD 0x36 outSel 0x00 / CMD 0x3B
+// ════════════════════════════════════════════════════════════════════
+// Compact value box + stepper, same style family as the RIG TEMPO field
+// just below (no canvas knob — the reserved chain-strip slot above TEMPO
+// is thumb-height, not the 80px the amp-panel knobs need). No drag; just
+// click arrows, mouse wheel while focused, or up/down keys.
+// Mute buttons have no query form (Tech Ref) — lit state only ever comes
+// from an actual send/echo, so they start dim ("unmuted") on connect.
+
+// Master Volume is a plain 0-10 linear dial (confirmed 7/29/2026 by Charlie
+// against the real hardware — NOT the To Amp 1/2 -12..+12 dB scale valToAmpVol
+// uses, even though the underlying v0<->v127 byte encoding is identical).
+// v127=0 -> 0.0, v127=127 -> 10.0.
+function valToMasterVol(v127) {
+  return ((v127 / 127) * 10).toFixed(1);
+}
+
+// Repaint the value box from currentMasterVol ('--' until first readback).
+function renderMasterVolField() {
+  const el = document.getElementById('mvol-val');
+  if (!el) return;
+  el.textContent = (currentMasterVol === null) ? '--' : valToMasterVol(currentMasterVol);
+}
+
+// Called by the CMD 0x36 handler for every broadcast, echo and query reply.
+function updateMasterVolDisplay(v127) {
+  if (v127 === null || v127 === undefined) return;
+  currentMasterVol = v127;
+  renderMasterVolField();
+}
+
+function setMasterVol(v127, send) {
+  if (v127 < 0) v127 = 0;
+  if (v127 > 127) v127 = 127;
+  currentMasterVol = v127;
+  renderMasterVolField();
+  if (send) queueKnobSend('masterVol', sendMasterVolume, v127);
+}
+
+function stepMasterVol(dir) {
+  if (currentMasterVol === null) {
+    appLog('Master volume: no value read back yet — nothing to step');
+    return;
+  }
+  setMasterVol(currentMasterVol + dir, true);
+}
+
+// Repaint a mute button from its state — dim normally, lit red when muted.
+function updateMuteButton(channel, muted) {
+  if (channel === MUTE_CH_MAIN) muteMainState = muted;
+  else if (channel === MUTE_CH_PHONES) mutePhonesState = muted;
+  const id = (channel === MUTE_CH_MAIN) ? 'btn-mute-main' : 'btn-mute-phones';
+  const btn = document.getElementById(id);
+  if (btn) btn.classList.toggle('mute-active', muted);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const box = document.getElementById('mvol-box');
+  const up  = document.getElementById('mvol-up');
+  const dn  = document.getElementById('mvol-dn');
+  if (up) up.addEventListener('click', function() { stepMasterVol(1);  if (box) box.focus(); });
+  if (dn) dn.addEventListener('click', function() { stepMasterVol(-1); if (box) box.focus(); });
+  if (box) {
+    box.addEventListener('wheel', function(e) {
+      if (document.activeElement !== box) return;
+      e.preventDefault();
+      stepMasterVol(e.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+    box.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowUp')   { e.preventDefault(); stepMasterVol(1); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); stepMasterVol(-1); }
+    });
+  }
+
+  var muteLocked = { main: false, phones: false };
+  function wireMuteBtn(id, channel, key) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      if (!bridgeMidiReady || muteLocked[key]) return;
+      muteLocked[key] = true;
+      setTimeout(function() { muteLocked[key] = false; }, 300);
+      var current = (channel === MUTE_CH_MAIN) ? muteMainState : mutePhonesState;
+      var next = !current;
+      updateMuteButton(channel, next); // optimistic display
+      sendMute(channel, next);
+    });
+  }
+  wireMuteBtn('btn-mute-main',   MUTE_CH_MAIN,   'main');
+  wireMuteBtn('btn-mute-phones', MUTE_CH_PHONES, 'phones');
+});
+
+// ════════════════════════════════════════════════════════════════════
 // RIG TEMPO — digital-clock field (CMD 0x50)
 // ════════════════════════════════════════════════════════════════════
 //

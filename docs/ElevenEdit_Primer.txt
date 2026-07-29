@@ -160,6 +160,13 @@ sees; he cannot write or debug code himself and won't fill in gaps.
   - Be concise. Keep explanations outcome-focused, not technical.
   - Conclude internally; present the solution or finding, not the reasoning.
   - Always build the EXE for testing — npm start has never worked here.
+  - THE TEST STEP, EXACTLY (Charlie's own words, 7/29/2026): after code is
+    handed over, he runs `npm run build` (electron-builder --win --x64),
+    executes the resulting EXE, and tests it live against the real hardware.
+    There is no other test step and no way to shortcut it — "there is nothing
+    to test when ElevenEdit can't communicate with hardware." Don't propose
+    unit tests, mocked bridges, or "verify without hardware" steps as a
+    substitute; they are not part of how this project gets verified.
   - CHARLIE ONLY TESTS ON REAL HARDWARE, ALWAYS (confirmed 7/28/2026). He
     builds this repo's code into an EXE and runs it against the real Eleven
     Rack over the Java bridge — there is no "dry run" step in his workflow.
@@ -234,9 +241,45 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE (Master Volume CONFIRMED WORKING 7/29 + Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
+
+7/29/2026 — NAV TIMING DEV PANEL REMOVED. Charlie no longer needed it —
+  zeroing its two tunable values (Query gap, Recall settle) produced no
+  observable improvement or problem either way, so there was nothing left
+  worth tuning by hand. timing-panel.js deleted; its <script> tag removed
+  from index.html; lastNavPullMs/lastNavPullQueries (state.js) removed,
+  since the timing panel was their only reader. The four underlying NAV_*
+  constants in transport.js (NAV_QUERY_GAP=15, NAV_RECALL_SETTLE=100,
+  NAV_CHAIN_TIMEOUT=900, NAV_AMP_TIMEOUT=700) are UNCHANGED — only the
+  live-editing UI is gone, not the values or the behaviour they gate. The
+  nav pull still logs "Nav pull complete: N param queries, Xms" to the
+  monitor via appLog, so that number is still visible without the panel.
+
+7/29/2026 — MASTER VOLUME + MUTE (new feature):
+  MAIN VOL — CONFIRMED WORKING on Charlie's first hardware test. A compact
+    value box + stepper (arrows / mouse wheel while focused / up-down keys)
+    added to the chain-strip right-hand group, in the space above TEMPO that
+    was deliberately reserved for it. CMD 0x36 outSel 0x00, same wire family
+    as To Amp 1/2. FIXED SAME DAY: display was initially borrowed from To
+    Amp's -12..+12 dB scale (valToAmpVol) — Charlie's own test explanation
+    said "HW master volume was on 8" while dragging a plain 0-10 dial, and
+    the captured bytes decode exactly to that range. Now valToMasterVol
+    (0-10 linear, one decimal). Re-queried every nav pull; does NOT light
+    the SAVE dirty latch (per-patch-vs-global status still unconfirmed —
+    see Tech Ref).
+  MUTE MAIN / MUTE PHONES — two small buttons below the volume box, dim
+    normally and lit red when muted, matching Avid's own MUTE section.
+    CMD 0x3B, channel 0x00=Main/0x01=Phones. Retracts the old "front-panel
+    only, dead on send" reading of this command — the capture shows Avid's
+    own software sending it successfully. NOT YET HARDWARE-TESTED (first
+    test pass covered the volume control only). No query form exists, so
+    these default to unmuted on connect/nav and only reflect real state
+    once a send or broadcast has been seen (same limitation as the Input
+    Selector not reflecting live state on connect).
+  See CODE FILE MAP below (protocol.js / transport.js / sysex-handler.js /
+  state.js / index.html / ui.js) and Tech Ref Sec 18/C13 for full detail.
 
 7/27/2026 EVENING — CODE REORGANIZATION + one display fix (tested by Charlie
   same day; no protocol or behaviour changes except where noted):
@@ -516,6 +559,23 @@ CODE FILE MAP
   preload.js           Electron preload, exposes electronAPI.
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
+                       7/29: <script src="js/timing-panel.js"> removed —
+                       the file no longer exists (see timing-panel.js entry,
+                       now removed from this map, and transport.js above).
+                       7/29: #master-vol-wrap (MAIN VOL value box/stepper +
+                       MAIN/PHONES mute buttons) added inside #tempo-slot,
+                       above #tempo-wrap — fills the space that comment
+                       block deliberately reserved. New CSS: #master-vol-wrap/
+                       #mvol-label/#mvol-row/#mvol-box/#mvol-steps/.mute-row/
+                       .mute-btn/.mute-btn.mute-active.
+                       7/29, same day (after Charlie's hardware test): sized
+                       #mvol-box up to match #tempo-box exactly (13px->15px,
+                       min-width 42->50px) and .mute-btn up proportionally
+                       (10px/2px 7px -> 11px/3px 9px) — Charlie asked for
+                       MAIN VOL to read as prominent as TEMPO without moving
+                       TEMPO itself (worried a TEMPO move would snowball into
+                       the chain row to its left). CSS-only change — #tempo-
+                       wrap and the chain row were not touched.
                        7/28: chain row rebuilt for the graphics-ready layout —
                        see the dedicated CHAIN ROW GRAPHICS entry below for
                        the full change; short version: .chain-thumb (drag
@@ -553,19 +613,19 @@ CODE FILE MAP
                        branch in chain-open handler; "Volumes" box replaces the
                        right-hand Amp Out/Rig Vol column (scard-col-r CSS now unused).
   state.js             Shared mutable state.
+                       7/29: currentMasterVol (null until first readback),
+                       muteMainState / mutePhonesState (both default false —
+                       no HW query form for CMD 0x3B, see Tech Ref).
                        Phase 9: distPanelOpen flag.
                        Phase 10: reverbPanelOpen flag.
                        7/23: ampSelectRxSeq, chainMapRxSeq (reply-arrival
-                       counters the post-nav pull waits on), lastNavPullMs /
-                       lastNavPullQueries (timing panel readout).
-  timing-panel.js      DEV TOOL, 7/23. Draggable panel, bottom-left, that
-                       edits the nav timings live and reports the last pull's
-                       query count and elapsed ms. The timings are plain vars,
-                       so no rebuild is needed to try a value.
-                       SHOW_TIMING_PANEL = false removes it entirely.
-                       Tune NAV_QUERY_GAP and NAV_RECALL_SETTLE only; the two
-                       timeouts bound a LOST reply and are not speed controls.
+                       counters the post-nav pull waits on).
+                       7/29 REMOVED: lastNavPullMs / lastNavPullQueries — only
+                       ever read by timing-panel.js, deleted the same day (see
+                       that entry, now removed from this map).
   protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders.
+                       7/29: REQU_MASTER_VOL_READ (CMD 0x36 outSel 0x00),
+                       MUTE_CH_MAIN / MUTE_CH_PHONES (CMD 0x3B channel bytes).
                        Phase 13: REQU_TEMPO_READ, TEMPO_BPM_MIN/MAX,
                        rigTempoDecodeUs, rigTempoUsToBpm, rigTempoBpmToDigits.
                        0x50 dropped from PROBE_DUMP_CMDS — it has a real
@@ -577,6 +637,23 @@ CODE FILE MAP
                        Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
                        REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
   transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       7/29: timing-panel.js removed (dev tool Charlie no
+                       longer needed — zeroing its tunable timings produced
+                       no observable improvement or regression, so the
+                       defaults stand as-is). finish() in the nav pull no
+                       longer writes lastNavPullMs/lastNavPullQueries or
+                       calls refreshTimingPanel — it still logs "Nav pull
+                       complete: N param queries, Xms" via appLog, so that
+                       information is still visible in the monitor. The four
+                       NAV_* timing constants (NAV_QUERY_GAP etc.) are
+                       unchanged and still gate real nav-pull behaviour —
+                       only the live-editing panel is gone, not the values.
+                       7/29: sendMasterVolume(v127) — CMD 0x36 outSel 0x00,
+                       mirrors sendToAmpVolume; sendMute(channel, muted) —
+                       CMD 0x3B. Neither routes through sendPatchWrite (no
+                       SAVE dirty-latch). Nav pull (requestPatchStateAfterNav,
+                       Phase 4) gains one REQU_MASTER_VOL_READ after the
+                       To Amp 2 read.
                        7/27 REORG: sendDistModelChange/requestDistParams/
                        sendDistParamWrite and the REVERB equivalents MOVED to
                        fx-transport.js (new file, below) — this file no longer
@@ -628,6 +705,10 @@ CODE FILE MAP
                        PANELS' send functions belong HERE, not in transport.js —
                        copy the DIST trio as the template (see file header).
   sysex-handler.js     Incoming message routing.
+                       7/29: handleToAmpVolumeBroadcast (CMD 0x36) gained a
+                       slot=0x00 (Main) branch -> updateMasterVolDisplay; new
+                       handleMasterMuteBroadcast (CMD 0x3B) -> updateMuteButton,
+                       dispatched from the switch same as every other CMD.
                        7/27 REORG: parseSysEx was one 700+ line function with a
                        sequential if-chain over every CMD byte — hard to follow
                        and the reason this file kept needing "ask for it by
@@ -669,6 +750,14 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/29: MASTER VOLUME + MUTE section (new) —
+                       renderMasterVolField/updateMasterVolDisplay/
+                       setMasterVol/stepMasterVol (value box + stepper,
+                       wheel, up/down keys — same family as the RIG TEMPO
+                       field, no canvas knob) and updateMuteButton +
+                       DOMContentLoaded wiring for the two mute buttons
+                       (optimistic display on click, reconciled by the CMD
+                       0x3B echo).
                        7/28 (13th pass): the 12th pass's pair-CENTER hit-test
                        fix was itself wrong — Charlie caught it: averaging
                        necessarily degraded the two directions that were

@@ -94,6 +94,19 @@ const REQU_TOAMP1_READ = 'F0 13 0B 0F 01 36 02 F7';
 const REQU_TOAMP2_READ = 'F0 13 0B 0F 01 36 03 F7';
 const REQU_MONO_READ   = 'F0 13 0B 0F 01 0D F7';
 
+//   Master (Main) output volume — same command as To Amp 1/2, outSel=0x00.
+//     F0 13 0B 0F 01 36 00 F7  ->  F0 13 0B 0F 12 36 00 <v0> 00 00 00 00 F7
+const REQU_MASTER_VOL_READ = 'F0 13 0B 0F 01 36 00 F7';
+
+// CMD 0x3B — Master Mute (Main output / Headphone output). Confirmed
+// 7/29/2026 from Avid Editor USB capture (Master_Volume_Mute_Phones_
+// Capture.pcapng) — see Tech Ref Sec 18/C13 "MASTER MUTE — MAIN / PHONES".
+//   F0 13 0B 0F [dir] 3B [channel] [state] F7
+// channel: MUTE_CH_MAIN (0x00) / MUTE_CH_PHONES (0x01).
+// state: 0x00 = unmuted, 0x01 = muted. No query/read form observed.
+const MUTE_CH_MAIN   = 0x00;
+const MUTE_CH_PHONES = 0x01;
+
 //   Rig tempo — CMD 0x50. Reply carries the four 6-bit digits (see
 //   rigTempoDecodeUs below). Reply direction byte observed as 0x12 for the
 //   answer to this query and 0x02 for an unsolicited broadcast; the handler
