@@ -39,6 +39,26 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (Nav Timing dev panel removed)
+STATUS:      [FOLDED IN: Primer app-state + CODE FILE MAP (transport.js /
+             state.js / index.html)]
+AREA:        timing-panel.js (dev tool) removal.
+FINDING:     Charlie: zeroed the panel's two tunable values (Query gap,
+             Recall settle) to see if faster was better — no observable
+             improvement or regression either way, so no reason to keep
+             deviating from the coded defaults, and no reason to keep the
+             panel. Removed by request: deleted timing-panel.js, its
+             <script> tag in index.html, and lastNavPullMs/lastNavPullQueries
+             in state.js (only ever read by the panel). transport.js's
+             finish() no longer writes those vars or calls
+             refreshTimingPanel(); still appLogs the same "N param queries,
+             Xms" line so the number stays visible in the monitor.
+EVIDENCE:    Charlie's direct request + explanation, 7/29/2026.
+CONFLICTS:   none.
+NEXT:        None — the four NAV_* constants themselves (transport.js) are
+             untouched and still gate real nav-pull behaviour at their
+             existing defaults.
+-------------------------------------------------------------------
 DATE:        2026-07-29 (Master Volume — first hardware test result)
 STATUS:      [FOLDED IN: Technical Reference "MASTER (MAIN) OUTPUT VOLUME
              (CMD 0x36, outSel 0x00)"; Primer app-state]

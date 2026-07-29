@@ -245,6 +245,18 @@ CURRENT APP STATE (Master Volume CONFIRMED WORKING 7/29 + Phase 13 + 7/26 UI pas
 -------------------------------------------------
 Build: electron-builder --win --x64 -> EXE.
 
+7/29/2026 — NAV TIMING DEV PANEL REMOVED. Charlie no longer needed it —
+  zeroing its two tunable values (Query gap, Recall settle) produced no
+  observable improvement or problem either way, so there was nothing left
+  worth tuning by hand. timing-panel.js deleted; its <script> tag removed
+  from index.html; lastNavPullMs/lastNavPullQueries (state.js) removed,
+  since the timing panel was their only reader. The four underlying NAV_*
+  constants in transport.js (NAV_QUERY_GAP=15, NAV_RECALL_SETTLE=100,
+  NAV_CHAIN_TIMEOUT=900, NAV_AMP_TIMEOUT=700) are UNCHANGED — only the
+  live-editing UI is gone, not the values or the behaviour they gate. The
+  nav pull still logs "Nav pull complete: N param queries, Xms" to the
+  monitor via appLog, so that number is still visible without the panel.
+
 7/29/2026 — MASTER VOLUME + MUTE (new feature):
   MAIN VOL — CONFIRMED WORKING on Charlie's first hardware test. A compact
     value box + stepper (arrows / mouse wheel while focused / up-down keys)
@@ -547,6 +559,9 @@ CODE FILE MAP
   preload.js           Electron preload, exposes electronAPI.
                        New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
   index.html           Full UI (HTML + CSS + script tags).
+                       7/29: <script src="js/timing-panel.js"> removed —
+                       the file no longer exists (see timing-panel.js entry,
+                       now removed from this map, and transport.js above).
                        7/29: #master-vol-wrap (MAIN VOL value box/stepper +
                        MAIN/PHONES mute buttons) added inside #tempo-slot,
                        above #tempo-wrap — fills the space that comment
@@ -604,15 +619,10 @@ CODE FILE MAP
                        Phase 9: distPanelOpen flag.
                        Phase 10: reverbPanelOpen flag.
                        7/23: ampSelectRxSeq, chainMapRxSeq (reply-arrival
-                       counters the post-nav pull waits on), lastNavPullMs /
-                       lastNavPullQueries (timing panel readout).
-  timing-panel.js      DEV TOOL, 7/23. Draggable panel, bottom-left, that
-                       edits the nav timings live and reports the last pull's
-                       query count and elapsed ms. The timings are plain vars,
-                       so no rebuild is needed to try a value.
-                       SHOW_TIMING_PANEL = false removes it entirely.
-                       Tune NAV_QUERY_GAP and NAV_RECALL_SETTLE only; the two
-                       timeouts bound a LOST reply and are not speed controls.
+                       counters the post-nav pull waits on).
+                       7/29 REMOVED: lastNavPullMs / lastNavPullQueries — only
+                       ever read by timing-panel.js, deleted the same day (see
+                       that entry, now removed from this map).
   protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders.
                        7/29: REQU_MASTER_VOL_READ (CMD 0x36 outSel 0x00),
                        MUTE_CH_MAIN / MUTE_CH_PHONES (CMD 0x3B channel bytes).
@@ -627,6 +637,17 @@ CODE FILE MAP
                        Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
                        REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
   transport.js         Send functions, CAB/MIC v0 lookup tables.
+                       7/29: timing-panel.js removed (dev tool Charlie no
+                       longer needed — zeroing its tunable timings produced
+                       no observable improvement or regression, so the
+                       defaults stand as-is). finish() in the nav pull no
+                       longer writes lastNavPullMs/lastNavPullQueries or
+                       calls refreshTimingPanel — it still logs "Nav pull
+                       complete: N param queries, Xms" via appLog, so that
+                       information is still visible in the monitor. The four
+                       NAV_* timing constants (NAV_QUERY_GAP etc.) are
+                       unchanged and still gate real nav-pull behaviour —
+                       only the live-editing panel is gone, not the values.
                        7/29: sendMasterVolume(v127) — CMD 0x36 outSel 0x00,
                        mirrors sendToAmpVolume; sendMute(channel, muted) —
                        CMD 0x3B. Neither routes through sendPatchWrite (no

@@ -966,10 +966,7 @@ async function requestPatchStateAfterNav() {
   }
   function finish() {
     var ms = Date.now() - tStart;
-    lastNavPullMs = ms;
-    lastNavPullQueries = qCount;
     appLog('Nav pull complete: ' + qCount + ' param queries, ' + ms + ' ms');
-    if (typeof refreshTimingPanel === 'function') refreshTimingPanel();
   }
 
   await sleep(NAV_RECALL_SETTLE);

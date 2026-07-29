@@ -171,7 +171,3 @@ var ampSelectRxSeq = 0;
 // before issuing any amp-block query, because addressing a stale paramHi
 // queries the wrong block entirely.
 var chainMapRxSeq = 0;
-
-// ── Last post-nav pull measurements, shown in the timing panel.
-var lastNavPullMs = 0;
-var lastNavPullQueries = 0;
