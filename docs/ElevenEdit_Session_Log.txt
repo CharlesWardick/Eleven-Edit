@@ -1200,6 +1200,21 @@ NEXT:        Build this once the chain-row work (graphics/drag-handles +
              remaining effect panels) is done — Charlie's explicit priority
              order.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      IDEA NOTED, not yet decided — a question for a LATER session
+AREA:        Chain row — how effect panels get opened (dropdown ▼ vs
+             clicking the block itself, matching Avid)
+FINDING:     Charlie's stated plan, in order: (1) graphics/drag-handle work
+             next session, (2) remaining effect panels after that, (3) THEN
+             decide whether the current interaction (click the ▼ caret under
+             a block to open its panel) should stay, or whether the chain
+             row should mimic Avid's own interaction now that it has all the
+             same visual elements (real thumbnails, drag) and behaves the
+             same way during drag. Explicitly deferred until after (1) and
+             (2) — not a decision to make now, just don't let it get lost.
+NEXT:        Revisit once graphics + remaining panels are done, per
+             Charlie's own ordering.
+-------------------------------------------------------------------
 
 
 
