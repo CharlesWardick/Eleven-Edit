@@ -100,17 +100,57 @@ const CHAIN_BLOCK_THUMB_FILE_BY_MID = {
 // TFX '6dls' key, not a chain-map mid.
 const CHAIN_AMPCAB_FAMILY = 'Eleven AmpsCabs UI';
 
-// AMP KEYS ARE DELIBERATELY UNRESOLVED (7/29/2026). Confirmed from the real
-// listing: only 15 amp_*.png files exist (amp_AC, amp_bass, amp_bogner,
-// amp_DC30, amp_DC_modern, amp_DC_vintage, amp_duo, amp_lead800, amp_lux,
-// amp_M2, amp_plx, amp_sl100, amp_svt, amp_treadplate, amp_tweed) for 32
-// AMP_SELECT_LIST keys — genuinely many-to-one by physical chassis (Session
-// Log 7/28), and which of the 32 amps groups under which of the 15 images
-// cannot be guessed reliably from the name alone (e.g. "amp_lux" is Lux Vib
-// AND Lux Norm at least, but does it also cover Tweed Lux? "amp_bass" —
-// Tweed Bass, or DC Bass, or both?). Left empty rather than guessed; fill
-// in once Charlie confirms the groupings from a real scan (or visually).
-const CHAIN_AMP_THUMB_FILE_BY_KEY = {};
+// AMP KEYS — BEST-EFFORT GROUPING (7/29/2026, 2nd pass). Only 15 amp_*.png
+// files exist for 32 AMP_SELECT_LIST keys, genuinely many-to-one by physical
+// chassis (Session Log 7/28). Unlike the effect-block table above, this
+// grouping is NOT filename-confirmed — it's inferred from naming/semantic
+// hints (see reasoning per group below) because the alternative (leaving it
+// empty) means the AMP/CAB slot never shows anything. This is CHEAP to
+// verify here: every entry shows up as a real picture next to the AMP MODEL
+// dropdown the moment Charlie clicks through it, so a wrong grouping is
+// obvious on sight, unlike a silent data-mapping mistake elsewhere. Flagged
+// per group by confidence — HIGH (direct name match), MEDIUM (strong
+// semantic reasoning), LOW (leftover/orphan guess) — so Charlie knows which
+// ones most need a look.
+const CHAIN_AMP_THUMB_FILE_BY_KEY = {
+  // HIGH — key literally names the chassis image
+  tweed_lux:  'amp_tweed.png',
+  tweed_bass: 'amp_bass.png',
+  black_duo:  'amp_duo.png',
+  ac_hi:      'amp_AC.png',
+  lead800:    'amp_lead800.png',
+  m2lead:     'amp_M2.png',
+  plexivari:  'amp_plx.png',  plexi50:  'amp_plx.png',  plexi100: 'amp_plx.png',
+  sl100drive: 'amp_sl100.png', sl100crunch: 'amp_sl100.png', sl100clean: 'amp_sl100.png',
+  treadmod:   'amp_treadplate.png', treadvint: 'amp_treadplate.png',
+  dc_mod_od: 'amp_DC_modern.png', dc_mod_sod: 'amp_DC_modern.png',
+  dc_mod800: 'amp_DC_modern.png', dc_mod_clean: 'amp_DC_modern.png',
+  dc_vint_crunch: 'amp_DC_vintage.png', dc_vint_od: 'amp_DC_vintage.png',
+  dc_vint_clean: 'amp_DC_vintage.png',
+  lux_vib: 'amp_lux.png', lux_norm: 'amp_lux.png',   // key literally has "lux"
+
+  // MEDIUM — semantic inference, not a name match
+  dc_bass: 'amp_svt.png',    // amp_svt (iconic bass-amp head shape) is the
+                             // only leftover image that reads as bass gear
+  rb01b_red: 'amp_bogner.png', rb01b_blue: 'amp_bogner.png', rb01b_green: 'amp_bogner.png',
+                             // RB-01b's red/blue/green channel naming matches
+                             // Bogner's own colored-channel convention
+
+  // LOW — same blackface-era Fender family as lux_vib/lux_norm; amp_lux
+  // reused rather than left blank, since these three visually look almost
+  // identical to Vibrolux on the real hardware (same tolex/grille era)
+  black_vib:  'amp_lux.png',
+  black_sr:   'amp_lux.png',
+  black_mini: 'amp_lux.png',
+
+  // LOW — genuine leftovers: 3 keys (j45, blueline, ms30), 1 unused image
+  // (amp_DC30). No naming or semantic link found; grouped here only because
+  // every other image had a stronger claim elsewhere. MOST LIKELY WRONG —
+  // check these three first.
+  j45:      'amp_DC30.png',
+  blueline: 'amp_DC30.png',
+  ms30:     'amp_DC30.png',
+};
 
 // Last successful scan-avid-graphics result, stored so a chain-map render
 // can look up an image without re-scanning. Set by setAvidGraphicsManifest.
@@ -144,11 +184,39 @@ function getChainThumbSrc(modelId) {
 }
 
 // Same idea for the AMP-CAB block's amp image, keyed by amp key (state.js
-// currentAmpKey) instead of a chain-map mid. Returns null until
-// CHAIN_AMP_THUMB_FILE_BY_KEY has real entries (see note above).
+// currentAmpKey) instead of a chain-map mid.
 function getAmpThumbSrc(ampKey) {
   if (!avidGraphicsManifest || !ampKey) return null;
   const file = CHAIN_AMP_THUMB_FILE_BY_KEY[ampKey];
+  if (!file) return null;
+  const fam = avidGraphicsManifest.families[CHAIN_AMPCAB_FAMILY];
+  if (!fam || fam.files.indexOf(file) === -1) return null;
+  return pathToFileUrl(fam.dir + '\\' + file);
+}
+
+// CAB — only 5 of the 15 CAB_TYPE_LIST (protocol.js) entries have a real
+// image at all (confirmed 1:1 from the real listing, name-for-name — the
+// filename literally echoes the dropdown label, e.g. "1x12 Tweed Lux" ->
+// cab_1x12_tweed_lux.png). The other 10 cab types have NO asset in the
+// install and correctly fall back to the dummy placeholder — that's a real
+// gap in Avid's own art, not a mapping miss on our side.
+const CHAIN_CAB_THUMB_FILE_BY_NAME = {
+  '1x12 Tweed Lux':      'cab_1x12_tweed_lux.png',
+  '2x12 AC Blue':        'cab_2x12_ac_blue.png',
+  '2x12 Black Panel Duo':'cab_2x12_blk_duo.png',
+  '4x12 Classic 30':     'cab_4x12_classic_30.png',
+  '4x12 Green 25W':      'cab_4x12_green_25w.png',
+};
+
+// Keyed by CAB_TYPE_LIST index (ui.js: updateCabTypeDisplay / the
+// #cab-type-select dropdown), since that's what the app already tracks —
+// no new state needed.
+function getCabThumbSrc(cabIndex) {
+  if (!avidGraphicsManifest) return null;
+  if (typeof CAB_TYPE_LIST === 'undefined') return null;
+  const entry = CAB_TYPE_LIST[cabIndex];
+  if (!entry) return null;
+  const file = CHAIN_CAB_THUMB_FILE_BY_NAME[entry.name];
   if (!file) return null;
   const fam = avidGraphicsManifest.families[CHAIN_AMPCAB_FAMILY];
   if (!fam || fam.files.indexOf(file) === -1) return null;

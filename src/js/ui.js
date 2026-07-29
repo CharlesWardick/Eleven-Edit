@@ -1273,6 +1273,25 @@ function wireChainDrag() {
 }
 
 // Map a chain slot ID to its (movable) container div in the chain row.
+// Shared by applyChainOrder (every block, on chain-map/reorder) and
+// setCurrentAmp (the AMP-CAB slot specifically, on an amp change that
+// doesn't move the chain map at all — Phase 12's "amp model change refresh"
+// path). Swaps in the real Avid graphic when src resolves, otherwise keeps
+// the dashed dummy placeholder — never both, never neither.
+function setChainThumbImage(thumbWrap, src) {
+  if (!thumbWrap) return;
+  const img = thumbWrap.querySelector('.chain-thumb-img');
+  const ph  = thumbWrap.querySelector('.chain-thumb-placeholder');
+  if (src && img) {
+    img.src = src;
+    img.style.display = '';
+    if (ph) ph.style.display = 'none';
+  } else {
+    if (img) { img.style.display = 'none'; img.removeAttribute('src'); }
+    if (ph) ph.style.display = '';
+  }
+}
+
 function containerForSlot(slotId) {
   if (slotId === SLOT_AMP) {
     const el = document.getElementById('chain-amp');
@@ -1353,16 +1372,7 @@ function applyChainOrder(order) {
       const src = (blk.slotId === SLOT_AMP)
         ? (typeof getAmpThumbSrc === 'function' ? getAmpThumbSrc(currentAmpKey) : null)
         : (typeof getChainThumbSrc === 'function' ? getChainThumbSrc(blk.modelId) : null);
-      const img = thumbWrap.querySelector('.chain-thumb-img');
-      const ph  = thumbWrap.querySelector('.chain-thumb-placeholder');
-      if (src && img) {
-        img.src = src;
-        img.style.display = '';
-        if (ph) ph.style.display = 'none';
-      } else {
-        if (img) { img.style.display = 'none'; img.removeAttribute('src'); }
-        if (ph) ph.style.display = '';
-      }
+      setChainThumbImage(thumbWrap, src);
     }
 
     // Connector after this block: double arrow when this block outputs stereo.
@@ -1562,6 +1572,15 @@ function setCurrentAmp(key) {
   syncAmpSelectDropdown(key);
   updateToneKnobs(key);
   updateBrightVisibility(key);
+  // 7/29: refresh the AMP-CAB chain-thumb here too, not just on the next
+  // chain-map/reorder (applyChainOrder) — an amp change (Phase 12) doesn't
+  // move the chain map at all, so without this the thumbnail would lag one
+  // full nav behind the dropdown/amp-name-display above it.
+  const ampThumb = document.getElementById('chain-amp');
+  if (ampThumb && typeof getAmpThumbSrc === 'function') {
+    setChainThumbImage(ampThumb.closest('.chain-slot-stack').querySelector('.chain-thumb'),
+      getAmpThumbSrc(key));
+  }
   appLog('Amp identified: ' + (currentAmpName || 'unknown') + ' key=' + key);
 }
 

@@ -39,6 +39,71 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (3rd pass, same day)
+STATUS:      IMPLEMENTED, PENDING CHARLIE'S BUILD TEST — best-effort, flagged
+             by confidence, not filename-confirmed like the effect blocks
+AREA:        Chain row graphics — AMP-CAB thumbnail grouping
+FINDING:     Charlie confirmed the 2nd pass's real graphics on his own build
+             (screenshot: VOL/WAH/DIST/FX LOOP/MOD/DELAY/REVERB all showing
+             real pedal art, scaling correctly with the window +/- zoom
+             controls; DIST/REVERB also correctly swap art on a model
+             change). Asked to fill the still-blank AMP/CAB thumb next,
+             since we do have the 15 amp_*.png assets.
+DECISION:    Unlike the effect blocks (each had an exact 1:1 filename match),
+             the amp table genuinely has no way to be filename-confirmed —
+             15 images for 33 keys, no naming scheme that resolves it fully.
+             Shipped anyway (all 33 keys assigned across the 15 images) with
+             per-group confidence flagged in chain-graphics.js comments:
+               HIGH   — key literally names the image (amp_tweed, amp_bass,
+                        amp_duo, amp_AC, amp_lead800, amp_M2, amp_plx x3,
+                        amp_sl100 x3, amp_treadplate x2, amp_DC_modern x4,
+                        amp_DC_vintage x3, amp_lux x2 [lux_vib/lux_norm])
+               MEDIUM — semantic inference: amp_svt (iconic bass-amp shape)
+                        -> dc_bass; amp_bogner -> rb01b_red/blue/green (the
+                        red/blue/green channel-color naming matches Bogner's
+                        own convention)
+               LOW    — amp_lux reused for black_vib/black_sr/black_mini
+                        (same blackface-Fender era/look as lux_vib/lux_norm,
+                        not a name match); amp_DC30 as a catch-all for the
+                        three true leftovers (j45, blueline, ms30) with no
+                        naming or semantic link found at all — MOST LIKELY
+                        WRONG of the whole table, flagged first-to-check.
+             This is safe to ship best-effort BECAUSE it's cheap to verify:
+             every entry renders as an actual picture next to the AMP MODEL
+             dropdown, so Charlie can click through all 33 amps and spot a
+             wrong grouping on sight — unlike a silent data mistake, a wrong
+             thumbnail is immediately obvious next to the correct dropdown
+             label sitting right beside it.
+BUILT:       chain-graphics.js — CHAIN_AMP_THUMB_FILE_BY_KEY filled (was
+             empty), all 33 keys covered, comments group by confidence as
+             above. Also added CHAIN_CAB_THUMB_FILE_BY_NAME + getCabThumbSrc
+             — 5 of CAB_TYPE_LIST's 15 entries have a real, name-confirmed
+             image (cab_1x12_tweed_lux.png etc., filename literally echoes
+             the dropdown label); the other 10 cab types have NO asset in
+             Avid's own install at all (a real gap, not a mapping miss).
+             BUILT BUT NOT WIRED INTO THE UI YET — the AMP-CAB block only has
+             ONE .chain-thumb box today (shared, amp-only); showing the cab
+             image too needs a second image area in that stack, which is a
+             layout change (the row height/alignment has already broken and
+             been fixed three separate times this project — Session Log
+             7/28 — not something to touch without a live test loop). Left
+             for a dedicated pass.
+             ui.js — setChainThumbImage() extracted as the one shared
+             function both applyChainOrder (every block, on chain-map/
+             reorder) and setCurrentAmp (the AMP-CAB slot specifically) call,
+             so the amp thumbnail also updates immediately on an amp-model
+             change (Phase 12's "amp change refresh" path) instead of lagging
+             one full nav behind the amp-name-display text right next to it.
+CONFLICTS:   none.
+NEXT:        Charlie: click through the AMP MODEL dropdown (all 33) on a
+             rebuild and flag any thumbnail that looks wrong — check the LOW
+             confidence ones first (j45, blueline, ms30, and the three
+             blackface-family entries reusing amp_lux). Separately: wiring
+             the CAB image into the stack is a deliberately deferred, own
+             pass (layout risk, not a data problem).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-07-29 (2nd pass, same day)
 STATUS:      IMPLEMENTED, PENDING CHARLIE'S BUILD TEST — real graphics wired
              for all 9 non-amp chain-row blocks; amp table deliberately still
