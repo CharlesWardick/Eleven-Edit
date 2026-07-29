@@ -699,8 +699,16 @@ function renderTempoField() {
     wEl.textContent = String(Math.floor(currentTempoTenths / 10));
     tEl.textContent = String(currentTempoTenths % 10);
   }
-  wEl.classList.toggle('seg-on', tempoSeg === 'w');
-  tEl.classList.toggle('seg-on', tempoSeg === 't');
+  // 7/29: Charlie caught the whole-BPM segment showing amber "selected"
+  // (seg-on) at all times, including when the app window wasn't even
+  // focused — tempoSeg defaults to 'w' and nothing gated the highlight on
+  // whether the box was actually clicked into. Now requires real focus too,
+  // so the segment only lights up while the user is actually in the box
+  // (clicked a segment, or tabbed/focused it) — matches the tenths side's
+  // plain look the rest of the time.
+  const focused = document.activeElement === box;
+  wEl.classList.toggle('seg-on', focused && tempoSeg === 'w');
+  tEl.classList.toggle('seg-on', focused && tempoSeg === 't');
 }
 
 // Called by the CMD 0x50 handler for every broadcast, echo and query reply.
@@ -820,7 +828,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  box.addEventListener('blur', function() { commitTempoTyping(); });
+  // commitTempoTyping() no-ops (no repaint) when nothing was mid-typed —
+  // the common case of "clicked a segment, then clicked elsewhere" — so the
+  // seg-on highlight would otherwise survive a blur with no typing involved.
+  // Always repaint after, not just when there was something to commit.
+  box.addEventListener('blur', function() { commitTempoTyping(); renderTempoField(); });
+  // Repaint on focus too, not just blur — this is what actually lights up
+  // the seg-on highlight now that it's gated on real focus (see
+  // renderTempoField). Reachable via Tab, not just the mousedown handlers
+  // above (those already call renderTempoField themselves via selectSeg).
+  box.addEventListener('focus', function() { renderTempoField(); });
 
   renderTempoField();
 });

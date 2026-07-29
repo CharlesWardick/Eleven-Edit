@@ -39,6 +39,40 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-29 (7th pass, same day)
+STATUS:      IMPLEMENTED, verified via headless-Chromium simulated click/
+             blur/re-focus cycle; PENDING CHARLIE'S BUILD TEST
+AREA:        Rig Tempo field — whole-BPM segment always looked "selected"
+FINDING:     Charlie: the "240" (whole BPM) segment showed its amber
+             seg-on highlight even in a screenshot where the app wasn't the
+             active window — i.e. permanently, not just while actually
+             editing. Two separate causes stacked: (1) tempoSeg (ui.js)
+             defaults to 'w' and renderTempoField's seg-on toggle never
+             checked real focus, only which segment was logically selected,
+             so it painted "selected" from first load regardless of
+             interaction; (2) the markup itself hardcoded class="tempo-seg
+             seg-on" on #tempo-whole, so even before JS ran once it would
+             already show highlighted.
+FIX:         renderTempoField (ui.js) now gates both segments' seg-on on
+             `document.activeElement === box`, not just tempoSeg alone.
+             Added a focus listener on #tempo-box to repaint (picks up Tab-
+             focus, not just the click handlers which already repaint via
+             selectSeg). Static seg-on class removed from the HTML markup.
+             CAUGHT DURING VERIFICATION, not assumed: the blur handler only
+             called commitTempoTyping(), which no-ops (no repaint) when
+             nothing was mid-typed — the common "clicked a segment, clicked
+             away" case — so the highlight would have SURVIVED a blur with
+             no typing involved, silently reintroducing the same bug through
+             a different path. Blur handler now always calls
+             renderTempoField() after commitTempoTyping(), not only when
+             there was something to commit.
+FILES:       ui.js (renderTempoField, focus/blur listeners), index.html
+             (static seg-on class removed from markup).
+NEXT:        Charlie's rebuild test — the whole-BPM segment should look
+             plain (same as tenths) until actually clicked/tabbed into, and
+             should go back to plain immediately on clicking away, with no
+             stuck-highlighted state in normal use.
+-------------------------------------------------------------------
 DATE:        2026-07-29 (6th pass, same day)
 STATUS:      IMPLEMENTED, verified via headless-Chromium pixel measurement
              (gapChainToStereo=5px normal spacing, gapStereoToTempo=181px,
