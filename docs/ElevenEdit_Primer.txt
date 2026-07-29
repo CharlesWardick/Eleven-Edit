@@ -660,6 +660,27 @@ CODE FILE MAP
                        Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
                        amp/cab bypass (0x06/0x14) now gated on the amp handle.
   ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
+                       7/28 (13th pass): the 12th pass's pair-CENTER hit-test
+                       fix was itself wrong — Charlie caught it: averaging
+                       necessarily degraded the two directions that were
+                       already correct while fixing the two that weren't,
+                       netting "more equal but both a bit off" instead of
+                       actually correct. Replaced with a leading-edge
+                       approach: new chainDragLastX/chainDragMovingRight
+                       track the drag's instantaneous direction each frame,
+                       and the hit-test uses whichever of AMP/LOOP is
+                       actually out in front for THAT direction (LOOP's
+                       center when moving toward LOOP's side, plain
+                       dragCenterX — i.e. AMP's own, unchanged — when moving
+                       the other way). Verified against a plain single-block
+                       drag as a baseline: the two previously-good directions
+                       now measure within 1px of the single-block baseline
+                       (genuinely restored, not just less-wrong), the two
+                       previously-broken directions now measure ~12-13px more
+                       than baseline (the real cost of crossing the connector
+                       arrow between the two blocks) instead of a near-full-
+                       block-width asymmetry. Also verified a direction
+                       reversal mid-drag doesn't glitch at the transition.
                        7/28 (12th pass): fixed the linked AMP-CAB+LOOP drag's
                        asymmetric trigger distance — Charlie precisely: 2 of
                        4 direction/config combos needed way more drag travel

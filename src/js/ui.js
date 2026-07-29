@@ -983,11 +983,18 @@ let chainDragLinkedCont = null;   // LOOP's container, ONLY set when dragging AM
                                    // instead of getting the other blocks' slide-in treatment,
                                    // so the pair visually stays glued together during the drag
 let chainDragLinkedGapX = 0;      // signed distance, LOOP's thumb center minus AMP's, measured
-                                   // ONCE at drag start before any transform (7/28, 12th pass) —
-                                   // constant for the whole drag since the pair always moves in
-                                   // lockstep. Used to hit-test off the PAIR's center instead of
-                                   // just AMP's, so it takes equal travel to trigger a reorder
-                                   // whichever side LOOP is on (see the mousemove handler)
+                                   // ONCE at drag start before any transform (7/28, 12th/13th
+                                   // pass) — constant for the whole drag since the pair always
+                                   // moves in lockstep. Used with chainDragMovingRight below to
+                                   // hit-test off whichever block is currently LEADING the drag
+                                   // direction, not always AMP's own center (see mousemove)
+let chainDragLastX      = 0;      // previous mousemove's clientX (7/28, 13th pass) — compared
+                                   // against the current one to detect instantaneous drag
+                                   // direction, only meaningful for the linked-pair hit-test
+let chainDragMovingRight = true;  // this drag's current direction, updated only on an actual
+                                   // nonzero horizontal move so a zero-delta frame (e.g. a purely
+                                   // vertical jiggle) can't flip it — default is arbitrary, gets
+                                   // set for real on the first real movement past the threshold
 let chainDragStartX     = 0;
 let chainDragStartY     = 0;
 let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
@@ -1040,6 +1047,7 @@ function wireChainDrag() {
     chainDragThumb = thumb;
     chainDragStartX = ev.clientX;
     chainDragStartY = ev.clientY;
+    chainDragLastX  = ev.clientX;
     const r = thumb.getBoundingClientRect();
     chainDragOffsetX = ev.clientX - r.left;   // where within the THUMB it was
     chainDragOffsetY = ev.clientY - r.top;    // grabbed, so the ghost doesn't jump
@@ -1118,19 +1126,32 @@ function wireChainDrag() {
     const dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth  / 2;
     const dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight / 2;
 
-    // 7/28, 12th pass: for the linked case, hit-test off the PAIR's center
-    // (AMP's point shifted halfway toward LOOP), not AMP's own center alone.
-    // Charlie: dragging with LOOP trailing needed barely any travel to
-    // trigger a swap, but with LOOP LEADING he had to drag a full extra
-    // block's width before anything moved at all, then it jumped two slots
-    // at once. Cause: LOOP moves in lockstep now, so whichever side it's on
-    // physically sits in the path toward the next real neighbor — testing
-    // off AMP alone means that occupied width is "wasted" travel whenever
-    // LOOP is the leading edge, but costs nothing when LOOP trails. Splitting
-    // the difference (the pair's center, not either block's) makes both
-    // directions need the same amount of travel. chainDragLinkedGapX is 0
-    // when this isn't a linked drag, so hitTestX just equals dragCenterX then.
-    const hitTestX = dragCenterX + chainDragLinkedGapX / 2;
+    // 7/28, 13th pass: for the linked case, hit-test off whichever block —
+    // AMP or LOOP — is actually LEADING the current drag direction, not a
+    // fixed compromise point. The 12th pass tried splitting the difference
+    // (the pair's CENTER) after Charlie found LOOP-leading directions needed
+    // a full extra block's width of travel while LOOP-trailing directions
+    // were already correct — but averaging just spread that wrongness onto
+    // BOTH directions evenly instead of fixing it (Charlie caught this: "the
+    // two [previously good] seem a bit off now... consistent with what the
+    // fix did for the problem in the other direction"). The actually correct
+    // reference point is the block that's physically out in front: use
+    // LOOP's center when moving toward LOOP's side, AMP's own (dragCenterX,
+    // unchanged) when moving toward AMP's side — that restores the
+    // already-good trailing direction to exactly its original behavior
+    // while giving the leading direction its TRUE edge instead of a halfway
+    // compromise. chainDragLinkedGapX's sign says which side LOOP is on;
+    // Math.max/min picks the more-advanced point for the CURRENT direction
+    // without needing to know which literal side that is. 0 for a non-linked
+    // drag either way, so hitTestX reduces to plain dragCenterX there.
+    if (ev.clientX !== chainDragLastX) {
+      chainDragMovingRight = ev.clientX > chainDragLastX;
+    }
+    chainDragLastX = ev.clientX;
+    const linkedLeadOffset = chainDragMovingRight
+      ? Math.max(0, chainDragLinkedGapX)
+      : Math.min(0, chainDragLinkedGapX);
+    const hitTestX = dragCenterX + linkedLeadOffset;
 
     if (chainDragActive) {
       // elementFromPoint does fresh hit-testing against whatever is actually
@@ -1234,6 +1255,8 @@ function wireChainDrag() {
     chainDragCont = null;
     chainDragLinkedCont = null;
     chainDragLinkedGapX = 0;
+    chainDragLastX = 0;
+    chainDragMovingRight = true;
     chainDragStartOrder = null;
     chainPreviewOrder = null;
     setTimeout(() => {

@@ -1106,6 +1106,65 @@ NEXT:        Charlie's real rebuild/hardware test. The residual 12px spread
              widths between configurations) and not something to chase
              further unless it's actually perceptible on real hardware.
 -------------------------------------------------------------------
+DATE:        2026-07-28
+STATUS:      REPLACED the pair-center fix with a correct leading-edge fix,
+             verified live via simulated drag — NOT YET tested by Charlie on
+             real hardware
+AREA:        Chain drag — linked AMP-CAB+LOOP, the pair-center fix from the
+             immediately prior entry degraded the two directions that were
+             already correct
+FINDING:     Charlie, sharp catch: "could the changes you just made have
+             impacted the two m[oves] previously noted as good? Those seem a
+             bit off now but consistent with what the fix did for the
+             problem in the other direction." Correct diagnosis on his part
+             — averaging AMP's and LOOP's centers to symmetrize the trigger
+             distance necessarily worked in both directions: it moved the
+             trigger point CLOSER to the target for the previously-broken
+             (LOOP-leading) directions, but by the same arithmetic moved it
+             FARTHER for the previously-correct (LOOP-trailing) directions.
+             Net result: the asymmetry shrank, but both directions were now
+             uniformly a bit wrong instead of one being right and one wrong.
+ROOT CAUSE:  The pair-center approach was the wrong model. The physically
+             correct reference point for "has the pair reached the next
+             block" is whichever of AMP/LOOP is actually OUT IN FRONT in the
+             CURRENT direction of travel — not a fixed halfway compromise
+             that ignores which way you're actually moving.
+FIX:         Hit-test now tracks the drag's instantaneous direction (new
+             chainDragLastX, compared each mousemove against the previous
+             frame's clientX; new chainDragMovingRight, only updated on an
+             actual nonzero horizontal delta so a zero-delta frame can't
+             flip it) and picks whichever block is leading FOR THAT
+             DIRECTION: hitTestX = dragCenterX + (movingRight ?
+             Math.max(0, chainDragLinkedGapX) : Math.min(0, chainDragLinkedGapX)).
+             When AMP leads, this reduces to plain dragCenterX (zero offset)
+             — the exact original, already-correct behavior for that
+             direction, untouched. When LOOP leads, this uses LOOP's actual
+             center (the full gap), not a halfway point.
+VERIFIED:    Live CDP simulation, same 4-combination exact-trigger-distance
+             measurement as before, PLUS a plain single-block drag (WAH) as
+             a baseline for comparison: the two previously-good (trailing)
+             directions now measure 86px/87px — matching the single-block
+             baseline (87px/86px) almost exactly, i.e. genuinely restored,
+             not just "less wrong." The two previously-broken (leading)
+             directions now measure 99px/99px — consistent with EACH OTHER
+             and only ~12-13px more than the baseline (the real, expected
+             cost of crossing the connector arrow between AMP-CAB and LOOP),
+             a small fraction of the original near-block-width asymmetry.
+             Also specifically tested a direction REVERSAL mid-drag (drag
+             right 250px, then back left past the start point) to check for
+             a hiccup at the exact moment chainDragMovingRight flips — the
+             order sequence reversed cleanly step-by-step with no oscillation
+             or double-jump at the transition. Confirmed clean layout via a
+             real-time-paced screenshot too.
+FILES:       ui.js only (chainDragLastX + chainDragMovingRight added;
+             hitTestX's computation changed from pair-center to leading-
+             edge; both new vars reset in endChainDrag).
+NEXT:        Charlie's real rebuild/hardware test. This should be the
+             correct behavior in all 4 combinations now, not just "more
+             equal" — if a direction still feels off, name which one
+             specifically (leading or trailing) so the report can be
+             compared against what's now confirmed correct in simulation.
+-------------------------------------------------------------------
 
 
 
