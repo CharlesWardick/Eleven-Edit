@@ -39,6 +39,57 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      provisional
+AREA:        FX1 Block 1 — model dropdown capture, CMD 0x21 mid values
+FINDING:     First FX1 capture (FX1_Dropdown_Capture.pcapng): patch had C1
+             Chorus Vibrato loaded in FX1; Charlie stepped the FX1 model
+             dropdown through all 9 other entries in order, then back to the
+             start, capturing USB traffic the whole time (Wireshark on the
+             Vendor Specific port, USB-MIDI framed — CIN 0x4 continue /
+             0x5-0x7 end). Decoded via a one-off parser (no tshark/scapy
+             available cleanly in-session; wrote a small pcapng+USB-MIDI
+             reassembler instead, not part of the repo).
+             Each dropdown move produced a CMD 0x21 (chain map) pair: one
+             dir=0x00 message immediately followed by one dir=0x02 message.
+             Reading FX1 as triplet 7 (backlink=0x08 confirms slot ID per
+             Tech Ref Sec on chain map), the settled (dir=0x02) mid value
+             after each move, with the starting baseline from the very first
+             dir=0x00 frame, gives:
+               C1 Chorus Vibrato   mid 0x01  (baseline, before any move)
+               Dyn3 Compressor     mid 0x03
+               Flanger             mid 0x16
+               Graphic EQ          mid 0x08
+               Gray Compressor     mid 0x11
+               MultiChorus         mid 0x14
+               Orange Phaser       mid 0x06
+               Parametric EQ       mid 0x0C
+               Roto Speaker        mid 0x13
+               Vibe Phaser         mid 0x0F
+             Matches the "generic host slot" description already in Tech Ref
+             (FX1 carries Dynamics/EQ/Modulation models, not its own family).
+EVIDENCE:    FX1_Dropdown_Capture.pcapng, CMD 0x21 frames at pcap indices
+             0/2, 110/112, 224/226, 332/334, 446/448, 528/530, 668/670,
+             752/754, 938/940, 1028/1030, 1136/1138 (dir00/dir02 pairs).
+CONFLICTS:   none yet — no FX1_MODELS table exists in protocol.js to conflict
+             with. This would become that table's mid column once confirmed.
+NEXT:        UNRESOLVED — the dir=0x00 member of each pair does NOT read as a
+             stable "previous settled value" (e.g. pair at 110/112 has
+             dir00=0x15, dir02=0x16, but the prior pair settled at 0x03, not
+             0x15 — so dir00 looks like a transient/intermediate load, not
+             the carried-over prior state). The LAST pair (1136/1138,
+             "back up to start C1 Chorus Vibrato") is the one clean check
+             available: dir00=0x01 matches the known C1 baseline exactly,
+             which is why dir00 is NOT simply noise either. Net: confident in
+             the 9 settled (dir02) mid values above being real models in the
+             right order; NOT yet confident about what dir00 represents or
+             why the final pair's dir02 shows 0x03 again instead of 0x01.
+             Doesn't block moving on — next step per Charlie is a per-model
+             capture (starting with Dyn3 Compressor, mid 0x03) to get its
+             paramLo knob layout, same pattern as DIST/REVERB. Revisit the
+             dir00-vs-dir02 question only if a later capture's chain-map
+             pair disagrees with the mid table above.
+-------------------------------------------------------------------
 DATE:        2026-07-28 / 07-29  (condensed 2026-07-29 review)
 STATUS:      [FOLDED IN: Primer CURRENT APP STATE; full detail Archive Part 6]
 AREA:        Chain-row GUI polish + linked AMP-CAB/LOOP drag (19 entries)
