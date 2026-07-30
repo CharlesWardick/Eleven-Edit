@@ -3286,5 +3286,766 @@ NEXT:        None — confirmed working on real hardware. Closes out this
              this session.
 
 ===================================================================
+PART 7 — FX1 BLOCK 1, 2026-07-30 (build detail)
+===================================================================
+Moved from the session log 2026-07-31. The twelve build-by-build entries behind
+the FX1 panel's first two models (C1 Chorus/Vibrato, Dyn3 Compressor) and the
+two cross-cutting fixes (THE 9.9 BUG, DRAG-QUEUE RACE). All conclusions are live
+in Tech Ref Sec 23 (FX1 SLOT subsection) and the Primer; this is the working
+detail — the dropdown capture, the Sync matrix sweep, the Ratio-curve wheel
+sweep, the mid off-by-one, and the two bug hunts.
+
+-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        FX1 — Stereo/Mono toggle blanks the panel ("Unknown model")
+FINDING:     Charlie found this only happens on FX1, not DIST/REVERB/WAH/
+             VOL: open the FX1 panel, toggle Stereo<->Mono, and the model
+             dropdown goes blank / panel shows "Unknown model" instead of
+             controls (or the generic placeholder for uncaptured models).
+             His app log pinned it exactly:
+               [13:51:57] refreshFx1PanelAfterChainMap: mid=0x03 handle=0x1D
+                          (Stereo — C1 Chorus/Vibrato correctly resolved)
+               [13:52:09] Stereo/Mono: MONO
+               [13:52:09] refreshFx1PanelAfterChainMap: mid=0x01 handle=0x22
+               [13:52:09] requestFx1Params: mid=0x01 unknown
+             ROOT CAUSE: C1 Chorus/Vibrato has a MONO/STEREO MID PAIR — the
+             same pattern REVERB (0x26 mono/0x27 stereo) and VOL (0x2B
+             mono/0x2C stereo) already handle, just never accounted for on
+             FX1: mono=0x01, stereo=0x03, confirmed directly by this log
+             (toggling back to Stereo at 13:52:51 reported mid=0x03 again).
+             FX1_MODELS only had mid 0x03 in it — mid 0x01 fell through to
+             "unknown"/"Unknown model" every time. On top of that,
+             openFx1Panel/refreshFx1PanelAfterChainMap compared the
+             dropdown against the RAW wire mid instead of resolving through
+             the model first (REVERB/VOL already do this correctly) — so
+             even after adding 0x01, every mono/stereo toggle would still
+             have looked like "the model changed" and needlessly rebuilt
+             the panel + dropped the FX baseline each time.
+             FIXED, three parts:
+               1. protocol.js — C1 Chorus/Vibrato now `mid: 0x01,
+                  mids: [0x01, 0x03]` (primary/send mid is the MONO variant,
+                  matching the REVERB/VOL convention). FX1_MODEL_BY_MID
+                  population now iterates `m.mids || [m.mid]` so both the
+                  new variant-aware entries and the plain uncaptured stubs
+                  populate correctly.
+               2. fx-panels.js openFx1Panel / refreshFx1PanelAfterChainMap —
+                  both now resolve FX1_MODEL_BY_MID[fx1Blk.modelId] FIRST
+                  and sync the dropdown / compare against model.mid, not
+                  the raw wire mid — exact mirror of how REVERB already
+                  does this.
+               3. index.html — C1's dropdown <option value> updated from 3
+                  to 1 to match the new primary mid.
+             The other 9 FX1 stub models almost certainly have their own
+             mono/stereo pairs too — only whichever variant showed up in
+             the original dropdown capture got recorded — but since they're
+             captured:false anyway this doesn't block anything; note it
+             when each one gets its own capture.
+EVIDENCE:    Charlie's app log, session20260730135144.log, lines 393-736 —
+             the Stereo->Mono->Stereo round trip on a C1-loaded patch with
+             the FX1 panel open.
+CONFLICTS:   none — this refines, doesn't contradict, the earlier "mid
+             table off-by-one" fix (that fix correctly identified 0x03 as
+             C1's STEREO mid; this entry adds the previously-missing MONO
+             mid 0x01 as a second variant of the same model, it doesn't
+             revert anything).
+NEXT:        Charlie rebuild+retest: open FX1 with C1 Chorus/Vibrato loaded,
+             toggle Stereo<->Mono a few times with the panel open — controls
+             should stay visible and correct throughout, no blank dropdown,
+             no baseline-drop flash. If clean, this closes out the last
+             known FX1-specific bug from today's session.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        DIST + REVERB — 9.9 bug fixed, panel-parity now complete
+             across all five effect panels
+FINDING:     Charlie spot-checked DIST and REVERB by hand (having just seen
+             WAH/VOL fixed) and found: DIST has scroll wheel (had it since
+             7/26) but still has the 9.9 bug; REVERB has the 9.9 bug too,
+             AND reported no scroll wheel response on it. On REVERB, the 9.9
+             bug shows up as Pre-Delay capping at ~198ms instead of 200ms —
+             correctly self-diagnosed by Charlie as "same bug, different
+             scale" (Pre-Delay's display is just val/127*200ms, so it caps
+             wherever the underlying val caps).
+             FIXED: sendDistParamWrite and sendReverbParamWrite
+             (fx-transport.js) both now use the endpoint-sentinel tail
+             logic (max -> 3F 7F 7F 7F 0F, min -> 40 00 00 00 00, else
+             v0 00 00 00 00) — same as FX1/WAH/VOL earlier today. Pre-Delay
+             needed NO separate fix — it inherits the true 200ms endpoint
+             automatically once the underlying val can reach 127.
+             REVERB SCROLL WHEEL — re-checked the code carefully and could
+             NOT find a bug: the REVERB branch in ui.js's shared wheel
+             listener is structurally identical to DIST's (same
+             e.target.closest() selector shape, same queueKnobSend call,
+             added in the same 7/26 commit, never touched since). Since
+             REVERB's knob drag uses the exact same delegation and DOM and
+             is known-working, wheel SHOULD work too by the same logic. Not
+             changed — noted as unconfirmed rather than guessing at a fix
+             for something the source doesn't show a defect in. Needs a
+             fresh live re-check after this rebuild before concluding
+             anything more is wrong here.
+             TEMPLATE COMMENTS UPDATED (fx-panels.js / fx-transport.js
+             headers, Primer's "WHAT EACH NEW SLOT NEEDS") to point future
+             panels (MOD, DELAY, FX2, FX LOOP) at the FX1 pattern instead of
+             DIST's, and to call out both fixes (drag-queue race, 9.9 bug)
+             as MANDATORY parts of a new panel's send/drag code from now on
+             — per Charlie's explicit request, so neither has to be
+             retrofitted again.
+EVIDENCE:    n/a — code fix mirroring the already-proven FX1/WAH/VOL
+             pattern. No new capture needed.
+CONFLICTS:   none.
+NEXT:        Charlie rebuild+retest: DIST and REVERB knobs should now hold
+             their true 0/10 endpoints (REVERB's Pre-Delay should reach
+             200ms). Specifically re-check REVERB's scroll wheel live since
+             the source shows no defect — if it's still not scrolling after
+             this rebuild, that needs a fresh repro/log rather than more
+             static code review. Once confirmed, ALL FIVE effect panels
+             (DIST, REVERB, WAH, VOL, FX1) are at full parity: scroll wheel,
+             9.9 fix, drag-race fix, save-rebaseline. Any future panel
+             should start from FX1's code, not DIST's, per the updated
+             template comments and Primer recipe.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        WAH/VOL — scroll wheel + 9.9 bug, closing the gap flagged
+             earlier today
+FINDING:     Charlie confirmed the drag-race fix holds (repeated the same
+             "break it" moves on FX1 that caused the hang — clean) and
+             separately confirmed by hand that WAH and VOL have neither
+             scroll wheel nor the endpoint-sentinel fix, matching exactly
+             what was flagged as known-but-unfixed follow-up items earlier
+             (FX1 build entry and the 9.9 bug entry, both above). Closed
+             both now:
+               - sendWahParamWrite / sendVolParamWrite (fx-transport.js):
+                 same endpoint-sentinel tail logic as sendFx1ParamWrite/
+                 transport.js sendParamWrite (max -> 3F 7F 7F 7F 0F, min ->
+                 40 00 00 00 00, else v0 00 00 00 00).
+               - Scroll wheel for WAH (data-wah-lo) and VOL (data-vol-lo)
+                 knobs added to the same delegated wheel handler in ui.js
+                 that already covers tone/DIST/REVERB/FX1. VOL's Taper
+                 toggle is a <button>, not a .knob-wrap, so it never matches
+                 the wheel selector — nothing to special-case there.
+             ALSO extended rebaselineOpenFxPanel() (ui.js) to WAH/VOL —
+             this was the last remaining gap noted in the original FX1 build
+             entry ("left WAH/VOL as they were, out of scope"); now all five
+             effect panels use the identical save-then-green baseline path.
+EVIDENCE:    n/a — code fix mirroring three already-proven patterns
+             (FX1's endpoint sentinels, FX1's wheel handler, FX1's
+             rebaseline branch). No new capture needed.
+CONFLICTS:   none.
+NEXT:        Charlie rebuild+retest: WAH Position and VOL's Volume/Min Vol
+             knobs should now scroll-wheel-adjust and hold their true 0/10
+             endpoints on hardware, same as DIST/REVERB/FX1 already do. All
+             five effect panels (DIST, REVERB, WAH, VOL, FX1) are now at
+             parity on scroll wheel, the 9.9 fix, the drag-race fix, and
+             save-rebaseline — no more per-panel gaps to track.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        DRAG-QUEUE RACE — malformed paramLo=-1 send wedged the hardware
+FINDING:     Charlie sent the app's own session log after a hang working the
+             Dyn3 Ratio knob (rapid dragging/wheeling). Rack stopped
+             responding to everything, including the Avid editor (which
+             could still probe/connect but got no data back either) — so
+             this is hardware-side confusion, not an app-side hang. Found
+             the exact trigger by grepping the log for anything with a
+             negative or out-of-range paramLo byte:
+               [12:11:51] RX: {"cmd":"send","hex":"F0 13 0B 0F 00 11 0F -1 63 00 00 00 00 F7"}
+               MIDI OUT: F0 13 0B 0F 00 11 0F FF 63 00 00 00 00 F7
+             paramLo arrived as the JS number -1, which (-1).toString(16) do
+             encode as the literal text "-1" (not a hex pair) — the bridge
+             sent it as raw byte 0xFF. 0xFF is not a legal 7-bit MIDI data
+             byte (bit 7 set) — it is literally the MIDI System Reset
+             status byte, landing mid-SysEx. The very next hardware reply
+             came back one byte short (13b instead of the expected 14b,
+             missing byte), so the rack's OWN parser visibly got confused by
+             it too — strong corroboration this exact byte is the trigger,
+             not a coincidence. Traffic continued for several more seconds
+             after that one bad send, then went silent for good ~12 seconds
+             before Charlie force-quit — consistent with a single bad byte
+             putting the SysEx parser in a bad state that didn't fully
+             surface until more traffic followed.
+             ROOT CAUSE — a closure-timing race, present in EVERY effect
+             panel's knob-drag handler (DIST, REVERB, WAH, VOL, and the FX1
+             just built off the same template), NOT present in the ORIGINAL
+             amp tone-knob drag (ui.js), which is why this took this long to
+             surface: queueKnobSend throttles a knob's hardware write by up
+             to 60ms (KNOB_SEND_INTERVAL) via setTimeout. The DIST-pattern
+             drag handlers passed a closure like
+               function(v) { sendDistParamWrite(activeParamLo, v); }
+             where activeParamLo is the panel's SHARED mutable drag-state
+             variable — read at SEND TIME (when the 60ms timer fires), not
+             at the moment the closure was created. mouseup resets that same
+             variable to -1 immediately on release. So: drag a knob, release
+             the mouse within 60ms of the last drag tick, and the queued
+             send fires AFTER mouseup already zeroed activeParamLo to -1 —
+             sending garbage. The ORIGINAL amp tone-knob handler never had
+             this bug because it captures a fresh `const lo = knobs[idx].lo`
+             INSIDE the mousemove call before building the closure, so each
+             queued send owns its own copy, immune to a later mouseup.
+             FIX — same shape in all five: snapshot the shared var into a
+             local (`var lo = activeParamLo;`) immediately before the
+             queueKnobSend call, and close over that local, not the shared
+             one. One line per handler, fx-panels.js: DIST (line ~172),
+             REVERB (~397), WAH (~534), VOL (~712), FX1 (~943).
+EVIDENCE:    Charlie's app log, session20260730120800.log, line ~5589 (the
+             malformed send) and the short/garbled reply immediately after.
+CONFLICTS:   none — this bug predates today's FX1 work (DIST/REVERB/WAH/VOL
+             have had it since they were built) but was never triggered
+             visibly before; it just happened to surface during fast Ratio
+             knob dragging today.
+NEXT:        Charlie power-cycle the rack (per Tech Ref: after a firmware
+             assert/confusion, power-cycle recovers it — this is NOT the
+             CMD 0x37 brick class, no factory reset needed) and rebuild with
+             this fix before resuming any FX1 work. If a hang recurs after
+             this fix, the closure race is NOT the whole story and needs
+             more digging — but this is a clean, reproducible, well-
+             corroborated root cause, not a guess.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        FX1 Block 1 — Dyn3 Compressor Ratio curve
+FINDING:     Follow-up capture (Dyn3_Comp_Ratio_Knob_Capture.pcapng):
+             Charlie used the Avid editor's own mouse-wheel step (not a
+             drag) to land on 19 specific on-screen ratios from 1:1,
+             pausing between each — 1.3, 1.6, 2.1, 2.6, 3.4, 4.3, 5.5, 7,
+             8.9, 11.3, 14.5, 18.4, 23.5, 30, 38.2, 48.7, 62.1, 79.2, 100
+             (patch loaded at 1:1, which is the implicit val127=0 baseline
+             and was not itself a wheel click). 19 clean paramLo 0x05
+             query/reply pairs, handle 0x0c, one per stop, in order.
+             FITS A PURE EXPONENTIAL, no piecewise/log-after-a-point
+             behaviour despite Charlie's suspicion going in:
+               ratio = 100 ^ (v127/127)
+             i.e. val127=0 -> 1:1, val127=127 -> 100:1, smooth curve
+             throughout. Checked against all 19 points (least-squares fit
+             landed on essentially this exact formula, a=1.0, not some
+             other constant) — worst deviation ~1.5 at the very top of the
+             range (100:1), most points within 0.1-0.3, which is well
+             inside the rounding noise of reading a wheel-tick number by
+             eye. FOLDED IN to FX1_MODELS (protocol.js) directly — Ratio's
+             display cell now uses this formula instead of the generic 0-10
+             placeholder.
+EVIDENCE:    Dyn3_Comp_Ratio_Knob_Capture.pcapng — 19 dir02 v0 values:
+             0x46,0x4d,0x54,0x5b,0x61,0x68,0x6f,0x76,0x7c,0x03,0x0a,0x11,
+             0x17,0x1e,0x25,0x2c,0x32,0x39,0x3f, decoding (standard
+             (v+64)%128) to val127 = 6,13,20,27,33,40,47,54,60,67,74,81,
+             87,94,101,108,114,121,127 — matched 1:1 against Charlie's
+             19 on-screen numbers in the order given.
+CONFLICTS:   Supersedes the "Ratio unconfirmed, plain 0-10 display" note in
+             the earlier Dyn3 Compressor build entry above — that placeholder
+             is now replaced with the real formula.
+NEXT:        Charlie rebuild+retest: Ratio should now read a real "X.X:1"
+             value that tracks the hardware. If it's off, the formula
+             (Math.pow(100, v/127)) is the one place to adjust — the
+             paramLo (0x05) and encoding are solid. Dyn3 Compressor is now
+             fully captured (all six knobs have confirmed display formulas)
+             — first FX1 model to reach that point after C1 Chorus/Vibrato.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        FX1 Block 1 — Dyn3 Compressor built (second FX1 model)
+FINDING:     Capture (Dyn3_Compressor_Capture.pcapng), patch loaded to Dyn3
+             Compressor, all six knobs swept low-high-low in the stated
+             order (Threshold, Attack, Release, Ratio, Knee, Gain), FX1
+             handle 0x05. Six clean, non-overlapping paramLo segments,
+             ~38 messages (19 up + 19 down) each, all standard continuous
+             (v127+64)%128 knobs — same shape as every other knob in the
+             app, nothing unusual in the wire encoding:
+               paramLo 0x02  Threshold
+               paramLo 0x03  Attack
+               paramLo 0x04  Release
+               paramLo 0x05  Ratio
+               paramLo 0x06  Knee
+               paramLo 0x07  Gain
+             DISPLAY FORMULAS — Charlie gave endpoint ranges, not on-screen
+             reference points at intermediate values (unlike the Chorus/Rate
+             capture, which had exact numbers to check the decode against).
+             So the shapes below are REASONABLE INFERENCE, not confirmed:
+               Threshold  -60..0 dB, linear      (same shape as Gate
+                                                   Threshold/Amp Out)
+               Knee       0..30 dB, linear
+               Gain       0..40 dB, linear
+               Attack     10us..300ms, log        (same curve shape as the
+               Release    5ms..4.0s, log           existing valGateRelease,
+                                                    just different min/max)
+             RATIO LEFT UNRESOLVED ON PURPOSE — Charlie flagged 1:1..100:1
+             may not be a clean linear or log curve ("I may have to do all
+             iterations"). Built the knob functionally (paramLo 0x05, full
+             continuous range, drag/scroll/colour all work) but its readout
+             is the plain generic 0-10 display, NOT a real ratio number —
+             do not read that 0-10 as the true ratio yet.
+EVIDENCE:    dyn3_out.txt (local scratch dump) — six segments at frame
+             ranges 0-152, 152-304, 304-468, 468-620, 620-772, 772-922.
+CONFLICTS:   none.
+NEXT:        Charlie rebuild+retest: open FX1 with Dyn3 Compressor loaded,
+             check the five formula-driven readouts (Threshold/Attack/
+             Release/Knee/Gain) against Avid's own on-screen numbers at a
+             few knob positions — if they're off, that's the log-curve
+             constants to fix, not the paramLo assignment (that part's
+             solid). Ratio needs a dedicated follow-up: a sweep with
+             on-screen reference numbers at several points, same technique
+             as the Chorus/Rate matrix, before its display formula can be
+             written. Next model after Dyn3 is confirmed: per Charlie's
+             plan, whichever he captures next.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        THE "9.9 BUG" — endpoint sentinels missing from fx-transport.js
+FINDING:     Charlie's live FX1 test: Chorus and Rate knobs visibly reach 10
+             on screen but immediately settle back to 9.9 on hardware
+             readback; Depth stays at 10 on screen but hardware never passes
+             9.9. Named "the 9.9 bug" per Charlie's request — this is a
+             RECURRENCE, not a new bug: it's the exact defect already fixed
+             once for the amp Tremolo Speed knob (Tech Ref, "ENDPOINT
+             SENTINELS ON WRITES", 7/23/2026) — a CMD 0x11 value is five
+             7-bit bytes, not one, and sending v0 with a 00 00 00 00 tail
+             asks for the literal BOTTOM of that value's step. Byte-
+             quantised controls can't tell the difference; anything with
+             real sub-step precision reports back one tick low. The 7/23 fix
+             (special-case true endpoints with sentinel tail bytes: max ->
+             3F 7F 7F 7F 0F, min -> 40 00 00 00 00, else v0 00 00 00 00) only
+             ever went into transport.js's amp-knob sendParamWrite. It was
+             NEVER ported to the per-effect-panel send functions in
+             fx-transport.js — so sendDistParamWrite, sendReverbParamWrite,
+             sendWahParamWrite, and sendVolParamWrite (and, until this
+             entry, sendFx1ParamWrite, copied from that same unfixed
+             pattern) all still send a flat zero tail and are exposed to the
+             same bug on any of their knobs that have real precision.
+             FIXED for sendFx1ParamWrite only (fx-transport.js) — same
+             endpoint-sentinel logic as transport.js, inline comment names
+             it "THE 9.9 BUG" so it's grep-able next time. DIST/REVERB/WAH/
+             VOL's send functions are UNCHANGED — same latent bug, left
+             alone per this session's FX1-only scope; worth a dedicated pass
+             later since it's the same three-line fix copied four more
+             times.
+EVIDENCE:    Charlie's live hardware test, 2026-07-30 — Chorus/Rate/Depth
+             knobs on the FX1 C1 Chorus/Vibrato panel.
+CONFLICTS:   none.
+NEXT:        Charlie rebuilds and retests FX1 — Chorus/Rate/Depth should now
+             hold 10.0 on hardware, not settle at 9.9. If confirmed, this
+             note plus the Tech Ref's existing 7/23 entry are the two places
+             "9.9 bug" will turn up on a search. Separately: DIST/REVERB/
+             WAH/VOL likely have the same bug on any knob a user pushes to
+             its endpoint — flag to Charlie as a follow-up, not fixed here.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        FX1 Block 1 — mid table off-by-one, now corrected
+FINDING:     Charlie's first live test of the FX1 panel (C1-loaded patch)
+             showed the model dropdown defaulting to "Dyn3 Compressor" with
+             a placeholder instead of C1's real knobs, and reverting to
+             Dyn3 after manually picking C1 — plus a live step-through of
+             the dropdown "looked off by one" against the on-screen list.
+             His app log nailed it directly: "openFx1Panel: mid=0x03
+             handle=0x07" for the C1-loaded patch. That is EXACTLY the
+             unresolved ambiguity flagged in the first dropdown-capture
+             entry above (two candidate values per chain-map pair, dir00 vs
+             dir02, that disagreed by one step) — the original build picked
+             the wrong candidate, shifting every FX1 mid by one position.
+             Re-anchoring the whole table on this one confirmed point
+             (C1=0x03) makes the entire capture internally consistent: the
+             "back to start" pair's value now matches the baseline exactly,
+             which it had NOT under the old assignment (that mismatch was
+             flagged as an open question in the very first FX1 dropdown
+             entry and is now explained/resolved, not just parked).
+             CORRECTED FX1_MODELS (protocol.js) and the index.html dropdown
+             options both updated — mids reassigned as a straight cyclic
+             shift of the same 10 values, same order, one position later:
+               C1 Chorus/Vibrato   0x03  (was 0x01)
+               Dyn3 Compressor     0x16  (was 0x03)
+               Flanger             0x08  (was 0x16)
+               Graphic EQ          0x11  (was 0x08)
+               Gray Compressor     0x14  (was 0x11)
+               MultiChorus         0x06  (was 0x14)
+               Orange Phaser       0x0C  (was 0x06)
+               Parametric EQ       0x13  (was 0x0C)
+               Roto Speaker        0x0F  (was 0x13)
+               Vibe Phaser         0x0A  (was 0x0F)
+EVIDENCE:    Charlie's live app log, 10:35:38 line: "openFx1Panel: mid=0x03
+             handle=0x07" with C1 Chorus/Vibrato loaded, panel just opened,
+             no dropdown interaction yet.
+CONFLICTS:   Supersedes the mid table built earlier this session (git commit
+             "Build FX1 effect panel for C1 Chorus/Vibrato") — that table is
+             wrong, this entry replaces it. No Tech Ref conflict (FX1 mids
+             were never in a main doc).
+NEXT:        Charlie rebuilds and retests: FX1 panel should now open showing
+             C1 Chorus/Vibrato selected with real knobs when that patch is
+             loaded, no placeholder, no dropdown mismatch. If the picture is
+             clean this time, this folds into the Primer as C1's mid moves
+             from provisional to confirmed. LESSON for the next model
+             capture (Dyn3 Compressor): don't pick between two disagreeing
+             candidate values from a chain-map pair without a live-hardware
+             anchor point to check against — get one early rather than after
+             a full panel build.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        FX1 Block 1 — panel built for C1 Chorus/Vibrato
+FINDING:     Built the FX1 effect panel following the DIST/REVERB/WAH/VOL
+             pattern exactly (six-file shape from the Primer's LATER —
+             EFFECT PANELS recipe): FX1_MODELS/FX1_MODEL_BY_MID in
+             protocol.js, fx1PanelOpen in state.js, sendFx1ModelChange/
+             requestFx1Params/sendFx1ParamWrite in fx-transport.js, an FX1
+             CMD 0x11 routing block + refreshFx1PanelAfterChainMap call in
+             sysex-handler.js, the full FX1 panel section (open/close/
+             render/update/refresh/drag) in fx-panels.js, and the panel div
+             + model dropdown + chain-open routing in index.html.
+             Model dropdown lists all 10 mids confirmed in the 2026-07-30
+             dropdown capture (Session Log above), but only C1 Chorus/
+             Vibrato (mid 0x01) has captured:true / real paramLos — the
+             other 9 are stubs (captured:false, empty rows) that render a
+             "not yet captured" placeholder instead of knobs if selected,
+             so switching to one doesn't crash or show fake controls.
+             TWO NEW CELL KINDS beyond the DIST pattern, both needed for
+             this model and reusable for the next ones:
+               - toggle cell (Chorus/Vibrato) — literally the same shape as
+                 VOL's Taper toggle (val=0/val!=0 -> options[0]/[1]).
+               - sync cell — a plain dropdown (not REVERB's knob+dropdown
+                 Type composite) that reuses SYNC_DIVISIONS /
+                 syncIndexFromV127 / syncV127FromIndex from protocol.js
+                 (the same 14-zone table as the amp Tremolo Sync), wired to
+                 this block's own paramLo (0x06) and its own runtime handle
+                 instead of currentParamHi.
+             GREEN/RED KNOB STATE — confirmed this is automatic and needed
+             no new code: drawKnob() already keys off data-base="fx" (green
+             baseline) vs amber, and dataset.orig vs dataset.value (red on
+             divergence) — the same mechanism DIST/REVERB/WAH/VOL already
+             use. Only the three real knobs (Chorus/Rate/Depth) get this;
+             the toggle and sync dropdown do not change colour, matching
+             VOL's Taper toggle (also uncoloured) — pre-existing pattern,
+             not a gap introduced here.
+             Also extended rebaselineOpenFxPanel() (ui.js) to cover FX1 —
+             it previously only handled DIST/REVERB, which was already a
+             pre-existing gap for WAH/VOL too; left WAH/VOL as they were
+             (out of scope) but added FX1 since it's needed for FX1's own
+             save-then-green behaviour to work correctly.
+EVIDENCE:    n/a — code build, not a capture. See git diff on this commit.
+CONFLICTS:   none.
+NEXT:        Charlie builds the EXE and tests live: open FX1 (C1 Chorus/
+             Vibrato loaded), confirm Chorus/Rate/Depth knobs read back and
+             drag correctly, confirm the Mode toggle flips Chorus/Vibrato,
+             confirm the Sync dropdown shows the right zone and that
+             picking a zone updates Chorus/Rate on screen the way the
+             capture showed. Once confirmed, this entry folds into the
+             Primer's WORKING list and CODE FILE MAP. Next model per
+             Charlie's plan: Dyn3 Compressor (mid 0x03) capture.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        FX1 Block 1 — C1 Chorus/Vibrato, Sync x Chorus/Rate matrix
+FINDING:     Third FX1 capture (Chorus_C1_Sync_Drop_Pick.pcapng): patch load
+             state (all knobs zero), FX1 handle 0x2d this session, dropdown
+             picker used to hit OFF -> 1/1 -> 1/2 dotted -> 1/2 -> 1/2
+             triplet -> 1/4 dotted -> 1/4 -> 1/4 triplet -> 1/8 dotted ->
+             1/8 -> 1/8 triplet -> 1/16 dotted -> 1/16 -> 1/16 triplet in
+             order. Each click fires a paramLo 0x06 (Sync) query/reply pair
+             plus paramLo 0x02 (Chorus) and 0x04 (Rate) broadcasts reflecting
+             the side-effect. Decoded v0 with the standard (v+64)%128 unwrap,
+             /12.7 for the 0-10 display scale — result matches Charlie's own
+             spreadsheet reading exactly (chorus values off by <=0.1, a
+             rounding artifact, everything else exact):
+               Sync zone       Chorus   Rate
+               OFF (load)        0.0    0.0
+               1/1               1.0    0.0
+               1/2 dotted        2.3    0.0
+               1/2               3.5    0.0
+               1/2 triplet       5.3    0.0
+               1/4 dotted        4.6    0.0
+               1/4               7.2    0.0
+               1/4 triplet      10.0    0.0
+               1/8 dotted       10.0    0.0
+               1/8              10.0    2.3
+               1/8 triplet      10.0    6.1
+               1/16 dotted      10.0    4.8
+               1/16             10.0    8.1
+               1/16 triplet     10.0    6.1
+             BONUS FIND: Sync's OWN paramLo 0x06 value (decoded the same way)
+             steps 9,19,29,39,49,59,68,78,88,98,108,118,127 across these same
+             13 zones — a ~9-10-wide ladder across 0-127, i.e. the EXACT same
+             14-zone quantization (OFF + 13 divisions) already implemented for
+             the amp Tremolo Sync (paramLo 0x12, SYNC_DIVISIONS /
+             syncIndexFromV127 / syncV127FromIndex in protocol.js). No new
+             Sync-zone matrix needed — reuse those functions verbatim for
+             this control, just at paramLo 0x06 instead of 0x12. Only the
+             Chorus/Rate side-effect table above is model-specific and had to
+             be captured.
+EVIDENCE:    sync_out.txt (local scratch dump) frames 0-102; one query/reply
+             pair per zone at paramLo 0x06, single broadcasts at 0x02/0x04
+             immediately following each pair.
+CONFLICTS:   none.
+NEXT:        C1 Chorus/Vibrato's full paramLo map is now closed: 0x02 Chorus,
+             0x03 Depth, 0x04 Rate, 0x05 Toggle (Vibrato=3f7f7f7f, Chorus=
+             40000000), 0x06 Sync (reuses SYNC_DIVISIONS/syncIndexFromV127).
+             Only gap left before this model is fully wired: Depth's own
+             interaction (if any) with Sync/Chorus/Rate was never swept —
+             none observed so far, treated as independent unless a later
+             capture shows otherwise. Ready to move to the next FX1 model
+             (Dyn3 Compressor) per Charlie's model-by-model plan.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        FX1 Block 1 — C1 Chorus/Vibrato model, paramLo map
+FINDING:     Second FX1 capture (C1_Chorus_Vibrator_Capture.pcapng), same
+             handle 0x60 confirmed for FX1 (matches the last handle seen for
+             FX1 in the dropdown capture). Charlie's described action order —
+             Chorus knob sweep, Rate knob sweep, Depth knob sweep, toggle x4
+             (Vibrato/Chorus/Vibrato/Chorus), Sync dropdown OFF->first
+             choice->last choice — lines up cleanly against contiguous
+             paramLo segments in the capture, in this order:
+               paramLo 0x02  Chorus knob   (958 msgs, full 0-10-0 sweep)
+               paramLo 0x04  Rate knob     (108 msgs, full 0-10-0 sweep)
+               paramLo 0x03  Depth knob    (76 msgs, full 0-10-0 sweep)
+               paramLo 0x05  Toggle        (8 msgs = exactly 4 query/reply
+                                            pairs, matching the 4 toggle
+                                            clicks 1:1)
+               paramLo 0x06  Sync selector (remaining messages)
+             TOGGLE VALUES CONFIRMED BY ORDER: click sequence was Vibrato,
+             Chorus, Vibrato, Chorus from a Chorus-loaded start, and the
+             paramLo 0x05 payload alternates exactly on that schedule:
+               Vibrato = 3f 7f 7f 7f      Chorus  = 40 00 00 00
+             SYNC CONFIRMS THE CROSS-TALK Charlie called out in advance:
+             the one Sync change captured (OFF -> first choice) also fired
+             fresh paramLo 0x02 (Chorus) and paramLo 0x04 (Rate) broadcasts
+             in the same burst (frames 2304/2306/2312/2314), i.e. engaging
+             Sync visibly rewrites the Chorus/Rate values, not just its own.
+EVIDENCE:    c1_out.txt (local scratch dump, not committed) — segment
+             boundaries at pcap-derived frame indices 0, 1916, 2132, 2284,
+             2300; toggle burst 2284-2298; Sync burst 2300-2314 (capture
+             ends at 2314).
+CONFLICTS:   none — no FX1/MOD paramLo table exists yet to conflict with.
+NEXT:        Two gaps, both flagged rather than guessed at:
+             (1) Sync's own encoding is NOT the plain 0-13 zone index used by
+             the amp Tremolo Sync (paramLo 0x12 elsewhere) — it carries the
+             same 4-byte float-style payload as the continuous knobs (e.g.
+             "49 6c 27 31" for OFF, "3f 7f 7f 7f" for the first choice), so
+             the zone->value mapping for this control's dropdown entries
+             still needs the matrix Charlie already anticipated needing.
+             (2) the capture ends right after landing on Sync's FIRST choice
+             — no second Sync change (to the LAST choice, as described) shows
+             up in the data, so that part of the intended sweep is not
+             actually captured. Need either a rerun that continues through
+             the last Sync choice, or confirmation the capture was cut short
+             on purpose.
+             Not blocking: paramLo 0x02/0x03/0x04/0x05 assignments (Chorus,
+             Depth, Rate, Toggle) are solid and enough to start the MOD-style
+             panel pattern for this model; only the Sync zone table is open.-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
+AREA:        FX1 Block 1 — model dropdown capture, CMD 0x21 mid values
+FINDING:     First FX1 capture (FX1_Dropdown_Capture.pcapng): patch had C1
+             Chorus Vibrato loaded in FX1; Charlie stepped the FX1 model
+             dropdown through all 9 other entries in order, then back to the
+             start, capturing USB traffic the whole time (Wireshark on the
+             Vendor Specific port, USB-MIDI framed — CIN 0x4 continue /
+             0x5-0x7 end). Decoded via a one-off parser (no tshark/scapy
+             available cleanly in-session; wrote a small pcapng+USB-MIDI
+             reassembler instead, not part of the repo).
+             Each dropdown move produced a CMD 0x21 (chain map) pair: one
+             dir=0x00 message immediately followed by one dir=0x02 message.
+             Reading FX1 as triplet 7 (backlink=0x08 confirms slot ID per
+             Tech Ref Sec on chain map), the settled (dir=0x02) mid value
+             after each move, with the starting baseline from the very first
+             dir=0x00 frame, gives:
+               C1 Chorus Vibrato   mid 0x01  (baseline, before any move)
+               Dyn3 Compressor     mid 0x03
+               Flanger             mid 0x16
+               Graphic EQ          mid 0x08
+               Gray Compressor     mid 0x11
+               MultiChorus         mid 0x14
+               Orange Phaser       mid 0x06
+               Parametric EQ       mid 0x0C
+               Roto Speaker        mid 0x13
+               Vibe Phaser         mid 0x0F
+             Matches the "generic host slot" description already in Tech Ref
+             (FX1 carries Dynamics/EQ/Modulation models, not its own family).
+EVIDENCE:    FX1_Dropdown_Capture.pcapng, CMD 0x21 frames at pcap indices
+             0/2, 110/112, 224/226, 332/334, 446/448, 528/530, 668/670,
+             752/754, 938/940, 1028/1030, 1136/1138 (dir00/dir02 pairs).
+CONFLICTS:   none yet — no FX1_MODELS table exists in protocol.js to conflict
+             with. This would become that table's mid column once confirmed.
+NEXT:        UNRESOLVED — the dir=0x00 member of each pair does NOT read as a
+             stable "previous settled value" (e.g. pair at 110/112 has
+             dir00=0x15, dir02=0x16, but the prior pair settled at 0x03, not
+             0x15 — so dir00 looks like a transient/intermediate load, not
+             the carried-over prior state). The LAST pair (1136/1138,
+             "back up to start C1 Chorus Vibrato") is the one clean check
+             available: dir00=0x01 matches the known C1 baseline exactly,
+             which is why dir00 is NOT simply noise either. Net: confident in
+             the 9 settled (dir02) mid values above being real models in the
+             right order; NOT yet confident about what dir00 represents or
+             why the final pair's dir02 shows 0x03 again instead of 0x01.
+             Doesn't block moving on — next step per Charlie is a per-model
+             capture (starting with Dyn3 Compressor, mid 0x03) to get its
+             paramLo knob layout, same pattern as DIST/REVERB. Revisit the
+             dir00-vs-dir02 question only if a later capture's chain-map
+             pair disagrees with the mid table above.
+
+===================================================================
+PART 8 — CHAIN DRAG REWORK, 2026-07-19 to 2026-07-28 (build detail)
+===================================================================
+Moved from the session log 2026-07-31 once the chain drag was confirmed done.
+The full saga behind Avid-style live drag: reorder math, the native-HTML5-DnD
+dead end, the mouse-tracking rewrite, and the cursor-following ghost. The
+conclusion (working, QC-passed) and the one deferred sub-item (FLIP slide
+animation) are in the live session log; this is the working detail and the
+sequence of wrong turns.
+
+-------------------------------------------------------------------
+DATE:        2026-07-19
+STATUS:      provisional — deferred, not started
+AREA:        Chain drag — live reorder preview (Avid's feel)
+FINDING:     Our drag shows a thin insertion marker and only reorders on drop.
+             Avid instead previews LIVE: as you drag, the blocks physically
+             shift to make room, so the row continuously shows the result. That
+             is the whole difference in feel Charlie noticed — it is deliberate
+             and obvious rather than requiring attention to a small marker.
+             THE FX LOOP HAS ITS OWN RULE. Observed: with the loop at position
+             7, dragging it left made ALL SIX blocks before it move right in
+             one step — i.e. the loop JUMPS to its next legal stop and the
+             blocks in between shift as a group. It does not inch through
+             illegal positions and get rejected. This matches the front-panel
+             behaviour (scrolling steps the loop between its four stops,
+             skipping everything between).
+APPROACH:    Reorder the actual divs on dragover using a speculative order —
+             the same move operation renderChainRow already performs, driven by
+             a provisional order instead of the hardware's. Send that order on
+             drop; redraw from currentChain on cancel. Remove the edge marker,
+             since moving blocks are the indicator and both would be noise.
+             Two rules needed: ordinary blocks shift one position at a time;
+             FX Loop jumps between its four legal stops.
+             BONUS: makes the loop's snap visible DURING the drag rather than
+             surprising the user on release — it teaches the rule.
+WATCH FOR:   During a drag we are showing a speculative order, so a broadcast
+             arriving mid-drag (a move made in Avid, or a patch change) must
+             not fight the preview.
+OPEN:        Does AMP-CAB have a special rule too? Avid drags an adjacent loop
+             along with the amp (Tech Ref Sec 4). And what triggers the loop's
+             jump — cursor crossing a threshold, or distance dragged? The
+             latter decides whether the preview feels responsive or twitchy.
+NEXT:        Deferred by agreement 7/19. Current drag behaviour is correct and
+             working; this is feel, not function. Revisit after the effect
+             panel work.
+UPDATE 7/27 (evening): effect panel work (DIST, REVERB) is done, so this is
+             next in line. Charlie re-verified both open questions directly
+             against the Avid editor rather than trust the original note.
+
+  STATIC LEGALITY RULE — CONFIRMED, NO CODE CHANGE NEEDED. Charlie supplied a
+  full 10x10 table of every legal AMP-CAB x LOOP position pair. Checked by
+  hand against ui.js's existing legalLoopIndices()/enforceLoopPlacement()
+  (computeReorder's insertion-index math: legal = {0, ampIndex, ampIndex+1,
+  length}) for AMP-CAB at 1, 3, 5, 8, 9 and 10 — every row matched. Plain-
+  English version of the invariant: LOOP is legal ONLY at position 1,
+  position 10, or immediately adjacent to AMP-CAB (either side). That is
+  already what the code enforces today. This was the part of the OPEN
+  question below that turned out to already be correct.
+
+  LIVE-DRAG "LINKED BLOCK" RULE — newly derived from Charlie's direct testing,
+  NOT yet re-checked a second time, treat as strong-but-unconfirmed until
+  implementation testing backs it up:
+    1. Dragging AMP-CAB while LOOP sits immediately adjacent to it (either
+       side, NOT already parked at position 1 or 10): LOOP moves WITH it,
+       same direction, same distance, staying stuck on the same side — i.e.
+       they behave as one linked "super block" while this holds.
+    2. That linked pair stops when LOOP would be pushed past position 1 or
+       10 — LOOP hits the physical end of the chain and the whole drag halts
+       there (AMP-CAB ends up one-in from the end, LOOP AT the end).
+    3. Once LOOP is parked at an end this way, grabbing AMP-CAB again lets it
+       roam completely freely through every other slot — LOOP sitting at an
+       end is legal regardless of AMP-CAB's position, so they un-link.
+    4. Grabbing LOOP directly (AMP-CAB now fixed somewhere) only lets LOOP
+       hop between whatever few slots are legal for that AMP-CAB position —
+       this part is the EXISTING jump-between-legal-stops behaviour (see
+       FINDING above), unchanged.
+    5. Confirmed symmetric: works the same whichever side of AMP-CAB LOOP
+       starts on (mirrors left/right), and the same whichever direction is
+       dragged.
+  So of the two things this entry originally flagged as open, only #1-3 above
+  are actually new work — the jump-between-stops behaviour (#4) was already
+  built. The net new piece is small: "when AMP-CAB moves and LOOP is touching
+  it, move LOOP the same amount until LOOP hits an end."
+
+  WHY THIS MATTERS ENOUGH TO FIX (Charlie's words, paraphrased): with the
+  current drop-only reorder, you can't see what's about to move while
+  dragging, and the missing linked-block behaviour makes some legal
+  arrangements very hard or effectively impossible to land deliberately.
+NEXT:        Implement per APPROACH above (live speculative-order preview)
+             PLUS the linked-block rule above. Re-confirm the linked-block
+             rule empirically during implementation before relying on it,
+             per the NOT yet re-checked note.
+STATUS:      IMPLEMENTED 7/28, PENDING CHARLIE'S BUILD TEST — not yet
+             confirmed against the real app/hardware.
+UPDATE 7/28: Built in ui.js (computeReorder rewritten, computeLinkedAmpLoopReorder
+             added, applyChainOrder extracted, renderChainRow guarded against
+             chainDragActive). Before touching the real app, verified the pure
+             reorder math with a standalone Node simulation of every scenario
+             Charlie described (both AMP-then-LOOP and LOOP-then-AMP starting
+             arrangements, dragging AMP, dragging LOOP, hitting both ends).
+             CAUGHT A REAL BUG this way: the first version treated LOOP as
+             "linked" whenever merely adjacent to AMP-CAB, which wrongly kept
+             dragging LOOP along even after it reached position 10 (an end,
+             legal on its own). Fixed: linked now also requires LOOP is NOT
+             already at either end. All scenarios matched after the fix.
+             This does NOT replace a real build test — the simulation only
+             proves the array math, not the actual on-screen drag feel, CSS,
+             or anything DOM/browser-specific, none of which can run here.
+UPDATE 7/28 (later, after Charlie's build test): confirmed exactly the gap
+             flagged above — the reorder MATH was right, but native HTML5
+             drag-and-drop itself was not usable. Symptom: cursor flickered
+             between ok/no-drop, worst on the LOOP<->AMP-CAB swap (9,10) which
+             showed the two block labels flashing back and forth at high
+             speed; some moves that should work felt "impossible" over many
+             attempts. ROOT CAUSE: applyChainOrder moves the actual dragged-
+             over divs in the DOM on every preview update, and native drag-
+             and-drop does its own hit-testing of whatever's under the cursor
+             — moving those elements out from under a native drag confuses
+             that tracking. This is a known limitation of native HTML5 DnD,
+             not something the reorder math could have caught.
+FIX:         Replaced native drag-and-drop with plain mousedown/mousemove/
+             mouseup tracking in wireChainDrag (ui.js) — the same pattern
+             already used for every knob in this app. A movement threshold
+             (CHAIN_DRAG_THRESHOLD = 4px) distinguishes a real drag from a
+             plain click, since native DnD used to do that distinction for
+             free via its own drag-start heuristic. document.elementFromPoint
+             does fresh hit-testing on every move, so it is not confused by
+             applyChainOrder having just relocated things (unlike native DnD's
+             event-target tracking). draggable="true" and its CSS removed —
+             no longer meaningful once native DnD is gone.
+STATUS:      RE-IMPLEMENTED 7/28 on mouse-tracking, PENDING CHARLIE'S REBUILD
+             TEST. The reorder math itself (computeReorder, the linked rule)
+             is unchanged from the version already confirmed correct by
+             simulation — only the input mechanism changed.
+UPDATE 7/28 (later, after 2nd rebuild): mouse-tracking fixed the flicker and
+             "impossible" moves — Charlie confirmed all moves now seem
+             possible, matrix not yet fully retested. New gap found: no
+             visual follows the cursor while dragging (native DnD used to
+             draw one automatically; mouse-tracking does not). FIXED:
+             createChainDragGhost (ui.js) — a cloned, pointer-events:none,
+             position:fixed element that tracks the cursor with a z-index
+             above everything, offset by where within the block it was
+             grabbed. Original block stays in the flex flow, dimmed, as the
+             "where it will land" placeholder (unchanged from before); the
+             ghost is the separate "what you're carrying" visual on top of
+             it. document.body.cursor forced to 'grabbing' for the duration
+             so the cursor icon stays consistent regardless of what's
+             underneath. Charlie also mentioned "a timing var in play" during
+             drags — NOT YET UNDERSTOOD, asked him for specifics (what
+             exactly he's seeing) rather than guess at a fix.
+UPDATE 7/28 (later still): two follow-ups from the ghost, requested
+             together but handled as two separate items (Charlie: "chip away
+             at a thing or two", both genuinely coupled to explain at once):
+  1. SUPERBLOCK GHOST — DONE. The code already knows when a drag is the
+     linked AMP-CAB+LOOP case (that was the whole point of computeReorder's
+     "linked" check). Extracted it into linkedAmpLoopInfo(fromSlotId,
+     baseOrder), shared by computeReorder AND createChainDragGhost, so there
+     is exactly one answer to "is this linked" instead of two copies that
+     could drift apart. createChainDragGhost now takes an optional partner
+     container + which side it's on, and builds a two-block ghost (both
+     clones side by side, correct relative order) when linked, a normal
+     single-block ghost otherwise. Verified the refactor changed nothing by
+     re-running the standalone simulation from the earlier pass — identical
+     results before and after extracting the shared helper.
+  2. SMOOTH "BLOCKS REACT AS THE GHOST PASSES" ANIMATION — NOT STARTED,
+     explained but not built. Charlie: dragging shows no equal-and-opposite
+     motion of the blocks the ghost passes over; the reorder just snaps to a
+     new arrangement once the cursor crosses a midpoint, instead of those
+     blocks visibly sliding out of the way as you approach. This is a
+     genuinely separate, bigger animation feature — plain CSS transitions do
+     not animate a flex reorder for free (changing DOM order is an instant
+     reflow); doing it properly needs the FLIP technique (measure position
+     before the reorder, reorder, measure after, animate a compensating CSS
+     transform back to zero) applied inside applyChainOrder. Deferred as its
+     own chip rather than folded into this pass.
+
+===================================================================
 END OF ARCHIVE
 ===================================================================

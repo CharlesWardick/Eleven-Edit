@@ -2650,6 +2650,27 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
 
+2026-07-31 (docs, review) — Review of the FX1 session. Additive, no protocol
+  errors, baseline intact, conflicts C1-C13 in order, 38 sections. The FX1 work
+  itself was clean and disciplined (both bug fixes correctly ported to all five
+  panels; the mid-0x01 finding correctly tied to the OUTPUT CHANNEL TABLE's own
+  retraction note; vocabulary rules followed). One housekeeping issue: the
+  "finalize" churn wrote 12 separate FX1 log entries, all folded to the same
+  places, ballooning the log 409 -> 994. Condensed them to one summary; full
+  detail -> Archive Part 7. Log back to ~445.
+  ALSO FLAGGED (not yet fixed): two 2026-07-28 chain-drag log entries still carry
+  stale "PENDING CHARLIE'S BUILD TEST / REBUILD" top-line status, though their
+  own UPDATE lines show Charlie confirmed the reworked mouse-tracking drag
+  working through two rebuilds. Awaiting Charlie's confirmation of current drag
+  state before condensing; the one genuinely-deferred sub-item there is the
+  smooth FLIP reorder animation (unstarted).
+  RESOLVED SAME REVIEW: Charlie confirmed the chain drag is done and QC-passed;
+  the two 7/28 entries were condensed to one DONE entry (detail -> Archive Part
+  8), the stale PENDING status lines removed, and the FLIP slide animation kept
+  as the sole live deferred sub-item. Also confirmed FX1 is correctly documented
+  as IN PROGRESS (panel built, 2 of 10 models captured) — not "done"; the masters
+  already said so, only the review-chat summary had overstated it.
+
 2026-07-30 (FX1 Block 1, finalize) — New Section 23 subsection "FX1 SLOT —
   CMD 0x11 PARAMETER MAP": C1 Chorus/Vibrato (Chorus/Depth/Rate/Mode/Sync,
   Sync x Chorus/Rate matrix, mono/stereo mid triplet 0x01/0x02/0x03) and
