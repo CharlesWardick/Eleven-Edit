@@ -2533,6 +2533,51 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
 
+2026-07-30 (docs, catch-up) — Folded two completed features the docs had never
+  learned about, both done in Claude-Code chats that bypassed review — exactly
+  the drift the sweep exists to catch. (1) WAH and VOL effect panels: built,
+  tested, QC-passed; moved from NOT-YET-IMPLEMENTED to WORKING, remaining
+  effect panels dropped from seven to five (MOD, DELAY, FX1, FX2, FX LOOP), and
+  the stale "WAH/VOL easiest start" next-session note removed. (2) Master
+  Main/Phones Mute: the "NOT YET HARDWARE-TESTED" note was stale — Main mute is
+  ear-verified on hardware and Avid-mirrored; Phones mute is Avid-mirror-verified
+  only (not yet by ear), recorded as working-until-bugged per Charlie's
+  convention. CONVENTION RESTATED (Charlie's, now the standing rule): presence
+  in WORKING with no "not working / gave up / can't / not tested live" flag
+  MEANS tested and working until a future bug demotes it; the docs flag only the
+  exceptions. This works precisely because simulation-as-evidence is forbidden
+  (see the Primer's HOW TESTED WORKS HERE block) — nothing can reach WORKING
+  without a live test.
+
+2026-07-29 (docs, maintenance sweep) — First review after several days of
+  Claude-Code (Sonnet 5) sessions run through git. No protocol errors and no
+  regressions: all baseline markers intact, conflicts C1-C13 in order, 38
+  sections. The masters had not gone off the rails — they had accreted weight.
+  Three cleanups:
+  1. SESSION LOG 1782 -> ~400 lines. The fold-then-archive cycle had stalled
+     (the "next review" that archives folded entries was the review chat, which
+     was being skipped). Archived 6 folded entries and condensed a 19-entry
+     7/28-29 chain-row GUI-polish burst into one summary; full detail -> Archive
+     Part 6. Kept only genuinely-open/provisional and deferred-design entries.
+  2. PRIMER code map 454 -> ~45 lines. It had become a per-file changelog
+     ("Phase 9:... 7/27 REORG:..."). Rewritten to present-tense responsibility
+     per file; history lives here and in the Archive. Also stripped ~22 dated
+     inline tags from the WORKING list and replaced the phase-stack app-state
+     heading. Added fx-transport.js / fx-panels.js (7/27 split) to the map.
+  3. Fixed a recurring STATUS category error. Sessions kept marking hardware
+     features "PENDING CHARLIE'S BUILD TEST" and citing "headless-Chromium /
+     simulated drag" as verification. The app REMOTE-CONTROLS the rack; nothing
+     hardware-touching is verifiable except live over the bridge, which Charlie
+     does in-session. Added a "HOW TESTED WORKS HERE" block to the Primer
+     defining the only valid states (TESTED LIVE / NOT TESTED LIVE /
+     BRIDGE-INDEPENDENT) and forbidding simulation-as-evidence.
+  Also recorded the missing STARTUP CONNECT GATE as a NOT-YET-IMPLEMENTED item
+  (app loads into a dead screen with no hardware; Avid refuses to load and says
+  why — build the same, startup-only, keyed on bridgeMidiReady).
+  PROCESS CONFIRMED: the periodic review/condense step is NOT optional. Daily
+  capture-and-fold in Claude Code works; without the sweep, the log balloons and
+  the Primer drifts toward changelog. Keep routing through a review cycle.
+
 2026-07-27 (docs, review) — Review sweep of the connect/dirty/phantom-red
   session. Additive fold-in, baseline intact, conflicts in order, 38 sections.
   Found and resolved one contradiction the session left open: Section 14's TFX

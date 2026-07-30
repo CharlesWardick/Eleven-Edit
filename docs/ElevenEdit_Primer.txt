@@ -1,6 +1,6 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-28
+Updated: 2026-07-30
 Author: Charles Wardick (charles.wardick@gmail.com)
 Status: Active development — Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
@@ -241,8 +241,33 @@ CONFIRMED ARCHITECTURE (brief)
   Reference, Sections 1–2.
 
 
-CURRENT APP STATE (Master Volume CONFIRMED WORKING 7/29 + Phase 13 + 7/26 UI pass + 7/27 connect/dirty/phantom-red fixes + Phase 12 + Phase 11 + Phase 10 + Phase 9 + Phase 8 + Phase 7a-1 + Phase 4a GUI Round 2 complete)
+CURRENT APP STATE
+(Phase history is in the Change Log, Tech Ref Sec 24 — not tracked in this heading.)
 -------------------------------------------------
+
+HOW "TESTED" WORKS HERE — READ BEFORE WRITING ANY STATUS
+  Eleven Edit does NOT run on the rack. It REMOTE-CONTROLS the rack over the
+  Java bridge. So a feature is only real when it has driven real hardware.
+  There are exactly these states — use ONLY these:
+    TESTED LIVE   — built to EXE and exercised against the real rack over a
+                    connected bridge, in session. This is the ONLY "done" for
+                    anything that touches hardware.
+    NOT TESTED LIVE — code written but not yet run against the rack. The only
+                    honest pending state.
+    BRIDGE-INDEPENDENT — the few things that work with no rack attached:
+                    About box, Settings panel, folder pickers, and the X/quit.
+                    (The main screen otherwise comes up empty — nothing to read
+                    back — so there is nothing else meaningful to test offline.)
+  FORBIDDEN as evidence of "working": "headless-Chromium render", "pixel
+  measurement", "simulated drag/click", or any in-Claude simulation. Those may
+  sanity-check code shape, but they are NOT verification — the feature is remote
+  control of hardware that no simulation contains. Never mark such a thing
+  "verified" or imply it is done. If Charlie has not run it live, it is
+  NOT TESTED LIVE, full stop. Do not invent "PENDING CHARLIE'S BUILD TEST" or
+  similar half-states.
+  NOTE: Charlie builds the EXE and tests live during the session with the rack
+  connected. There is no separate later hardware-test step to defer to — the
+  session IS the test, or it is NOT TESTED LIVE.
 Build: electron-builder --win --x64 -> EXE.
 
 7/29/2026 — NAV TIMING DEV PANEL REMOVED. Charlie no longer needed it —
@@ -272,12 +297,14 @@ Build: electron-builder --win --x64 -> EXE.
   MUTE MAIN / MUTE PHONES — two small buttons below the volume box, dim
     normally and lit red when muted, matching Avid's own MUTE section.
     CMD 0x3B, channel 0x00=Main/0x01=Phones. Retracts the old "front-panel
-    only, dead on send" reading of this command — the capture shows Avid's
-    own software sending it successfully. NOT YET HARDWARE-TESTED (first
-    test pass covered the volume control only). No query form exists, so
-    these default to unmuted on connect/nav and only reflect real state
-    once a send or broadcast has been seen (same limitation as the Input
-    Selector not reflecting live state on connect).
+    only, dead on send" reading — the capture shows Avid's own software
+    sending it successfully. TESTED: Main mute verified BY EAR on real
+    hardware and mirrored in the Avid software. Phones mute verified only by
+    Avid-software mirror, NOT yet by ear (Charlie hadn't dug out the
+    headphones) — treated as working since it mirrors correctly, to be
+    revisited only if a bug surfaces. No query form exists, so both default
+    to unmuted on connect/nav and only reflect real state once a send or
+    broadcast has been seen (same limitation as the Input Selector).
   See CODE FILE MAP below (protocol.js / transport.js / sysex-handler.js /
   state.js / index.html / ui.js) and Tech Ref Sec 18/C13 for full detail.
 
@@ -349,14 +376,14 @@ WORKING:
   Tone stack — all 33 amps: SW drag, TFX initial readback, live HW readback
   Bright toggle — SW button, TFX + live HW readback (12 amps). The label comes
     from the amp table, so SL100 Drive correctly reads MOD.
-  AMP TREMOLO FEATURE SET (Phase 11, 7/23/2026) — on the 15 amps that have it:
+  AMP TREMOLO FEATURE SET — on the 15 amps that have it:
     Depth and Speed knobs, a TREMOLO on/off button (paramLo 0x13, a control
     Avid's editor does not have at all), and a 14-entry Sync dropdown showing
     the note glyph and its name. All read and write.
     Moving Speed clears Sync to OFF first, mirroring the rack. Avid's Speed
     knob does nothing at all while Sync is engaged. Tech Ref Sec 11.
     Laid out as a BRIGHT / TREMOLO / SYNC stack right of the tone knobs.
-  RIG TEMPO (Phase 13, 7/24/2026) — a digital-clock field on the chain strip,
+  RIG TEMPO — a digital-clock field on the chain strip,
     right of the Stereo/Mono badge. Reads and writes CMD 0x50, which is
     microseconds per beat as four 6-bit digits (Tech Ref Sec 18). Click the
     whole or tenths segment then use the stepper, the mouse wheel or the
@@ -372,7 +399,7 @@ WORKING:
     STEREO is green like an active block, MONO amber; click-to-toggle unchanged
     and still writes CMD 0x0D. TEMPO sits one button-width to its right with the
     label stacked above the number box. Badge is fixed-width (sized for STEREO) so it does not resize when it switches to MONO (with asymmetric padding so the letter-spaced text sits optically centred), and it sits tight after the last block; TEMPO holds the far-right edge.
-  AMP MODEL CHANGE REFRESH (Phase 12, 7/24/2026) — changing amp type inside an
+  AMP MODEL CHANGE REFRESH — changing amp type inside an
     open patch now re-reads the amp block and shows the real stored values,
     instead of blanking every tone knob to "--". Fires whether the change came
     from our dropdown, the rack's front panel or the Avid editor.
@@ -382,7 +409,7 @@ WORKING:
     and a Treadplate's "Treble" shows it. Avid behaves identically.
     Tech Ref Sec 11.
   Tuner button — SW send (CC69) + CMD 0x40 HW state readback
-  To Amp 1/2 volume knobs — SW send + TFX readback + live HW readback (Phase 8)
+  To Amp 1/2 volume knobs — SW send + TFX readback + live HW readback
   Cab Type / Mic Type dropdowns — SW send + TFX + live HW readback
   Mic Axis toggle — SW send + TFX + live HW readback
   Speaker Breakup slider — SW send + TFX + live HW readback
@@ -395,10 +422,10 @@ WORKING:
     at any chain position. State queried for all ten after every chain map.
   Chain row — true per-patch order, model name on hover, stereo shown as
     stacked double connector lines (49 of 52 models resolved).
-  Chain reorder — drag and drop, with FX Loop placement enforced client-side.
-    7/28: LIVE PREVIEW — blocks physically shift into place during the drag
-    itself (applyChainOrder), not just on drop; a chain-map arriving mid-drag
-    no longer fights the preview (renderChainRow no-ops while chainDragActive).
+  Chain reorder — drag and drop with live preview: blocks physically shift into
+    place during the drag itself (not just on drop), and a chain-map arriving
+    mid-drag no longer fights the preview. FX Loop placement enforced
+    client-side.
     AMP-CAB + LOOP LINKED DRAG — dragging AMP-CAB while LOOP sits immediately
     adjacent now moves LOOP with it, same direction/distance, until LOOP hits
     either end of the chain — matching Avid's feel, confirmed against the real
@@ -492,25 +519,31 @@ WORKING:
   Settings panel — gear ⚙ button opens panel in amp panel slot:
     Captures folder (set + open), Avid Editor folder (set), Open Logs Folder.
     Paths persisted in userData/settings.json.
-  DIST effect panel (Phase 9) — all five models: Tri-Knob Fuzz, Black Op
+  DIST effect panel — all five models: Tri-Knob Fuzz, Black Op
     Distortion, Green JRC Overdrive, White Boost, DC Distortion. Model
     dropdown (pre-loaded from chain map), model switching via CMD 0x21,
     knobs with Avid-correct labels and per-model 2D layout, SW drag sends
     CMD 0x11, live HW readback, ✕ close button. Confirmed solo 7/21/2026.
     Pattern established for remaining eight effect slots.
-  REVERB effect panel (Phase 10) — both models: Blackpanel Spring Reverb and
+  REVERB effect panel — both models: Blackpanel Spring Reverb and
     Eleven SR. Model dropdown, model switching via CMD 0x21, knobs with
     Avid-correct labels, SW drag sends CMD 0x11, live HW readback, ✕ close.
     Eleven SR adds a Type control (linked dropdown + knob, 25 named zones) and
     a Pre-Delay knob shown in ms (0–200). Confirmed solo 7/22/2026. Exposed and
     fixed the amp-bypass paramLo-0x06 handle collision (Tech Ref Sec 3 / 23).
+  WAH effect panel — built, tested, passed initial QC. Same pattern (model
+    dropdown, CMD 0x21 model switch, CMD 0x11 knobs, live HW readback, ✕ close).
+  VOL effect panel — built, tested, passed initial QC. Same pattern. (Distinct
+    from the global Master Volume knob on the chain strip — this is the VOL
+    block in the effect chain.)
   GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
     moved off the old right-hand column for tighter window scaling (7/22).
 
 NOT YET IMPLEMENTED (largest first):
-  Effect panels for the seven remaining non-amp effect blocks (MOD, DELAY,
-    WAH, VOL, FX1, FX2, FX LOOP) — clicking the chain row's arrow still shows a
-    "coming soon" placeholder. The DIST (Phase 9) and REVERB (Phase 10) panels
+  Effect panels for the five remaining non-amp effect blocks (MOD, DELAY,
+    FX1, FX2, FX LOOP) — clicking the chain row's arrow still shows a
+    "coming soon" placeholder. (DIST, REVERB, WAH and VOL panels are DONE.)
+    The existing panels
     established the full pattern: paramLo capture, rows-based layout in a
     MODELS table, render/update/drag helpers, CMD 0x21 model change, and a
     handle-scoped CMD 0x11 routing block. Replicate per slot. paramLo numbers
@@ -525,6 +558,15 @@ NOT YET IMPLEMENTED (largest first):
     exists but is greyed. Protocol is the same save sequence with a different
     target slot number. When built, Load TFX + Save to Different Slot will
     serve as "load file into any slot".
+  Startup connect gate (like Avid's) — the app currently loads into a dead main
+    screen with no data when the rack is not found, and never says why. Avid's
+    editor refuses to load without hardware and pops "try again / quit". Build
+    the same: a startup-only blocking modal keyed on bridgeMidiReady (the bridge
+    will not reach connected without seeing the rack, so that IS the "rack
+    found" signal), reusing the existing watchdog-overlay pattern, with a few-
+    second timeout for normal connect latency. Startup only — not a mid-session
+    disconnect gate (the status-bar indicator + retry button already cover that).
+    Full agreed design in the session log.
   Bank backup/restore (EHB — protocol known)
   FX Loop connector variants 0x2E, 0x2F, 0x33 — the only three models with no
     output-channel entry; they draw a dashed connector until observed.
@@ -546,457 +588,43 @@ DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
 
 CODE FILE MAP
 -------------
-  main.js              Electron main process, bridge launch, IPC.
-                       New handlers (Phase 4a): browse-avid-dir, get-avid-dir,
-                       get-logs-dir. Logs now written to userData/logs/ subfolder.
-                       7/28: browse-avid-dir's dialog title renamed "Choose
-                       Avid Graphics Folder" (was "...Editor Folder") — this
-                       is no longer meant to require a live Avid Editor
-                       install, just a folder containing the plugin image
-                       structure somewhere inside it (see Session Log, chain
-                       row graphics). The recursive scanner that actually
-                       reads it is NOT built yet — this is only the rename.
-  preload.js           Electron preload, exposes electronAPI.
-                       New (Phase 4a): browseAvidDir, getAvidDir, getLogsDir.
-  index.html           Full UI (HTML + CSS + script tags).
-                       7/29: <script src="js/timing-panel.js"> removed —
-                       the file no longer exists (see timing-panel.js entry,
-                       now removed from this map, and transport.js above).
-                       7/29: #master-vol-wrap (MAIN VOL value box/stepper +
-                       MAIN/PHONES mute buttons) added inside #tempo-slot,
-                       above #tempo-wrap — fills the space that comment
-                       block deliberately reserved. New CSS: #master-vol-wrap/
-                       #mvol-label/#mvol-row/#mvol-box/#mvol-steps/.mute-row/
-                       .mute-btn/.mute-btn.mute-active.
-                       7/29, same day (after Charlie's hardware test): sized
-                       #mvol-box up to match #tempo-box exactly (13px->15px,
-                       min-width 42->50px) and .mute-btn up proportionally
-                       (10px/2px 7px -> 11px/3px 9px) — Charlie asked for
-                       MAIN VOL to read as prominent as TEMPO without moving
-                       TEMPO itself (worried a TEMPO move would snowball into
-                       the chain row to its left). CSS-only change — #tempo-
-                       wrap and the chain row were not touched.
-                       7/28: chain row rebuilt for the graphics-ready layout —
-                       see the dedicated CHAIN ROW GRAPHICS entry below for
-                       the full change; short version: .chain-thumb (drag
-                       handle, currently a dummy placeholder box) added above
-                       every block's label, row height 62px->110px,
-                       #chainstrip align-items center->flex-end.
-                       7/28, later same day: align-items flipped again,
-                       flex-end -> stretch (root-caused AMP/CAB's thumb
-                       sitting 10px higher than every other thumb), row
-                       height 130px->140px, margin-top:auto added to
-                       .chain-name / .chain-name-stack:first-of-type /
-                       #chain-input-wrap / #mono-indicator, and the latter
-                       two's font-size/padding matched to .chain-name's
-                       real values. See CHAIN ROW GRAPHICS entry above and
-                       Session Log 7/28 for the full CDP-verified detail.
-                       Earlier 7/28: #chain-input-wrap + #chain-input-connector added
-                       as the fixed FIRST children of #chainstrip (passive
-                       INPUT clone, chain-drag position-1 room fix — see
-                       Session Log). #chain-input-connector is .chain-arr but
-                       must stay excluded from ui.js applyChainOrder's arrow-
-                       recycling query, same as #mono-connector already is.
-                       Phase 13: chain-strip right-hand group — drag-hint div
-                       removed, #mono-indicator restyled (green STEREO / amber
-                       MONO) and given margin-left:auto, #tempo-wrap digital
-                       clock added with its segment/stepper CSS.
-                       Phase 11: .scard-col is a COLUMN of two fixed .amp-row
-                       blocks, not one wrapping row — that wrapping row is what
-                       made the tone knobs ride up beside Volumes and Bright
-                       wrap under Gate at wide sizes. BRIGHT / TREMOLO / SYNC
-                       stack added right of the tone knobs.
-                       Settings panel, SAVE ▾ dropdown, name-prompt modal.
-                       Phase 9: #panel-dist HTML, model dropdown, ✕ close button,
-                       chain-open handler updated for DIST slot.
-                       Phase 10: #panel-reverb HTML + model dropdown + ✕; reverb
-                       branch in chain-open handler; "Volumes" box replaces the
-                       right-hand Amp Out/Rig Vol column (scard-col-r CSS now unused).
-  state.js             Shared mutable state.
-                       7/29: currentMasterVol (null until first readback),
-                       muteMainState / mutePhonesState (both default false —
-                       no HW query form for CMD 0x3B, see Tech Ref).
-                       Phase 9: distPanelOpen flag.
-                       Phase 10: reverbPanelOpen flag.
-                       7/23: ampSelectRxSeq, chainMapRxSeq (reply-arrival
-                       counters the post-nav pull waits on).
-                       7/29 REMOVED: lastNavPullMs / lastNavPullQueries — only
-                       ever read by timing-panel.js, deleted the same day (see
-                       that entry, now removed from this map).
-  protocol.js          AMP_TONE_PARAMS, cab/mic lookup + type lists, decoders.
-                       7/29: REQU_MASTER_VOL_READ (CMD 0x36 outSel 0x00),
-                       MUTE_CH_MAIN / MUTE_CH_PHONES (CMD 0x3B channel bytes).
-                       Phase 13: REQU_TEMPO_READ, TEMPO_BPM_MIN/MAX,
-                       rigTempoDecodeUs, rigTempoUsToBpm, rigTempoBpmToDigits.
-                       0x50 dropped from PROBE_DUMP_CMDS — it has a real
-                       handler now and the raw dump only doubled the log.
-                       Phase 11: SYNC_DIVISIONS (14 entries, glyph + text),
-                       syncIndexFromV127, syncV127FromIndex, ampHasTremolo.
-                       SL100 Drive's 0x0E toggle relabelled MOD.
-                       Phase 9: DIST_MODELS (rows layout, Avid labels) + DIST_MODEL_BY_MID.
-                       Phase 10: REVERB_MODELS + REVERB_MODEL_BY_MID (all variants),
-                       REVERB_TYPE_LIST (25 zones) + reverbTypeIndexFromV127.
-  transport.js         Send functions, CAB/MIC v0 lookup tables.
-                       7/29: timing-panel.js removed (dev tool Charlie no
-                       longer needed — zeroing its tunable timings produced
-                       no observable improvement or regression, so the
-                       defaults stand as-is). finish() in the nav pull no
-                       longer writes lastNavPullMs/lastNavPullQueries or
-                       calls refreshTimingPanel — it still logs "Nav pull
-                       complete: N param queries, Xms" via appLog, so that
-                       information is still visible in the monitor. The four
-                       NAV_* timing constants (NAV_QUERY_GAP etc.) are
-                       unchanged and still gate real nav-pull behaviour —
-                       only the live-editing panel is gone, not the values.
-                       7/29: sendMasterVolume(v127) — CMD 0x36 outSel 0x00,
-                       mirrors sendToAmpVolume; sendMute(channel, muted) —
-                       CMD 0x3B. Neither routes through sendPatchWrite (no
-                       SAVE dirty-latch). Nav pull (requestPatchStateAfterNav,
-                       Phase 4) gains one REQU_MASTER_VOL_READ after the
-                       To Amp 2 read.
-                       7/27 REORG: sendDistModelChange/requestDistParams/
-                       sendDistParamWrite and the REVERB equivalents MOVED to
-                       fx-transport.js (new file, below) — this file no longer
-                       grows with each new effect panel. PURE RELOCATION, no
-                       logic changed. Everything below dated 7/23 and earlier
-                       still describes this file correctly.
-                       7/26: sendPatchWrite(hex) wrapper — the 13 per-patch
-                       write functions send through it so the SAVE dirty latch
-                       lights (queries/readbacks keep calling sendHex directly);
-                       NAV_BASELINE_SETTLE (250 ms) after the nav pull before
-                       snapshotting the knob-colour baseline.
-                       7/27: sendCC marks dirty only for PER_PATCH_CCS = [17]
-                       (Rig Vol); input/tuner CCs use plain sendHex. First
-                       connect reflects the rack's current patch (currentSlot=-1
-                       then requestFullState; CMD 0x02 reply drives the pull)
-                       instead of forcing goToSlot(0)/A1.
-                       Phase 13: sendRigTempo(bpm); nav pull phase 4 gains one
-                       REQU_TEMPO_READ after the mono read.
-                       Phase 12: ampBlockParamLos() — the amp block's paramLo
-                       query set, extracted from the nav pull's Phase 3 so the
-                       nav path and the amp-change path share one list and
-                       cannot drift. ampParamQuery() — standalone read builder;
-                       do NOT reuse the nav pull's private paramQuery(), which
-                       is out of scope AND increments the Dev timings counter.
-                       requestAmpBlockParamsAfterAmpChange() — waits
-                       AMP_CHANGE_SETTLE (100 ms, provisional) then re-queries
-                       the block on the EXISTING handle; sequence guard cancels
-                       it on a further amp change or a patch change.
-                       7/23: requestPatchStateAfterNav() rewritten as a
-                       four-phase targeted pull (structure -> amp identity ->
-                       amp block -> rig level), replacing the CMD 0x01 bulk
-                       dump. REQUEST_BULK_ON_NAV=true restores the old path.
-                       Waits on reply counters, not timers. navSeqId + slot
-                       check abandon a pull if navigation moves on.
-                       READ_ONLY_PARAM_LOS is now EMPTY — Speed and Sync are
-                       writable. The array and the .knob-readonly styling
-                       remain: putting a paramLo back makes that knob read-only
-                       again with no other change.
-                       Phase 11: nav pull adds 0x12/0x13 on tremolo amps;
-                       sendParamWrite sends true endpoint sentinels.
-                       Phase 9/10 functions (sendDistModelChange etc.) now live
-                       in fx-transport.js — see that entry below.
-  fx-transport.js      NEW 7/27. Per-effect-block SEND functions, one
-                       model-change/request-params/param-write trio per block,
-                       split out of transport.js so that file stops growing as
-                       panels are added. Currently holds: sendDistModelChange,
-                       requestDistParams, sendDistParamWrite, sendReverbModelChange,
-                       requestReverbParams, sendReverbParamWrite. THE NEXT SEVEN
-                       PANELS' send functions belong HERE, not in transport.js —
-                       copy the DIST trio as the template (see file header).
-  sysex-handler.js     Incoming message routing.
-                       7/29: handleToAmpVolumeBroadcast (CMD 0x36) gained a
-                       slot=0x00 (Main) branch -> updateMasterVolDisplay; new
-                       handleMasterMuteBroadcast (CMD 0x3B) -> updateMuteButton,
-                       dispatched from the switch same as every other CMD.
-                       7/27 REORG: parseSysEx was one 700+ line function with a
-                       sequential if-chain over every CMD byte — hard to follow
-                       and the reason this file kept needing "ask for it by
-                       name" treatment in reviews. Split into one handleXxx(data)
-                       function per CMD (handleBulkTfxData, handleSlotConfirm,
-                       handleChainMap, handleParamReadback, etc.), dispatched
-                       from a thin switch in parseSysEx. CMD 0x11 (the biggest
-                       branch) further split into routeBypassMessage,
-                       routeFormatBAmpMessage, routeAmpBlockParam. PURE
-                       REORGANIZATION — every guard, branch and comment moved
-                       verbatim; no behaviour changed. Dead unused var dirByte
-                       dropped. Verify against this entry, not against memory
-                       of the old single-function layout.
-                       7/27: save/capture bulk branches (isSave + manual/disk)
-                       only setCurrentAmp and repaint the continuous knobs from
-                       the body when (ampChanged || REQUEST_BULK_ON_NAV) — a
-                       same-amp save leaves the live knobs untouched (no blanking,
-                       no phantom red). Discrete controls (cab/mic, mono) always
-                       apply. CMD 0x3D input handler drives setInputButtons.
-                       7/26: handle self-heal in the CMD 0x11 mismatch branch
-                       (HANDLE_RESYNC_THRESHOLD/COOLDOWN -> one chain-map
-                       re-read); isSave branch re-reads the chain map after a
-                       save (handles get reassigned on commit) and re-anchors
-                       knob/FX baselines + clears the dirty latch; baseline
-                       capture was REMOVED from the generic bulk-readback branch
-                       (it fires on manual capture / Save-to-Disk, which must not
-                       clean the knobs).
-                       Phase 13: CMD 0x50 branch — decodes the four 6-bit
-                       digits and calls updateTempoDisplay. Accepts dir 0x02
-                       (broadcast/echo) and 0x12 (reply to our query) alike.
-                       Phase 12: the paramLo 0x0F handler calls
-                       requestAmpBlockParamsAfterAmpChange when the amp key
-                       actually changes. NOTE 0x0F is a parameter inside the
-                       amp block, not a chain map change — the handle does not
-                       move, so no chain map re-read belongs on this path
-                       (unlike the DIST/REVERB CMD 0x21 model change).
-                       Phase 9: DIST paramLo routing in CMD 0x11 handler;
-                       refreshDistPanelAfterChainMap called from CMD 0x21 handler.
-                       Phase 10: REVERB paramLo routing; refreshReverbPanelAfterChainMap;
-                       amp/cab bypass (0x06/0x14) now gated on the amp handle.
-  ui.js                Knob rendering, tone knobs, Bright toggle, drag handlers.
-                       7/29: MASTER VOLUME + MUTE section (new) —
-                       renderMasterVolField/updateMasterVolDisplay/
-                       setMasterVol/stepMasterVol (value box + stepper,
-                       wheel, up/down keys — same family as the RIG TEMPO
-                       field, no canvas knob) and updateMuteButton +
-                       DOMContentLoaded wiring for the two mute buttons
-                       (optimistic display on click, reconciled by the CMD
-                       0x3B echo).
-                       7/28 (13th pass): the 12th pass's pair-CENTER hit-test
-                       fix was itself wrong — Charlie caught it: averaging
-                       necessarily degraded the two directions that were
-                       already correct while fixing the two that weren't,
-                       netting "more equal but both a bit off" instead of
-                       actually correct. Replaced with a leading-edge
-                       approach: new chainDragLastX/chainDragMovingRight
-                       track the drag's instantaneous direction each frame,
-                       and the hit-test uses whichever of AMP/LOOP is
-                       actually out in front for THAT direction (LOOP's
-                       center when moving toward LOOP's side, plain
-                       dragCenterX — i.e. AMP's own, unchanged — when moving
-                       the other way). Verified against a plain single-block
-                       drag as a baseline: the two previously-good directions
-                       now measure within 1px of the single-block baseline
-                       (genuinely restored, not just less-wrong), the two
-                       previously-broken directions now measure ~12-13px more
-                       than baseline (the real cost of crossing the connector
-                       arrow between the two blocks) instead of a near-full-
-                       block-width asymmetry. Also verified a direction
-                       reversal mid-drag doesn't glitch at the transition.
-                       7/28 (12th pass): fixed the linked AMP-CAB+LOOP drag's
-                       asymmetric trigger distance — Charlie precisely: 2 of
-                       4 direction/config combos needed way more drag travel
-                       than the other 2 (whichever had LOOP LEADING instead
-                       of trailing), landing correctly but only after a big
-                       jump. Direct consequence of the 11th pass's lockstep
-                       fix: LOOP now always occupies the space directly ahead
-                       of AMP-CAB when it's the leading side, so the cursor
-                       had to travel across LOOP's own width (wasted, since
-                       LOOP is pointer-events:none and can't be a target)
-                       before reaching a real neighbor — costing nothing when
-                       LOOP trailed instead. Fixed by hit-testing off the
-                       PAIR's center (new chainDragLinkedGapX, the constant
-                       signed distance between the two thumbs' centers,
-                       measured once at drag-start) instead of AMP-CAB's own
-                       center alone — halves the wasted distance symmetrically
-                       in both directions. Only affects the linked case;
-                       chainDragLinkedGapX is 0 otherwise. Verified by
-                       measuring the exact px travel needed to trigger in all
-                       4 combinations: asymmetry dropped from roughly a full
-                       block's width to a 12px spread (136-148px), and a full
-                       step-by-step re-test of the previously-broken
-                       direction now shows clean one-step-at-a-time
-                       reordering instead of a 2-slot jump.
-                       7/28 (11th pass): fixed two real bugs in the linked
-                       AMP-CAB+LOOP drag, surfaced by the 10th pass's
-                       continuous-follow. (1) computeLinkedAmpLoopReorder's
-                       idx<0 fallback used to jump the pair to the very end
-                       (rest.length) whenever the hit-test landed on AMP or
-                       LOOP itself — now a no-op (return src unchanged),
-                       matching the plain single-block self-target case. This
-                       was the "loop shoots to slot 10 then back" ricochet
-                       Charlie saw. (2) New chainDragLinkedCont: when the
-                       drag is the linked case, LOOP now gets pointer-events:
-                       none + the EXACT SAME translateX delta as chainDragCont
-                       every frame (not its own recomputed one), instead of
-                       the other blocks' slower FLIP slide-in — this is what
-                       keeps LOOP glued to AMP-CAB at a constant visual gap
-                       instead of trailing behind on Charlie's now-1000ms
-                       CHAIN_SLIDE_MS. Verified via live CDP simulation across
-                       all 4 combinations (LOOP before/after AMP, dragging
-                       left/right) — gap between the two blocks held exactly
-                       constant at every sampled step in all 4 tests, no
-                       ricochet. See Session Log for full detail, including a
-                       caught false alarm in the verification method itself
-                       (a tight synchronous test loop doesn't give CSS
-                       transitions real time to render — worth remembering
-                       for future drag verification).
-                       7/28 (10th pass): the dragged block now continuously
-                       follows the cursor (every mousemove, instant 1:1
-                       transform, no transition) instead of sitting still
-                       until a reorder fires — Charlie, after confirming
-                       CHAIN_SLIDE_MS=1000 felt right: "with Avid it is
-                       immediately... in motion... [ours] moves practically
-                       to edge or next block then they suddenly swap." Needed
-                       two supporting changes: chainDragCont gets
-                       pointer-events:none for the whole drag (so
-                       elementFromPoint sees THROUGH the dragged block to the
-                       real neighbor underneath it, instead of always hitting
-                       itself — same trick the old ghost got for free as a
-                       separate overlay); applyChainOrderAnimated gained an
-                       excludeEl param so the dragged block's own position
-                       isn't ALSO touched by the other blocks' FLIP slide-in
-                       (would fight the continuous-follow code for the same
-                       transform). Verified via live CDP simulation stepping
-                       the cursor in 6 increments toward a target and
-                       checking the dragged thumb's rendered center against
-                       the cursor at EVERY step (not just start/end) — matched
-                       within <1px throughout, including across a live
-                       reorder mid-drag. See Session Log for full detail.
-                       7/28 (9th pass): removed the floating drag ghost
-                       entirely (createChainDragGhost + its state deleted).
-                       Charlie's screen recording of Avid's own editor showed
-                       no separate ghost during a drag — just the real block
-                       sliding smoothly. New applyChainOrderAnimated(order)
-                       wraps applyChainOrder with a FLIP animation (sample
-                       every mover's rect, do the existing instant reorder,
-                       then paint-and-transition each moved element from its
-                       old spot to its new one via translateX); the live-drag
-                       preview call site uses this instead of calling
-                       applyChainOrder directly. renderChainRow (the real
-                       hardware chain-map path) is deliberately still
-                       unanimated — scope was the drag preview only.
-                       CHAIN_SLIDE_MS: shipped as a 150ms first guess,
-                       Charlie changed it to 1000 himself and confirmed that
-                       reads well — current value is his, not derived.
-                       Verified via live CDP drag simulation only (zero ghost
-                       elements, six affected blocks including the dragged
-                       one show the transition engaging, correct final
-                       order, clean style cleanup afterward) — this is new,
-                       more complex code than the earlier CSS-only fixes, so
-                       treat it as unverified on real hardware until
-                       Charlie's next test session says otherwise.
-                       7/28 (8th pass) BUG FIX: applyChainOrder's `mono` var
-                       was re-grabbing the bare #mono-indicator label and
-                       re-appending it on every reorder, ripping it back out
-                       of the .chain-slot wrapper the 7th pass just added (so
-                       the bookend fix silently undid itself on every real
-                       chain-map update). Now resolves .closest('.chain-slot')
-                       instead. Found and verified by actually rendering the
-                       app in headless Chromium and simulating a live reorder
-                       — see Session Log for the full method, worth reusing.
-                       7/28 (7th pass): drag handle moved from the whole slot
-                       onto .chain-thumb specifically. wireChainDrag's
-                       mousedown now requires ev.target.closest('.chain-thumb')
-                       (was '.chain-slot, .chain-slot-stack'); new chainDragThumb
-                       state var holds it (chainDragCont is still the slot
-                       container — still what gets reordered/appended, just no
-                       longer the drag-initiation target). The .dragging class
-                       and createChainDragGhost's clone source both moved from
-                       chainDragCont to chainDragThumb — the ghost is now just
-                       the thumb-sized icon, not the whole label+caret stack,
-                       which is also a better visual match for Avid's own drag
-                       ghost. The linked-pair ghost now clones each block's
-                       .chain-thumb (via querySelector), not its whole container.
-                       7/28 (6th pass): setInputButtons also updates the
-                       #chain-input-wrap clone (index.html) — one function,
-                       one source of truth, so the clone can't drift.
-                       wireChainDrag's mousemove: position 1 (chainDragStartOrder[0])
-                       now counts as a legal target across its whole width, not
-                       just past its midpoint. applyChainOrder's arrow query
-                       now also excludes #chain-input-connector, same reason
-                       #mono-connector already was excluded.
-                       7/28: chain drag rewritten for live preview + the
-                       AMP-CAB/LOOP linked rule. computeReorder signature
-                       changed from (fromSlotId, toIndex) to (fromSlotId,
-                       targetSlotId, after, baseOrder) — only caller was
-                       wireChainDrag, updated with it. New:
-                       computeLinkedAmpLoopReorder (the linked-pair math),
-                       applyChainOrder (DOM-move logic pulled out of
-                       renderChainRow so the live preview can call it with a
-                       speculative order), chainDragStartOrder/chainPreviewOrder/
-                       chainDragCommitted state. renderChainRow no-ops while
-                       chainDragActive so an incoming chain-map can't fight the
-                       preview. clearDropMarks/.drop-before/.drop-after removed
-                       (dead — the live preview replaced the marker).
-                       7/28 (same day, 2nd pass): wireChainDrag's event model
-                       replaced — native HTML5 dragstart/dragover/drop/dragend
-                       (dataTransfer etc.) OUT, plain mousedown/mousemove/
-                       mouseup/blur IN, matching how every knob already works.
-                       Reason: native drag-and-drop's own hit-testing breaks
-                       when the dragged-over elements move live, which is
-                       what applyChainOrder does every preview tick — surfaced
-                       as a flickering cursor and, on a 2-block swap, the two
-                       blocks flashing back and forth. New state: chainDragPending
-                       (mousedown seen, watching for the CHAIN_DRAG_THRESHOLD=4px
-                       move before treating it as a real drag — replaces the
-                       distinction native DnD used to make for free between a
-                       plain click and a real drag start), chainDragCont. Uses
-                       document.elementFromPoint on every mousemove for live
-                       hit-testing (immune to the DOM-shuffle problem above).
-                       draggable="true" attribute removed from applyChainOrder;
-                       CSS cursor:grab rule updated to apply unconditionally.
-                       7/27 REORG: openDistPanel/renderDistKnobs/updateDistKnob/
-                       refreshDistPanelAfterChainMap/DIST drag handler and the
-                       REVERB equivalents MOVED to fx-panels.js (new file, below)
-                       — this file no longer grows with each new effect panel.
-                       PURE RELOCATION, no logic changed. Everything below dated
-                       7/26 and earlier that is NOT about DIST/REVERB still
-                       describes this file correctly; the Phase 9/10 lines at
-                       the bottom of this entry now describe fx-panels.js instead.
-                       7/26: KNOB_COLORS + knobColor() (amber/green base, red on
-                       change); captureKnobBaselines()/clearMainKnobBaselines()
-                       (main-panel baseline); fxBaseline store + helpers
-                       (per-effect red-state persistence); markPatchDirty/
-                       clearPatchDirty (SAVE latch); queueKnobSend() trailing
-                       throttle (KNOB_SEND_INTERVAL=60) that ALL knob/slider
-                       drag + scroll sends now route through; new delegated
-                       'wheel' handler for tone/DIST/REVERB knobs (Breakup
-                       slider's wheel is in index.html).
-                       Phase 13: the tempo clock — renderTempoField,
-                       updateTempoDisplay, queueTempoSend (150 ms trailing),
-                       setTempoTenths, stepTempo, commitTempoTyping, and the
-                       segment/stepper/wheel/key/typing listeners. Held as
-                       integer TENTHS of a BPM so repeated stepping cannot
-                       drift. renderChainRow no longer looks for the removed
-                       drag hint and now re-appends #tempo-wrap after the
-                       badge on every reflow.
-                       Phase 11: updateTremButton/Readout, populateSyncDropdown,
-                       updateSyncReadout, Speed-clears-Sync rule in the tone
-                       drag handler, dB scales for To Amp and Amp Out anchored
-                       on zero. All four drag handlers now end a drag when the
-                       mouse reports no button held or the window loses focus —
-                       previously a release outside the window left the knob
-                       stuck to the pointer.
-                       Phase 9: openDistPanel, renderDistKnobs, updateDistKnob,
-                       refreshDistPanelAfterChainMap, DIST knob drag handler.
-                       Phase 10: openReverbPanel, renderReverbKnobs (incl. Type cell),
-                       updateReverbKnob, reverbKnobDisplay (ms), currentReverbModel,
-                       refreshReverbPanelAfterChainMap, REVERB knob drag handler.
-                       Knob drag start-value zero-guard fixed (DIST + REVERB).
-  fx-panels.js         NEW 7/27. Per-effect-panel UI, split out of ui.js so that
-                       file stops growing as panels are added. Currently holds
-                       the DIST panel (openDistPanel, renderDistKnobs,
-                       updateDistKnob, refreshDistPanelAfterChainMap, drag
-                       handler) and the REVERB panel (same set plus
-                       currentReverbModel, reverbKnobDisplay for the ms unit,
-                       and the Type dropdown+knob linkage). THE NEXT SEVEN
-                       PANELS' UI belongs HERE, not in ui.js — copy the DIST
-                       set as the template (see file header); REVERB's extra
-                       pieces are the template for any block that needs a
-                       linked selector or a non-default unit/scale.
-  app-init.js          Startup wiring
-  patch-nav.js         Patch navigation logic.
-                       7/23: sendPC() now emits the CMD 0x02 absolute-slot
-                       SysEx recall, not MIDI Program Change. USE_SYSEX_RECALL
-                       falls back to Program Change if ever needed.
-  capture-scan.js      TFX capture, bank scan, load/save.
-                       saveCurrentPatchToSlot(nameOverride) — optional rename.
-                       saveToRackAndDisk(name) — rename + commit + auto TFX.
-                       7/26: clearStaleReadoutsOnNav now also clears the FX
-                       baseline store, main-knob baselines, and the dirty latch
-                       (one choke point for every nav); saveToRackAndDisk
-                       re-anchors knob/FX baselines + clears dirty; loadTfx marks
-                       the patch dirty (uncommitted in memory).
-  ElevenRackBridge.java  Java bridge source
-  tfx-inspect.js       CLI: decode a TFX file
-  tfx-diff.js          CLI: diff two TFX files
+Present responsibilities only. When each function/flag was added is in the
+Change Log (Tech Ref Sec 24) and Archive — not here. ElevenRackBridge.java is
+covered under CONFIRMED ARCHITECTURE above.
+
+  main.js          Electron main process: launches the Java bridge, IPC, folder
+                   pickers (captures / Avid editor / logs), logs to userData/logs/.
+  preload.js       Electron preload; exposes electronAPI to the renderer.
+  index.html       Full UI — HTML + CSS + script tags. All panels (amp, cab/mic,
+                   DIST, REVERB), the SAVE dropdown, settings panel, chain row.
+  state.js         Shared mutable runtime state (currentParamHi, currentAmpKey,
+                   currentSlot, brightOn, currentMonoState, currentMasterVol,
+                   mute flags, panel-open flags, reply-arrival sequence counters).
+  protocol.js      Constants and decoders: AMP_TONE_PARAMS, cab/mic lookup + type
+                   lists, amp/effect model tables, Sync divisions, tempo
+                   encode/decode, DIST/REVERB model tables, REQU/command byte defs.
+  transport.js     Core SEND functions and CAB/MIC v0 lookup tables. Per-patch
+                   writes route through sendPatchWrite (lights the SAVE dirty
+                   latch); queries and readbacks call sendHex directly. Master
+                   Volume (CMD 0x36 outSel 0x00) and Mute (CMD 0x3B) live here.
+                   NAV_* timing constants gate the post-nav pull. sendCC marks the
+                   patch dirty only for PER_PATCH_CCS = [17] (Rig Vol); input and
+                   tuner CCs do not.
+  fx-transport.js  Per-effect-block SEND/query functions (DIST, REVERB, and future
+                   blocks), split out so transport.js does not grow per panel.
+  sysex-handler.js Incoming message routing. Decodes bulk/patch bodies, live CMD
+                   0x11, chain map (CMD 0x21), tuner (0x40), stereo/mono (0x0D),
+                   input (0x3D), and drives the matching UI updates.
+  ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
+                   handlers, chain-row render, knob-colour (dirty) tracking.
+  fx-panels.js     Per-effect-panel UI (DIST, REVERB, future blocks), split out of
+                   ui.js for the same reason as fx-transport.js.
+  app-init.js      Startup wiring.
+  patch-nav.js     Patch navigation logic and the post-nav state pull.
+  capture-scan.js  TFX capture to disk, bank scan, load/save (Save-to-Rack and
+                   Save-to-Disk, rename).
+  tfx-inspect.js   CLI: decode a TFX file.
+  tfx-diff.js      CLI: diff two TFX files.
 
 KEY STATE VARIABLES (state.js):
   currentParamHi          runtime CMD 0x11 handle for AMP block, -1 if unset
@@ -1141,13 +769,12 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
 
 NEXT SESSION — EFFECT PANEL FOR ANOTHER BLOCK
 -------------------------------------------------------------------
-  Rig tempo (Phase 13) is done, so the largest remaining chunk is the seven
-  non-amp effect panels still on placeholders: MOD, DELAY, WAH, VOL, FX1, FX2,
-  FX LOOP. DIST (Phase 9) and REVERB (Phase 10) established the whole pattern;
-  each new slot needs one Wireshark capture for its paramLo numbers, then the
-  same six edits copied across. Full recipe and recommended order are in the
-  LATER — EFFECT PANELS section below. WAH or VOLUME is the easiest start
-  (single model, simplest capture).
+  The remaining chunk is the five non-amp effect panels still on placeholders:
+  MOD, DELAY, FX1, FX2, FX LOOP. (DIST, REVERB, WAH and VOL are DONE.) The
+  existing panels established the whole pattern; each new slot needs one
+  Wireshark capture for its paramLo numbers, then the same six edits copied
+  across. Full recipe and recommended order are in the LATER — EFFECT PANELS
+  section below.
   Read QUERY BUDGET first: fetch a block's parameters when its panel OPENS,
   not on every nav.
 
@@ -1165,7 +792,7 @@ QUERY BUDGET — READ THIS BEFORE ADDING BLOCK PANELS
 
 LATER — EFFECT PANELS FOR REMAINING EIGHT SLOTS
 -------------------------------------------------------------------
-  The DIST panel (Phase 9, 7/21/2026) established the full pattern. Eight
+  The DIST panel established the full pattern. Eight
   non-amp slots remain: WAH, MOD, FX1, FX2, REVERB, DELAY, LOOP, VOLUME.
 
   WHAT IS ALREADY DONE:
