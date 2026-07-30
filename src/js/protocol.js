@@ -1483,10 +1483,17 @@ VOL_MODELS.forEach(function(m) {
 // wasn't in this table at all, so the panel fell through to "Unknown
 // model"). `mid` is the PRIMARY/send value (mono, matching the REVERB/VOL
 // convention); `mids` lists every variant so FX1_MODEL_BY_MID resolves
-// either one back to this entry. The other 9 stub models below almost
-// certainly have their own mono/stereo pairs too — only recorded whichever
-// one showed up in each capture — but since they're captured:false anyway
-// this doesn't block anything; revisit when each is actually captured.
+// either one back to this entry.
+// PER CHARLIE (2026-07-30): of the 9 stub models below, all are "stereo by
+// nature" EXCEPT Gray Compressor, which is mono-only — so C1 needing a
+// dual mid is likely the exception here, not the rule. Still test each one
+// for a mono/stereo mismatch when it's actually captured (don't assume),
+// but don't expect to spend much time on it.
+// FX2 (SLOT_FX2) HOSTS THE SAME MODEL FAMILY AS FX1 — per Charlie, whatever
+// gets captured here is expected to apply directly to FX2 too (same mids,
+// same paramLos), so an FX2 panel build should reuse FX1_MODELS rather than
+// re-capturing from scratch. Some models here may ALSO turn up in MOD's
+// roster — check for overlap before capturing a MOD model fresh.
 const FX1_MODELS = [
   { mid: 0x01, mids: [0x01, 0x03], name: 'C1 Chorus/Vibrato', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
