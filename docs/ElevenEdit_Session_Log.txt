@@ -40,6 +40,47 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
+STATUS:      provisional — fixed for FX1 only, NOT TESTED LIVE yet;
+             confirmed still present (unfixed) in DIST/REVERB/WAH/VOL
+AREA:        THE "9.9 BUG" — endpoint sentinels missing from fx-transport.js
+FINDING:     Charlie's live FX1 test: Chorus and Rate knobs visibly reach 10
+             on screen but immediately settle back to 9.9 on hardware
+             readback; Depth stays at 10 on screen but hardware never passes
+             9.9. Named "the 9.9 bug" per Charlie's request — this is a
+             RECURRENCE, not a new bug: it's the exact defect already fixed
+             once for the amp Tremolo Speed knob (Tech Ref, "ENDPOINT
+             SENTINELS ON WRITES", 7/23/2026) — a CMD 0x11 value is five
+             7-bit bytes, not one, and sending v0 with a 00 00 00 00 tail
+             asks for the literal BOTTOM of that value's step. Byte-
+             quantised controls can't tell the difference; anything with
+             real sub-step precision reports back one tick low. The 7/23 fix
+             (special-case true endpoints with sentinel tail bytes: max ->
+             3F 7F 7F 7F 0F, min -> 40 00 00 00 00, else v0 00 00 00 00) only
+             ever went into transport.js's amp-knob sendParamWrite. It was
+             NEVER ported to the per-effect-panel send functions in
+             fx-transport.js — so sendDistParamWrite, sendReverbParamWrite,
+             sendWahParamWrite, and sendVolParamWrite (and, until this
+             entry, sendFx1ParamWrite, copied from that same unfixed
+             pattern) all still send a flat zero tail and are exposed to the
+             same bug on any of their knobs that have real precision.
+             FIXED for sendFx1ParamWrite only (fx-transport.js) — same
+             endpoint-sentinel logic as transport.js, inline comment names
+             it "THE 9.9 BUG" so it's grep-able next time. DIST/REVERB/WAH/
+             VOL's send functions are UNCHANGED — same latent bug, left
+             alone per this session's FX1-only scope; worth a dedicated pass
+             later since it's the same three-line fix copied four more
+             times.
+EVIDENCE:    Charlie's live hardware test, 2026-07-30 — Chorus/Rate/Depth
+             knobs on the FX1 C1 Chorus/Vibrato panel.
+CONFLICTS:   none.
+NEXT:        Charlie rebuilds and retests FX1 — Chorus/Rate/Depth should now
+             hold 10.0 on hardware, not settle at 9.9. If confirmed, this
+             note plus the Tech Ref's existing 7/23 entry are the two places
+             "9.9 bug" will turn up on a search. Separately: DIST/REVERB/
+             WAH/VOL likely have the same bug on any knob a user pushes to
+             its endpoint — flag to Charlie as a follow-up, not fixed here.
+-------------------------------------------------------------------
+DATE:        2026-07-30
 STATUS:      confirmed (anchored on live hardware log, not re-derived
              from the ambiguous capture)
 AREA:        FX1 Block 1 — mid table off-by-one, now corrected

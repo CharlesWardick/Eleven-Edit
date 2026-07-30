@@ -292,14 +292,29 @@ function requestFx1Params() {
 }
 
 // Write one FX1 control value to hardware — same 5-byte value payload as DIST.
+// ── THE "9.9 BUG" — endpoint sentinels on writes (same fix as the amp
+// Tremolo Speed knob, transport.js sendParamWrite, 7/23/2026). A CMD 0x11
+// value is five 7-bit bytes, not one: v1..v4 are the LOW-ORDER bits of the
+// same quantity. Sending v0 with 00 00 00 00 asks for the BOTTOM of that
+// step — fine for byte-quantised controls, but anything with real sub-step
+// precision (Speed there; Chorus/Rate/Depth here, confirmed live by Charlie
+// 2026-07-30 — dial to 10, HW settles at 9.9) reports back one tick low.
+// Fix: special-case the true endpoints with sentinel tail bytes instead of
+// always sending the raw v0 with a zero tail.
 function sendFx1ParamWrite(paramLo, v127) {
   if (!bridgeMidiReady) return false;
   const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
   if (!fx1Blk) { appLog('sendFx1ParamWrite: no FX1 block'); return false; }
-  const v0  = ((v127 + 64) % 128) & 0x7F;
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
   const hex = 'F0 13 0B 0F 00 11 '
     + fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
-    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+    + tail + ' F7';
   return sendPatchWrite(hex);
 }
