@@ -40,6 +40,58 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
+STATUS:      confirmed (matches Charlie's own on-screen readings exactly)
+AREA:        FX1 Block 1 — C1 Chorus/Vibrato, Sync x Chorus/Rate matrix
+FINDING:     Third FX1 capture (Chorus_C1_Sync_Drop_Pick.pcapng): patch load
+             state (all knobs zero), FX1 handle 0x2d this session, dropdown
+             picker used to hit OFF -> 1/1 -> 1/2 dotted -> 1/2 -> 1/2
+             triplet -> 1/4 dotted -> 1/4 -> 1/4 triplet -> 1/8 dotted ->
+             1/8 -> 1/8 triplet -> 1/16 dotted -> 1/16 -> 1/16 triplet in
+             order. Each click fires a paramLo 0x06 (Sync) query/reply pair
+             plus paramLo 0x02 (Chorus) and 0x04 (Rate) broadcasts reflecting
+             the side-effect. Decoded v0 with the standard (v+64)%128 unwrap,
+             /12.7 for the 0-10 display scale — result matches Charlie's own
+             spreadsheet reading exactly (chorus values off by <=0.1, a
+             rounding artifact, everything else exact):
+               Sync zone       Chorus   Rate
+               OFF (load)        0.0    0.0
+               1/1               1.0    0.0
+               1/2 dotted        2.3    0.0
+               1/2               3.5    0.0
+               1/2 triplet       5.3    0.0
+               1/4 dotted        4.6    0.0
+               1/4               7.2    0.0
+               1/4 triplet      10.0    0.0
+               1/8 dotted       10.0    0.0
+               1/8              10.0    2.3
+               1/8 triplet      10.0    6.1
+               1/16 dotted      10.0    4.8
+               1/16             10.0    8.1
+               1/16 triplet     10.0    6.1
+             BONUS FIND: Sync's OWN paramLo 0x06 value (decoded the same way)
+             steps 9,19,29,39,49,59,68,78,88,98,108,118,127 across these same
+             13 zones — a ~9-10-wide ladder across 0-127, i.e. the EXACT same
+             14-zone quantization (OFF + 13 divisions) already implemented for
+             the amp Tremolo Sync (paramLo 0x12, SYNC_DIVISIONS /
+             syncIndexFromV127 / syncV127FromIndex in protocol.js). No new
+             Sync-zone matrix needed — reuse those functions verbatim for
+             this control, just at paramLo 0x06 instead of 0x12. Only the
+             Chorus/Rate side-effect table above is model-specific and had to
+             be captured.
+EVIDENCE:    sync_out.txt (local scratch dump) frames 0-102; one query/reply
+             pair per zone at paramLo 0x06, single broadcasts at 0x02/0x04
+             immediately following each pair.
+CONFLICTS:   none.
+NEXT:        C1 Chorus/Vibrato's full paramLo map is now closed: 0x02 Chorus,
+             0x03 Depth, 0x04 Rate, 0x05 Toggle (Vibrato=3f7f7f7f, Chorus=
+             40000000), 0x06 Sync (reuses SYNC_DIVISIONS/syncIndexFromV127).
+             Only gap left before this model is fully wired: Depth's own
+             interaction (if any) with Sync/Chorus/Rate was never swept —
+             none observed so far, treated as independent unless a later
+             capture shows otherwise. Ready to move to the next FX1 model
+             (Dyn3 Compressor) per Charlie's model-by-model plan.
+-------------------------------------------------------------------
+DATE:        2026-07-30
 STATUS:      provisional
 AREA:        FX1 Block 1 — C1 Chorus/Vibrato model, paramLo map
 FINDING:     Second FX1 capture (C1_Chorus_Vibrator_Capture.pcapng), same
