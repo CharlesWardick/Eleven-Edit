@@ -41,6 +41,54 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-30
 STATUS:      provisional
+AREA:        FX1 Block 1 — C1 Chorus/Vibrato model, paramLo map
+FINDING:     Second FX1 capture (C1_Chorus_Vibrator_Capture.pcapng), same
+             handle 0x60 confirmed for FX1 (matches the last handle seen for
+             FX1 in the dropdown capture). Charlie's described action order —
+             Chorus knob sweep, Rate knob sweep, Depth knob sweep, toggle x4
+             (Vibrato/Chorus/Vibrato/Chorus), Sync dropdown OFF->first
+             choice->last choice — lines up cleanly against contiguous
+             paramLo segments in the capture, in this order:
+               paramLo 0x02  Chorus knob   (958 msgs, full 0-10-0 sweep)
+               paramLo 0x04  Rate knob     (108 msgs, full 0-10-0 sweep)
+               paramLo 0x03  Depth knob    (76 msgs, full 0-10-0 sweep)
+               paramLo 0x05  Toggle        (8 msgs = exactly 4 query/reply
+                                            pairs, matching the 4 toggle
+                                            clicks 1:1)
+               paramLo 0x06  Sync selector (remaining messages)
+             TOGGLE VALUES CONFIRMED BY ORDER: click sequence was Vibrato,
+             Chorus, Vibrato, Chorus from a Chorus-loaded start, and the
+             paramLo 0x05 payload alternates exactly on that schedule:
+               Vibrato = 3f 7f 7f 7f      Chorus  = 40 00 00 00
+             SYNC CONFIRMS THE CROSS-TALK Charlie called out in advance:
+             the one Sync change captured (OFF -> first choice) also fired
+             fresh paramLo 0x02 (Chorus) and paramLo 0x04 (Rate) broadcasts
+             in the same burst (frames 2304/2306/2312/2314), i.e. engaging
+             Sync visibly rewrites the Chorus/Rate values, not just its own.
+EVIDENCE:    c1_out.txt (local scratch dump, not committed) — segment
+             boundaries at pcap-derived frame indices 0, 1916, 2132, 2284,
+             2300; toggle burst 2284-2298; Sync burst 2300-2314 (capture
+             ends at 2314).
+CONFLICTS:   none — no FX1/MOD paramLo table exists yet to conflict with.
+NEXT:        Two gaps, both flagged rather than guessed at:
+             (1) Sync's own encoding is NOT the plain 0-13 zone index used by
+             the amp Tremolo Sync (paramLo 0x12 elsewhere) — it carries the
+             same 4-byte float-style payload as the continuous knobs (e.g.
+             "49 6c 27 31" for OFF, "3f 7f 7f 7f" for the first choice), so
+             the zone->value mapping for this control's dropdown entries
+             still needs the matrix Charlie already anticipated needing.
+             (2) the capture ends right after landing on Sync's FIRST choice
+             — no second Sync change (to the LAST choice, as described) shows
+             up in the data, so that part of the intended sweep is not
+             actually captured. Need either a rerun that continues through
+             the last Sync choice, or confirmation the capture was cut short
+             on purpose.
+             Not blocking: paramLo 0x02/0x03/0x04/0x05 assignments (Chorus,
+             Depth, Rate, Toggle) are solid and enough to start the MOD-style
+             panel pattern for this model; only the Sync zone table is open.
+-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      provisional
 AREA:        FX1 Block 1 — model dropdown capture, CMD 0x21 mid values
 FINDING:     First FX1 capture (FX1_Dropdown_Capture.pcapng): patch had C1
              Chorus Vibrato loaded in FX1; Charlie stepped the FX1 model
