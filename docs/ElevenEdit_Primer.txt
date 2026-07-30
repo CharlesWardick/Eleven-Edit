@@ -684,6 +684,19 @@ HARDWARE SAFETY
   Factory reset (loses all patches): hold FX Loop + Mod + Reverb at power on,
     wait for the logo with no scroll bar, power off, then power on normally.
   After a firmware assert (MAudioFW...): power-cycle the hardware.
+  KNOB-DRAG RACE COULD SEND A MALFORMED BYTE AND HANG THE RACK (found
+    2026-07-30, fixed same day — Session Log has full detail). Every effect
+    panel's knob drag (DIST/REVERB/WAH/VOL/FX1) queued its hardware write
+    through a closure over the drag's SHARED paramLo variable rather than a
+    per-call snapshot; releasing the mouse within the 60ms send-throttle
+    window could fire the queued send AFTER mouseup reset that variable to
+    -1, sending paramLo as raw byte 0xFF — not a legal 7-bit MIDI data byte,
+    and it landed mid-SysEx. Rack went unresponsive to everything (including
+    the Avid Editor), no assert, no brick — recovered by power-cycle, same
+    as any other firmware confusion, NOT the CMD 0x37 brick class. Fixed in
+    all five panels (fx-panels.js, snapshot `var lo = activeParamLo;` before
+    queuing). If a hang recurs after this fix, it is NOT this bug — dig
+    further rather than assuming a recurrence.
 
 
 CREDIT

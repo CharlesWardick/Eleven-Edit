@@ -169,7 +169,15 @@ function refreshDistPanelAfterChainMap() {
     var loHex = activeParamLo.toString(16).padStart(2,'0');
     var vEl = document.getElementById('dist-v-' + loHex);
     if (vEl) vEl.textContent = valDisplay(val);
-    if (bridgeMidiReady) queueKnobSend('dist:' + activeParamLo, function(v) { sendDistParamWrite(activeParamLo, v); }, val);
+    // Snapshot into a local before queuing — the queued send fires up to
+    // KNOB_SEND_INTERVAL later, and if mouseup has already reset the shared
+    // activeParamLo to -1 by then, a closure over activeParamLo directly
+    // sends paramLo=-1 (encodes as byte 0xFF, not a legal 7-bit MIDI data
+    // byte, inside a SysEx message — confirmed to wedge the hardware,
+    // 2026-07-30, FX1 Ratio knob). lo here is a fresh binding per call, so
+    // it can't be touched by a later mouseup.
+    var lo = activeParamLo;
+    if (bridgeMidiReady) queueKnobSend('dist:' + lo, function(v) { sendDistParamWrite(lo, v); }, val);
   });
 
   window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
@@ -386,7 +394,11 @@ function refreshReverbPanelAfterChainMap() {
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }  // released outside the window
     var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
     updateReverbKnob(activeParamLo, val);
-    if (bridgeMidiReady) queueKnobSend('reverb:' + activeParamLo, function(v) { sendReverbParamWrite(activeParamLo, v); }, val);
+    // Snapshot before queuing — see the DIST handler above for why (a
+    // closure over the shared activeParamLo can fire after mouseup resets
+    // it to -1, sending a malformed paramLo byte).
+    var lo = activeParamLo;
+    if (bridgeMidiReady) queueKnobSend('reverb:' + lo, function(v) { sendReverbParamWrite(lo, v); }, val);
   });
 
   window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
@@ -519,7 +531,9 @@ function refreshWahPanelAfterChainMap() {
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
     var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
     updateWahKnob(activeParamLo, val);
-    if (bridgeMidiReady) queueKnobSend('wah:' + activeParamLo, function(v) { sendWahParamWrite(activeParamLo, v); }, val);
+    // Snapshot before queuing — see the DIST handler above for why.
+    var lo = activeParamLo;
+    if (bridgeMidiReady) queueKnobSend('wah:' + lo, function(v) { sendWahParamWrite(lo, v); }, val);
   });
 
   window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
@@ -695,7 +709,9 @@ function refreshVolPanelAfterChainMap() {
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
     var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
     updateVolKnob(activeParamLo, val);
-    if (bridgeMidiReady) queueKnobSend('vol:' + activeParamLo, function(v) { sendVolParamWrite(activeParamLo, v); }, val);
+    // Snapshot before queuing — see the DIST handler above for why.
+    var lo = activeParamLo;
+    if (bridgeMidiReady) queueKnobSend('vol:' + lo, function(v) { sendVolParamWrite(lo, v); }, val);
   });
 
   window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
@@ -940,7 +956,11 @@ function refreshFx1PanelAfterChainMap() {
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
     var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
     updateFx1Knob(activeParamLo, val);
-    if (bridgeMidiReady) queueKnobSend('fx1:' + activeParamLo, function(v) { sendFx1ParamWrite(activeParamLo, v); }, val);
+    // Snapshot before queuing — see the DIST handler above for why. This is
+    // the exact bug that produced paramLo=-1 (byte 0xFF, an illegal SysEx
+    // data byte) mid-message and wedged the hardware, 2026-07-30, FX1 Ratio.
+    var lo = activeParamLo;
+    if (bridgeMidiReady) queueKnobSend('fx1:' + lo, function(v) { sendFx1ParamWrite(lo, v); }, val);
   });
 
   window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });

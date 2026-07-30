@@ -40,6 +40,72 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
+STATUS:      confirmed root cause, fixed in DIST/REVERB/WAH/VOL/FX1, NOT
+             TESTED LIVE yet — Charlie's rack was hung/deadlocked when this
+             was found, not asserted (no factory reset needed; per Tech Ref
+             this class of firmware confusion has recovered before with a
+             nav-away-and-back / power cycle, unlike the CMD 0x37 brick)
+AREA:        DRAG-QUEUE RACE — malformed paramLo=-1 send wedged the hardware
+FINDING:     Charlie sent the app's own session log after a hang working the
+             Dyn3 Ratio knob (rapid dragging/wheeling). Rack stopped
+             responding to everything, including the Avid editor (which
+             could still probe/connect but got no data back either) — so
+             this is hardware-side confusion, not an app-side hang. Found
+             the exact trigger by grepping the log for anything with a
+             negative or out-of-range paramLo byte:
+               [12:11:51] RX: {"cmd":"send","hex":"F0 13 0B 0F 00 11 0F -1 63 00 00 00 00 F7"}
+               MIDI OUT: F0 13 0B 0F 00 11 0F FF 63 00 00 00 00 F7
+             paramLo arrived as the JS number -1, which (-1).toString(16) do
+             encode as the literal text "-1" (not a hex pair) — the bridge
+             sent it as raw byte 0xFF. 0xFF is not a legal 7-bit MIDI data
+             byte (bit 7 set) — it is literally the MIDI System Reset
+             status byte, landing mid-SysEx. The very next hardware reply
+             came back one byte short (13b instead of the expected 14b,
+             missing byte), so the rack's OWN parser visibly got confused by
+             it too — strong corroboration this exact byte is the trigger,
+             not a coincidence. Traffic continued for several more seconds
+             after that one bad send, then went silent for good ~12 seconds
+             before Charlie force-quit — consistent with a single bad byte
+             putting the SysEx parser in a bad state that didn't fully
+             surface until more traffic followed.
+             ROOT CAUSE — a closure-timing race, present in EVERY effect
+             panel's knob-drag handler (DIST, REVERB, WAH, VOL, and the FX1
+             just built off the same template), NOT present in the ORIGINAL
+             amp tone-knob drag (ui.js), which is why this took this long to
+             surface: queueKnobSend throttles a knob's hardware write by up
+             to 60ms (KNOB_SEND_INTERVAL) via setTimeout. The DIST-pattern
+             drag handlers passed a closure like
+               function(v) { sendDistParamWrite(activeParamLo, v); }
+             where activeParamLo is the panel's SHARED mutable drag-state
+             variable — read at SEND TIME (when the 60ms timer fires), not
+             at the moment the closure was created. mouseup resets that same
+             variable to -1 immediately on release. So: drag a knob, release
+             the mouse within 60ms of the last drag tick, and the queued
+             send fires AFTER mouseup already zeroed activeParamLo to -1 —
+             sending garbage. The ORIGINAL amp tone-knob handler never had
+             this bug because it captures a fresh `const lo = knobs[idx].lo`
+             INSIDE the mousemove call before building the closure, so each
+             queued send owns its own copy, immune to a later mouseup.
+             FIX — same shape in all five: snapshot the shared var into a
+             local (`var lo = activeParamLo;`) immediately before the
+             queueKnobSend call, and close over that local, not the shared
+             one. One line per handler, fx-panels.js: DIST (line ~172),
+             REVERB (~397), WAH (~534), VOL (~712), FX1 (~943).
+EVIDENCE:    Charlie's app log, session20260730120800.log, line ~5589 (the
+             malformed send) and the short/garbled reply immediately after.
+CONFLICTS:   none — this bug predates today's FX1 work (DIST/REVERB/WAH/VOL
+             have had it since they were built) but was never triggered
+             visibly before; it just happened to surface during fast Ratio
+             knob dragging today.
+NEXT:        Charlie power-cycle the rack (per Tech Ref: after a firmware
+             assert/confusion, power-cycle recovers it — this is NOT the
+             CMD 0x37 brick class, no factory reset needed) and rebuild with
+             this fix before resuming any FX1 work. If a hang recurs after
+             this fix, the closure race is NOT the whole story and needs
+             more digging — but this is a clean, reproducible, well-
+             corroborated root cause, not a guess.
+-------------------------------------------------------------------
+DATE:        2026-07-30
 STATUS:      confirmed
 AREA:        FX1 Block 1 — Dyn3 Compressor Ratio curve
 FINDING:     Follow-up capture (Dyn3_Comp_Ratio_Knob_Capture.pcapng):
