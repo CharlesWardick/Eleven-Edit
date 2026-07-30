@@ -710,3 +710,248 @@ function refreshVolPanelAfterChainMap() {
     if (bridgeMidiReady) queueKnobSend('vol:' + paramLo, function(v) { sendVolParamWrite(paramLo, v); }, 64);
   });
 })();
+
+// ════════════════════════════════════════════════════════════════════
+// FX1 EFFECT PANEL
+// FX1 is a GENERIC HOST SLOT — the model dropdown lists every mid seen in
+// the hardware's own FX1 dropdown (Session Log 2026-07-30), but only
+// models with captured===true (see FX1_MODELS, protocol.js) have real
+// paramLos/rows; the rest render a "not yet captured" placeholder instead
+// of knobs. Otherwise a mirror of the DIST panel, plus two cell kinds
+// DIST doesn't need:
+//   - toggle cell (cell.toggle)  — copied from the VOL Taper pattern
+//   - sync cell   (cell.sync)    — a dropdown reusing SYNC_DIVISIONS /
+//     syncIndexFromV127 / syncV127FromIndex (protocol.js), the SAME
+//     14-zone table the amp Tremolo Sync uses, just at this model's own
+//     paramLo instead of 0x12 and against the FX1 block's own handle
+//     instead of currentParamHi.
+// Knob IDs: fx1-w-{loHex} / fx1-v-{loHex}, keyed by paramLo.
+// ════════════════════════════════════════════════════════════════════
+
+function currentFx1Model() {
+  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
+  if (!fx1Blk) return null;
+  return FX1_MODEL_BY_MID[fx1Blk.modelId] || null;
+}
+
+function openFx1Panel() {
+  fx1PanelOpen = true;
+  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
+  if (!fx1Blk) {
+    document.getElementById('fx1-knob-row').innerHTML =
+      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
+    appLog('openFx1Panel: no FX1 block in chain map yet');
+    return;
+  }
+  const sel = document.getElementById('fx1-model-select');
+  if (sel) sel.value = String(fx1Blk.modelId);
+  renderFx1Knobs(fx1Blk.modelId);
+  requestFx1Params();
+  appLog('openFx1Panel: mid=0x' + fx1Blk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+function closeFx1Panel() {
+  fx1PanelOpen = false;
+}
+
+// Build the control row for the given model mid. Uncaptured models (see
+// protocol.js FX1_MODELS) show a placeholder instead of knobs — there is
+// nothing to render yet, not a bug.
+function renderFx1Knobs(mid) {
+  const container = document.getElementById('fx1-knob-row');
+  if (!container) return;
+  const model = FX1_MODEL_BY_MID[mid];
+  if (!model) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
+    return;
+  }
+  if (!model.captured) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">'
+      + model.name + ' — paramLo layout not yet captured.</div>';
+    return;
+  }
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
+    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+
+  model.rows.forEach(function(rowCells) {
+    const rowDiv = document.createElement('div');
+    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+
+    rowCells.forEach(function(cell) {
+      if (!cell) {
+        const sp = document.createElement('div');
+        sp.style.cssText = 'width:80px;flex-shrink:0;';
+        rowDiv.appendChild(sp);
+      } else if (cell.sync) {
+        // Sync selector — dropdown only, no knob (matches the amp Tremolo
+        // Sync control, not the REVERB Type knob+dropdown composite).
+        const loHex = cell.lo.toString(16).padStart(2,'0');
+        const syDiv = document.createElement('div');
+        syDiv.className = 'ctrl-knob';
+        syDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+        const lbl = document.createElement('label');
+        lbl.textContent = cell.label;
+        const sel = document.createElement('select');
+        sel.id = 'fx1-sync-' + loHex;
+        sel.dataset.fx1Lo = loHex;
+        sel.style.cssText = 'width:118px;background:#1a1a1a;color:var(--text);'
+          + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
+        SYNC_DIVISIONS.forEach(function(d, i) {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          opt.textContent = (i === 0) ? 'OFF' : (d.glyph + '   ' + d.text);
+          sel.appendChild(opt);
+        });
+        sel.addEventListener('change', function() {
+          const idx = parseInt(this.value, 10);
+          if (isNaN(idx)) return;
+          const v127 = syncV127FromIndex(idx);
+          updateFx1Knob(cell.lo, v127);
+          if (bridgeMidiReady) sendFx1ParamWrite(cell.lo, v127);
+        });
+        syDiv.appendChild(lbl);
+        syDiv.appendChild(sel);
+        rowDiv.appendChild(syDiv);
+      } else if (cell.toggle) {
+        // Binary toggle cell — same shape as VOL's Taper toggle.
+        // val=0 -> options[0], val!=0 -> options[1].
+        const loHex = cell.lo.toString(16).padStart(2,'0');
+        const tglDiv = document.createElement('div');
+        tglDiv.className = 'ctrl-knob';
+        tglDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+        const lbl = document.createElement('label');
+        lbl.textContent = cell.label;
+        const btn = document.createElement('button');
+        btn.id = 'fx1-tgl-' + loHex;
+        btn.dataset.value = '0';
+        btn.dataset.base = 'fx';
+        btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
+          + 'border:1px solid #666;border-radius:4px;color:var(--fg);cursor:pointer;font-size:12px;';
+        btn.textContent = cell.options[0];
+        btn.addEventListener('mouseover', function() { this.style.borderColor = '#aaa'; });
+        btn.addEventListener('mouseout',  function() { this.style.borderColor = '#666'; });
+        btn.addEventListener('click', function() {
+          const cur = parseInt(btn.dataset.value) || 0;
+          const newVal = (cur === 0) ? 127 : 0;
+          updateFx1Knob(cell.lo, newVal);
+          if (bridgeMidiReady) sendFx1ParamWrite(cell.lo, newVal);
+        });
+        tglDiv.appendChild(lbl);
+        tglDiv.appendChild(btn);
+        rowDiv.appendChild(tglDiv);
+      } else {
+        const loHex = cell.lo.toString(16).padStart(2,'0');
+        const knobDiv = document.createElement('div');
+        knobDiv.className = 'ctrl-knob';
+        knobDiv.innerHTML =
+          '<label>' + cell.label + '</label>'
+          + '<div class="knob-wrap" id="fx1-w-' + loHex + '" data-value="64" data-base="fx" data-fx1-lo="' + loHex + '">'
+          + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
+          + '<span class="knob-val" id="fx1-v-' + loHex + '">--</span>';
+        rowDiv.appendChild(knobDiv);
+        drawKnob(knobDiv.querySelector('canvas'), 64);
+      }
+    });
+
+    wrapper.appendChild(rowDiv);
+  });
+
+  container.appendChild(wrapper);
+}
+
+// Update a single FX1 control from a broadcast/REQU response or a local
+// dropdown/toggle pick. Looks up cell kind (knob/toggle/sync) against the
+// current model so the right widget gets updated.
+function updateFx1Knob(paramLo, val) {
+  const loHex = paramLo.toString(16).padStart(2,'0');
+  const model = currentFx1Model();
+  let cell = null;
+  if (model) {
+    model.rows.forEach(function(row) {
+      row.forEach(function(c) { if (c && c.lo === paramLo) cell = c; });
+    });
+  }
+
+  if (cell && cell.sync) {
+    const idx = syncIndexFromV127(val);
+    const sel = document.getElementById('fx1-sync-' + loHex);
+    if (sel) sel.value = String(idx);
+    return;
+  }
+  if (cell && cell.toggle) {
+    const btn = document.getElementById('fx1-tgl-' + loHex);
+    if (btn) {
+      btn.dataset.orig  = fxBaselineSetIfUnset(SLOT_FX1, loHex, val);
+      btn.dataset.value = val;
+      btn.textContent   = (val === 0) ? cell.options[0] : cell.options[1];
+    }
+    return;
+  }
+
+  const wrap  = document.getElementById('fx1-w-' + loHex);
+  const valEl = document.getElementById('fx1-v-' + loHex);
+  if (wrap) {
+    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_FX1, loHex, val);
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) valEl.textContent = valDisplay(val);
+}
+
+// Re-sync dropdown + controls after a chain map (model may have changed on
+// patch nav or via our own model switch), then re-query params.
+function refreshFx1PanelAfterChainMap() {
+  if (!fx1PanelOpen) return;
+  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
+  if (!fx1Blk) return;
+  const sel = document.getElementById('fx1-model-select');
+  if (sel && parseInt(sel.value) !== fx1Blk.modelId) {
+    sel.value = String(fx1Blk.modelId);
+    renderFx1Knobs(fx1Blk.modelId);
+    clearFxBaselineForSlot(SLOT_FX1);
+  }
+  setTimeout(requestFx1Params, 150);
+  appLog('refreshFx1PanelAfterChainMap: mid=0x' + fx1Blk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+// ── FX1 knob drag — delegated, keyed on data-fx1-lo (hex paramLo) ──
+(function() {
+  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+
+  document.addEventListener('mousedown', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-fx1-lo]');
+    if (!wrap) return;
+    activeParamLo = parseInt(wrap.dataset.fx1Lo, 16);
+    if (isNaN(activeParamLo)) return;
+    activeWrap = wrap;
+    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    startY = e.clientY;
+    dragging = true;
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging || !activeWrap) return;
+    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
+    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    updateFx1Knob(activeParamLo, val);
+    if (bridgeMidiReady) queueKnobSend('fx1:' + activeParamLo, function(v) { sendFx1ParamWrite(activeParamLo, v); }, val);
+  });
+
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+
+  document.addEventListener('dblclick', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-fx1-lo]');
+    if (!wrap) return;
+    var paramLo = parseInt(wrap.dataset.fx1Lo, 16);
+    if (isNaN(paramLo)) return;
+    updateFx1Knob(paramLo, 64);
+    if (bridgeMidiReady) queueKnobSend('fx1:' + paramLo, function(v) { sendFx1ParamWrite(paramLo, v); }, 64);
+  });
+})();

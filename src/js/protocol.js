@@ -1438,3 +1438,51 @@ const VOL_MODEL_BY_MID = {};
 VOL_MODELS.forEach(function(m) {
   m.mids.forEach(function(mid) { VOL_MODEL_BY_MID[mid] = m; });
 });
+
+// ════════════════════════════════════════════════════════════════════
+// FX1 MODELS — FX1 is a GENERIC HOST SLOT (Tech Ref chain-map section):
+// it can carry models from several other effect families, identified only
+// by slot ID (0x08), never by mid range. FX2 (slot 0x09) hosts the same
+// model set. The 10 mids below are confirmed via the dropdown capture
+// (2026-07-30, FX1_Dropdown_Capture.pcapng) — only the paramLo layout is
+// still being captured model by model (Session Log), so most entries here
+// are STUBS (name/mid only, captured:false) until their own capture lands.
+//
+// C1 CHORUS/VIBRATO (mid 0x01) — fully captured 2026-07-30 (three captures:
+// paramLo ID, toggle values, full Sync x Chorus/Rate matrix — Session Log).
+//   paramLo 0x02 Chorus · 0x03 Depth (independent wet/dry mix, not linked to
+//   Sync in testing) · 0x04 Rate · 0x05 Toggle (Chorus/Vibrato) · 0x06 Sync.
+// TOGGLE (paramLo 0x05): v0 0x40 -> val 0 -> Chorus; v0 0x3F -> val 127 ->
+//   Vibrato. Same two-state shape as VOL's Taper toggle.
+// SYNC (paramLo 0x06): confirmed to reuse the SAME 14-zone quantization as
+//   the amp Tremolo Sync (paramLo 0x12) — OFF + 13 divisions across 0-127,
+//   see SYNC_DIVISIONS / syncIndexFromV127 / syncV127FromIndex below. No
+//   separate zone table needed for this model. Engaging Sync overwrites
+//   the live Chorus AND Rate values (confirmed matrix, Session Log
+//   2026-07-30) — this is expected hardware behaviour, not a bug, and the
+//   panel just displays whatever the hardware broadcasts back.
+// Encoding: standard (v127+64)%128, same as every other knob.
+// ════════════════════════════════════════════════════════════════════
+const FX1_MODELS = [
+  { mid: 0x01, name: 'C1 Chorus/Vibrato', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
+    rows: [
+      [ {label:'Chorus', lo:0x02},
+        {label:'Rate',   lo:0x04},
+        {label:'Depth',  lo:0x03},
+        {label:'Sync',   lo:0x06, sync:true},
+        {label:'Mode',   lo:0x05, toggle:true, options:['Chorus','Vibrato']} ]
+    ]
+  },
+  { mid: 0x03, name: 'Dyn3 Compressor',  captured: false, paramLos: [], rows: [] },
+  { mid: 0x16, name: 'Flanger',          captured: false, paramLos: [], rows: [] },
+  { mid: 0x08, name: 'Graphic EQ',       captured: false, paramLos: [], rows: [] },
+  { mid: 0x11, name: 'Gray Compressor',  captured: false, paramLos: [], rows: [] },
+  { mid: 0x14, name: 'MultiChorus',      captured: false, paramLos: [], rows: [] },
+  { mid: 0x06, name: 'Orange Phaser',    captured: false, paramLos: [], rows: [] },
+  { mid: 0x0C, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },
+  { mid: 0x13, name: 'Roto Speaker',     captured: false, paramLos: [], rows: [] },
+  { mid: 0x0F, name: 'Vibe Phaser',      captured: false, paramLos: [], rows: [] },
+];
+const FX1_MODEL_BY_MID = {};
+FX1_MODELS.forEach(function(m) { FX1_MODEL_BY_MID[m.mid] = m; });

@@ -40,6 +40,60 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
+STATUS:      provisional — NOT TESTED LIVE (built this session, no hardware
+             test yet; per Primer's states this is the only honest label
+             until Charlie runs it against the real rack)
+AREA:        FX1 Block 1 — panel built for C1 Chorus/Vibrato
+FINDING:     Built the FX1 effect panel following the DIST/REVERB/WAH/VOL
+             pattern exactly (six-file shape from the Primer's LATER —
+             EFFECT PANELS recipe): FX1_MODELS/FX1_MODEL_BY_MID in
+             protocol.js, fx1PanelOpen in state.js, sendFx1ModelChange/
+             requestFx1Params/sendFx1ParamWrite in fx-transport.js, an FX1
+             CMD 0x11 routing block + refreshFx1PanelAfterChainMap call in
+             sysex-handler.js, the full FX1 panel section (open/close/
+             render/update/refresh/drag) in fx-panels.js, and the panel div
+             + model dropdown + chain-open routing in index.html.
+             Model dropdown lists all 10 mids confirmed in the 2026-07-30
+             dropdown capture (Session Log above), but only C1 Chorus/
+             Vibrato (mid 0x01) has captured:true / real paramLos — the
+             other 9 are stubs (captured:false, empty rows) that render a
+             "not yet captured" placeholder instead of knobs if selected,
+             so switching to one doesn't crash or show fake controls.
+             TWO NEW CELL KINDS beyond the DIST pattern, both needed for
+             this model and reusable for the next ones:
+               - toggle cell (Chorus/Vibrato) — literally the same shape as
+                 VOL's Taper toggle (val=0/val!=0 -> options[0]/[1]).
+               - sync cell — a plain dropdown (not REVERB's knob+dropdown
+                 Type composite) that reuses SYNC_DIVISIONS /
+                 syncIndexFromV127 / syncV127FromIndex from protocol.js
+                 (the same 14-zone table as the amp Tremolo Sync), wired to
+                 this block's own paramLo (0x06) and its own runtime handle
+                 instead of currentParamHi.
+             GREEN/RED KNOB STATE — confirmed this is automatic and needed
+             no new code: drawKnob() already keys off data-base="fx" (green
+             baseline) vs amber, and dataset.orig vs dataset.value (red on
+             divergence) — the same mechanism DIST/REVERB/WAH/VOL already
+             use. Only the three real knobs (Chorus/Rate/Depth) get this;
+             the toggle and sync dropdown do not change colour, matching
+             VOL's Taper toggle (also uncoloured) — pre-existing pattern,
+             not a gap introduced here.
+             Also extended rebaselineOpenFxPanel() (ui.js) to cover FX1 —
+             it previously only handled DIST/REVERB, which was already a
+             pre-existing gap for WAH/VOL too; left WAH/VOL as they were
+             (out of scope) but added FX1 since it's needed for FX1's own
+             save-then-green behaviour to work correctly.
+EVIDENCE:    n/a — code build, not a capture. See git diff on this commit.
+CONFLICTS:   none.
+NEXT:        Charlie builds the EXE and tests live: open FX1 (C1 Chorus/
+             Vibrato loaded), confirm Chorus/Rate/Depth knobs read back and
+             drag correctly, confirm the Mode toggle flips Chorus/Vibrato,
+             confirm the Sync dropdown shows the right zone and that
+             picking a zone updates Chorus/Rate on screen the way the
+             capture showed. Once confirmed, this entry folds into the
+             Primer's WORKING list and CODE FILE MAP. Next model per
+             Charlie's plan: Dyn3 Compressor (mid 0x03) capture.
+-------------------------------------------------------------------
+DATE:        2026-07-30
 STATUS:      confirmed (matches Charlie's own on-screen readings exactly)
 AREA:        FX1 Block 1 — C1 Chorus/Vibrato, Sync x Chorus/Rate matrix
 FINDING:     Third FX1 capture (Chorus_C1_Sync_Drop_Pick.pcapng): patch load

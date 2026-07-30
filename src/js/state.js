@@ -154,6 +154,9 @@ let wahPanelOpen = false;
 // VOL panel open flag — same role as distPanelOpen, for the VOL slot.
 let volPanelOpen = false;
 
+// FX1 panel open flag — same role as distPanelOpen, for the FX1 slot.
+let fx1PanelOpen = false;
+
 // ── Amp Select receipt counter.
 // Incremented every time a CMD 0x11 paramLo 0x0F (Amp Select) reply is
 // processed. The post-nav pull waits for this to advance before building the

@@ -179,9 +179,10 @@ function rebaselineOpenFxPanel() {
   var slotId = -1, sel = '';
   if (typeof distPanelOpen !== 'undefined' && distPanelOpen)        { slotId = SLOT_DIST;   sel = '#dist-knob-row .knob-wrap'; }
   else if (typeof reverbPanelOpen !== 'undefined' && reverbPanelOpen){ slotId = SLOT_REVERB; sel = '#reverb-knob-row .knob-wrap'; }
+  else if (typeof fx1PanelOpen !== 'undefined' && fx1PanelOpen)     { slotId = SLOT_FX1;    sel = '#fx1-knob-row .knob-wrap'; }
   if (slotId < 0) return;
   document.querySelectorAll(sel).forEach(function(w) {
-    var loHex = w.dataset.distLo || w.dataset.reverbLo;
+    var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fx1Lo;
     if (loHex === undefined || w.dataset.value === undefined || w.dataset.value === '') return;
     var v = parseInt(w.dataset.value);
     if (!fxBaseline[slotId]) fxBaseline[slotId] = {};

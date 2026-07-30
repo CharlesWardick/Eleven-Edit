@@ -245,3 +245,61 @@ function sendVolParamWrite(paramLo, v127) {
     + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
   return sendPatchWrite(hex);
 }
+
+// ════════════════════════════════════════════════════════════════════
+// FX1 EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
+// Mirror of the DIST panel functions, targeting SLOT_FX1. FX1 is a
+// generic host slot — newMid can be any model from FX1_MODELS, not one
+// family, but the model-change mechanism (rewrite the block's mid,
+// handle=0x00 so firmware reassigns it) is identical.
+// ════════════════════════════════════════════════════════════════════
+function sendFx1ModelChange(newMid) {
+  if (!bridgeMidiReady) { appLog('sendFx1ModelChange: bridge not ready'); return false; }
+  if (!currentChainInput || !currentChain.length) {
+    appLog('sendFx1ModelChange: no chain map yet'); return false;
+  }
+  const b = [0xF0,0x13,0x0B,0x0F,0x00,0x21];
+  b.push(SLOT_INPUT, currentChainInput.modelId, currentChainInput.handle);
+  for (let i = 0; i < 10; i++) {
+    const blk      = currentChain[i];
+    const backLink = (i === 0) ? SLOT_INPUT : currentChain[i-1].slotId;
+    const mid      = (blk.slotId === SLOT_FX1) ? newMid : blk.modelId;
+    const handle   = (blk.slotId === SLOT_FX1) ? 0x00   : blk.handle;
+    b.push(backLink, mid, handle);
+  }
+  b.push(currentChain[9].slotId, 0xF7);
+  const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  appLog('sendFx1ModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
+  return sendPatchWrite(hex);
+}
+
+// Query all knob params for the current FX1 model from hardware.
+function requestFx1Params() {
+  if (!bridgeMidiReady) return;
+  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
+  if (!fx1Blk) { appLog('requestFx1Params: no FX1 block in chain'); return; }
+  const model = FX1_MODEL_BY_MID[fx1Blk.modelId];
+  if (!model || !model.captured) {
+    appLog('requestFx1Params: mid=0x' + fx1Blk.modelId.toString(16).padStart(2,'0')
+      + (model ? ' (' + model.name + ') not yet captured' : ' unknown'));
+    return;
+  }
+  const hh = fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase();
+  model.paramLos.forEach(function(lo) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
+  });
+  appLog('requestFx1Params: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+}
+
+// Write one FX1 control value to hardware — same 5-byte value payload as DIST.
+function sendFx1ParamWrite(paramLo, v127) {
+  if (!bridgeMidiReady) return false;
+  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
+  if (!fx1Blk) { appLog('sendFx1ParamWrite: no FX1 block'); return false; }
+  const v0  = ((v127 + 64) % 128) & 0x7F;
+  const hex = 'F0 13 0B 0F 00 11 '
+    + fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+  return sendPatchWrite(hex);
+}

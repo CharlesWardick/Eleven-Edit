@@ -394,6 +394,7 @@ function handleChainMap(data) {
     if (typeof refreshReverbPanelAfterChainMap === 'function') refreshReverbPanelAfterChainMap();
     if (typeof refreshWahPanelAfterChainMap === 'function') refreshWahPanelAfterChainMap();
     if (typeof refreshVolPanelAfterChainMap === 'function') refreshVolPanelAfterChainMap();
+    if (typeof refreshFx1PanelAfterChainMap === 'function') refreshFx1PanelAfterChainMap();
     // Release the post-nav pull's wait: currentParamHi and currentChain are
     // now valid, so amp-block queries can safely be addressed.
     chainMapRxSeq++;
@@ -648,6 +649,23 @@ function handleParamReadback(data) {
       if (paramLo >= 0x02 && paramLo <= 0x04) {
         if (typeof updateVolKnob === 'function') updateVolKnob(paramLo, val);
         appLog('CMD 0x11 VOL paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+        return;
+      }
+    }
+  }
+
+  // ── FX1 parameter routing — same shape as DIST/REVERB. FX1 is a generic
+  // host slot; the paramLo range routed here is whichever model is
+  // currently loaded (only C1 Chorus/Vibrato, 0x02-0x06, as of 2026-07-30 —
+  // see FX1_MODELS in protocol.js). Uncaptured models simply have an empty
+  // paramLos list, so nothing routes for them yet — no crash, no-op.
+  if (fx1PanelOpen) {
+    const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
+    if (fx1Blk && instId === fx1Blk.handle) {
+      const fx1Model = FX1_MODEL_BY_MID[fx1Blk.modelId];
+      if (fx1Model && fx1Model.paramLos.indexOf(paramLo) !== -1) {
+        if (typeof updateFx1Knob === 'function') updateFx1Knob(paramLo, val);
+        appLog('CMD 0x11 FX1 paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
       }
     }
