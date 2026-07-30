@@ -1484,6 +1484,12 @@ VOL_MODELS.forEach(function(m) {
 // model"). `mid` is the PRIMARY/send value (mono, matching the REVERB/VOL
 // convention); `mids` lists every variant so FX1_MODEL_BY_MID resolves
 // either one back to this entry.
+// A THIRD MID (0x02) is also listed for C1 in Tech Ref Sec 23's CMD 0x20
+// enumeration ("0x01-03 0x031 C1 Chorus/Vibrato") but has never been
+// directly observed as a live chain-block instantiation (unlike 0x01/0x03,
+// both now confirmed live) — included here on the strength of that
+// enumeration alone. Harmless either way: it only affects lookup
+// resolution, never what gets sent.
 // PER CHARLIE (2026-07-30): of the 9 stub models below, all are "stereo by
 // nature" EXCEPT Gray Compressor, which is mono-only — so C1 needing a
 // dual mid is likely the exception here, not the rule. Still test each one
@@ -1495,7 +1501,7 @@ VOL_MODELS.forEach(function(m) {
 // re-capturing from scratch. Some models here may ALSO turn up in MOD's
 // roster — check for overlap before capturing a MOD model fresh.
 const FX1_MODELS = [
-  { mid: 0x01, mids: [0x01, 0x03], name: 'C1 Chorus/Vibrato', captured: true,
+  { mid: 0x01, mids: [0x01, 0x02, 0x03], name: 'C1 Chorus/Vibrato', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
     rows: [
       [ {label:'Chorus', lo:0x02},

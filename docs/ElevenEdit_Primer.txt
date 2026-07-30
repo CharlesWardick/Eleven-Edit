@@ -2,7 +2,10 @@ ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
 Updated: 2026-07-30
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 13 complete (rig tempo clock + chain-strip
+Status: Active development — Phase 14 IN PROGRESS (FX1 effect panel, generic
+host slot — C1 Chorus/Vibrato and Dyn3 Compressor captured and shipped,
+8 of 10 known FX1 models still to go, starting with Flanger);
+Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
 Phase 11 complete (amp tremolo feature set);
 Phase 10 complete (REVERB effect panel); Phase 9 complete (DIST effect panel);
@@ -270,6 +273,42 @@ HOW "TESTED" WORKS HERE — READ BEFORE WRITING ANY STATUS
   session IS the test, or it is NOT TESTED LIVE.
 Build: electron-builder --win --x64 -> EXE.
 
+7/30/2026 — FX1 EFFECT PANEL (new panel, Phase 14, in progress) — FX1 is a
+  GENERIC HOST SLOT (Tech Ref Sec 4/23): it can carry models from several
+  other effect families, identified by slot ID (0x08) not mid range. Built
+  following the DIST/REVERB/WAH/VOL pattern, with two new reusable cell
+  kinds: a binary toggle (same shape as VOL's Taper) and a Sync selector
+  that reuses the amp Tremolo's existing 14-zone table instead of a new
+  one. TWO MODELS CAPTURED AND CONFIRMED so far (of 10 known in this slot's
+  dropdown — the rest are stub entries with no controls yet):
+    C1 CHORUS/VIBRATO — Chorus/Rate/Depth knobs, Mode toggle (Chorus/
+    Vibrato), Sync selector. Full Sync x Chorus/Rate interaction matrix
+    captured (engaging Sync overwrites live Chorus/Rate values — real
+    hardware behaviour). Has a MONO/STEREO MID PAIR (mono=0x01,
+    stereo=0x03) — TESTED LIVE including the Stereo/Mono toggle case.
+    DYN3 COMPRESSOR — Threshold/Attack/Release/Ratio/Knee/Gain, all six
+    with confirmed display formulas (Ratio's 1:1-100:1 curve turned out to
+    be a clean exponential, confirmed by a 19-point sweep). TESTED LIVE.
+  TWO CROSS-CUTTING BUGS found and fixed across ALL FIVE effect panels
+  (DIST/REVERB/WAH/VOL/FX1), not just FX1 — see Tech Ref Sec 23 FX1 SLOT
+  section and HARDWARE SAFETY below for full detail:
+    THE 9.9 BUG — a knob couldn't hold its true min/max endpoint on
+    hardware (settling one tick short, e.g. 9.9 instead of 10.0). Root
+    cause: the amp Tremolo Speed knob's 7/23 endpoint-sentinel fix never
+    got ported to the per-effect-panel send functions. Fixed in all five.
+    DRAG-QUEUE RACE — could hang the rack outright (not an assert, no
+    brick) by sending a malformed byte mid-SysEx. Fixed in all five drag
+    handlers; see HARDWARE SAFETY.
+  Both fixes are now MANDATORY parts of the template for any future panel
+  (fx-panels.js / fx-transport.js file headers updated) — copy the FX1
+  pattern for the next panel, not DIST's.
+  TESTED LIVE (Charlie, 2026-07-30): both models' controls, the mono/stereo
+  toggle fix, scroll wheel on all five panels, and repeated "try to break
+  it" testing on the drag-race fix (clean).
+  NEXT: Flanger is next per Charlie's model-by-model plan. FX2 (SLOT_FX2)
+  is expected to host the identical model family — reuse FX1_MODELS rather
+  than re-capturing. Some models may also turn up in MOD's roster.
+
 7/29/2026 — NAV TIMING DEV PANEL REMOVED. Charlie no longer needed it —
   zeroing its two tunable values (Query gap, Recall settle) produced no
   observable improvement or problem either way, so there was nothing left
@@ -536,13 +575,23 @@ WORKING:
   VOL effect panel — built, tested, passed initial QC. Same pattern. (Distinct
     from the global Master Volume knob on the chain strip — this is the VOL
     block in the effect chain.)
+  FX1 effect panel — generic host slot (Tech Ref Sec 4/23), same pattern as
+    above. TWO of ten known models captured and TESTED LIVE: C1 Chorus/
+    Vibrato (Chorus/Rate/Depth knobs, Mode toggle, Sync selector reusing the
+    amp Tremolo's 14-zone table, mono/stereo mid pair handled) and Dyn3
+    Compressor (all six knobs with confirmed display formulas). The other
+    eight models show a "not yet captured" placeholder, not a crash, if
+    selected. See CURRENT APP STATE 7/30 entry above for full detail.
   GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
     moved off the old right-hand column for tighter window scaling (7/22).
 
 NOT YET IMPLEMENTED (largest first):
-  Effect panels for the five remaining non-amp effect blocks (MOD, DELAY,
-    FX1, FX2, FX LOOP) — clicking the chain row's arrow still shows a
-    "coming soon" placeholder. (DIST, REVERB, WAH and VOL panels are DONE.)
+  Effect panels for the four remaining non-amp effect blocks (MOD, DELAY,
+    FX2, FX LOOP) — clicking the chain row's arrow still shows a "coming
+    soon" placeholder. (DIST, REVERB, WAH and VOL panels are DONE. FX1 is
+    IN PROGRESS — panel built, 2 of 10 known models captured, see WORKING
+    above.) FX2 is expected to host the identical model family as FX1 per
+    Charlie — reuse FX1_MODELS rather than re-capturing from scratch.
     The existing panels
     established the full pattern: paramLo capture, rows-based layout in a
     MODELS table, render/update/drag helpers, CMD 0x21 model change, and a
@@ -610,15 +659,22 @@ covered under CONFIRMED ARCHITECTURE above.
                    NAV_* timing constants gate the post-nav pull. sendCC marks the
                    patch dirty only for PER_PATCH_CCS = [17] (Rig Vol); input and
                    tuner CCs do not.
-  fx-transport.js  Per-effect-block SEND/query functions (DIST, REVERB, and future
-                   blocks), split out so transport.js does not grow per panel.
+  fx-transport.js  Per-effect-block SEND/query functions (DIST, REVERB, WAH,
+                   VOL, FX1, and future blocks), split out so transport.js
+                   does not grow per panel. Every send<Block>ParamWrite here
+                   carries the endpoint-sentinel fix ("the 9.9 bug") —
+                   mandatory for any new block, see the file header.
   sysex-handler.js Incoming message routing. Decodes bulk/patch bodies, live CMD
                    0x11, chain map (CMD 0x21), tuner (0x40), stereo/mono (0x0D),
                    input (0x3D), and drives the matching UI updates.
   ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
                    handlers, chain-row render, knob-colour (dirty) tracking.
-  fx-panels.js     Per-effect-panel UI (DIST, REVERB, future blocks), split out of
-                   ui.js for the same reason as fx-transport.js.
+  fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, FX1, future
+                   blocks), split out of ui.js for the same reason as
+                   fx-transport.js. Every drag handler here snapshots its
+                   paramLo into a local before queuing the hardware write —
+                   mandatory for any new block (a shared-variable closure
+                   race here could hang the rack, see file header).
   app-init.js      Startup wiring.
   patch-nav.js     Patch navigation logic and the post-nav state pull.
   capture-scan.js  TFX capture to disk, bank scan, load/save (Save-to-Rack and
@@ -638,6 +694,8 @@ KEY STATE VARIABLES (state.js):
   hasReceivedAmpOutValue  guard against premature Amp Out send
   currentMonoState        null / true / false (Stereo/Mono indicator)
   distPanelOpen           true when DIST panel is visible; gates CMD 0x11 DIST routing
+  reverbPanelOpen / wahPanelOpen / volPanelOpen / fx1PanelOpen
+                          same role as distPanelOpen, one per effect panel
   ampSelectRxSeq          bumped when an Amp Select (0x0F) reply is handled
   chainMapRxSeq           bumped when a chain map (0x21) has been applied
   navSeqId                post-nav pull generation; guards against stale replies

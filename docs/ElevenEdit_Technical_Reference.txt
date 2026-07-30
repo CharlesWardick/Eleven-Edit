@@ -2441,6 +2441,118 @@ model mid in the REVERB slot triplet, handle=0x00; the existing CMD 0x21
 handler adopts the response and re-queries params.
 
 -------------------------------------------------------------------
+FX1 SLOT — CMD 0x11 PARAMETER MAP (confirmed 2026-07-30)
+-------------------------------------------------------------------
+FX1 (slot 0x08) is a GENERIC HOST SLOT, not a fixed effect family — it can
+carry models from several other categories (Dynamics, EQ, Modulation),
+identified by slot ID, never by mid range (Sec 4). FX2 (slot 0x09) hosts
+the SAME model family — a model captured here is expected to apply
+directly to FX2 too, not need its own capture (Charlie, 2026-07-30). Some
+models may also turn up in MOD's roster — check before capturing fresh.
+
+Ten models confirmed in this slot's dropdown (2026-07-30 dropdown capture,
+mid values below match Sec 23's CMD 0x20 enumeration): C1 Chorus/Vibrato,
+Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor, MultiChorus, Orange
+Phaser, Parametric EQ, Roto Speaker, Vibe Phaser. Only the first two below
+are captured; the rest are placeholders (protocol.js FX1_MODELS,
+captured:false) pending their own captures. Per Charlie, all remaining
+models are stereo-by-nature except Gray Compressor (mono-only), so the
+C1 mono/stereo mid split below is expected to be the exception, not the
+norm, going forward.
+
+C1 CHORUS/VIBRATO (mid 0x01/0x02/0x03 — see MONO/STEREO note below)
+  paramLo 0x02 Chorus · 0x03 Depth (independent wet/dry mix, NOT linked to
+  Sync in testing) · 0x04 Rate · 0x05 Mode (toggle) · 0x06 Sync (selector).
+  Encoding: standard (v127+64)%128 for Chorus/Depth/Rate.
+
+  MODE (paramLo 0x05) — binary toggle, same shape as Bright/Tremolo-On:
+    v0=0x40 -> val 0   -> Chorus
+    v0=0x3F -> val 127 -> Vibrato
+
+  SYNC (paramLo 0x06) — reuses the SAME 14-zone quantization as the amp
+  Tremolo Sync (paramLo 0x12 on the amp handle; SYNC_DIVISIONS /
+  syncIndexFromV127 / syncV127FromIndex, protocol.js) — OFF + 13 note
+  divisions across 0-127. No separate zone table needed for this control,
+  just a different paramLo and a different (this block's own) handle.
+
+  SYNC x CHORUS/RATE INTERACTION — confirmed matrix (13-zone sweep on a
+  Chorus-loaded patch, all knobs at 0 before the sweep):
+    Sync zone       Chorus   Rate
+    OFF (load)        0.0    0.0
+    1/1                1.0    0.0
+    1/2 dotted         2.3    0.0
+    1/2                3.5    0.0
+    1/2 triplet        5.3    0.0
+    1/4 dotted         4.6    0.0
+    1/4                7.2    0.0
+    1/4 triplet       10.0    0.0
+    1/8 dotted        10.0    0.0
+    1/8               10.0    2.3
+    1/8 triplet       10.0    6.1
+    1/16 dotted       10.0    4.8
+    1/16              10.0    8.1
+    1/16 triplet      10.0    6.1
+  Engaging Sync overwrites the live Chorus AND Rate broadcasts — this is
+  real hardware behaviour, not a bug; the panel just displays whatever the
+  hardware sends.
+
+  MONO/STEREO MID VARIANTS — this section already documented (Sec 23, the
+  OUTPUT CHANNEL TABLE retraction note below) that C1 has THREE mids in the
+  master CMD 0x20 table (0x01/0x02/0x03), but only 0x02/0x03 had ever been
+  directly OBSERVED as a live chain-block instantiation (both STEREO-out,
+  in the OUTPUT CHANNEL TABLE below) — mid 0x01 was enumeration-only, a gap
+  the table's own retraction note called out explicitly. TODAY'S LIVE LOG
+  fills that gap: toggling the chain to MONO with C1 loaded and the FX1
+  panel open reports mid=0x01; toggling back to STEREO reports mid=0x03
+  again (confirmed round-trip). So: 0x01 = MONO, 0x03 = STEREO. Mid 0x02's
+  trigger condition is STILL unconfirmed as a live instantiation — kept in
+  the model's mid list on the strength of the Sec 23 enumeration entry
+  alone. See the OUTPUT CHANNEL TABLE update below for the mid 0x01 row.
+  BUG THIS CAUSED (fixed 2026-07-30): the app's FX1 model table only had
+  mid 0x03, so toggling to MONO reported an "unknown" model and blanked
+  the panel — fixed by adding the mono mid and, separately, by resolving
+  the dropdown through the model rather than the raw wire mid (the same
+  fix REVERB/VOL already needed and had).
+
+DYN3 COMPRESSOR (mid 0x16) — confirmed 2026-07-30
+  paramLo 0x02 Threshold · 0x03 Attack · 0x04 Release · 0x05 Ratio ·
+  0x06 Knee · 0x07 Gain. All six are standard continuous (v127+64)%128
+  knobs — same wire shape as every other knob in the app, no surprises.
+  DISPLAY FORMULAS (Threshold/Knee/Gain: linear over Charlie's stated
+  ranges, same shape as Gate Threshold/Amp Out; Attack/Release: same
+  log-curve shape as the amp's Gate Release, different min/max; Ratio:
+  independently confirmed by a 19-point mouse-wheel sweep on the Avid
+  editor, read against Wireshark):
+    Threshold  -60..0 dB, linear
+    Attack     10us..300ms, log:  ms = 0.01 * 30000^(v127/127)
+    Release    5ms..4.0s, log:    ms = 5 * 800^(v127/127)
+    Ratio      1:1..100:1, EXPONENTIAL: ratio = 100^(v127/127) — fits all
+               19 captured points within ~1.5 at the very top of the range
+               and under 0.3 almost everywhere else (rounding noise reading
+               a wheel-click display by eye). No piecewise behaviour,
+               despite going in expecting one might be needed.
+    Knee       0..30 dB, linear
+    Gain       0..40 dB, linear
+
+Model change: identical mechanism to DIST/REVERB — CMD 0x21 (dir=0x00),
+full chain map, new mid in the FX1 slot triplet, handle=0x00.
+
+THE 9.9 BUG (2026-07-30) — see Section 3/4's ENDPOINT SENTINELS note for
+the original 7/23 discovery on the amp Tremolo Speed knob. That fix never
+got ported to the per-effect-panel send functions (fx-transport.js), so
+DIST/REVERB/WAH/VOL/FX1 all sent a flat 00 00 00 00 write tail and could
+not hold their true endpoint (e.g. Chorus/Rate/Depth settling at 9.9
+instead of 10.0; REVERB Pre-Delay capping at ~198ms instead of 200ms).
+Same fix (endpoint-sentinel tail bytes) applied to all five send functions.
+
+DRAG-QUEUE RACE (2026-07-30) — a JS implementation bug, not a protocol
+finding, but noted here because it could hang the rack: see the Primer's
+HARDWARE SAFETY section for the full writeup. A knob-drag's queued
+hardware write could fire after mouseup reset its paramLo variable to -1,
+sending byte 0xFF (illegal 7-bit MIDI data) mid-SysEx. Fixed in all five
+effect panels' drag handlers.
+
+-------------------------------------------------------------------
 OUTPUT CHANNEL TABLE — mid -> mono or stereo out  (7/19)
 -------------------------------------------------------------------
 Needed for the chain row's double-arrow connectors: the connector AFTER a
@@ -2472,8 +2584,11 @@ HOW IT WAS DERIVED (repeat this to fill gaps):
   mid  tfx  model                     output
   ---  ---  ------------------------  ------
   00   0C   Eleven (AMP-CAB)          MONO      <- stereo never originates at
-  02   27   C1 Chorus/Vibrato         STEREO       the cab in any patch on file
-  03   28   C1 Chorus/Vibrato         STEREO
+  01   ?    C1 Chorus/Vibrato         MONO         the cab in any patch on file
+  02   27   C1 Chorus/Vibrato         STEREO       (mid 01 confirmed live
+  03   28   C1 Chorus/Vibrato         STEREO        2026-07-30 — see FX1
+                                                     SLOT section above; no
+                                                     TFX id observed for it)
   04   58   MultiChorus               MONO
   05   59   MultiChorus               STEREO
   06   5A   MultiChorus               STEREO
@@ -2502,10 +2617,12 @@ HOW IT WAS DERIVED (repeat this to fill gaps):
   31   0F   FX Loop                   MONO
   32   11   FX Loop                   STEREO
 
-COVERAGE: 49 of 52 usable models. 30 observed directly; the remainder derived
-  from the lowest-variant rule above, which was validated when it independently
-  produced EP Tape Echo 0x1D = STEREO, matching the Avid editor's own rendering
-  in a screenshot taken before the rule was applied.
+COVERAGE: 50 of 53 usable models (mid 0x01 / C1 Chorus/Vibrato MONO added
+  2026-07-30, observed live — see FX1 SLOT section above). 31 observed
+  directly; the remainder derived from the lowest-variant rule above, which
+  was validated when it independently produced EP Tape Echo 0x1D = STEREO,
+  matching the Avid editor's own rendering in a screenshot taken before the
+  rule was applied.
   THE ONLY REMAINING UNKNOWNS ARE FX LOOP VARIANTS 0x2E, 0x2F and 0x33 — the
   one family the rule cannot cover. Observe each by setting the loop to the
   matching mode and reading the block after it.
@@ -2532,6 +2649,21 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-30 (FX1 Block 1, finalize) — New Section 23 subsection "FX1 SLOT —
+  CMD 0x11 PARAMETER MAP": C1 Chorus/Vibrato (Chorus/Depth/Rate/Mode/Sync,
+  Sync x Chorus/Rate matrix, mono/stereo mid triplet 0x01/0x02/0x03) and
+  Dyn3 Compressor (Threshold/Attack/Release/Ratio/Knee/Gain, all six
+  display formulas confirmed) both fully captured and shipped in the FX1
+  effect panel. OUTPUT CHANNEL TABLE gained mid 0x01 (C1, MONO) — the gap
+  that table's own 7/19 retraction note had left open — bumping coverage
+  to 50/53. Two cross-cutting bugs found and fixed across all five effect
+  panels (DIST/REVERB/WAH/VOL/FX1): THE 9.9 BUG (endpoint-sentinel writes
+  missing from fx-transport.js, ported from the amp Speed-knob fix, Sec
+  3/4) and a DRAG-QUEUE RACE that could send a malformed byte and hang the
+  rack (Primer Hardware Safety). FX1/FX2/MOD overlap and mono-stereo
+  expectations for the remaining 8 FX1 models noted per Charlie. Full
+  detail: Session Log entries dated 2026-07-30 (FX1 Block 1), now folded.
 
 2026-07-30 (docs, catch-up) — Folded two completed features the docs had never
   learned about, both done in Claude-Code chats that bypassed review — exactly

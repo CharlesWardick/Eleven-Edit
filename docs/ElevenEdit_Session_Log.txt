@@ -40,8 +40,7 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      confirmed root cause (from Charlie's log), fixed, NOT TESTED
-             LIVE yet
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        FX1 — Stereo/Mono toggle blanks the panel ("Unknown model")
 FINDING:     Charlie found this only happens on FX1, not DIST/REVERB/WAH/
              VOL: open the FX1 panel, toggle Stereo<->Mono, and the model
@@ -100,7 +99,7 @@ NEXT:        Charlie rebuild+retest: open FX1 with C1 Chorus/Vibrato loaded,
              known FX1-specific bug from today's session.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      provisional — code complete, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        DIST + REVERB — 9.9 bug fixed, panel-parity now complete
              across all five effect panels
 FINDING:     Charlie spot-checked DIST and REVERB by hand (having just seen
@@ -150,7 +149,7 @@ NEXT:        Charlie rebuild+retest: DIST and REVERB knobs should now hold
              template comments and Primer recipe.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      provisional — code complete, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        WAH/VOL — scroll wheel + 9.9 bug, closing the gap flagged
              earlier today
 FINDING:     Charlie confirmed the drag-race fix holds (repeated the same
@@ -185,11 +184,7 @@ NEXT:        Charlie rebuild+retest: WAH Position and VOL's Volume/Min Vol
              save-rebaseline — no more per-panel gaps to track.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      confirmed root cause, fixed in DIST/REVERB/WAH/VOL/FX1, NOT
-             TESTED LIVE yet — Charlie's rack was hung/deadlocked when this
-             was found, not asserted (no factory reset needed; per Tech Ref
-             this class of firmware confusion has recovered before with a
-             nav-away-and-back / power cycle, unlike the CMD 0x37 brick)
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        DRAG-QUEUE RACE — malformed paramLo=-1 send wedged the hardware
 FINDING:     Charlie sent the app's own session log after a hang working the
              Dyn3 Ratio knob (rapid dragging/wheeling). Rack stopped
@@ -251,7 +246,7 @@ NEXT:        Charlie power-cycle the rack (per Tech Ref: after a firmware
              corroborated root cause, not a guess.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      confirmed
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        FX1 Block 1 — Dyn3 Compressor Ratio curve
 FINDING:     Follow-up capture (Dyn3_Comp_Ratio_Knob_Capture.pcapng):
              Charlie used the Avid editor's own mouse-wheel step (not a
@@ -290,9 +285,7 @@ NEXT:        Charlie rebuild+retest: Ratio should now read a real "X.X:1"
              — first FX1 model to reach that point after C1 Chorus/Vibrato.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      provisional — paramLo assignment confirmed, display formulas
-             mostly inferred (not yet hardware-verified against on-screen
-             numbers), Ratio explicitly unconfirmed; NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        FX1 Block 1 — Dyn3 Compressor built (second FX1 model)
 FINDING:     Capture (Dyn3_Compressor_Capture.pcapng), patch loaded to Dyn3
              Compressor, all six knobs swept low-high-low in the stated
@@ -339,8 +332,7 @@ NEXT:        Charlie rebuild+retest: open FX1 with Dyn3 Compressor loaded,
              plan, whichever he captures next.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      provisional — fixed for FX1 only, NOT TESTED LIVE yet;
-             confirmed still present (unfixed) in DIST/REVERB/WAH/VOL
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        THE "9.9 BUG" — endpoint sentinels missing from fx-transport.js
 FINDING:     Charlie's live FX1 test: Chorus and Rate knobs visibly reach 10
              on screen but immediately settle back to 9.9 on hardware
@@ -380,8 +372,7 @@ NEXT:        Charlie rebuilds and retests FX1 — Chorus/Rate/Depth should now
              its endpoint — flag to Charlie as a follow-up, not fixed here.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      confirmed (anchored on live hardware log, not re-derived
-             from the ambiguous capture)
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        FX1 Block 1 — mid table off-by-one, now corrected
 FINDING:     Charlie's first live test of the FX1 panel (C1-loaded patch)
              showed the model dropdown defaulting to "Dyn3 Compressor" with
@@ -431,9 +422,7 @@ NEXT:        Charlie rebuilds and retests: FX1 panel should now open showing
              a full panel build.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      provisional — NOT TESTED LIVE (built this session, no hardware
-             test yet; per Primer's states this is the only honest label
-             until Charlie runs it against the real rack)
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        FX1 Block 1 — panel built for C1 Chorus/Vibrato
 FINDING:     Built the FX1 effect panel following the DIST/REVERB/WAH/VOL
              pattern exactly (six-file shape from the Primer's LATER —
@@ -485,7 +474,7 @@ NEXT:        Charlie builds the EXE and tests live: open FX1 (C1 Chorus/
              Charlie's plan: Dyn3 Compressor (mid 0x03) capture.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      confirmed (matches Charlie's own on-screen readings exactly)
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        FX1 Block 1 — C1 Chorus/Vibrato, Sync x Chorus/Rate matrix
 FINDING:     Third FX1 capture (Chorus_C1_Sync_Drop_Pick.pcapng): patch load
              state (all knobs zero), FX1 handle 0x2d this session, dropdown
@@ -537,7 +526,7 @@ NEXT:        C1 Chorus/Vibrato's full paramLo map is now closed: 0x02 Chorus,
              (Dyn3 Compressor) per Charlie's model-by-model plan.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      provisional
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        FX1 Block 1 — C1 Chorus/Vibrato model, paramLo map
 FINDING:     Second FX1 capture (C1_Chorus_Vibrator_Capture.pcapng), same
              handle 0x60 confirmed for FX1 (matches the last handle seen for
@@ -585,7 +574,7 @@ NEXT:        Two gaps, both flagged rather than guessed at:
              panel pattern for this model; only the Sync zone table is open.
 -------------------------------------------------------------------
 DATE:        2026-07-30
-STATUS:      provisional
+STATUS:      [FOLDED IN: Primer 7/30/2026 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED/CODE FILE MAP; Tech Ref Sec 23 FX1 SLOT subsection + Sec 24 Change Log + OUTPUT CHANNEL TABLE; Primer HARDWARE SAFETY for the drag-queue race. All confirmed TESTED LIVE by end of session.]
 AREA:        FX1 Block 1 — model dropdown capture, CMD 0x21 mid values
 FINDING:     First FX1 capture (FX1_Dropdown_Capture.pcapng): patch had C1
              Chorus Vibrato loaded in FX1; Charlie stepped the FX1 model
