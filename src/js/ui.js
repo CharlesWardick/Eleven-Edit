@@ -180,9 +180,11 @@ function rebaselineOpenFxPanel() {
   if (typeof distPanelOpen !== 'undefined' && distPanelOpen)        { slotId = SLOT_DIST;   sel = '#dist-knob-row .knob-wrap'; }
   else if (typeof reverbPanelOpen !== 'undefined' && reverbPanelOpen){ slotId = SLOT_REVERB; sel = '#reverb-knob-row .knob-wrap'; }
   else if (typeof fx1PanelOpen !== 'undefined' && fx1PanelOpen)     { slotId = SLOT_FX1;    sel = '#fx1-knob-row .knob-wrap'; }
+  else if (typeof wahPanelOpen !== 'undefined' && wahPanelOpen)     { slotId = SLOT_WAH;    sel = '#wah-knob-row .knob-wrap'; }
+  else if (typeof volPanelOpen !== 'undefined' && volPanelOpen)     { slotId = SLOT_VOL;    sel = '#vol-knob-row .knob-wrap'; }
   if (slotId < 0) return;
   document.querySelectorAll(sel).forEach(function(w) {
-    var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fx1Lo;
+    var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fx1Lo || w.dataset.wahLo || w.dataset.volLo;
     if (loHex === undefined || w.dataset.value === undefined || w.dataset.value === '') return;
     var v = parseInt(w.dataset.value);
     if (!fxBaseline[slotId]) fxBaseline[slotId] = {};
@@ -2041,6 +2043,31 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
       var fv = step(fw, e);
       if (typeof updateFx1Knob === 'function') updateFx1Knob(flo, fv);
       if (bridgeMidiReady) queueKnobSend('fx1:' + flo, function(val){ sendFx1ParamWrite(flo, val); }, fv);
+      return;
+    }
+    // WAH knobs (keyed by data-wah-lo)
+    var ww = e.target.closest('.knob-wrap[data-wah-lo]');
+    if (ww) {
+      var wlo = parseInt(ww.dataset.wahLo, 16);
+      if (isNaN(wlo)) return;
+      e.preventDefault();
+      var wv = step(ww, e);
+      var wEl = document.getElementById('wah-v-' + ww.dataset.wahLo);
+      if (wEl) wEl.textContent = valDisplay(wv);
+      if (bridgeMidiReady) queueKnobSend('wah:' + wlo, function(val){ sendWahParamWrite(wlo, val); }, wv);
+      return;
+    }
+    // VOL knobs (keyed by data-vol-lo; the Taper toggle is a <button>, not a
+    // .knob-wrap, so it never matches this selector — nothing to exclude)
+    var vw = e.target.closest('.knob-wrap[data-vol-lo]');
+    if (vw) {
+      var vlo = parseInt(vw.dataset.volLo, 16);
+      if (isNaN(vlo)) return;
+      e.preventDefault();
+      var vv = step(vw, e);
+      var vEl = document.getElementById('vol-v-' + vw.dataset.volLo);
+      if (vEl) vEl.textContent = valDisplay(vv);
+      if (bridgeMidiReady) queueKnobSend('vol:' + vlo, function(val){ sendVolParamWrite(vlo, val); }, vv);
       return;
     }
   }, { passive: false });

@@ -180,15 +180,23 @@ function requestWahParams() {
   appLog('requestWahParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
 }
 
+// THE 9.9 BUG — see sendFx1ParamWrite for the full explanation. Endpoint
+// sentinels so Position can actually hold its true min/max on hardware.
 function sendWahParamWrite(paramLo, v127) {
   if (!bridgeMidiReady) return false;
   const wahBlk = currentChain.find(b => b.slotId === SLOT_WAH);
   if (!wahBlk) { appLog('sendWahParamWrite: no WAH block'); return false; }
-  const v0  = ((v127 + 64) % 128) & 0x7F;
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
   const hex = 'F0 13 0B 0F 00 11 '
     + wahBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
-    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+    + tail + ' F7';
   return sendPatchWrite(hex);
 }
 
@@ -234,15 +242,23 @@ function requestVolParams() {
   appLog('requestVolParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
 }
 
+// THE 9.9 BUG — see sendFx1ParamWrite for the full explanation. Endpoint
+// sentinels so Volume/Min Vol can actually hold their true min/max.
 function sendVolParamWrite(paramLo, v127) {
   if (!bridgeMidiReady) return false;
   const volBlk = currentChain.find(b => b.slotId === SLOT_VOL);
   if (!volBlk) { appLog('sendVolParamWrite: no VOL block'); return false; }
-  const v0  = ((v127 + 64) % 128) & 0x7F;
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
   const hex = 'F0 13 0B 0F 00 11 '
     + volBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
-    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+    + tail + ' F7';
   return sendPatchWrite(hex);
 }
 

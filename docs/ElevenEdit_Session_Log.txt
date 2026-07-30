@@ -40,6 +40,41 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
+STATUS:      provisional — code complete, NOT TESTED LIVE
+AREA:        WAH/VOL — scroll wheel + 9.9 bug, closing the gap flagged
+             earlier today
+FINDING:     Charlie confirmed the drag-race fix holds (repeated the same
+             "break it" moves on FX1 that caused the hang — clean) and
+             separately confirmed by hand that WAH and VOL have neither
+             scroll wheel nor the endpoint-sentinel fix, matching exactly
+             what was flagged as known-but-unfixed follow-up items earlier
+             (FX1 build entry and the 9.9 bug entry, both above). Closed
+             both now:
+               - sendWahParamWrite / sendVolParamWrite (fx-transport.js):
+                 same endpoint-sentinel tail logic as sendFx1ParamWrite/
+                 transport.js sendParamWrite (max -> 3F 7F 7F 7F 0F, min ->
+                 40 00 00 00 00, else v0 00 00 00 00).
+               - Scroll wheel for WAH (data-wah-lo) and VOL (data-vol-lo)
+                 knobs added to the same delegated wheel handler in ui.js
+                 that already covers tone/DIST/REVERB/FX1. VOL's Taper
+                 toggle is a <button>, not a .knob-wrap, so it never matches
+                 the wheel selector — nothing to special-case there.
+             ALSO extended rebaselineOpenFxPanel() (ui.js) to WAH/VOL —
+             this was the last remaining gap noted in the original FX1 build
+             entry ("left WAH/VOL as they were, out of scope"); now all five
+             effect panels use the identical save-then-green baseline path.
+EVIDENCE:    n/a — code fix mirroring three already-proven patterns
+             (FX1's endpoint sentinels, FX1's wheel handler, FX1's
+             rebaseline branch). No new capture needed.
+CONFLICTS:   none.
+NEXT:        Charlie rebuild+retest: WAH Position and VOL's Volume/Min Vol
+             knobs should now scroll-wheel-adjust and hold their true 0/10
+             endpoints on hardware, same as DIST/REVERB/FX1 already do. All
+             five effect panels (DIST, REVERB, WAH, VOL, FX1) are now at
+             parity on scroll wheel, the 9.9 fix, the drag-race fix, and
+             save-rebaseline — no more per-panel gaps to track.
+-------------------------------------------------------------------
+DATE:        2026-07-30
 STATUS:      confirmed root cause, fixed in DIST/REVERB/WAH/VOL/FX1, NOT
              TESTED LIVE yet — Charlie's rack was hung/deadlocked when this
              was found, not asserted (no factory reset needed; per Tech Ref
