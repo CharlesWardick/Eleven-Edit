@@ -1493,12 +1493,13 @@ const FX1_MODELS = [
   // stated ranges (same shape as Gate Threshold/Amp Out elsewhere); Attack/
   // Release reuse the SAME log-scale shape already confirmed for Gate
   // Release (valGateRelease, ui.js), just with this control's own min/max.
-  // RATIO IS UNCONFIRMED — Charlie flagged the range (1:1 to 100:1) may not
-  // be a simple linear or log curve ("I may have to do all iterations").
-  // Left on the generic 0-10 knob display until a follow-up capture with
-  // on-screen reference points (same technique as the Chorus/Rate mapping)
-  // pins the real curve — do not treat the plain 0-10 shown for Ratio as
-  // the true dB/ratio value yet.
+  // RATIO — CONFIRMED 2026-07-30 via a 19-point mouse-wheel sweep on the
+  // Avid editor (1:1 to 100:1), read against Wireshark. Pure exponential,
+  // no piecewise behaviour despite Charlie's suspicion it might have one:
+  //   ratio = 100 ^ (v127/127)          (v127=0 -> 1:1, v127=127 -> 100:1)
+  // Fits all 19 captured points within ~1.5 at the very top of the range
+  // and under 0.3 almost everywhere else — well inside the rounding noise
+  // of reading a wheel-click display by eye. Session Log has the raw points.
   { mid: 0x16, name: 'Dyn3 Compressor', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
     rows: [
@@ -1511,7 +1512,7 @@ const FX1_MODELS = [
             var ms = 5 * Math.pow(800, v/127);                 // 5ms .. 4.0s
             return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
           }},
-        {label:'Ratio',     lo:0x05},   // unconfirmed curve — plain 0-10 for now
+        {label:'Ratio',     lo:0x05, display: function(v) { return Math.pow(100, v/127).toFixed(1) + ':1'; }},
         {label:'Knee',      lo:0x06, display: function(v) { return ((v/127)*30).toFixed(1) + ' dB'; }},
         {label:'Gain',      lo:0x07, display: function(v) { return ((v/127)*40).toFixed(1) + ' dB'; }} ]
     ]
