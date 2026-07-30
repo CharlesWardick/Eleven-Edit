@@ -781,8 +781,12 @@ function openFx1Panel() {
     appLog('openFx1Panel: no FX1 block in chain map yet');
     return;
   }
+  // Resolve through the model, not the raw wire mid — a model can report a
+  // different mid depending on mono/stereo chain state (see FX1_MODELS
+  // header, protocol.js), and the dropdown only has ONE option per model.
   const sel = document.getElementById('fx1-model-select');
-  if (sel) sel.value = String(fx1Blk.modelId);
+  const openModel = FX1_MODEL_BY_MID[fx1Blk.modelId];
+  if (sel && openModel) sel.value = String(openModel.mid);
   renderFx1Knobs(fx1Blk.modelId);
   requestFx1Params();
   appLog('openFx1Panel: mid=0x' + fx1Blk.modelId.toString(16).padStart(2,'0')
@@ -946,9 +950,13 @@ function refreshFx1PanelAfterChainMap() {
   if (!fx1PanelOpen) return;
   const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
   if (!fx1Blk) return;
+  // Compare against the RESOLVED model's primary mid, not the raw wire mid
+  // — otherwise every mono/stereo toggle looks like a model change (it
+  // isn't) and needlessly rebuilds the panel and drops the FX baseline.
   const sel = document.getElementById('fx1-model-select');
-  if (sel && parseInt(sel.value) !== fx1Blk.modelId) {
-    sel.value = String(fx1Blk.modelId);
+  const refreshModel = FX1_MODEL_BY_MID[fx1Blk.modelId];
+  if (sel && refreshModel && parseInt(sel.value) !== refreshModel.mid) {
+    sel.value = String(refreshModel.mid);
     renderFx1Knobs(fx1Blk.modelId);
     clearFxBaselineForSlot(SLOT_FX1);
   }

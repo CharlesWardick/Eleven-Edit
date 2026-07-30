@@ -40,6 +40,66 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
+STATUS:      confirmed root cause (from Charlie's log), fixed, NOT TESTED
+             LIVE yet
+AREA:        FX1 — Stereo/Mono toggle blanks the panel ("Unknown model")
+FINDING:     Charlie found this only happens on FX1, not DIST/REVERB/WAH/
+             VOL: open the FX1 panel, toggle Stereo<->Mono, and the model
+             dropdown goes blank / panel shows "Unknown model" instead of
+             controls (or the generic placeholder for uncaptured models).
+             His app log pinned it exactly:
+               [13:51:57] refreshFx1PanelAfterChainMap: mid=0x03 handle=0x1D
+                          (Stereo — C1 Chorus/Vibrato correctly resolved)
+               [13:52:09] Stereo/Mono: MONO
+               [13:52:09] refreshFx1PanelAfterChainMap: mid=0x01 handle=0x22
+               [13:52:09] requestFx1Params: mid=0x01 unknown
+             ROOT CAUSE: C1 Chorus/Vibrato has a MONO/STEREO MID PAIR — the
+             same pattern REVERB (0x26 mono/0x27 stereo) and VOL (0x2B
+             mono/0x2C stereo) already handle, just never accounted for on
+             FX1: mono=0x01, stereo=0x03, confirmed directly by this log
+             (toggling back to Stereo at 13:52:51 reported mid=0x03 again).
+             FX1_MODELS only had mid 0x03 in it — mid 0x01 fell through to
+             "unknown"/"Unknown model" every time. On top of that,
+             openFx1Panel/refreshFx1PanelAfterChainMap compared the
+             dropdown against the RAW wire mid instead of resolving through
+             the model first (REVERB/VOL already do this correctly) — so
+             even after adding 0x01, every mono/stereo toggle would still
+             have looked like "the model changed" and needlessly rebuilt
+             the panel + dropped the FX baseline each time.
+             FIXED, three parts:
+               1. protocol.js — C1 Chorus/Vibrato now `mid: 0x01,
+                  mids: [0x01, 0x03]` (primary/send mid is the MONO variant,
+                  matching the REVERB/VOL convention). FX1_MODEL_BY_MID
+                  population now iterates `m.mids || [m.mid]` so both the
+                  new variant-aware entries and the plain uncaptured stubs
+                  populate correctly.
+               2. fx-panels.js openFx1Panel / refreshFx1PanelAfterChainMap —
+                  both now resolve FX1_MODEL_BY_MID[fx1Blk.modelId] FIRST
+                  and sync the dropdown / compare against model.mid, not
+                  the raw wire mid — exact mirror of how REVERB already
+                  does this.
+               3. index.html — C1's dropdown <option value> updated from 3
+                  to 1 to match the new primary mid.
+             The other 9 FX1 stub models almost certainly have their own
+             mono/stereo pairs too — only whichever variant showed up in
+             the original dropdown capture got recorded — but since they're
+             captured:false anyway this doesn't block anything; note it
+             when each one gets its own capture.
+EVIDENCE:    Charlie's app log, session20260730135144.log, lines 393-736 —
+             the Stereo->Mono->Stereo round trip on a C1-loaded patch with
+             the FX1 panel open.
+CONFLICTS:   none — this refines, doesn't contradict, the earlier "mid
+             table off-by-one" fix (that fix correctly identified 0x03 as
+             C1's STEREO mid; this entry adds the previously-missing MONO
+             mid 0x01 as a second variant of the same model, it doesn't
+             revert anything).
+NEXT:        Charlie rebuild+retest: open FX1 with C1 Chorus/Vibrato loaded,
+             toggle Stereo<->Mono a few times with the panel open — controls
+             should stay visible and correct throughout, no blank dropdown,
+             no baseline-drop flash. If clean, this closes out the last
+             known FX1-specific bug from today's session.
+-------------------------------------------------------------------
+DATE:        2026-07-30
 STATUS:      provisional — code complete, NOT TESTED LIVE
 AREA:        DIST + REVERB — 9.9 bug fixed, panel-parity now complete
              across all five effect panels

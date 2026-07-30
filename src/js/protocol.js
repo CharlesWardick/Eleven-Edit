@@ -1474,8 +1474,21 @@ VOL_MODELS.forEach(function(m) {
 // the baseline exactly, which it had NOT under the old assignment — see
 // Session Log). Do not re-derive from the raw capture again; this is the
 // corrected, hardware-confirmed table.
+// MONO/STEREO MID VARIANTS (found 2026-07-30): like REVERB (0x26 mono /
+// 0x27 stereo) and VOL (0x2B mono / 0x2C stereo), a model in a generic host
+// slot can report a DIFFERENT mid depending on the chain's stereo/mono
+// state — same model, different wire id. C1 Chorus/Vibrato confirmed:
+// mono=0x01, stereo=0x03 (Charlie's log toggling Stereo<->Mono with the
+// panel open — before this fix, toggling to MONO reported mid=0x01, which
+// wasn't in this table at all, so the panel fell through to "Unknown
+// model"). `mid` is the PRIMARY/send value (mono, matching the REVERB/VOL
+// convention); `mids` lists every variant so FX1_MODEL_BY_MID resolves
+// either one back to this entry. The other 9 stub models below almost
+// certainly have their own mono/stereo pairs too — only recorded whichever
+// one showed up in each capture — but since they're captured:false anyway
+// this doesn't block anything; revisit when each is actually captured.
 const FX1_MODELS = [
-  { mid: 0x03, name: 'C1 Chorus/Vibrato', captured: true,
+  { mid: 0x01, mids: [0x01, 0x03], name: 'C1 Chorus/Vibrato', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
     rows: [
       [ {label:'Chorus', lo:0x02},
@@ -1527,4 +1540,6 @@ const FX1_MODELS = [
   { mid: 0x0A, name: 'Vibe Phaser',      captured: false, paramLos: [], rows: [] },
 ];
 const FX1_MODEL_BY_MID = {};
-FX1_MODELS.forEach(function(m) { FX1_MODEL_BY_MID[m.mid] = m; });
+FX1_MODELS.forEach(function(m) {
+  (m.mids || [m.mid]).forEach(function(mid) { FX1_MODEL_BY_MID[mid] = m; });
+});
