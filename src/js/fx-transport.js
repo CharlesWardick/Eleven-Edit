@@ -10,17 +10,28 @@
 // file means transport.js stays the size it is today no matter how
 // many more panels get built; this file is where they land instead.
 //
-// PATTERN for a new block (copy the DIST functions below):
+// PATTERN for a new block (copy the FX1 functions below, not DIST/REVERB/
+// WAH/VOL — see 2026-07-30 note below for why):
 //   send<Block>ModelChange(newMid) — CMD 0x21 chain rewrite, new mid in
 //     the block's own slot, handle=0x00 so firmware reassigns it.
 //   request<Block>Params()         — CMD 0x11 REQU per paramLo in the
 //     block's current model (from its MODELS table in protocol.js).
 //   send<Block>ParamWrite(paramLo, v127) — CMD 0x11 SNDSET on the
 //     block's runtime handle from currentChain — never a fixed value.
+//     MUST include the endpoint-sentinel tail logic (see sendFx1ParamWrite)
+//     — a flat 00 00 00 00 tail is THE 9.9 BUG (a knob can't hold its true
+//     min/max). Do not copy the plain-tail version.
 //
 // PURE RELOCATION (7/27): every function below is unchanged from its
 // original position in transport.js — same logic, same comments, same
 // behaviour. Nothing was rewritten.
+//
+// 2026-07-30 — THE 9.9 BUG, retrofitted to all five panels that existed at
+// the time (DIST/REVERB/WAH/VOL/FX1). Endpoint sentinels are now MANDATORY
+// for every new send<Block>ParamWrite — see sendFx1ParamWrite for the
+// pattern and the Session Log for the full incident (a related closure bug
+// in the same family of code briefly hung the rack — see fx-panels.js
+// header for the drag-handler half of that fix, also now mandatory).
 // ════════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════════
@@ -72,15 +83,23 @@ function requestDistParams() {
 
 // ── Write one DIST knob value to hardware.
 // Uses the DIST block's runtime handle from currentChain — never a fixed value.
+// THE 9.9 BUG — see sendFx1ParamWrite for the full explanation. Endpoint
+// sentinels so every DIST knob can actually hold its true min/max.
 function sendDistParamWrite(paramLo, v127) {
   if (!bridgeMidiReady) return false;
   const distBlk = currentChain.find(b => b.slotId === SLOT_DIST);
   if (!distBlk) { appLog('sendDistParamWrite: no DIST block'); return false; }
-  const v0  = ((v127 + 64) % 128) & 0x7F;
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
   const hex = 'F0 13 0B 0F 00 11 '
     + distBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
-    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+    + tail + ' F7';
   return sendPatchWrite(hex);
 }
 
@@ -128,15 +147,26 @@ function requestReverbParams() {
 }
 
 // Write one REVERB knob value to hardware — same 5-byte value payload as DIST.
+// THE 9.9 BUG — see sendFx1ParamWrite for the full explanation. Endpoint
+// sentinels so every REVERB knob can hold its true min/max. This is also
+// what was capping Pre-Delay at ~198ms instead of 200ms — its display is
+// just val/127*200, so once val can genuinely reach 127 the display reaches
+// the true endpoint too. No separate fix needed for Pre-Delay itself.
 function sendReverbParamWrite(paramLo, v127) {
   if (!bridgeMidiReady) return false;
   const rvBlk = currentChain.find(b => b.slotId === SLOT_REVERB);
   if (!rvBlk) { appLog('sendReverbParamWrite: no REVERB block'); return false; }
-  const v0  = ((v127 + 64) % 128) & 0x7F;
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
   const hex = 'F0 13 0B 0F 00 11 '
     + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
-    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+    + tail + ' F7';
   return sendPatchWrite(hex);
 }
 

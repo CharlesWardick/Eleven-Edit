@@ -815,16 +815,22 @@ LATER — EFFECT PANELS FOR REMAINING EIGHT SLOTS
     - CMD 0x21 model-change send in transport.js (sendDistModelChange pattern)
     - Panel open/close, chain-open handler routing, ✕ close button in index.html
 
-  WHAT EACH NEW SLOT NEEDS:
+  WHAT EACH NEW SLOT NEEDS — copy the FX1 panel (built 2026-07-30), NOT
+  DIST/REVERB/WAH/VOL, which were built before two bugs were found and
+  fixed that day (a rack-hanging drag-queue race, and "the 9.9 bug" —
+  see fx-panels.js / fx-transport.js file headers and the Session Log for
+  both):
     1. A Wireshark capture: with our app running, open the effect panel in the
        Avid editor and sweep each knob in order. One capture per model family
        (3-knob, 4-knob etc.) is sufficient. Supply the .pcapng file.
-    2. A model table entry (like DIST_MODELS) in protocol.js.
-    3. A panel div and chain-open routing in index.html (copy DIST pattern).
-    4. Open/close/refresh functions in ui.js (copy openDistPanel pattern).
-    5. CMD 0x11 routing in sysex-handler.js (copy DIST routing block).
-    6. sendModelChange / requestParams / sendParamWrite in transport.js
-       (copy DIST functions, parameterised for the new slot ID).
+    2. A model table entry (like FX1_MODELS) in protocol.js.
+    3. A panel div and chain-open routing in index.html (copy the FX1 pattern).
+    4. Open/close/refresh functions + scroll-wheel branch + rebaselineOpenFxPanel
+       branch in ui.js/fx-panels.js (copy the FX1 pattern, not DIST's).
+    5. CMD 0x11 routing in sysex-handler.js (copy the FX1 routing block).
+    6. sendModelChange / requestParams / sendParamWrite in fx-transport.js
+       (copy the FX1 functions — sendParamWrite MUST have the endpoint-
+       sentinel tail logic, not a flat 00 00 00 00 tail).
 
   RECOMMENDED ORDER (by capture simplicity):
     WAH and VOLUME — single model each, simplest captures.

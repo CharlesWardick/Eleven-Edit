@@ -12,18 +12,40 @@
 // matter how many more panels get built; this file is where they land
 // instead.
 //
-// PATTERN for a new block (copy the DIST functions below — REVERB adds
-// the optional linked dropdown+knob "selector" cell and a ms/unit
-// display on top of the plain DIST pattern, for blocks that need one):
+// PATTERN for a new block (copy the FX1 functions below, not DIST/REVERB/
+// WAH/VOL — see 2026-07-30 note below for why. REVERB's typeControl selector
+// cell and ms/unit display are still worth copying on top of the FX1
+// pattern, for blocks that need them):
 //   open<Block>Panel() / close<Block>Panel()
 //   render<Block>Knobs(mid)              — build the knob row DOM
 //   update<Block>Knob(paramLo, val)      — apply one CMD 0x11 value
 //   refresh<Block>PanelAfterChainMap()   — re-sync model + re-query
 //   a delegated drag handler keyed on a data-<block>-lo attribute
+//   a scroll-wheel branch in ui.js's shared wheel listener (search
+//     "SCROLL WHEEL on tone / DIST / REVERB knobs") — copy the FX1 branch
+//   a branch in rebaselineOpenFxPanel() (ui.js) so save-then-green works
 //
 // PURE RELOCATION (7/27): every function below is unchanged from its
 // original position in ui.js — same logic, same comments, same
 // behaviour. Nothing was rewritten.
+//
+// 2026-07-30 — TWO BUGS retrofitted to all five panels that existed at the
+// time (DIST/REVERB/WAH/VOL/FX1), both now MANDATORY for any new panel:
+//   (1) DRAG-QUEUE RACE. A knob-drag's mousemove handler queues its
+//       hardware write through queueKnobSend's throttle (fires up to 60ms
+//       later). If the closure passed to queueKnobSend reads the drag's
+//       shared paramLo variable directly, a mouseup within that window
+//       (which resets the variable to -1) can make the delayed send fire
+//       with paramLo=-1 — encoded as byte 0xFF, not a legal 7-bit MIDI data
+//       byte, and confirmed to hang the rack when it landed mid-SysEx. FIX:
+//       snapshot into a local (`var lo = activeParamLo;`) immediately
+//       before the queueKnobSend call in the mousemove handler, and close
+//       over that local. See any of the five drag handlers below for the
+//       exact shape.
+//   (2) THE 9.9 BUG — see fx-transport.js header / sendFx1ParamWrite for
+//       the send-side half of this (endpoint sentinels).
+// Session Log (2026-07-30, Dyn3 Ratio capture entries) has the full
+// incident for (1); do not copy a drag handler from before this date.
 // ════════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════════

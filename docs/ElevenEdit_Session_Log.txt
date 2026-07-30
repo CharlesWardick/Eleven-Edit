@@ -41,6 +41,56 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-30
 STATUS:      provisional — code complete, NOT TESTED LIVE
+AREA:        DIST + REVERB — 9.9 bug fixed, panel-parity now complete
+             across all five effect panels
+FINDING:     Charlie spot-checked DIST and REVERB by hand (having just seen
+             WAH/VOL fixed) and found: DIST has scroll wheel (had it since
+             7/26) but still has the 9.9 bug; REVERB has the 9.9 bug too,
+             AND reported no scroll wheel response on it. On REVERB, the 9.9
+             bug shows up as Pre-Delay capping at ~198ms instead of 200ms —
+             correctly self-diagnosed by Charlie as "same bug, different
+             scale" (Pre-Delay's display is just val/127*200ms, so it caps
+             wherever the underlying val caps).
+             FIXED: sendDistParamWrite and sendReverbParamWrite
+             (fx-transport.js) both now use the endpoint-sentinel tail
+             logic (max -> 3F 7F 7F 7F 0F, min -> 40 00 00 00 00, else
+             v0 00 00 00 00) — same as FX1/WAH/VOL earlier today. Pre-Delay
+             needed NO separate fix — it inherits the true 200ms endpoint
+             automatically once the underlying val can reach 127.
+             REVERB SCROLL WHEEL — re-checked the code carefully and could
+             NOT find a bug: the REVERB branch in ui.js's shared wheel
+             listener is structurally identical to DIST's (same
+             e.target.closest() selector shape, same queueKnobSend call,
+             added in the same 7/26 commit, never touched since). Since
+             REVERB's knob drag uses the exact same delegation and DOM and
+             is known-working, wheel SHOULD work too by the same logic. Not
+             changed — noted as unconfirmed rather than guessing at a fix
+             for something the source doesn't show a defect in. Needs a
+             fresh live re-check after this rebuild before concluding
+             anything more is wrong here.
+             TEMPLATE COMMENTS UPDATED (fx-panels.js / fx-transport.js
+             headers, Primer's "WHAT EACH NEW SLOT NEEDS") to point future
+             panels (MOD, DELAY, FX2, FX LOOP) at the FX1 pattern instead of
+             DIST's, and to call out both fixes (drag-queue race, 9.9 bug)
+             as MANDATORY parts of a new panel's send/drag code from now on
+             — per Charlie's explicit request, so neither has to be
+             retrofitted again.
+EVIDENCE:    n/a — code fix mirroring the already-proven FX1/WAH/VOL
+             pattern. No new capture needed.
+CONFLICTS:   none.
+NEXT:        Charlie rebuild+retest: DIST and REVERB knobs should now hold
+             their true 0/10 endpoints (REVERB's Pre-Delay should reach
+             200ms). Specifically re-check REVERB's scroll wheel live since
+             the source shows no defect — if it's still not scrolling after
+             this rebuild, that needs a fresh repro/log rather than more
+             static code review. Once confirmed, ALL FIVE effect panels
+             (DIST, REVERB, WAH, VOL, FX1) are at full parity: scroll wheel,
+             9.9 fix, drag-race fix, save-rebaseline. Any future panel
+             should start from FX1's code, not DIST's, per the updated
+             template comments and Primer recipe.
+-------------------------------------------------------------------
+DATE:        2026-07-30
+STATUS:      provisional — code complete, NOT TESTED LIVE
 AREA:        WAH/VOL — scroll wheel + 9.9 bug, closing the gap flagged
              earlier today
 FINDING:     Charlie confirmed the drag-race fix holds (repeated the same
