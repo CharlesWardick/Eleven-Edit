@@ -2030,6 +2030,19 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
       if (bridgeMidiReady) queueKnobSend('reverb:' + rlo, function(val){ sendReverbParamWrite(rlo, val); }, rv);
       return;
     }
+    // FX1 knobs (keyed by data-fx1-lo). Uses updateFx1Knob so a cell's
+    // custom display() formula (Dyn3 Threshold/Attack/etc.) is honoured
+    // instead of the generic 0-10 valDisplay.
+    var fw = e.target.closest('.knob-wrap[data-fx1-lo]');
+    if (fw) {
+      var flo = parseInt(fw.dataset.fx1Lo, 16);
+      if (isNaN(flo)) return;
+      e.preventDefault();
+      var fv = step(fw, e);
+      if (typeof updateFx1Knob === 'function') updateFx1Knob(flo, fv);
+      if (bridgeMidiReady) queueKnobSend('fx1:' + flo, function(val){ sendFx1ParamWrite(flo, val); }, fv);
+      return;
+    }
   }, { passive: false });
 })();
 
