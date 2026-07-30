@@ -899,7 +899,7 @@ function updateFx1Knob(paramLo, val) {
     wrap.dataset.value = val;
     drawKnob(wrap.querySelector('canvas'), val);
   }
-  if (valEl) valEl.textContent = valDisplay(val);
+  if (valEl) valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);
 }
 
 // Re-sync dropdown + controls after a chain map (model may have changed on

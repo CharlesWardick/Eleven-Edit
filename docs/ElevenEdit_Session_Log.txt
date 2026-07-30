@@ -40,6 +40,55 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
+STATUS:      provisional — paramLo assignment confirmed, display formulas
+             mostly inferred (not yet hardware-verified against on-screen
+             numbers), Ratio explicitly unconfirmed; NOT TESTED LIVE
+AREA:        FX1 Block 1 — Dyn3 Compressor built (second FX1 model)
+FINDING:     Capture (Dyn3_Compressor_Capture.pcapng), patch loaded to Dyn3
+             Compressor, all six knobs swept low-high-low in the stated
+             order (Threshold, Attack, Release, Ratio, Knee, Gain), FX1
+             handle 0x05. Six clean, non-overlapping paramLo segments,
+             ~38 messages (19 up + 19 down) each, all standard continuous
+             (v127+64)%128 knobs — same shape as every other knob in the
+             app, nothing unusual in the wire encoding:
+               paramLo 0x02  Threshold
+               paramLo 0x03  Attack
+               paramLo 0x04  Release
+               paramLo 0x05  Ratio
+               paramLo 0x06  Knee
+               paramLo 0x07  Gain
+             DISPLAY FORMULAS — Charlie gave endpoint ranges, not on-screen
+             reference points at intermediate values (unlike the Chorus/Rate
+             capture, which had exact numbers to check the decode against).
+             So the shapes below are REASONABLE INFERENCE, not confirmed:
+               Threshold  -60..0 dB, linear      (same shape as Gate
+                                                   Threshold/Amp Out)
+               Knee       0..30 dB, linear
+               Gain       0..40 dB, linear
+               Attack     10us..300ms, log        (same curve shape as the
+               Release    5ms..4.0s, log           existing valGateRelease,
+                                                    just different min/max)
+             RATIO LEFT UNRESOLVED ON PURPOSE — Charlie flagged 1:1..100:1
+             may not be a clean linear or log curve ("I may have to do all
+             iterations"). Built the knob functionally (paramLo 0x05, full
+             continuous range, drag/scroll/colour all work) but its readout
+             is the plain generic 0-10 display, NOT a real ratio number —
+             do not read that 0-10 as the true ratio yet.
+EVIDENCE:    dyn3_out.txt (local scratch dump) — six segments at frame
+             ranges 0-152, 152-304, 304-468, 468-620, 620-772, 772-922.
+CONFLICTS:   none.
+NEXT:        Charlie rebuild+retest: open FX1 with Dyn3 Compressor loaded,
+             check the five formula-driven readouts (Threshold/Attack/
+             Release/Knee/Gain) against Avid's own on-screen numbers at a
+             few knob positions — if they're off, that's the log-curve
+             constants to fix, not the paramLo assignment (that part's
+             solid). Ratio needs a dedicated follow-up: a sweep with
+             on-screen reference numbers at several points, same technique
+             as the Chorus/Rate matrix, before its display formula can be
+             written. Next model after Dyn3 is confirmed: per Charlie's
+             plan, whichever he captures next.
+-------------------------------------------------------------------
+DATE:        2026-07-30
 STATUS:      provisional — fixed for FX1 only, NOT TESTED LIVE yet;
              confirmed still present (unfixed) in DIST/REVERB/WAH/VOL
 AREA:        THE "9.9 BUG" — endpoint sentinels missing from fx-transport.js

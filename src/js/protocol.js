@@ -1485,7 +1485,37 @@ const FX1_MODELS = [
         {label:'Mode',   lo:0x05, toggle:true, options:['Chorus','Vibrato']} ]
     ]
   },
-  { mid: 0x16, name: 'Dyn3 Compressor',  captured: false, paramLos: [], rows: [] },
+  // ── DYN3 COMPRESSOR — paramLo confirmed 2026-07-30 (six knobs, each swept
+  // low-high-low; all six are standard continuous (v127+64)%128 knobs, same
+  // step size/shape as every other knob in the app — 0x02 Threshold, 0x03
+  // Attack, 0x04 Release, 0x05 Ratio, 0x06 Knee, 0x07 Gain).
+  // DISPLAY FORMULAS — Threshold/Knee/Gain are linear dB over Charlie's
+  // stated ranges (same shape as Gate Threshold/Amp Out elsewhere); Attack/
+  // Release reuse the SAME log-scale shape already confirmed for Gate
+  // Release (valGateRelease, ui.js), just with this control's own min/max.
+  // RATIO IS UNCONFIRMED — Charlie flagged the range (1:1 to 100:1) may not
+  // be a simple linear or log curve ("I may have to do all iterations").
+  // Left on the generic 0-10 knob display until a follow-up capture with
+  // on-screen reference points (same technique as the Chorus/Rate mapping)
+  // pins the real curve — do not treat the plain 0-10 shown for Ratio as
+  // the true dB/ratio value yet.
+  { mid: 0x16, name: 'Dyn3 Compressor', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
+    rows: [
+      [ {label:'Threshold', lo:0x02, display: function(v) { return (-60 + (v/127)*60).toFixed(1) + ' dB'; }},
+        {label:'Attack',    lo:0x03, display: function(v) {
+            var ms = 0.01 * Math.pow(30000, v/127);           // 10us .. 300ms
+            return ms < 1 ? (ms*1000).toFixed(1) + ' us' : ms.toFixed(1) + ' ms';
+          }},
+        {label:'Release',   lo:0x04, display: function(v) {
+            var ms = 5 * Math.pow(800, v/127);                 // 5ms .. 4.0s
+            return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
+          }},
+        {label:'Ratio',     lo:0x05},   // unconfirmed curve — plain 0-10 for now
+        {label:'Knee',      lo:0x06, display: function(v) { return ((v/127)*30).toFixed(1) + ' dB'; }},
+        {label:'Gain',      lo:0x07, display: function(v) { return ((v/127)*40).toFixed(1) + ' dB'; }} ]
+    ]
+  },
   { mid: 0x08, name: 'Flanger',          captured: false, paramLos: [], rows: [] },
   { mid: 0x11, name: 'Graphic EQ',       captured: false, paramLos: [], rows: [] },
   { mid: 0x14, name: 'Gray Compressor',  captured: false, paramLos: [], rows: [] },
