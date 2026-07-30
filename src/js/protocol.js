@@ -1463,8 +1463,19 @@ VOL_MODELS.forEach(function(m) {
 //   panel just displays whatever the hardware broadcasts back.
 // Encoding: standard (v127+64)%128, same as every other knob.
 // ════════════════════════════════════════════════════════════════════
+// MID ASSIGNMENT CORRECTED 2026-07-30 (live hardware log): the dropdown
+// capture's chain-map pairs carried two candidate values per step (a query
+// and a settled broadcast) that disagreed by one position, and the first
+// build picked the wrong one — every mid below was shifted one slot from
+// the truth. Ground truth from Charlie's live log (C1-loaded patch, no
+// dropdown touched): openFx1Panel reported mid=0x03 for C1 Chorus/Vibrato,
+// not 0x01. Re-anchoring on that single confirmed point makes the rest of
+// the capture self-consistent (the "back to start" pair's value now matches
+// the baseline exactly, which it had NOT under the old assignment — see
+// Session Log). Do not re-derive from the raw capture again; this is the
+// corrected, hardware-confirmed table.
 const FX1_MODELS = [
-  { mid: 0x01, name: 'C1 Chorus/Vibrato', captured: true,
+  { mid: 0x03, name: 'C1 Chorus/Vibrato', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
     rows: [
       [ {label:'Chorus', lo:0x02},
@@ -1474,15 +1485,15 @@ const FX1_MODELS = [
         {label:'Mode',   lo:0x05, toggle:true, options:['Chorus','Vibrato']} ]
     ]
   },
-  { mid: 0x03, name: 'Dyn3 Compressor',  captured: false, paramLos: [], rows: [] },
-  { mid: 0x16, name: 'Flanger',          captured: false, paramLos: [], rows: [] },
-  { mid: 0x08, name: 'Graphic EQ',       captured: false, paramLos: [], rows: [] },
-  { mid: 0x11, name: 'Gray Compressor',  captured: false, paramLos: [], rows: [] },
-  { mid: 0x14, name: 'MultiChorus',      captured: false, paramLos: [], rows: [] },
-  { mid: 0x06, name: 'Orange Phaser',    captured: false, paramLos: [], rows: [] },
-  { mid: 0x0C, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },
-  { mid: 0x13, name: 'Roto Speaker',     captured: false, paramLos: [], rows: [] },
-  { mid: 0x0F, name: 'Vibe Phaser',      captured: false, paramLos: [], rows: [] },
+  { mid: 0x16, name: 'Dyn3 Compressor',  captured: false, paramLos: [], rows: [] },
+  { mid: 0x08, name: 'Flanger',          captured: false, paramLos: [], rows: [] },
+  { mid: 0x11, name: 'Graphic EQ',       captured: false, paramLos: [], rows: [] },
+  { mid: 0x14, name: 'Gray Compressor',  captured: false, paramLos: [], rows: [] },
+  { mid: 0x06, name: 'MultiChorus',      captured: false, paramLos: [], rows: [] },
+  { mid: 0x0C, name: 'Orange Phaser',    captured: false, paramLos: [], rows: [] },
+  { mid: 0x13, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },
+  { mid: 0x0F, name: 'Roto Speaker',     captured: false, paramLos: [], rows: [] },
+  { mid: 0x0A, name: 'Vibe Phaser',      captured: false, paramLos: [], rows: [] },
 ];
 const FX1_MODEL_BY_MID = {};
 FX1_MODELS.forEach(function(m) { FX1_MODEL_BY_MID[m.mid] = m; });

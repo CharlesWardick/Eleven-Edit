@@ -40,6 +40,57 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-30
+STATUS:      confirmed (anchored on live hardware log, not re-derived
+             from the ambiguous capture)
+AREA:        FX1 Block 1 — mid table off-by-one, now corrected
+FINDING:     Charlie's first live test of the FX1 panel (C1-loaded patch)
+             showed the model dropdown defaulting to "Dyn3 Compressor" with
+             a placeholder instead of C1's real knobs, and reverting to
+             Dyn3 after manually picking C1 — plus a live step-through of
+             the dropdown "looked off by one" against the on-screen list.
+             His app log nailed it directly: "openFx1Panel: mid=0x03
+             handle=0x07" for the C1-loaded patch. That is EXACTLY the
+             unresolved ambiguity flagged in the first dropdown-capture
+             entry above (two candidate values per chain-map pair, dir00 vs
+             dir02, that disagreed by one step) — the original build picked
+             the wrong candidate, shifting every FX1 mid by one position.
+             Re-anchoring the whole table on this one confirmed point
+             (C1=0x03) makes the entire capture internally consistent: the
+             "back to start" pair's value now matches the baseline exactly,
+             which it had NOT under the old assignment (that mismatch was
+             flagged as an open question in the very first FX1 dropdown
+             entry and is now explained/resolved, not just parked).
+             CORRECTED FX1_MODELS (protocol.js) and the index.html dropdown
+             options both updated — mids reassigned as a straight cyclic
+             shift of the same 10 values, same order, one position later:
+               C1 Chorus/Vibrato   0x03  (was 0x01)
+               Dyn3 Compressor     0x16  (was 0x03)
+               Flanger             0x08  (was 0x16)
+               Graphic EQ          0x11  (was 0x08)
+               Gray Compressor     0x14  (was 0x11)
+               MultiChorus         0x06  (was 0x14)
+               Orange Phaser       0x0C  (was 0x06)
+               Parametric EQ       0x13  (was 0x0C)
+               Roto Speaker        0x0F  (was 0x13)
+               Vibe Phaser         0x0A  (was 0x0F)
+EVIDENCE:    Charlie's live app log, 10:35:38 line: "openFx1Panel: mid=0x03
+             handle=0x07" with C1 Chorus/Vibrato loaded, panel just opened,
+             no dropdown interaction yet.
+CONFLICTS:   Supersedes the mid table built earlier this session (git commit
+             "Build FX1 effect panel for C1 Chorus/Vibrato") — that table is
+             wrong, this entry replaces it. No Tech Ref conflict (FX1 mids
+             were never in a main doc).
+NEXT:        Charlie rebuilds and retests: FX1 panel should now open showing
+             C1 Chorus/Vibrato selected with real knobs when that patch is
+             loaded, no placeholder, no dropdown mismatch. If the picture is
+             clean this time, this folds into the Primer as C1's mid moves
+             from provisional to confirmed. LESSON for the next model
+             capture (Dyn3 Compressor): don't pick between two disagreeing
+             candidate values from a chain-map pair without a live-hardware
+             anchor point to check against — get one early rather than after
+             a full panel build.
+-------------------------------------------------------------------
+DATE:        2026-07-30
 STATUS:      provisional — NOT TESTED LIVE (built this session, no hardware
              test yet; per Primer's states this is the only honest label
              until Charlie runs it against the real rack)
