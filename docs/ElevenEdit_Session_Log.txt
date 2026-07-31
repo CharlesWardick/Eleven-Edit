@@ -40,6 +40,59 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-31
+STATUS:      CODE ADDED, NOT YET USED BY ANY CAPTURED MODEL — structural
+             groundwork ahead of MultiChorus/Dynamic-Delay-shaped captures
+AREA:        FX1 panel — grouped/boxed layout support (fx-panels.js)
+FINDING:     Charlie flagged that MultiChorus and (worse) Dynamic Delay use
+             Avid panels boxed into labeled sub-groups (CHORUS/MOD;
+             DELAY/EQ/ENV MOD) rather than one flat knob row, and asked for
+             layout ideas ahead of capturing them, plus said several other
+             FX share this shape — worth building once rather than per
+             panel. Agreed approach: reuse everything already built (knobs/
+             toggle/sync/slider), add ONE new generic cell kind, and add
+             grouping as a layout-only concept — no new drag/read/write
+             logic anywhere.
+BUILT (ahead of any capture, so nothing here is hardware-confirmed data —
+             pure structural capability):
+  - GROUPED ROWS — a model's `rows` array entries can now be a flat array
+    of cells (unchanged, every existing model still works exactly as
+    before) OR a group object {group:'LABEL', rows:[[cells...],...]},
+    rendered as its own bordered/labeled sub-box inside the panel, matching
+    Avid's CHORUS/MOD/DELAY/EQ/ENV MOD boxes. Ungrouped top-level rows
+    (e.g. Rate/Depth sitting outside any box) render as a plain column so
+    they line up visually with boxed groups beside them.
+  - cell.select — a new generic named-position dropdown (cell.options =
+    [{label, v127}, ...]) for controls with 3+ discrete named positions
+    that aren't Sync/tempo-driven (e.g. Dynamic Delay's Feedback Mode
+    Mono/Stereo/Cross/Pong, MultiChorus's Voices). Nearest-match on
+    readback so an unexpected raw value still lands on the closest labeled
+    option. Same spirit as the existing cell.sync dropdown, generalized.
+  - Waveform Tri/Sine (MultiChorus) deliberately mapped to the EXISTING
+    cell.toggle (2-state), not a new control — no reason to build a new
+    widget for a binary choice. Avid's tiny rotary-switch graphics for both
+    Waveform and Feedback Mode are NOT being replicated pixel-for-pixel;
+    dropdowns/toggles are more legible at a glance (Primer's "old eyes"
+    rule) and we already own the send/read/R1-R8 plumbing for both shapes.
+  - fx1AllCells(model) — flattens a model's cells across flat rows AND
+    group sub-rows into one array. updateFx1Knob and the R7 sync-interlock
+    helpers (fx1SyncCellLo/fx1CellIsSyncDriven) now call this instead of
+    walking model.rows directly, so grouped models get correct hardware-
+    readback routing and Sync-interlock behaviour for free — no per-model
+    special-casing needed.
+VERIFIED: node --check on fx-panels.js; a standalone flatten test (not part
+             of the app) confirmed cells nested inside groups are found
+             correctly alongside flat-row cells.
+NOT YET DONE: no model actually uses group/select yet — MultiChorus and
+             Dynamic Delay both still need their Wireshark captures before
+             any real paramLo/model data lands. This entry is pure
+             plumbing, ready for whichever capture comes in first.
+NEXT:        When Charlie's MultiChorus (or Dynamic Delay) capture arrives,
+             build its FX1_MODELS entry using group/select as needed — no
+             further fx-panels.js changes anticipated unless the real
+             layout surfaces a shape not covered here.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — root cause of the
              "unreproduced bug" flagged earlier this session, now identified
 AREA:        FX1 — Graphic EQ AND Dyn3 Compressor both missing their mono

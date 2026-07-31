@@ -809,37 +809,77 @@ function closeFx1Panel() {
   fx1PanelOpen = false;
 }
 
-// Build the control row for the given model mid. Uncaptured models (see
-// protocol.js FX1_MODELS) show a placeholder instead of knobs — there is
-// nothing to render yet, not a bug.
-function renderFx1Knobs(mid) {
-  const container = document.getElementById('fx1-knob-row');
-  if (!container) return;
-  const model = FX1_MODEL_BY_MID[mid];
-  if (!model) {
-    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
-    return;
-  }
-  if (!model.captured) {
-    container.innerHTML = '<div style="color:var(--muted);padding:8px;">'
-      + model.name + ' — paramLo layout not yet captured.</div>';
-    return;
-  }
-  container.innerHTML = '';
+// ── GROUPED LAYOUT (added 2026-07-31 for MultiChorus/Dynamic-Delay-shaped
+// models) — Avid boxes some FX1 models' controls into labeled sub-panels
+// (e.g. MultiChorus's CHORUS box holding Low Cut/Width, MOD box holding Pre
+// Delay/Waveform) rather than one flat knob row. A row entry in a model's
+// `rows` array can now be EITHER the original flat form — an array of cells
+// — OR a group object `{group:'CHORUS', rows:[[cells...], ...]}`, rendered
+// as its own bordered/labeled sub-box nested inside the panel's outer
+// wrapper. Existing flat-row models (DIST/REVERB/WAH/VOL/C1 Chorus/Dyn3/
+// Flanger/Graphic EQ/Gray Compressor) are untouched — a plain array is still
+// exactly what it always was. Deliberately NOT replicating Avid's tiny
+// rotary-switch controls (Waveform Tri/Sine, Feedback Mode Mono/Stereo/
+// Cross/Pong) pixel-for-pixel — Tri/Sine is a 2-state cell.toggle (same
+// shape as C1 Chorus's Mode), anything with 3+ named positions is the new
+// cell.select (a plain dropdown, same spirit as cell.sync but for an
+// arbitrary named-position control instead of the Sync/tempo table).
 
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
-    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+// Flatten every real cell (skipping spacers) across a model's rows,
+// INCLUDING cells nested inside group entries. Used by lookups that don't
+// care about layout (update-from-hardware, the R7 Sync-interlock helpers) —
+// keeps them working unchanged for grouped models with no per-caller edits.
+function fx1AllCells(model) {
+  const cells = [];
+  model.rows.forEach(function(entry) {
+    const rows = entry.group ? entry.rows : [entry];
+    rows.forEach(function(row) { row.forEach(function(c) { if (c) cells.push(c); }); });
+  });
+  return cells;
+}
 
-  model.rows.forEach(function(rowCells) {
-    const rowDiv = document.createElement('div');
-    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
-
-    rowCells.forEach(function(cell) {
+// Render one cell (knob/toggle/sync/slider/select/spacer) into rowDiv.
+// Extracted from renderFx1Knobs so both a flat row and a group's sub-rows
+// call the exact same cell logic — no duplication between the two layouts.
+function renderFx1Cell(cell, rowDiv) {
       if (!cell) {
         const sp = document.createElement('div');
         sp.style.cssText = 'width:80px;flex-shrink:0;';
         rowDiv.appendChild(sp);
+      } else if (cell.select) {
+        // Generic named-position dropdown (added for MultiChorus/Dynamic
+        // Delay-shaped models) — same spirit as cell.sync but for an
+        // arbitrary small option list instead of the Sync/tempo table.
+        // cell.options: [{label, v127}, ...]. Nearest-match on readback so
+        // an unexpected raw value still lands on the closest labeled
+        // position rather than showing nothing selected.
+        const loHex = cell.lo.toString(16).padStart(2,'0');
+        const selDiv = document.createElement('div');
+        selDiv.className = 'ctrl-knob';
+        selDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+        const lbl = document.createElement('label');
+        lbl.textContent = cell.label;
+        const sel = document.createElement('select');
+        sel.id = 'fx1-sel-' + loHex;
+        sel.dataset.fx1Lo = loHex;
+        sel.style.cssText = 'width:118px;background:#1a1a1a;color:var(--text);'
+          + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
+        cell.options.forEach(function(opt, i) {
+          const o = document.createElement('option');
+          o.value = String(i);
+          o.textContent = opt.label;
+          sel.appendChild(o);
+        });
+        sel.addEventListener('change', function() {
+          const idx = parseInt(this.value, 10);
+          if (isNaN(idx) || !cell.options[idx]) return;
+          const v127 = cell.options[idx].v127;
+          updateFx1Knob(cell.lo, v127);
+          if (bridgeMidiReady) sendFx1ParamWrite(cell.lo, v127);
+        });
+        selDiv.appendChild(lbl);
+        selDiv.appendChild(sel);
+        rowDiv.appendChild(selDiv);
       } else if (cell.sync) {
         // Sync selector — dropdown only, no knob (matches the amp Tremolo
         // Sync control, not the REVERB Type knob+dropdown composite).
@@ -932,9 +972,68 @@ function renderFx1Knobs(mid) {
         rowDiv.appendChild(knobDiv);
         drawKnob(knobDiv.querySelector('canvas'), 64);
       }
-    });
+}
 
-    wrapper.appendChild(rowDiv);
+// Build one flat row (an array of cells) into parentEl.
+function renderFx1Row(rowCells, parentEl) {
+  const rowDiv = document.createElement('div');
+  rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+  rowCells.forEach(function(cell) { renderFx1Cell(cell, rowDiv); });
+  parentEl.appendChild(rowDiv);
+}
+
+// Build the control row for the given model mid. Uncaptured models (see
+// protocol.js FX1_MODELS) show a placeholder instead of knobs — there is
+// nothing to render yet, not a bug.
+function renderFx1Knobs(mid) {
+  const container = document.getElementById('fx1-knob-row');
+  if (!container) return;
+  const model = FX1_MODEL_BY_MID[mid];
+  if (!model) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
+    return;
+  }
+  if (!model.captured) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">'
+      + model.name + ' — paramLo layout not yet captured.</div>';
+    return;
+  }
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;gap:18px;align-items:flex-start;'
+    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+
+  // Each entry is either a flat row (array of cells — the original shape,
+  // rendered straight into the outer wrapper) or a group object
+  // {group:'LABEL', rows:[[cells...], ...]} — rendered as its own nested
+  // bordered/labeled box, matching Avid's boxed sub-panels (CHORUS/MOD,
+  // DELAY/EQ/ENV MOD, etc. — see the GROUPED LAYOUT comment above
+  // renderFx1Cell). A model can freely mix top-level flat rows (ungrouped
+  // controls like Rate/Depth/Voices/Mix sitting outside any box) with
+  // group entries in the same rows array, in whatever order Avid's layout
+  // calls for.
+  model.rows.forEach(function(entry) {
+    if (entry && entry.group) {
+      const box = document.createElement('div');
+      box.style.cssText = 'display:flex;flex-direction:column;gap:10px;'
+        + 'padding:10px 12px;background:#242424;border-radius:5px;border:1px solid #444;';
+      const hdr = document.createElement('div');
+      hdr.textContent = entry.group;
+      hdr.style.cssText = 'font-size:11px;color:var(--label);text-transform:uppercase;'
+        + 'letter-spacing:0.5px;font-weight:bold;';
+      box.appendChild(hdr);
+      entry.rows.forEach(function(rowCells) { renderFx1Row(rowCells, box); });
+      wrapper.appendChild(box);
+    } else {
+      // Ungrouped column — same look as a single-group box minus the header,
+      // so a lone Rate/Depth pair lines up visually with a labeled group
+      // beside it instead of floating at a different baseline.
+      const col = document.createElement('div');
+      col.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+      renderFx1Row(entry, col);
+      wrapper.appendChild(col);
+    }
   });
 
   container.appendChild(wrapper);
@@ -948,15 +1047,28 @@ function updateFx1Knob(paramLo, val) {
   const model = currentFx1Model();
   let cell = null;
   if (model) {
-    model.rows.forEach(function(row) {
-      row.forEach(function(c) { if (c && c.lo === paramLo) cell = c; });
-    });
+    fx1AllCells(model).forEach(function(c) { if (c.lo === paramLo) cell = c; });
   }
 
   if (cell && cell.sync) {
     const idx = syncIndexFromV127(val);
     const sel = document.getElementById('fx1-sync-' + loHex);
     if (sel) sel.value = String(idx);
+    return;
+  }
+  if (cell && cell.select) {
+    // Nearest-match: an unexpected raw value (rounding, or a position we
+    // didn't enumerate) still lands on the closest labeled option rather
+    // than leaving the dropdown showing nothing selected.
+    const sel = document.getElementById('fx1-sel-' + loHex);
+    if (sel) {
+      let bestIdx = 0, bestDist = Infinity;
+      cell.options.forEach(function(opt, i) {
+        const d = Math.abs(opt.v127 - val);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      });
+      sel.value = String(bestIdx);
+    }
     return;
   }
   if (cell && cell.toggle) {
@@ -1007,12 +1119,12 @@ function refreshFx1PanelAfterChainMap() {
 // protocol.js), not a hardcoded paramLo. ──
 function fx1SyncCellLo(model) {
   var lo = null;
-  model.rows.forEach(function(row) { row.forEach(function(c) { if (c && c.sync) lo = c.lo; }); });
+  fx1AllCells(model).forEach(function(c) { if (c.sync) lo = c.lo; });
   return lo;
 }
 function fx1CellIsSyncDriven(model, paramLo) {
   var found = null;
-  model.rows.forEach(function(row) { row.forEach(function(c) { if (c && c.lo === paramLo) found = c; }); });
+  fx1AllCells(model).forEach(function(c) { if (c.lo === paramLo) found = c; });
   return !!(found && found.syncDriven);
 }
 function fx1CurrentSyncZone(model) {
