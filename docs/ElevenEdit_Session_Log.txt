@@ -41,6 +41,55 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        Chain row — intermittent missing graphics on program load
+FINDING:     Charlie: on some launches the chain row shows only dashed
+             placeholder boxes, no real Avid pedal thumbnails — intermittent,
+             no error visible in the logs, fixed by either relaunching or
+             manually running Settings -> Scan Folder. Asked whether a
+             startup timing value needed bumping.
+             TRACED (not guessed): the graphics scan (main.js scan-avid-
+             graphics, walks the whole Avid folder tree for PNGs) runs once
+             automatically at startup, racing the MIDI nav pull's own chain-
+             row render. Read applyChainOrder (ui.js) closely — it DOES
+             re-fetch every thumbnail fresh from the graphics manifest on
+             every renderChainRow() call, so a slow-but-eventually-
+             successful scan self-heals once its own post-scan
+             renderChainRow() call fires (the currentChain.length guard just
+             defers that call until the chain is loaded, it doesn't skip it
+             forever). The scan TIMING isn't provably the bug on its own.
+             What IS a confirmed, evidenced bug: an outright FAILED scan
+             attempt (folder walk error, or the "not set" case) was nearly
+             invisible — main.js's "folder not set" early-return never
+             called logWrite at all, and the renderer's failure handler only
+             updated the (usually closed) Settings panel's text field, never
+             appLog. So a transient failure (AV lock, disk not settled right
+             after boot, etc.) left NOTHING in the log — exactly matching
+             "I don't see anything in the logs" — and nothing ever retried
+             it automatically, matching "quit and try again... probably
+             works" (a relaunch is just a fresh attempt; a manual Scan click
+             is just a manual retry).
+FIX APPLIED: (1) every failure path (main.js's "folder not set", its catch
+             block already logged; the renderer's failure branch and its
+             .catch) now calls appLog/logWrite, so a future occurrence
+             leaves a trace regardless of ordering. (2) the startup auto-
+             scan now retries automatically up to 2 more times, 3s apart, on
+             failure — automates the exact "quit and try again" workaround
+             Charlie was doing by hand, rather than a blind timing bump.
+             Does NOT touch the self-healing slow-scan-vs-fast-nav-pull
+             ordering, since that traced out as already correct.
+EVIDENCE:    Code trace only (main.js/index.html), no live repro available
+             this session — Charlie described the symptom from memory, no
+             fresh log/capture. node --check passed on main.js; inline
+             <script> blocks in index.html parsed clean via a standalone
+             syntax check. NOT hardware/build tested.
+NEXT:        Charlie builds and watches for a recurrence. If it still
+             happens, this session's fix should at minimum leave a log line
+             ("Avid graphics scan failed: ...") pinpointing which failure
+             path fired — bring that log back rather than guessing further.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 — MultiChorus model captured (6th of 10 FX1 models), FIRST
              to use the new grouped/boxed layout
 FINDING:     Charlie supplied MultiChorus_Capture.pcapng plus a screenshot of

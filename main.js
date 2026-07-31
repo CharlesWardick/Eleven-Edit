@@ -343,6 +343,11 @@ ipcMain.handle('scan-avid-graphics', function(e, rootDir) {
   try {
     const dir = rootDir || storeGet('avidDir', '');
     if (!dir || !fs.existsSync(dir)) {
+      // Was silent before 2026-07-31 — the ONLY reason the intermittent
+      // "chain row graphics missing on load" bug (Session Log) had no trace
+      // in the logs at all. Log every failure path now, not just the catch.
+      logWrite('Avid graphics scan failed: folder not set or does not exist'
+        + (dir ? (' (' + dir + ')') : ''));
       return { ok: false, error: 'Folder not set or does not exist' };
     }
     const families = {}; // familyName -> { dir: imagesDirPath, files: [png basenames] }

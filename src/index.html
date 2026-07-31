@@ -1998,14 +1998,25 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
   // the chain row so any block with a confirmed image (see
   // CHAIN_BLOCK_THUMB_FILE_BY_MID) swaps its dummy placeholder for the real
   // Avid graphic without needing a patch nav.
+  // Returns a Promise<boolean> (true = graphics manifest applied) so the
+  // startup auto-scan below can retry on failure — added 2026-07-31 after
+  // Charlie hit intermittent missing chain-row graphics on load with NO
+  // trace in the logs. Root cause: a scan failure only ever updated the
+  // (usually closed) Settings panel's result text — never logged — and ran
+  // exactly once at startup with no retry, so a transient failure (AV
+  // lock, disk not settled right after boot) left placeholders for the
+  // whole session until Charlie manually re-ran Scan. Every failure path
+  // now logs via appLog so a future occurrence leaves a trace either way.
   function runAvidGraphicsScan(showBusy) {
-    if (!window.electronAPI) return;
+    if (!window.electronAPI) return Promise.resolve(false);
     const resultEl = document.getElementById('settings-avid-scan-result');
     if (showBusy && resultEl) resultEl.textContent = 'Scanning…';
     return window.electronAPI.scanAvidGraphics().then(function(res) {
       if (!res || !res.ok) {
-        if (resultEl) resultEl.textContent = 'Scan failed: ' + ((res && res.error) || 'unknown error');
-        return;
+        var errMsg = (res && res.error) || 'unknown error';
+        if (resultEl) resultEl.textContent = 'Scan failed: ' + errMsg;
+        appLog('Avid graphics scan failed: ' + errMsg);
+        return false;
       }
       const familyCount = Object.keys(res.families).length;
       if (resultEl) resultEl.textContent = familyCount + ' plugin folder(s), ' + res.totalCount + ' PNG(s) found.';
@@ -2014,8 +2025,12 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
       if (typeof currentChain !== 'undefined' && currentChain.length && typeof renderChainRow === 'function') {
         renderChainRow();
       }
+      return true;
     }).catch(function(err) {
-      if (resultEl) resultEl.textContent = 'Scan failed: ' + (err && err.message ? err.message : String(err));
+      var errMsg = err && err.message ? err.message : String(err);
+      if (resultEl) resultEl.textContent = 'Scan failed: ' + errMsg;
+      appLog('Avid graphics scan failed: ' + errMsg);
+      return false;
     });
   }
 
@@ -2023,13 +2038,31 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
     runAvidGraphicsScan(true);
   });
 
-  // Auto-scan once at startup if a folder is already set, so real graphics
-  // show up without Charlie having to open Settings and click Scan every
-  // launch. Silent (no busy text) and best-effort — a first-run app with no
-  // folder set yet just keeps the dummy placeholders, same as before.
+  // Auto-scan at startup if a folder is already set, so real graphics show
+  // up without Charlie having to open Settings and click Scan every launch.
+  // Silent (no busy text) and best-effort — a first-run app with no folder
+  // set yet just keeps the dummy placeholders, same as before.
+  // RETRY (added 2026-07-31, see runAvidGraphicsScan's header comment): up
+  // to 2 extra attempts, 3s apart, if the first attempt fails — automates
+  // exactly the "quit and try again" workaround Charlie was doing by hand.
+  // Does NOT address a slow-but-eventually-successful scan racing a fast
+  // MIDI nav pull — that ordering already self-heals on its own once the
+  // scan's own renderChainRow() call fires with the manifest in hand — this
+  // only covers an outright failed attempt going unretried.
   if (window.electronAPI) {
     window.electronAPI.getAvidDir().then(function(d) {
-      if (d) runAvidGraphicsScan(false);
+      if (!d) return;
+      var attempt = 0;
+      function tryScan() {
+        attempt++;
+        runAvidGraphicsScan(false).then(function(ok) {
+          if (!ok && attempt < 3) {
+            appLog('Avid graphics auto-scan attempt ' + attempt + ' failed, retrying in 3s');
+            setTimeout(tryScan, 3000);
+          }
+        });
+      }
+      tryScan();
     }).catch(function(){});
   }
 
