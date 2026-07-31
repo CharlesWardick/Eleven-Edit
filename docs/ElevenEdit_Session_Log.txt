@@ -110,6 +110,26 @@ FIXED: FX1_MODELS Flanger entry's primary `mid` corrected to 0x08 (matching
 NEXT:        Charlie re-builds and re-tests: Flanger should now stay selected
              in the dropdown, and knobs should hold their turned position
              across a Stereo/Mono toggle like every other FX1 model.
+CONFIRMED (2026-07-31, Charlie's re-test): "That resolved it." Flanger is
+             DONE — dropdown stays selected, knobs hold across Stereo/Mono.
+             FX1 now has 3 of 10 models captured and TESTED LIVE (C1 Chorus/
+             Vibrato, Dyn3 Compressor, Flanger). NEXT model per Charlie:
+             Graphic EQ — awaiting capture.
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      provisional — UNREPRODUCED, watch for a repeat
+AREA:        Unknown — Charlie noticed "a bug somewhere in here" during
+             Flanger testing, not tied to this or any specific panel
+FINDING:     Charlie: "There is a bug somewhere in here that I can't put my
+             finger on yet until I am able to repeat it consistently, not
+             with this new panel or any panel specifically." No symptom
+             description yet — flagged so it isn't lost, not to be
+             investigated blind. Do NOT guess at a cause or "fix" anything
+             preemptively; wait for a reproducible symptom.
+NEXT:        When Charlie can reproduce it, get the concrete symptom (what he
+             did, what he saw, which panel/control if any) and capture-first
+             per the Primer's TWO-FAILED-FIXES rule — don't touch code before
+             the symptom is pinned down.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31
