@@ -110,6 +110,48 @@ FIX APPLIED: canvas enlarged 34x130 -> 74x173 (~1/3 taller, widened for tick
              100Hz/3.25kHz [12,0,-12], 370/800/2k [18,12,0,-12,-18], Output
              [6,0,-20] — mirrors Avid's own panel scale. Still awaiting the
              re-capture in (1); the Output anchor remains INFERRED until then.
+CORRECTION (2026-07-31, same day, Charlie's screenshot BEFORE the re-capture
+             landed): the taller/wider canvas overlapped the dB readout below
+             it — a REAL bug, not a display fluke. CAUSE: the new slider
+             canvas (74x173) is a child of .knob-wrap/.ctrl-knob, whose CSS
+             is hardcoded for the original round knobs (width:80px;
+             height:80px on .knob-wrap, width:88px on .ctrl-knob). The parent
+             box stayed knob-sized while the canvas painted its full height
+             inside it, so the tick labels near the bottom of the canvas
+             visually landed on top of the value text and the next column.
+FIXED: new .eq-slider modifier class (index.html) sized to match the slider
+             canvas (74x173 wrap / 90px column), applied alongside .ctrl-knob
+             on the slider cell's wrapper div (fx-panels.js) — the shared
+             .knob-wrap/.ctrl-knob rules are UNCHANGED for every other panel,
+             so no regression risk to existing rotary knobs.
+RE-CAPTURE RECEIVED (2026-07-31, same day): EQ_Capture_Start_at_0_Mark.
+             pcapng — every slider parked at 0.0 dB first, swept to the
+             extreme, then Charlie tried to dial each back to exactly 0.0 dB
+             ("some I overshot... eventually got to zero... that last one
+             [Output] I never could land it back on zero"). Decoded the same
+             way as the other captures. RESULT:
+               SYMMETRIC BANDS — return-to-zero attempts settled tightly on
+               raw 63/64 for all five, CONFIRMING the two-slope-anchored-at-64
+               formula exactly. No change.
+               OUTPUT — return-to-zero attempts clustered around raw 99-100,
+               NOWHERE NEAR 64, and never truly settled — proving the
+               two-slope-at-64 formula was WRONG for this band specifically
+               (explains the "+20.0 dB" baseline visible in Charlie's first
+               screenshot). Backed out the math: a plain proportional scale
+               across the full 0-127 range puts 0.0 dB at a non-integer raw
+               ~97.7, meaning EXACT 0.0 dB may not be reachable at 7-bit
+               resolution on this specific asymmetric range — a genuine
+               hardware granularity limit, which is exactly what Charlie
+               experienced, not a bug to hide.
+FIXED: eqSliderDb/eqDbToV127 (ui.js) both take a `linear` flag; Output's
+             FX1_MODELS cell now sets linear:true (plain proportional, full
+             0-127 range) while the five symmetric bands keep the unchanged
+             two-slope-at-64 formula. Ticks reuse the same flag so they still
+             line up with the live thumb position under either shape.
+NEXT:        Charlie builds and tests live: symmetric bands should behave as
+             before; Output should now read close to 0.0 dB (within ~0.3-0.5
+             dB, per the granularity note above) when parked near its visual
+             "0" tick, instead of the earlier +20.0 dB baseline.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31

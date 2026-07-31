@@ -907,7 +907,10 @@ function renderFx1Knobs(mid) {
         // widened for the two tick columns per Charlie's 7/31 request.
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const sliderDiv = document.createElement('div');
-        sliderDiv.className = 'ctrl-knob';
+        // eq-slider (index.html) overrides the round-knob-sized .ctrl-knob/
+        // .knob-wrap boxes to match this control's much taller canvas —
+        // see that rule's comment for the overlap bug this fixes.
+        sliderDiv.className = 'ctrl-knob eq-slider';
         sliderDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
         sliderDiv.innerHTML =
           '<label>' + cell.label + '</label>'
@@ -916,7 +919,7 @@ function renderFx1Knobs(mid) {
           + '<span class="knob-val" id="fx1-v-' + loHex + '">--</span>';
         rowDiv.appendChild(sliderDiv);
         const sWrap = sliderDiv.querySelector('.knob-wrap');
-        drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap, cell.min, cell.max, cell.ticks);
+        drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap, cell.min, cell.max, cell.ticks, cell.linear);
       } else {
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const knobDiv = document.createElement('div');
@@ -971,7 +974,7 @@ function updateFx1Knob(paramLo, val) {
   if (wrap) {
     wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_FX1, loHex, val);
     wrap.dataset.value = val;
-    if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap, cell.min, cell.max, cell.ticks);
+    if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap, cell.min, cell.max, cell.ticks, cell.linear);
     else                     drawKnob(wrap.querySelector('canvas'), val);
   }
   if (valEl) valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);

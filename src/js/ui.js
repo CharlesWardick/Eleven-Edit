@@ -99,16 +99,18 @@ function eqSliderColor(wrap, value127) {
   return KNOB_COLORS.yellow;
 }
 
-// Inverse of eqSliderDb — the raw v127 a given dB value sits at, using the
-// SAME two-slope-anchored-at-64 shape, so a tick mark lines up exactly with
-// where the thumb sits when the live value matches that tick.
-function eqDbToV127(db, minDb, maxDb) {
+// Inverse of eqSliderDb — the raw v127 a given dB value sits at, so a tick
+// mark lines up exactly with where the thumb sits when the live value
+// matches that tick. `linear` selects the same shape eqSliderDb used (see
+// its header comment for why Output needs the plain-proportional variant).
+function eqDbToV127(db, minDb, maxDb, linear) {
+  if (linear) return ((db - minDb) / (maxDb - minDb)) * 127;
   if (db === 0) return 64;
   if (db < 0) { const below = -minDb / 64; return 64 + db / below; }
   const above = maxDb / 63; return 64 + db / above;
 }
 
-function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks) {
+function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks, linear) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   const cx = w / 2;
@@ -126,7 +128,7 @@ function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks) {
     ctx.fillStyle = '#888';
     ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
     ticks.forEach(function(db) {
-      const v = Math.max(0, Math.min(127, eqDbToV127(db, minDb, maxDb)));
+      const v = Math.max(0, Math.min(127, eqDbToV127(db, minDb, maxDb, linear)));
       const y = bottom - (v / 127) * trackH;
       ctx.beginPath();
       ctx.moveTo(cx - 11, y); ctx.lineTo(cx - 7, y);
@@ -190,18 +192,31 @@ function captureKnobBaselines() {
 
 function valDisplay(v127) { return (v127/127*10).toFixed(1); }
 
-// Graphic EQ band/output display — same two-slope-anchored-at-64 shape as
-// valToAmpVol (Sec 20A R5: anchor a symmetric OR asymmetric dB scale so 0.0
-// is exactly reachable, not interpolated near it). v127=64 -> exactly 0.0 dB
-// regardless of whether the range is symmetric (e.g. -12..+12) or not (e.g.
-// Output's -20..+6) — INFERRED from the same pattern as every other dB
-// control in the app, NOT independently hardware-confirmed for the asymmetric
-// Output band (no capture pins the exact raw value 0.0 dB sits at); flag for
-// confirmation on Charlie's first live test (Session Log 2026-07-31).
-function eqSliderDb(v127, minDb, maxDb) {
-  const below = -minDb / 64;
-  const above = maxDb / 63;
-  const db = (v127 < 64) ? (v127 - 64) * below : (v127 - 64) * above;
+// Graphic EQ band/output display. TWO SHAPES, chosen by the `linear` flag —
+// picked apart 2026-07-31 by a capture that started every slider parked at
+// 0.0 dB, swept to max/min, then tried to dial back to exactly 0.0 dB:
+//   SYMMETRIC BANDS (100/370/800/2k/3.25k) — two-slope-anchored-at-64, same
+//   shape as valToAmpVol (Sec 20A R5: 0.0 dB exactly reachable, not
+//   interpolated near it). CONFIRMED by that capture: every symmetric band's
+//   "return to zero" attempt settled tightly on raw 63/64, exactly where
+//   this formula puts 0.0 dB.
+//   OUTPUT (-20..+6, asymmetric) — plain proportional across the FULL 0-127
+//   range, linear=true. The two-slope-at-64 formula was WRONG for this one:
+//   the same capture showed Charlie's return-to-zero attempts clustering
+//   around raw 99-100, nowhere near 64, and never actually settling — 20 dB
+//   of range below 0 and 6 above, spread over 127 steps, does not divide
+//   evenly (0.0 dB sits at a non-integer raw ~97.7), so exact 0.0 dB may be
+//   genuinely unreachable at this resolution — a real hardware granularity
+//   limit, not a display bug to paper over.
+function eqSliderDb(v127, minDb, maxDb, linear) {
+  var db;
+  if (linear) {
+    db = minDb + (v127 / 127) * (maxDb - minDb);
+  } else {
+    const below = -minDb / 64;
+    const above = maxDb / 63;
+    db = (v127 < 64) ? (v127 - 64) * below : (v127 - 64) * above;
+  }
   const t = db.toFixed(1);
   return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
 }

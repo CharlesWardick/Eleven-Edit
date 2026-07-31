@@ -497,6 +497,16 @@
     cursor: ns-resize; flex-shrink: 0; touch-action: none;
   }
   canvas.knob-canvas { display: block; }
+  /* Graphic EQ vertical faders (7/31/2026) — same .ctrl-knob/.knob-wrap
+     contract as a rotary knob (drag/scroll/dblclick handlers key off
+     [data-fx1-lo], not the widget shape), but the canvas is much taller/
+     wider than a round knob. Without this override the fixed 88px/80x80px
+     boxes above clip the fader and its calibration numbers overlap the
+     value readout below (found 7/31/2026 — a knob-sized box holding a
+     slider-sized canvas). Sizes must match the width/height attributes set
+     on the canvas in fx-panels.js's slider branch (renderFx1Knobs). */
+  .eq-slider { width: 90px; }
+  .eq-slider .knob-wrap { width: 74px; height: 173px; }
   .knob-val { font-size: 12px; color: var(--accent); font-weight: bold; text-align: center; font-family: 'Consolas', monospace; min-width: 44px; }
   .knob-disabled { pointer-events: none; opacity: 0.3; }
   /* A knob the hardware DOES report but that we must not write to (Speed,

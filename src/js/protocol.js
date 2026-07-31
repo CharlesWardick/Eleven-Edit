@@ -1608,13 +1608,22 @@ const FX1_MODELS = [
   //   0x02 100 Hz (-12..+12) · 0x03 370 Hz (-18..+18) · 0x04 800 Hz
   //   (-18..+18) · 0x05 2 kHz (-18..+18) · 0x06 3.25 kHz (-12..+12) ·
   //   0x07 Output (-20..+6).
-  // DISPLAY — dB range per band from Charlie's Avid-panel screenshot, using
-  // the same two-slope-anchored-at-v127=64 shape as valToAmpVol elsewhere
-  // (0.0 dB exactly reachable, not interpolated near it) — see eqSliderDb's
-  // header comment: confirmed for the symmetric bands by construction (any
-  // symmetric range collapses to a plain proportional scale), but the
-  // asymmetric Output band's exact 0.0 dB raw position is INFERRED from that
-  // same pattern, not independently captured — flag for Charlie's live test.
+  // DISPLAY — dB range per band from Charlie's Avid-panel screenshot.
+  // CONFIRMED 2026-07-31 by a second capture (EQ_Capture_Start_at_0_Mark.
+  // pcapng) that parked every slider at 0.0 dB, swept to the extreme, then
+  // tried to dial each back to exactly 0.0 dB:
+  //   SYMMETRIC BANDS (100/370/800/2k/3.25k) — two-slope-anchored-at-v127=64
+  //   (same shape as valToAmpVol; 0.0 dB exactly reachable, not interpolated
+  //   near it). Charlie's return-to-zero attempts settled tightly on raw
+  //   63/64 for every one of these — matches the formula exactly.
+  //   OUTPUT (-20..+6) — plain proportional across the FULL 0-127 range
+  //   (eqSliderDb/eqDbToV127's `linear` flag), NOT anchored at 64. The
+  //   two-slope formula was flatly wrong here: Charlie's return-to-zero
+  //   attempts clustered around raw 99-100 and never settled ("I never could
+  //   land it back on zero") — 26 dB spread over 127 steps puts exact 0.0 dB
+  //   at a non-integer raw ~97.7, so it may be genuinely unreachable at this
+  //   resolution. See eqSliderDb's header comment (ui.js) for the full
+  //   reasoning.
   // No Sync control on this model — every cell is a plain slider, R7 does
   // not apply here.
   // TICKS — printed calibration numbers per band, matching Avid's own panel
@@ -1635,8 +1644,8 @@ const FX1_MODELS = [
           display: function(v) { return eqSliderDb(v, -18, 18); }},
         {label:'3.25 kHz', lo:0x06, slider:true, min:-12, max:12, ticks:[12,0,-12],
           display: function(v) { return eqSliderDb(v, -12, 12); }},
-        {label:'Output',   lo:0x07, slider:true, min:-20, max:6, ticks:[6,0,-20],
-          display: function(v) { return eqSliderDb(v, -20, 6); }} ]
+        {label:'Output',   lo:0x07, slider:true, min:-20, max:6, ticks:[6,0,-20], linear:true,
+          display: function(v) { return eqSliderDb(v, -20, 6, true); }} ]
     ]
   },
   { mid: 0x14, name: 'Gray Compressor',  captured: false, paramLos: [], rows: [] },
