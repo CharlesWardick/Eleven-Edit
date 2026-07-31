@@ -1808,7 +1808,62 @@ const FX1_MODELS = [
     ]
   },
   { mid: 0x13, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },
-  { mid: 0x0F, name: 'Roto Speaker',     captured: false, paramLos: [], rows: [] },
+  // ── ROTO SPEAKER — captured 2026-07-31 (Wireshark, Roto_Speaker_Knob_
+  // Capture.pcapng, handle 0x3a). Two new control kinds, first uses in FX1:
+  //   cell.hslider — Speed. Avid draws this as an X--------> lever with
+  //   named zones (Slow/Break/Fast), but the capture confirms it's a REAL
+  //   continuous control (320-sample smooth sweep across the full 0-127
+  //   range during the test, not discrete jumps) — so it's a slider, not a
+  //   3-option dropdown, matching Charlie's own read ("I guess we can make
+  //   a dropdown? or maybe a slider" — went with slider once the capture
+  //   showed continuous data). See drawHSlider (ui.js) — same
+  //   .knob-wrap/data-fx1-lo contract as every FX1 control, just dragged
+  //   left-right instead of up-down (activeIsH branch in the FX1 drag
+  //   handler, fx-panels.js).
+  //   cell.select — Type, reusing the generic named-position dropdown
+  //   built for MultiChorus's Voices (no tempo relationship, Charlie: "Does
+  //   not interact with other controls").
+  // paramLo assignment confirmed by test-order isolation (Speed, then
+  // Balance, then Type, no overlap):
+  //   0x02 Speed (continuous, 320-sample sweep, no gaps) · 0x04 Balance
+  //   (continuous, 408-sample sweep) · 0x03 Type (7 clean transitions,
+  //   evenly spaced 0/18/36/54/73/91/109/127 for an 8-position dropdown,
+  //   matching Charlie's 8 named types walked in order from the load-state
+  //   default "120" — round(i*127/7) for i=0..7, exact match).
+  // BALANCE DISPLAY — CONFIRMED shape, not guessed: "L:R" ratio text, plain
+  // linear (Charlie: "0:100 to 100:0 back to 0:100", eyeballed midpoint
+  // "50:50 makes sense" — v127=0 -> left 0/right 100, v127=127 -> left 100/
+  // right 0, matches a plain proportional split with no anchor trick
+  // needed since the endpoints are already whole numbers by construction).
+  // SPEED TICKS — Slow/Break/Fast placed at v127 0/64/127 (Break centred,
+  // per Charlie's own X------X-------X ASCII spacing) — LABEL POSITIONS
+  // ONLY, not discrete stops; the lever still reports every raw value in
+  // between, same as Sync-free knobs elsewhere.
+  // MONO/STEREO — THREE mids (0x0D mono, BOTH 0x0E/0x0F stereo — matches
+  // the Tech Ref's own "Roto Speaker (variant)" note), registered
+  // defensively per the Graphic EQ/Dyn3 lesson though only one wire id was
+  // observed in this capture.
+  { mid: 0x0F, mids: [0x0D, 0x0E, 0x0F], name: 'Roto Speaker', captured: true,
+    paramLos: [0x02, 0x03, 0x04],
+    rows: [
+      [ {label:'Speed', lo:0x02, hslider:true, ticks: [
+            {v127:0, label:'Slow'}, {v127:64, label:'Break'}, {v127:127, label:'Fast'} ]},
+        {label:'Balance', lo:0x04,
+          display: function(v) {
+            var l = Math.round((v / 127) * 100);
+            return l + ':' + (100 - l);
+          }},
+        {label:'Type', lo:0x03, select:true, options: [
+          {label:'120',       v127:0},
+          {label:'122',       v127:18},
+          {label:'21H',       v127:36},
+          {label:'Foam Drum', v127:54},
+          {label:'Rover',     v127:73},
+          {label:'Memphis',   v127:91},
+          {label:'Wolf',      v127:109},
+          {label:'Watery',    v127:127} ] } ]
+    ]
+  },
   { mid: 0x0A, name: 'Vibe Phaser',      captured: false, paramLos: [], rows: [] },
 ];
 const FX1_MODEL_BY_MID = {};

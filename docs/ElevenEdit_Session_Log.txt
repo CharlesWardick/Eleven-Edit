@@ -41,6 +41,64 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Roto Speaker model captured (8th of 10 FX1 models), TWO
+             new control kinds (horizontal lever, ratio-display knob)
+FINDING:     Charlie supplied Roto_Speaker_Knob_Capture.pcapng plus a
+             description of Avid's panel: a "Speed" lever drawn as
+             X--------> with named zones (Slow/Break/Fast), a "Balance"
+             knob showing a ratio (0:100 to 100:0, ~50:50 at centre), and a
+             "Type" dropdown of 8 unrelated preset names that don't interact
+             with anything else. Decoded the same way as every other FX1
+             capture. Single handle 0x3a, three paramLos, each isolated to
+             its own test window in the stated order (Speed, Balance, Type):
+               0x02 Speed · 0x04 Balance · 0x03 Type.
+             SPEED — the capture showed a 320-sample SMOOTH sweep across the
+             full 0-127 range, not discrete jumps — so despite the visual
+             lever with three named zones, this is a genuinely continuous
+             control, not a 3-position dropdown. Built as a NEW cell kind,
+             cell.hslider (horizontal slider), the first FX1 control dragged
+             left-right instead of up-down.
+             BALANCE — 408-sample continuous sweep, confirmed by Charlie's
+             own test description as a plain 0:100..100:0 linear split
+             (v127=0 -> "0:100", v127=127 -> "100:0", v127=64 -> "50:50" by
+             construction, no anchor trick needed since the endpoints are
+             already whole numbers).
+             TYPE — 7 clean transitions, evenly spaced 0/18/36/54/73/91/
+             109/127 for an 8-position dropdown, exact match for
+             round(i*127/7) walking Charlie's 8 named types in listed order
+             from the load-state default "120". Reused the existing
+             cell.select (built for MultiChorus's Voices) — no tempo tie.
+             MONO/STEREO — THREE mids (0x0D mono, 0x0E/0x0F both stereo,
+             matching the Tech Ref's own long-standing "Roto Speaker
+             (variant)" note) — registered defensively per the Graphic EQ/
+             Dyn3 lesson, only one wire id observed in this capture.
+BUILT: new drawHSlider (ui.js) — a horizontal groove+thumb with printed
+             named ticks below (Slow/Break/Fast at v127 0/64/127), reusing
+             the STANDARD green/red FX knobColor() rather than a special
+             accent colour (no Avid-picture colour hint was given for this
+             one, unlike Graphic EQ's yellow). New .h-slider CSS override
+             in index.html (same overlap-avoidance need as .eq-slider — a
+             wide/short canvas instead of a knob-sized box). The generic FX1
+             drag handler (fx-panels.js) now tracks a per-drag activeIsH
+             flag so a horizontal-lever drag reads mouse X movement instead
+             of Y — every other FX1 control is unaffected (defaults to the
+             existing vertical-drag behaviour).
+FIX APPLIED: FX1_MODELS Roto Speaker stub (protocol.js, mid 0x0F — matches
+             index.html's <option value="15">) replaced with the three-cell
+             row (Speed hslider, Balance knob with L:R display, Type select).
+EVIDENCE:    Roto_Speaker_Knob_Capture.pcapng + Charlie's panel description
+             (2026-07-31). node --check passed on protocol.js/ui.js/
+             fx-panels.js; inline <script> blocks in index.html parsed clean.
+             NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm Speed drags smoothly
+             left-right and the tick labels read sensibly, Balance shows the
+             right L:R split at both ends and near centre, Type's 8 presets
+             select correctly, and the Stereo/Mono toggle (three-mid pair,
+             unconfirmed by this capture).
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 — Orange Phaser model captured (7th of 10 FX1 models)
 FINDING:     Charlie supplied Orange_Phaser_Knob_Capture.pcapng plus a Sync-
              zone -> Rate spreadsheet. Simplest FX1 shape yet: single Rate

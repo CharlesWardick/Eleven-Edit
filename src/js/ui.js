@@ -161,6 +161,63 @@ function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks, linear) {
   ctx.fill();
 }
 
+// ── Horizontal lever (Roto Speaker's Speed, 7/31/2026) — SECOND non-rotary
+// FX1 control. Avid draws this as a literal X--------> lever with named
+// zones (Slow/Break/Fast) along a continuous track, confirmed genuinely
+// continuous underneath (a 320-sample smooth sweep across the full 0-127
+// range, not discrete jumps between three fixed stops) — so this is a real
+// slider, not a 3-option dropdown, even though only three points are
+// labelled. Base colour reuses the standard green/red FX knobColor() (no
+// Avid-picture accent colour was given for this control, unlike Graphic
+// EQ's yellow), so a normal FX1 knob and this lever look consistent
+// side by side. ticks: [{v127, label}, ...] — printed BELOW the track,
+// same "printed calibration, not interactive" spirit as the EQ slider's
+// tick marks.
+function drawHSlider(canvas, value127, wrap, ticks) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cy = 16;
+  const left = 10, right = w - 10;
+  const trackW = right - left;
+  const col = knobColor(canvas, value127);
+
+  ctx.clearRect(0, 0, w, h);
+
+  if (ticks) {
+    ctx.font = '9px sans-serif';
+    ctx.fillStyle = '#888';
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
+    ctx.textAlign = 'center';
+    ticks.forEach(function(t) {
+      const x = left + (t.v127 / 127) * trackW;
+      ctx.beginPath();
+      ctx.moveTo(x, cy - 11); ctx.lineTo(x, cy - 7);
+      ctx.moveTo(x, cy + 7);  ctx.lineTo(x, cy + 11);
+      ctx.stroke();
+      ctx.fillText(t.label, x, h - 4);
+    });
+  }
+
+  // Groove
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(left, cy); ctx.lineTo(right, cy);
+  ctx.stroke();
+
+  // Thumb — a vertical bar riding the horizontal groove. 0 = left (Slow),
+  // 127 = right (Fast), matching drag-up-increases everywhere else (a
+  // horizontal drag maps left->right the same direction the value grows).
+  const x = left + (value127 / 127) * trackW;
+  ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x, cy - 9); ctx.lineTo(x, cy + 9);
+  ctx.stroke();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(x, cy, 2, 0, Math.PI*2);
+  ctx.fill();
+}
+
 // Drop main-panel baselines and repaint to base colour. Called at nav start so
 // the incoming patch's knobs show plain amber during the pull instead of a red
 // flash (the old patch's baseline would otherwise read every new value as
