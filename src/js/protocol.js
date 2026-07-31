@@ -1578,7 +1578,18 @@ const FX1_MODELS = [
   // worth a quick Stereo/Mono toggle check like C1 got, per Charlie's
   // 2026-07-30 note that stereo is the expected default for everything but
   // Gray Compressor.
-  { mid: 0x07, mids: [0x07, 0x08], name: 'Flanger', captured: true,
+  // PRIMARY MID IS 0x08, NOT 0x07 (fixed 2026-07-31, found by Charlie's live
+  // test): the static <option value="8"> in index.html's fx1-model-select
+  // predates this capture (it was seeded from the captured:false stub) and
+  // every FX1 model's primary `mid` must equal its HTML option value —
+  // openFx1Panel does `sel.value = String(openModel.mid)`, and a mismatch
+  // (this was 0x07) sets a value with no matching <option>, leaving the
+  // dropdown BLANK. That same mismatch made refreshFx1PanelAfterChainMap's
+  // "did the model change?" check (parseInt(sel.value) !== refreshModel.mid)
+  // fail on every chain map — including a plain mono/stereo toggle — forcing
+  // an unwanted full knob-row rebuild + baseline wipe on every toggle. Same
+  // root cause, both symptoms.
+  { mid: 0x08, mids: [0x07, 0x08], name: 'Flanger', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
     rows: [
       [ {label:'Pre-Delay', lo:0x05},

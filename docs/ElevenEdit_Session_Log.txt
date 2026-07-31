@@ -85,6 +85,31 @@ NEXT:        Charlie builds and tests live: open Flanger in the FX1 panel,
              specifically test Sync x Rate (grab Rate while Sync engaged ->
              Sync should clear, matching the R7 fix already applied) and the
              Stereo/Mono toggle (unconfirmed mid pair, see above).
+CORRECTION (2026-07-31, same day, Charlie's first live test): TWO bugs, one
+             root cause. (1) The dropdown went BLANK the instant Flanger was
+             selected (other models stayed showing their name fine). (2) The
+             Flanger knobs visibly reset/reload on every Stereo/Mono toggle —
+             no other FX1 model does this. CAUSE: index.html's static
+             fx1-model-select already had <option value="8">Flanger</option>
+             (seeded when the stub was captured:false), but this capture set
+             the model's primary `mid` to 0x07. openFx1Panel does
+             `sel.value = String(openModel.mid)` -> "7", which matches no
+             <option>, so the dropdown shows blank. The SAME mismatch broke
+             refreshFx1PanelAfterChainMap's "did the model actually change?"
+             guard (compares parseInt(sel.value) to the model's mid), so it
+             was NEVER equal — every chain map, including a plain mono/stereo
+             toggle, was misread as a model change and forced a full knob-row
+             rebuild + baseline wipe. One value fix explains both symptoms.
+FIXED: FX1_MODELS Flanger entry's primary `mid` corrected to 0x08 (matching
+             the HTML option), mids:[0x07,0x08] kept for inbound wire-id
+             resolution either way. General lesson for MOD/DELAY/FX2 model
+             tables going forward: primary `mid` MUST equal the pre-seeded
+             HTML <option value>, not just be A valid wire id for the model —
+             worth a quick cross-check against index.html whenever converting
+             a captured:false stub to captured:true.
+NEXT:        Charlie re-builds and re-tests: Flanger should now stay selected
+             in the dropdown, and knobs should hold their turned position
+             across a Stereo/Mono toggle like every other FX1 model.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31
