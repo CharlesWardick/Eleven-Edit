@@ -39,6 +39,54 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      provisional — OPEN CODE FIX (found during contract writing)
+AREA:        FX1 Chorus panel missing the Sync interlock (R7) the amp has
+FINDING:     The amp Sync/Speed interlock (Tech Ref Sec 11 / now R7 in the
+             Sec 20A Knob Contract) says: grabbing a Sync-driven knob sends
+             Sync=OFF first, once per drag, then writes the knob — mirroring the
+             rack's own knob, which clears Sync when grabbed. The FX1 Chorus
+             panel (built 7/30) implements the Sync-SETS-the-knob half but NOT
+             the grab-CLEARS-Sync half: grabbing Rate while Sync is engaged does
+             not turn Sync off, unlike the amp panel and unlike the physical HW.
+             Noticed by Charlie 7/31. This is the exact scatter failure the new
+             contract exists to prevent — the rule lived only in the amp context
+             and was not carried to the effect panel.
+FIX (to do): apply R7 to the FX1 Chorus Sync/Rate control (send Sync=OFF once
+             per drag on grab, then write normally; no write guard, no grey-out).
+             Same fix will be needed on every future synced control (MOD/DELAY).
+             Belongs to the Sec 20A code audit below.
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      provisional — NEW FEATURE to implement (universal knob rule R8)
+AREA:        Double-click knob -> jump to load baseline (Sec 20A R8)
+FINDING:     New universal knob rule added to the contract: double-clicking a
+             knob returns THAT knob to its load-baseline value (the R3 baseline),
+             behaving exactly like a manual turn back — rack reacts live, ring
+             clears, one knob only, no save. Uses the baseline the app already
+             tracks for red-ring (R3). Added before the 50+ new knobs so every
+             new panel inherits it.
+FIX (to do): implement double-click-to-baseline on all knobs; retrofit to the
+             existing five panels during the Sec 20A code audit. Obeys R1
+             (endpoint sentinels) and R6 (drag-queue safety) since it sends to
+             the rack like any knob change.
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      provisional — STANDING TASK, run in Claude Code (needs repo access)
+AREA:        Knob/Control Contract (Sec 20A) — one-time code audit of panels
+FINDING:     Sec 20A consolidates the seven knob rules that were scattered.
+             Before the 50+ new knobs across FX1/FX2/MOD/DELAY land, existing
+             knob panels must be audited against R1-R7 in a session that can
+             read the .js files (a docs review chat cannot). Two checks per
+             file (transport.js, fx-transport.js, ui.js, fx-panels.js,
+             protocol.js): (a) does the RUNTIME obey R1-R7 — fix existing panels
+             first, since new panels are copied from them; (b) do the COMMENTS
+             still match the runtime — comment-vs-code drift is a real bug (known
+             case: transport.js tempo comment "not per patch"). Record findings
+             here. Do NOT mark done from a docs review.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-07-30  (FX1 Block 1 — condensed 2026-07-31 review)
 STATUS:      [FOLDED IN: Tech Ref Sec 23 (FX1 SLOT subsection + OUTPUT CHANNEL
              TABLE mid 0x01) + Sec 24; Primer app-state / WORKING / code map /

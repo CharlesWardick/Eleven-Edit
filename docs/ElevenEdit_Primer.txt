@@ -873,6 +873,15 @@ LATER — EFFECT PANELS FOR REMAINING EIGHT SLOTS
     - CMD 0x21 model-change send in transport.js (sendDistModelChange pattern)
     - Panel open/close, chain-open handler routing, ✕ close button in index.html
 
+  *** BUILD EVERY KNOB AGAINST THE KNOB/CONTROL CONTRACT — Tech Ref Sec 20A. ***
+  It is the single authoritative checklist (R1 endpoint sentinels, R2 zero-value
+  safe, R3 red-on-change, R4 scroll-wheel, R5 scale anchoring, R6 drag-queue
+  safety, R7 Sync interlock). Copying an existing panel is NOT sufficient on its
+  own — panels predate rules. Note FX1 itself is currently missing R7 (the Sync
+  grab-clears-Sync behaviour); do not copy that gap into MOD/DELAY. Sec 20A also
+  requires a one-time CODE AUDIT of the existing panels against R1-R7, plus a
+  comment-vs-code check, run in Claude Code before the 50+ new knobs land.
+
   WHAT EACH NEW SLOT NEEDS — copy the FX1 panel (built 2026-07-30), NOT
   DIST/REVERB/WAH/VOL, which were built before two bugs were found and
   fixed that day (a rack-hanging drag-queue race, and "the 9.9 bug" —

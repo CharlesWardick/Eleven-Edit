@@ -1924,6 +1924,97 @@ CHAIN / DANGER:
 
 
 ===================================================================
+20A. KNOB / CONTROL CONTRACT (every knob and slider must obey ALL of these)
+===================================================================
+
+WHY THIS EXISTS. Knob mechanics are IDENTICAL everywhere — there is no knob
+anywhere that behaves differently because it needs to. Every "difference" found
+so far has been a rule that was FORGOTTEN when a panel was built, because the
+rules lived scattered in whatever bug-context first produced them (the 9.9 fix
+in the amp Speed context, the Sync interlock in the amp panel, etc.). With 50+
+new knobs coming across FX1/FX2/MOD/DELAY, a single checklist is what stops each
+new panel from re-inheriting an old gap. When you build or copy a knob panel,
+satisfy EVERY item below. Each item points to its origin detail; this section is
+the authoritative list, not a replacement for those.
+
+R1 — ENDPOINT SENTINELS ON WRITES. A knob write must send the endpoint-sentinel
+  tail, NOT 00 00 00 00, or the control cannot reach its true top/bottom (caps
+  at 9.9 instead of 10.0; Pre-Delay ~198 not 200). Origin: Sec 3/4 ENDPOINT
+  SENTINELS; the "9.9 bug" (Sec 23) was this rule missing from fx-transport.js.
+  Applies to EVERY per-panel send function, not just the amp path.
+
+R2 — ZERO-VALUE SAFE. Value 0 is a legal knob value. Never initialise or read a
+  knob value with a falsy guard (parseInt(x) || default, x ? x : default) — 0 is
+  falsy and gets silently replaced, making a knob at 0 jump to the default on
+  grab. Use an explicit undefined/null check. Origin: the zero-value drag fix.
+
+R3 — RED-ON-CHANGE (dirty indication). A knob turns RED when its live value
+  differs from the value in the loaded patch, and returns to normal when it
+  matches again (or the patch is saved). Origin: Primer knob-colour-state.
+
+R4 — SCROLL-WHEEL. Every knob accepts mouse-wheel adjustment on hover, in
+  addition to drag. No knob is drag-only. Origin: Primer scroll-wheel item.
+
+R5 — dB / UNIT SCALE ANCHORING. A display scale (dB, ms, ratio, etc.) is
+  anchored at a REAL measured point and derived from the confirmed curve shape —
+  never stretched to fit assumed endpoints. Confirm the curve against hardware
+  before trusting a formula. Origin: Sec 18 (Amp Out), Sec 23 (Dyn3 formulas).
+
+R6 — DRAG-QUEUE SAFETY. A queued hardware write must NEVER fire after mouseup
+  has reset the drag's paramLo to -1: that sends byte 0xFF, an illegal 7-bit
+  MIDI data byte, mid-SysEx, and can hang the rack (not an assert — a hard
+  wedge). Guard every panel's drag handler. Origin: the DRAG-QUEUE RACE, Primer
+  HARDWARE SAFETY.
+
+R7 — SYNC INTERLOCK (any knob a Sync selector can drive). When a Sync selector
+  is engaged it takes control of one or more knobs and sets them to a
+  division-derived value; in that mode the rack treats those knobs as OUTPUTS
+  and IGNORES writes to them. The rule, mirroring the physical hardware and
+  BETTER than Avid (whose knob goes inert): GRABBING such a knob sends Sync=OFF
+  first, once per drag, then writes the knob normally — handing control back to
+  the user exactly as the rack's own front-panel knob does. Do NOT write-guard
+  or grey the knob out (both tried 7/23, both worse). Origin: Sec 11 amp
+  Sync/Speed interlock.
+  *** THIS APPLIES TO EVERY SYNCED CONTROL, PRESENT AND FUTURE — not just the
+  amp Speed knob. *** Known gap as of 7/31/2026: the FX1 Chorus panel's Sync/
+  Rate does the Sync-sets-the-knob half but NOT the grab-clears-Sync half — it
+  was built without this rule (the exact scatter problem this contract fixes).
+  Any panel with a Sync selector (Chorus, and MOD/DELAY families to come) must
+  implement R7.
+
+R8 — DOUBLE-CLICK RESTORES THE KNOB TO ITS LOAD VALUE. Double-clicking a knob
+  jumps THAT ONE knob (not all knobs) to the value it had when the patch loaded
+  — the same baseline R3 uses for the red ring. It behaves exactly as if the
+  user had manually turned the knob back to that value: the rack reacts in real
+  time (you hear the parameter return to its original amount), and the ring
+  clears back to normal because the knob now matches the baseline again. It is a
+  position shortcut, nothing more — no save, no commit, no effect on other
+  knobs. The baseline is the load/save baseline (refreshed on save, per R3), so
+  after a save double-click returns to the saved value; there is no reach-back
+  past a save (that is what a disk patch backup is for). Because the rack must
+  hear the jump like any knob change, the same send rules apply — R1 endpoint
+  sentinels (a baseline at max restores to 10.0, not 9.9) and R6 drag-queue
+  safety. Applies to every knob on every panel.
+
+BEFORE BUILDING NEW KNOB PANELS — CODE AUDIT REQUIRED (Claude Code, has repo
+access; a docs-only review chat cannot see the .js files). Two questions per
+existing knob/panel file (transport.js, fx-transport.js, ui.js, fx-panels.js,
+protocol.js):
+  (a) Does the RUNTIME obey R1-R7? Fix the existing panels FIRST, because new
+      panels are built by copying an existing one — copying a panel that is
+      missing a rule propagates the gap (FX1 was copied from a pattern missing
+      R7).
+  (b) Do the COMMENTS still match the runtime? Code comments drift exactly like
+      the docs did — a correction gets made in code while the comment describing
+      the old behaviour is left in place, and the next reader trusts the stale
+      comment. Known example: the transport.js tempo comment calling Rig Tempo
+      "not per patch" (Sec 21 to-do). Treat comment-vs-code drift as a first-
+      class bug during the audit, not a cosmetic afterthought.
+  Do not mark this audit done from a docs review — it requires reading the
+  source. Record results in the session log.
+
+
+===================================================================
 21. OPEN QUESTIONS & PENDING WORK
 ===================================================================
 
@@ -2649,6 +2740,28 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-07-31 (docs) — Added R8 to the Knob Contract (Sec 20A): double-click a knob
+  to jump it to its load baseline (the R3 baseline), behaving as a manual turn
+  back to that value — rack reacts live, ring clears, one knob only, no save.
+  New universal knob rule; added now (before the ~50 new knobs) so every panel
+  inherits it, and retrofit to the existing five panels folds into the same
+  Sec 20A code audit already queued.
+
+2026-07-31 (docs) — Added Section 20A, the KNOB / CONTROL CONTRACT: one
+  authoritative checklist (R1 endpoint sentinels, R2 zero-value safe, R3
+  red-on-change, R4 scroll-wheel, R5 scale anchoring, R6 drag-queue safety, R7
+  Sync interlock) consolidating rules that had been scattered across the
+  section where each originating bug happened to land. Written because ~50+ new
+  knobs are coming (FX1/FX2/MOD/DELAY) and the scatter had already caused
+  repeat misses (9.9 fix not ported to fx-transport.js; Sync interlock not
+  carried to the FX1 Chorus panel). Numbered 20A to avoid renumbering 21-24.
+  Primer's new-slot recipe now points at it. Two open items logged: the FX1
+  Chorus R7 gap (code fix), and a one-time Sec 20A code audit to run in Claude
+  Code — check runtime against R1-R7 AND check that code COMMENTS still match
+  runtime (comment drift is the same failure mode the docs had; known case is
+  the transport.js tempo comment). The audit cannot be done from a docs review;
+  it needs repo access.
 
 2026-07-31 (docs, review) — Review of the FX1 session. Additive, no protocol
   errors, baseline intact, conflicts C1-C13 in order, 38 sections. The FX1 work
