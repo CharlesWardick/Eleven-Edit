@@ -1719,9 +1719,19 @@ const FX1_MODELS = [
   // no capture ambiguity (a percentage and a small millisecond range don't
   // have the "can't reach a round number" failure mode R5 warns about at
   // this resolution).
-  // VOICES — 5 discrete positions (1-5), evenly quantized 0/32/64/95/127 —
-  // matches the captured transition set (32, 64, 95, 127) exactly for a
-  // 5-step 0-127 spread. cell.select, not cell.sync (no tempo relationship).
+  // VOICES — CORRECTED 2026-07-31 (Charlie caught it on live test): the
+  // capture's test walked 1->2->3->4->5->6 (six real positions, five
+  // transitions away from the unbroadcast starting value of 1), but only
+  // FOUR transitions (32, 64, 95, 127) landed in this capture — one step
+  // was lost or merged in the middle, and the original 5-slot mapping built
+  // from those four points was wrong past position 4 (picking "5" actually
+  // selected hardware voice 6, with no dropdown entry for real voice 5).
+  // NOT patched from the incomplete data — switched to the standard even
+  // 6-way spread (0/25/51/76/102/127) used by every other N-position
+  // control in this app, endpoints (1 and 6) still solid since 0 and 127
+  // are always correct for any evenly-spaced control. THE FOUR MIDDLE
+  // VALUES (voices 2-5) ARE UNCONFIRMED pending a clean recapture — Charlie
+  // offered to redo it. cell.select, not cell.sync (no tempo relationship).
   // WAVEFORM — Tri/Sine, plain cell.toggle (2 states only, same shape as
   // C1 Chorus's Mode) — captured sequence 127/0/127 confirms val=127 SINE,
   // val=0 TRI (the panel's load-state screenshot shows TRI selected as
@@ -1763,8 +1773,8 @@ const FX1_MODELS = [
       },
       { rows: [
           [ {label:'Voices', lo:0x07, select:true, options: [
-              {label:'1', v127:0}, {label:'2', v127:32}, {label:'3', v127:64},
-              {label:'4', v127:95}, {label:'5', v127:127} ] } ],
+              {label:'1', v127:0}, {label:'2', v127:25}, {label:'3', v127:51},
+              {label:'4', v127:76}, {label:'5', v127:102}, {label:'6', v127:127} ] } ],
           [ {label:'Mix', lo:0x05,
               display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
         ]

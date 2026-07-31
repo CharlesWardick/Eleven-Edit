@@ -106,6 +106,28 @@ NEXT:        Charlie builds and tests live: confirm all six knobs, Sync x
              Specifically watch Low Cut for a wrong-partway-through reading
              (the one uncross-checked display formula) and try the Stereo/
              Mono toggle (three-mid pair, only one observed in this capture).
+CORRECTION (2026-07-31, same day, Charlie's live test): Voices has SIX real
+             positions (1-6), not five — the capture's test walked 1->2->3->
+             4->5->6 (five transitions expected past the unbroadcast start of
+             1), but only FOUR landed (32/64/95/127), so the original 5-slot
+             mapping was wrong from position 5 onward: picking "5" in the
+             dropdown actually selected hardware voice 6, and there was no
+             entry at all for the real voice 5. One capture step was lost or
+             merged in the middle — not an indexing mistake on Charlie's
+             part.
+FIXED (no recapture yet — see below): switched Voices to the standard
+             6-way even spread (0/25/51/76/102/127), same convention every
+             other N-position control in this app uses. Endpoints (1 and 6)
+             are solid — 0 and 127 are always correct for an evenly-spaced
+             control regardless of step count. THE FOUR MIDDLE VALUES
+             (voices 2-5) ARE STILL UNCONFIRMED — built from the standard
+             formula, not from hardware data, since the capture's middle
+             points don't reliably resolve which position each belongs to.
+NEXT:        Charlie offered to redo the Voices capture cleanly (walk 1
+             through 6 one step at a time, confirming each lands before
+             moving on) so the middle four values can be hardware-confirmed
+             rather than assumed. Not urgent — the 6-way spread is a
+             reasonable placeholder and matches the confirmed endpoints.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31
