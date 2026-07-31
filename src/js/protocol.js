@@ -1648,7 +1648,23 @@ const FX1_MODELS = [
           display: function(v) { return eqSliderDb(v, -20, 6, true); }} ]
     ]
   },
-  { mid: 0x14, name: 'Gray Compressor',  captured: false, paramLos: [], rows: [] },
+  // ── GRAY COMPRESSOR — captured 2026-07-31 (Wireshark, Gray_Compressor_
+  // Knob_Capture.pcapng, handle 0x32). Simplest FX1 model so far: two plain
+  // knobs, no Sync/toggle, default 0-10 linear display (no custom formula —
+  // Charlie: "nothing fancy on this one, just the standard issue knob
+  // display"). paramLo confirmed by two cleanly isolated 0->127->0 sweeps,
+  // no overlap: 0x02 first, 0x03 second — matches Tech Ref Sec 23's captured
+  // param order "Sust, Levl" for this model (bridge-sourced label list).
+  // MONO ONLY — the one confirmed exception to "every FX1 model is stereo-
+  // capable" (Session Log 2026-07-30/31) — single mid, no mids[] pair like
+  // C1 Chorus/Flanger needed.
+  { mid: 0x14, name: 'Gray Compressor', captured: true,
+    paramLos: [0x02, 0x03],
+    rows: [
+      [ {label:'Sustain', lo:0x02},
+        {label:'Level',   lo:0x03} ]
+    ]
+  },
   { mid: 0x06, name: 'MultiChorus',      captured: false, paramLos: [], rows: [] },
   { mid: 0x0C, name: 'Orange Phaser',    captured: false, paramLos: [], rows: [] },
   { mid: 0x13, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },

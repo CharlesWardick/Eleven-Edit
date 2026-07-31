@@ -41,6 +41,32 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Gray Compressor model captured (5th of 10 FX1 models)
+FINDING:     Charlie supplied Gray_Compressor_Knob_Capture.pcapng, picked
+             deliberately as a quick/easy capture (session running low)
+             ahead of MultiChorus. Simplest FX1 model yet: two plain knobs,
+             no Sync, no toggle, standard 0-10 display (no custom formula).
+             Decoded the same way as the other FX1 captures. Single handle
+             0x32, two paramLos, each swept 0->127->0 in its own isolated
+             window, no overlap: 0x02 first, 0x03 second. Matches Tech Ref
+             Sec 23's already-recorded bridge-sourced label order for this
+             model ("Sust, Levl") — labelled Sustain/Level accordingly.
+             MONO ONLY per Charlie's note this session (the one confirmed
+             exception to "every FX1 model is stereo-capable") — single mid
+             0x14, no mids[] pair needed (matches index.html's <option
+             value="20">, so no repeat of the Flanger dropdown-mismatch bug).
+FIX APPLIED: FX1_MODELS Gray Compressor stub (protocol.js, mid 0x14 —
+             already matched the HTML option) replaced with the two-knob row.
+EVIDENCE:    Gray_Compressor_Knob_Capture.pcapng (Charlie, 2026-07-31). node
+             --check passed on protocol.js. NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm Sustain/Level read/write
+             correctly and the panel stays mono regardless of the chain's
+             Stereo/Mono state (only band that should never show a mono/
+             stereo mid-pair issue).
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 — Graphic EQ model captured (4th of 10 FX1 models); FIRST
              non-rotary FX1 control (vertical sliders, not knobs)
 FINDING:     Charlie supplied EQ_Vertical_Slider_Capture.pcapng plus a
