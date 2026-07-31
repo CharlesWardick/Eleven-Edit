@@ -81,14 +81,16 @@ function drawKnob(canvas, value127) {
   ctx.restore();
 }
 
-// ── Vertical fader (Graphic EQ, 7/31/2026) — first non-rotary FX1 control.
-// Mimics Avid's own Graphic EQ panel: a vertical groove, a horizontal thumb
-// bar that rides it, base colour YELLOW (not green like every other FX
-// control) that turns RED on change from baseline (R3), same rule, new base
-// colour. minVal/maxVal are the SLIDER'S OWN range (e.g. -12..+12 for most
-// bands, -20..+6 for Output) — raw v127 is still 0-127 (R1/R2 unchanged),
-// just displayed and positioned against this range instead of 0-10 or dB
-// tone-knob math.
+// ── Vertical fader (Graphic EQ, 7/31/2026, enlarged + calibrated 7/31/2026
+// same day per Charlie's request) — first non-rotary FX1 control. Mimics
+// Avid's own Graphic EQ panel: a vertical groove with printed calibration
+// numbers on BOTH sides (Avid only prints them on one side; we have the
+// panel width to spare) and a horizontal thumb bar that rides it, base
+// colour YELLOW (not green like every other FX control) that turns RED on
+// change from baseline (R3), same rule, new base colour. Canvas is sized
+// 74x173 (was 34x130 — ~1/3 taller, wide enough for both tick columns) —
+// see FX1_MODELS' Graphic EQ ticks arrays (protocol.js) for the printed
+// values per band, matching Avid's own panel scale.
 function eqSliderColor(wrap, value127) {
   if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== ''
       && parseInt(wrap.dataset.orig) !== value127) {
@@ -97,15 +99,44 @@ function eqSliderColor(wrap, value127) {
   return KNOB_COLORS.yellow;
 }
 
-function drawEqSlider(canvas, value127, wrap) {
+// Inverse of eqSliderDb — the raw v127 a given dB value sits at, using the
+// SAME two-slope-anchored-at-64 shape, so a tick mark lines up exactly with
+// where the thumb sits when the live value matches that tick.
+function eqDbToV127(db, minDb, maxDb) {
+  if (db === 0) return 64;
+  if (db < 0) { const below = -minDb / 64; return 64 + db / below; }
+  const above = maxDb / 63; return 64 + db / above;
+}
+
+function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   const cx = w / 2;
-  const top = 6, bottom = h - 6;
+  const top = 10, bottom = h - 10;
   const trackH = bottom - top;
   const col = eqSliderColor(wrap, value127);
 
   ctx.clearRect(0, 0, w, h);
+
+  // Calibration ticks + numbers, printed on both sides of the groove —
+  // static, independent of the live value, exactly like the markings
+  // silkscreened on Avid's own panel.
+  if (ticks && typeof minDb === 'number' && typeof maxDb === 'number') {
+    ctx.font = '9px sans-serif';
+    ctx.fillStyle = '#888';
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
+    ticks.forEach(function(db) {
+      const v = Math.max(0, Math.min(127, eqDbToV127(db, minDb, maxDb)));
+      const y = bottom - (v / 127) * trackH;
+      ctx.beginPath();
+      ctx.moveTo(cx - 11, y); ctx.lineTo(cx - 7, y);
+      ctx.moveTo(cx + 7, y);  ctx.lineTo(cx + 11, y);
+      ctx.stroke();
+      const label = (db > 0 ? '+' : '') + db;
+      ctx.textAlign = 'right'; ctx.fillText(label, cx - 13, y + 3);
+      ctx.textAlign = 'left';  ctx.fillText(label, cx + 13, y + 3);
+    });
+  }
 
   // Groove
   ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
@@ -119,7 +150,7 @@ function drawEqSlider(canvas, value127, wrap) {
   const y = bottom - (value127 / 127) * trackH;
   ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(cx - (w/2 - 4), y); ctx.lineTo(cx + (w/2 - 4), y);
+  ctx.moveTo(cx - 9, y); ctx.lineTo(cx + 9, y);
   ctx.stroke();
   // Centre notch on the thumb, like the real fader cap
   ctx.fillStyle = '#1a1a1a';

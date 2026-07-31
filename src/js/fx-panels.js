@@ -901,22 +901,22 @@ function renderFx1Knobs(mid) {
         // Vertical fader cell (Graphic EQ) — same .knob-wrap/data-fx1-lo
         // contract as a knob (the generic FX1 drag/dblclick/scroll handlers
         // below key off that, not the widget shape), just drawn as a
-        // vertical groove+thumb (drawEqSlider, ui.js) instead of a rotary
-        // arc, with its own base colour (yellow, not FX green).
+        // vertical groove+thumb with printed calibration numbers
+        // (drawEqSlider, ui.js) instead of a rotary arc, with its own base
+        // colour (yellow, not FX green). Canvas 74x173 — enlarged ~1/3 and
+        // widened for the two tick columns per Charlie's 7/31 request.
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const sliderDiv = document.createElement('div');
         sliderDiv.className = 'ctrl-knob';
         sliderDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
         sliderDiv.innerHTML =
           '<label>' + cell.label + '</label>'
-          + '<span style="font-size:10px;color:var(--muted);">' + cell.max + '</span>'
           + '<div class="knob-wrap" id="fx1-w-' + loHex + '" data-value="64" data-base="eq" data-fx1-lo="' + loHex + '">'
-          + '<canvas class="knob-canvas" width="34" height="130"></canvas></div>'
-          + '<span style="font-size:10px;color:var(--muted);">' + cell.min + '</span>'
+          + '<canvas class="knob-canvas" width="74" height="173"></canvas></div>'
           + '<span class="knob-val" id="fx1-v-' + loHex + '">--</span>';
         rowDiv.appendChild(sliderDiv);
         const sWrap = sliderDiv.querySelector('.knob-wrap');
-        drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap);
+        drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap, cell.min, cell.max, cell.ticks);
       } else {
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const knobDiv = document.createElement('div');
@@ -971,7 +971,7 @@ function updateFx1Knob(paramLo, val) {
   if (wrap) {
     wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_FX1, loHex, val);
     wrap.dataset.value = val;
-    if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap);
+    if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap, cell.min, cell.max, cell.ticks);
     else                     drawKnob(wrap.querySelector('canvas'), val);
   }
   if (valEl) valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);

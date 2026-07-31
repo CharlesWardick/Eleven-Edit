@@ -91,6 +91,25 @@ NEXT:        Charlie builds and tests live: confirm all six bands read/write
              yellow/red colour swap), and specifically check where 0.0 dB
              sits on the Output slider (see DISPLAY note above — the one
              unconfirmed assumption here).
+FOLLOW-UP (2026-07-31, same day, before any live test): Charlie asked for two
+             things ahead of testing rather than after: (1) a re-capture that
+             parks every slider at 0.0 dB first, THEN sweeps to max, then to
+             lowest — this will pin the Output band's exact 0.0 dB raw value
+             directly instead of leaving it inferred (see the open question
+             above); Charlie will supply it when convenient, not blocking.
+             (2) UI: make the sliders taller (panel has vertical room to
+             spare) and add printed calibration numbers on both sides of the
+             track like Avid's own panel, panel free to grow wider too.
+FIX APPLIED: canvas enlarged 34x130 -> 74x173 (~1/3 taller, widened for tick
+             columns). drawEqSlider (ui.js) now draws static calibration
+             ticks + numbers on BOTH sides of the groove (Avid only prints
+             one side; we have the width). New eqDbToV127 (ui.js) is the
+             exact inverse of eqSliderDb so a tick's position matches exactly
+             where the thumb sits when the live value equals that tick's dB.
+             Tick sets added per band in FX1_MODELS (protocol.js):
+             100Hz/3.25kHz [12,0,-12], 370/800/2k [18,12,0,-12,-18], Output
+             [6,0,-20] — mirrors Avid's own panel scale. Still awaiting the
+             re-capture in (1); the Output anchor remains INFERRED until then.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31

@@ -1617,20 +1617,25 @@ const FX1_MODELS = [
   // same pattern, not independently captured — flag for Charlie's live test.
   // No Sync control on this model — every cell is a plain slider, R7 does
   // not apply here.
+  // TICKS — printed calibration numbers per band, matching Avid's own panel
+  // scale (drawEqSlider, ui.js draws them on BOTH sides of the groove now —
+  // Charlie's 7/31 request, we have the panel width to spare where Avid only
+  // has room for one side). 0 is always included so the 0 dB reference line
+  // is always visible regardless of range.
   { mid: 0x11, name: 'Graphic EQ', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
     rows: [
-      [ {label:'100 Hz',   lo:0x02, slider:true, min:-12, max:12,
+      [ {label:'100 Hz',   lo:0x02, slider:true, min:-12, max:12, ticks:[12,0,-12],
           display: function(v) { return eqSliderDb(v, -12, 12); }},
-        {label:'370 Hz',   lo:0x03, slider:true, min:-18, max:18,
+        {label:'370 Hz',   lo:0x03, slider:true, min:-18, max:18, ticks:[18,12,0,-12,-18],
           display: function(v) { return eqSliderDb(v, -18, 18); }},
-        {label:'800 Hz',   lo:0x04, slider:true, min:-18, max:18,
+        {label:'800 Hz',   lo:0x04, slider:true, min:-18, max:18, ticks:[18,12,0,-12,-18],
           display: function(v) { return eqSliderDb(v, -18, 18); }},
-        {label:'2 kHz',    lo:0x05, slider:true, min:-18, max:18,
+        {label:'2 kHz',    lo:0x05, slider:true, min:-18, max:18, ticks:[18,12,0,-12,-18],
           display: function(v) { return eqSliderDb(v, -18, 18); }},
-        {label:'3.25 kHz', lo:0x06, slider:true, min:-12, max:12,
+        {label:'3.25 kHz', lo:0x06, slider:true, min:-12, max:12, ticks:[12,0,-12],
           display: function(v) { return eqSliderDb(v, -12, 12); }},
-        {label:'Output',   lo:0x07, slider:true, min:-20, max:6,
+        {label:'Output',   lo:0x07, slider:true, min:-20, max:6, ticks:[6,0,-20],
           display: function(v) { return eqSliderDb(v, -20, 6); }} ]
     ]
   },
