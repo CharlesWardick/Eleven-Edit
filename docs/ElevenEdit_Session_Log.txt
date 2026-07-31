@@ -41,6 +41,41 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Orange Phaser model captured (7th of 10 FX1 models)
+FINDING:     Charlie supplied Orange_Phaser_Knob_Capture.pcapng plus a Sync-
+             zone -> Rate spreadsheet. Simplest FX1 shape yet: single Rate
+             knob (0-10 scale) + Sync, "the normal Sync/Rate relationship"
+             per Charlie. Decoded the same way as every other FX1 capture.
+             Single handle 0x35, two paramLos: 0x02 Rate (first-mover single-
+             knob sweep) and 0x03 Sync (13 breakpoints landing exactly on
+             the standard 14-zone SYNC_DIVISIONS table, same as every other
+             FX1 Sync control). 0x02 confirmed Sync-driven — changes in
+             lockstep with every 0x03 zone broadcast, same proof pattern as
+             C1 Chorus/Flanger/MultiChorus.
+             DISPLAY — plain 0-10 linear, i.e. the app's existing default
+             valDisplay, no custom formula. Cross-checked against Charlie's
+             13-point Sync-zone/Rate table: every value landed within
+             ~0.1-0.3 (typical wheel-click reading noise, same tolerance
+             seen on Flanger/MultiChorus), including two raw values that
+             were EXACT duplicates (zones 10 and 13, both raw 109) matching
+             two identical table entries (both 8.5) — strong self-
+             consistency check that the mapping is right.
+FIX APPLIED: FX1_MODELS Orange Phaser stub (protocol.js, mid 0x0C — matches
+             index.html's <option value="12">) replaced with the two-cell
+             row (Rate + Sync). Mono/stereo pair (0x0B/0x0C) registered
+             defensively per the Graphic EQ/Dyn3 lesson, only one wire id
+             observed in this capture.
+EVIDENCE:    Orange_Phaser_Knob_Capture.pcapng + Sync/Rate spreadsheet
+             (Charlie, 2026-07-31). node --check passed on protocol.js. NOT
+             hardware-tested.
+NEXT:        Charlie builds and tests live: confirm Rate reads/writes
+             correctly, Sync x Rate interlock (grab Rate while Sync engaged
+             -> Sync clears, matching the standing R7 rule), and the
+             Stereo/Mono toggle (mid pair unconfirmed by this capture).
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        Chain row — intermittent missing graphics on program load
 FINDING:     Charlie: on some launches the chain row shows only dashed
              placeholder boxes, no real Avid pedal thumbnails — intermittent,

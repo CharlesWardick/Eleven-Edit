@@ -1778,7 +1778,35 @@ const FX1_MODELS = [
       }
     ]
   },
-  { mid: 0x0C, name: 'Orange Phaser',    captured: false, paramLos: [], rows: [] },
+  // ── ORANGE PHASER — captured 2026-07-31 (Wireshark, Orange_Phaser_Knob_
+  // Capture.pcapng, handle 0x35). Simplest FX1 shape yet: one knob (Rate) +
+  // Sync, "the normal Sync/Rate relationship" per Charlie — same pattern as
+  // C1 Chorus/Flanger/MultiChorus's Rate.
+  // paramLo confirmed: 0x02 Rate first-mover single-knob sweep, 0x03 Sync
+  // reusing the same 14-zone SYNC_DIVISIONS table (13 breakpoints land
+  // exactly on its zone boundaries, same as every other FX1 Sync control).
+  // RATE x SYNC — 0x02 changed in lockstep with every 0x03 Sync-zone
+  // broadcast during the sweep (same proof pattern as C1 Chorus/Flanger/
+  // MultiChorus). syncDriven:true.
+  // DISPLAY — plain 0-10 linear (Charlie: "0-10 scale"), i.e. ui.js's
+  // existing default valDisplay (v127/127*10) — no custom formula needed.
+  // CONFIRMED via a 13-point cross-check against Charlie's Sync-zone/Rate
+  // spreadsheet: every computed value landed within ~0.1-0.3 of his table
+  // (typical wheel-click reading noise, same tolerance as the Flanger and
+  // MultiChorus cross-checks), including two exact-duplicate raw values
+  // (zones 10 and 13 both raw 109) matching two identical table entries
+  // (both 8.5) — a strong self-consistency check.
+  // MONO/STEREO MID PAIR — 0x0B mono / 0x0C stereo (MODEL_NAMES/
+  // MODEL_OUT_STEREO above), same pattern as every other FX1 model with a
+  // pair — registered defensively per the Graphic EQ/Dyn3 lesson even
+  // though this capture only observed one wire id.
+  { mid: 0x0C, mids: [0x0B, 0x0C], name: 'Orange Phaser', captured: true,
+    paramLos: [0x02, 0x03],
+    rows: [
+      [ {label:'Rate', lo:0x02, syncDriven:true},
+        {label:'Sync', lo:0x03, sync:true} ]
+    ]
+  },
   { mid: 0x13, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },
   { mid: 0x0F, name: 'Roto Speaker',     captured: false, paramLos: [], rows: [] },
   { mid: 0x0A, name: 'Vibe Phaser',      captured: false, paramLos: [], rows: [] },
