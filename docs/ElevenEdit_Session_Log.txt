@@ -41,6 +41,54 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Flanger model captured (3rd of 10 FX1 models)
+FINDING:     Charlie supplied Flanger_Knob_Capture.pcapng (Wireshark/USBPcap,
+             single-block capture, handle 0x10) plus a screenshot of Avid's
+             Flanger panel (Pre-Delay/Depth/Rate/Feedback, all 0-10 knobs) and
+             a hand-recorded Sync-zone -> Rate-value table. No tshark in this
+             session, so decoded the capture directly in Python (dpkt for
+             pcapng framing, manual USB-MIDI CIN reassembly of the 4-byte
+             packets into F0 13 0B 0F ... F7 SysEx messages) — see scratchpad
+             scripts, not committed to the repo.
+             PARAMLO MAP (handle 0x10, all confirmed): 0x02 Rate (syncDriven)
+             · 0x03 Depth · 0x04 Feedback · 0x05 Pre-Delay · 0x06 Sync.
+             Confirmed two independent ways: (1) each of 0x02/0x03/0x04/0x05
+             swept 0->127->0 in its own isolated time window, in the exact
+             order Charlie swept the panel (Pre-Delay, Depth, Rate, Feedback);
+             (2) 0x02 changed IN LOCKSTEP with every 0x06 Sync-zone change —
+             independent proof it's Rate, since Rate is the only Sync-driven
+             knob here (matches the C1 Chorus/amp pattern of one driven knob,
+             not the two-knob case C1 Chorus turned out to need).
+             DISPLAY — no custom formula needed. All four continuous knobs are
+             a plain 0-10 linear scale (Charlie's own description), which is
+             exactly ui.js's existing default valDisplay (v127/127*10, one
+             decimal) — confirmed by reproducing Charlie's Rate-under-Sync
+             table from the raw v127 values (64/71/85/98/96/102/110/119/110 ->
+             5.0/5.6/6.7/7.7/7.6/8.0/8.7/9.3/8.7, matching his screengrab
+             within transcription rounding).
+             SYNC — reuses SYNC_DIVISIONS/syncIndexFromV127, same as every
+             other FX1 Sync control; the 13 captured v127 breakpoints
+             (9,19,29,...,127) land exactly on that table's zone boundaries.
+FIX APPLIED: FX1_MODELS Flanger stub (protocol.js, was captured:false)
+             replaced with the real row/paramLo table; Rate marked
+             syncDriven:true so the existing generic R7 interlock (built for
+             C1 Chorus, 2026-07-31 earlier today) picks it up with no new
+             handler code. Mono/stereo mid pair (0x07 mono / 0x08 stereo) set
+             by pattern from C1 Chorus and MODEL_NAMES/MODEL_OUT_STEREO, NOT
+             independently observed this session — only 0x07 was in the
+             capture.
+EVIDENCE:    Flanger_Knob_Capture.pcapng (Charlie, 2026-07-31) + screenshot of
+             Avid's Flanger panel and Sync/Rate table. node --check passed on
+             protocol.js. NOT hardware-tested by the app itself.
+NEXT:        Charlie builds and tests live: open Flanger in the FX1 panel,
+             confirm knob labels/values match Avid's panel and the rack, and
+             specifically test Sync x Rate (grab Rate while Sync engaged ->
+             Sync should clear, matching the R7 fix already applied) and the
+             Stereo/Mono toggle (unconfirmed mid pair, see above).
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 Chorus panel missing the Sync interlock (R7) the amp has
 FINDING:     The amp Sync/Speed interlock (Tech Ref Sec 11 / now R7 in the
              Sec 20A Knob Contract) says: grabbing a Sync-driven knob sends

@@ -1551,7 +1551,43 @@ const FX1_MODELS = [
         {label:'Gain',      lo:0x07, display: function(v) { return ((v/127)*40).toFixed(1) + ' dB'; }} ]
     ]
   },
-  { mid: 0x08, name: 'Flanger',          captured: false, paramLos: [], rows: [] },
+  // ── FLANGER — captured 2026-07-31 (Wireshark, Flanger_Knob_Capture.pcapng,
+  // Charlie's knob-by-knob sweep low-high-low with pauses between: Pre-Delay,
+  // Depth, Rate, Feedback, then the Sync dropdown with Rate readback). All
+  // five paramLos share handle 0x10 (a single-block capture, not a chain
+  // position claim). paramLo assignment confirmed two ways: (1) sweep order
+  // matches the timeline (0x05 moved first, 0x03 second, 0x02 third, 0x04
+  // fourth); (2) 0x02 moved IN LOCKSTEP with the 0x06 Sync sweep (same
+  // timestamps, both changing together) — independent proof 0x02 is Rate,
+  // since only Rate is Sync-driven here, same as C1 Chorus's Rate.
+  //   paramLo 0x02 Rate (syncDriven) · 0x03 Depth · 0x04 Feedback ·
+  //   0x05 Pre-Delay · 0x06 Sync (reuses the same 14-zone SYNC_DIVISIONS
+  //   table as every other FX1 Sync control — confirmed by the 13 v127
+  //   breakpoints landing exactly on syncIndexFromV127's zone boundaries).
+  // DISPLAY — all four continuous knobs are a plain 0-10 linear scale, one
+  // decimal (Charlie: "all knobs have 0-10 scale"); v127*10/127 is exactly
+  // valDisplay's existing default formula, confirmed against Charlie's own
+  // Rate-under-Sync table (0x02 raw values 64/71/85/98/96/102/110/119/110
+  // -> 5.0/5.6/6.7/7.7/7.6/8.0/8.7/9.3/8.7, matching his screengrab to
+  // within transcription rounding) — no custom display fn needed, unlike
+  // Dyn3's dB/ratio/log-scale knobs.
+  // MONO/STEREO MID PAIR — mono=0x07, stereo=0x08 (MODEL_NAMES/
+  // MODEL_OUT_STEREO above), same pattern as C1 Chorus (0x01/0x03). Only
+  // ever captured against 0x07 in this session; the second mid is listed on
+  // the strength of that established pattern, not independently observed —
+  // worth a quick Stereo/Mono toggle check like C1 got, per Charlie's
+  // 2026-07-30 note that stereo is the expected default for everything but
+  // Gray Compressor.
+  { mid: 0x07, mids: [0x07, 0x08], name: 'Flanger', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
+    rows: [
+      [ {label:'Pre-Delay', lo:0x05},
+        {label:'Depth',     lo:0x03},
+        {label:'Rate',      lo:0x02, syncDriven:true},
+        {label:'Feedback',  lo:0x04},
+        {label:'Sync',      lo:0x06, sync:true} ]
+    ]
+  },
   { mid: 0x11, name: 'Graphic EQ',       captured: false, paramLos: [], rows: [] },
   { mid: 0x14, name: 'Gray Compressor',  captured: false, paramLos: [], rows: [] },
   { mid: 0x06, name: 'MultiChorus',      captured: false, paramLos: [], rows: [] },
