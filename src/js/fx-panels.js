@@ -814,9 +814,11 @@ function closeFx1Panel() {
 // (e.g. MultiChorus's CHORUS box holding Low Cut/Width, MOD box holding Pre
 // Delay/Waveform) rather than one flat knob row. A row entry in a model's
 // `rows` array can now be EITHER the original flat form — an array of cells
-// — OR a group object `{group:'CHORUS', rows:[[cells...], ...]}`, rendered
-// as its own bordered/labeled sub-box nested inside the panel's outer
-// wrapper. Existing flat-row models (DIST/REVERB/WAH/VOL/C1 Chorus/Dyn3/
+// — OR a box object `{group:'CHORUS'?, rows:[[cells...], ...]}` (label
+// optional — an unlabeled box still stacks its rows, e.g. MultiChorus's
+// Rate-above-Depth column), rendered as its own bordered sub-box nested
+// inside the panel's outer wrapper. Existing flat-row models (DIST/REVERB/
+// WAH/VOL/C1 Chorus/Dyn3/
 // Flanger/Graphic EQ/Gray Compressor) are untouched — a plain array is still
 // exactly what it always was. Deliberately NOT replicating Avid's tiny
 // rotary-switch controls (Waveform Tri/Sine, Feedback Mode Mono/Stereo/
@@ -832,7 +834,7 @@ function closeFx1Panel() {
 function fx1AllCells(model) {
   const cells = [];
   model.rows.forEach(function(entry) {
-    const rows = entry.group ? entry.rows : [entry];
+    const rows = entry.rows ? entry.rows : [entry];
     rows.forEach(function(row) { row.forEach(function(c) { if (c) cells.push(c); }); });
   });
   return cells;
@@ -1005,30 +1007,33 @@ function renderFx1Knobs(mid) {
     + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
 
   // Each entry is either a flat row (array of cells — the original shape,
-  // rendered straight into the outer wrapper) or a group object
-  // {group:'LABEL', rows:[[cells...], ...]} — rendered as its own nested
-  // bordered/labeled box, matching Avid's boxed sub-panels (CHORUS/MOD,
-  // DELAY/EQ/ENV MOD, etc. — see the GROUPED LAYOUT comment above
-  // renderFx1Cell). A model can freely mix top-level flat rows (ungrouped
-  // controls like Rate/Depth/Voices/Mix sitting outside any box) with
-  // group entries in the same rows array, in whatever order Avid's layout
-  // calls for.
+  // rendered straight into the outer wrapper) or a box object
+  // {group:'LABEL'?, rows:[[cells...], ...]} — rendered as its own nested
+  // box, matching Avid's boxed sub-panels (CHORUS/MOD, DELAY/EQ/ENV MOD,
+  // etc. — see the GROUPED LAYOUT comment above renderFx1Cell). The `group`
+  // label is OPTIONAL: a box with no label still stacks its own rows
+  // vertically (e.g. MultiChorus's Rate-above-Depth and Voices-above-Mix
+  // columns, added 2026-07-31) — same nested-box shape, just no header text,
+  // so it lines up visually with a labeled box beside it instead of
+  // floating at a different baseline. A model can freely mix top-level flat
+  // rows with box entries (labeled or not) in the same rows array, in
+  // whatever order Avid's layout calls for.
   model.rows.forEach(function(entry) {
-    if (entry && entry.group) {
+    if (entry && entry.rows) {
       const box = document.createElement('div');
       box.style.cssText = 'display:flex;flex-direction:column;gap:10px;'
         + 'padding:10px 12px;background:#242424;border-radius:5px;border:1px solid #444;';
-      const hdr = document.createElement('div');
-      hdr.textContent = entry.group;
-      hdr.style.cssText = 'font-size:11px;color:var(--label);text-transform:uppercase;'
-        + 'letter-spacing:0.5px;font-weight:bold;';
-      box.appendChild(hdr);
+      if (entry.group) {
+        const hdr = document.createElement('div');
+        hdr.textContent = entry.group;
+        hdr.style.cssText = 'font-size:11px;color:var(--label);text-transform:uppercase;'
+          + 'letter-spacing:0.5px;font-weight:bold;';
+        box.appendChild(hdr);
+      }
       entry.rows.forEach(function(rowCells) { renderFx1Row(rowCells, box); });
       wrapper.appendChild(box);
     } else {
-      // Ungrouped column — same look as a single-group box minus the header,
-      // so a lone Rate/Depth pair lines up visually with a labeled group
-      // beside it instead of floating at a different baseline.
+      // Plain top-level flat row — no box, sits directly in the wrapper.
       const col = document.createElement('div');
       col.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
       renderFx1Row(entry, col);

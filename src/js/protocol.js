@@ -1685,7 +1685,92 @@ const FX1_MODELS = [
         {label:'Level',   lo:0x03} ]
     ]
   },
-  { mid: 0x06, name: 'MultiChorus',      captured: false, paramLos: [], rows: [] },
+  // ── MULTICHORUS — captured 2026-07-31 (Wireshark, MultiChorus_Capture.
+  // pcapng, handle 0x30). First FX1 model using the GROUPED LAYOUT
+  // (fx-panels.js) — Avid boxes this one into an unlabeled Rate/Depth
+  // column, a CHORUS box (Low Cut/Width), a MOD box (Pre Delay/Waveform),
+  // and an unlabeled Voices/Mix column.
+  // paramLo assignment confirmed by nine isolated changes, no overlap
+  // between any two paramLos' active windows, in the exact test order
+  // Charlie swept the panel (Rate, Low Cut, Width, Depth, Pre Delay, Mix,
+  // then Sync, then Voices, then Waveform):
+  //   0x02 Rate (syncDriven) · 0x08 Low Cut · 0x09 Width · 0x04 Depth ·
+  //   0x06 Pre Delay · 0x05 Mix · 0x03 Sync · 0x07 Voices · 0x0A Waveform.
+  // RATE x SYNC — confirmed Sync-driven exactly like C1 Chorus/Flanger's
+  // Rate: 0x02 changed in lockstep with every 0x03 Sync-zone broadcast
+  // during the sweep. Sync reuses the same 14-zone SYNC_DIVISIONS table as
+  // every other FX1 Sync control (13 captured v127 breakpoints land exactly
+  // on that table's zone boundaries, same as Flanger/Chorus).
+  // RATE DISPLAY — CONFIRMED via Charlie's Sync-zone -> Rate spreadsheet
+  // (13-point cross-check, all within ~0.03 of the captured raw value):
+  //   rate_seconds = 0.01 * (10/0.01)^(v127/127)      (0.01s .. 10s)
+  //   Same exponential shape as Dyn3's Ratio formula, just this control's
+  //   own min/max — SEE 2026-07-30 DYN3 RATIO entry for why this shape was
+  //   trusted generally; here it is independently re-confirmed by a
+  //   13-point sweep, not just assumed from family resemblance.
+  // LOW CUT (24.4 Hz .. 1 kHz) — INFERRED to use the SAME exponential shape
+  // (log-scaled Hz is the standard convention for a filter cutoff control,
+  // and Rate — the other log-scaled quantity on this model — confirmed
+  // exponential), but UNLIKE Rate this one has no independent multi-point
+  // cross-check, only the two endpoints. Flag for confirmation if Charlie's
+  // live test shows Low Cut reading obviously wrong partway through its
+  // travel.
+  // WIDTH / MIX (0-100%) and DEPTH / PRE DELAY (0.0-24 ms) — plain linear,
+  // no capture ambiguity (a percentage and a small millisecond range don't
+  // have the "can't reach a round number" failure mode R5 warns about at
+  // this resolution).
+  // VOICES — 5 discrete positions (1-5), evenly quantized 0/32/64/95/127 —
+  // matches the captured transition set (32, 64, 95, 127) exactly for a
+  // 5-step 0-127 spread. cell.select, not cell.sync (no tempo relationship).
+  // WAVEFORM — Tri/Sine, plain cell.toggle (2 states only, same shape as
+  // C1 Chorus's Mode) — captured sequence 127/0/127 confirms val=127 SINE,
+  // val=0 TRI (the panel's load-state screenshot shows TRI selected as
+  // default, matching an unbroadcast starting value of 0 before the first
+  // move to Sine at 127).
+  // MONO/STEREO MID PAIR — THREE mids this time, not two: MODEL_NAMES above
+  // lists 0x04 'MultiChorus' (mono) and BOTH 0x05/0x06 'Multi Chorus' with
+  // a space (stereo) — the same spelling quirk flagged in the Primer's
+  // GRAPHICS section. Registered all three defensively (Graphic EQ/Dyn3
+  // both had this exact class of bug from an incomplete mids[] — see
+  // Session Log 2026-07-31) even though this capture only observed one
+  // wire id; worth Charlie's usual Stereo/Mono toggle check on first test.
+  { mid: 0x06, mids: [0x04, 0x05, 0x06], name: 'MultiChorus', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A],
+    rows: [
+      { rows: [
+          [ {label:'Rate', lo:0x02, syncDriven:true,
+              display: function(v) {
+                var s = 0.01 * Math.pow(1000, v / 127);
+                return (s < 1 ? s.toFixed(2) : s.toFixed(1)) + ' s';
+              }},
+            {label:'Sync', lo:0x03, sync:true} ],
+          [ {label:'Depth', lo:0x04,
+              display: function(v) { return ((v / 127) * 24).toFixed(1) + ' ms'; }} ]
+        ]
+      },
+      { group:'CHORUS', rows: [
+          [ {label:'Low Cut', lo:0x08,
+              display: function(v) { return (24.4 * Math.pow(1000 / 24.4, v / 127)).toFixed(1) + ' Hz'; }},
+            {label:'Width', lo:0x09,
+              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+        ]
+      },
+      { group:'MOD', rows: [
+          [ {label:'Pre Delay', lo:0x06,
+              display: function(v) { return ((v / 127) * 24).toFixed(1) + ' ms'; }},
+            {label:'Waveform', lo:0x0A, toggle:true, options:['Tri','Sine']} ]
+        ]
+      },
+      { rows: [
+          [ {label:'Voices', lo:0x07, select:true, options: [
+              {label:'1', v127:0}, {label:'2', v127:32}, {label:'3', v127:64},
+              {label:'4', v127:95}, {label:'5', v127:127} ] } ],
+          [ {label:'Mix', lo:0x05,
+              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+        ]
+      }
+    ]
+  },
   { mid: 0x0C, name: 'Orange Phaser',    captured: false, paramLos: [], rows: [] },
   { mid: 0x13, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },
   { mid: 0x0F, name: 'Roto Speaker',     captured: false, paramLos: [], rows: [] },

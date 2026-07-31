@@ -40,6 +40,75 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — MultiChorus model captured (6th of 10 FX1 models), FIRST
+             to use the new grouped/boxed layout
+FINDING:     Charlie supplied MultiChorus_Capture.pcapng plus a screenshot of
+             Avid's panel and a Sync-zone -> Rate spreadsheet. Decoded the
+             same way as the other FX1 captures. Single handle 0x30, nine
+             paramLos, each isolated to its own time window, no overlap, in
+             the exact test order (Rate, Low Cut, Width, Depth, Pre Delay,
+             Mix, then Sync, then Voices, then Waveform):
+               0x02 Rate (syncDriven) · 0x08 Low Cut · 0x09 Width ·
+               0x04 Depth · 0x06 Pre Delay · 0x05 Mix · 0x03 Sync ·
+               0x07 Voices · 0x0A Waveform.
+             RATE x SYNC — 0x02 changes in lockstep with every 0x03 Sync-
+             zone broadcast (same proof pattern as C1 Chorus/Flanger); same
+             14-zone SYNC_DIVISIONS table, 13 breakpoints landing exactly on
+             its zone boundaries.
+             RATE DISPLAY — CONFIRMED (not just inferred) via a 13-point
+             cross-check against Charlie's Sync-zone/Rate spreadsheet: every
+             computed value from rate=0.01*(10/0.01)^(v/127) matched his
+             table within ~0.03 — same exponential shape as Dyn3's Ratio
+             formula, independently reconfirmed here rather than assumed.
+             LOW COUT (24.4 Hz-1 kHz) uses the SAME exponential shape by
+             convention (log-scaled filter cutoffs are standard) but has NO
+             multi-point cross-check like Rate got — only the two endpoints
+             are hardware-confirmed. Flag this specifically on Charlie's
+             live test.
+             WIDTH/MIX (0-100%) and DEPTH/PRE DELAY (0.0-24 ms) — plain
+             linear, no ambiguity at this resolution.
+             VOICES — 5 discrete positions (1-5), captured transition set
+             (32, 64, 95, 127) matches a 5-step 0-127 spread exactly. New
+             cell.select generic dropdown (not cell.sync — no tempo tie).
+             WAVEFORM — Tri/Sine, existing cell.toggle (2-state), captured
+             sequence 127/0/127 confirms val=0 TRI / val=127 SINE, matching
+             the load-state screenshot (TRI is the default/unbroadcast
+             starting value).
+             MONO/STEREO — THREE mids this time (0x04 mono, 0x05/0x06
+             stereo — MultiChorus/"Multi Chorus" spelling quirk, Primer
+             GRAPHICS section already knew about this). Registered all
+             three defensively per the lesson from the Graphic EQ/Dyn3 bug
+             fixed earlier today, even though this capture only observed one
+             wire id.
+FIX APPLIED: FX1_MODELS MultiChorus stub (protocol.js, mid 0x06 — matches
+             index.html's <option value="6">) replaced with the grouped-
+             layout row: unlabeled Rate/Sync + Depth column, CHORUS box
+             (Low Cut/Width), MOD box (Pre Delay/Waveform), unlabeled
+             Voices/Mix column. This is the FIRST model to exercise the
+             grouped-layout code added earlier today — also needed one small
+             follow-up fix to that code itself (see below).
+CODE FIX (renderFx1Knobs/fx1AllCells, fx-panels.js): the grouped-layout
+             plumbing only recognized a box entry via `entry.group` being
+             truthy, so an UNLABELED stacked column (Rate above Depth,
+             Voices above Mix — needed for MultiChorus's actual layout, not
+             anticipated when the plumbing was speculative) fell through to
+             the flat-row path and rendered wrong. Changed the check to key
+             off `entry.rows` instead, with the group label now optional —
+             a box can stack rows with or without a header. Caught during
+             this capture's own build-out, not by a live test.
+EVIDENCE:    MultiChorus_Capture.pcapng + Avid panel screenshot + Sync/Rate
+             spreadsheet (Charlie, 2026-07-31). node --check passed on
+             protocol.js/fx-panels.js. NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm all six knobs, Sync x
+             Rate interlock (grab Rate while Sync engaged), Voices 5-position
+             dropdown, Waveform toggle, and the boxed layout reads sensibly.
+             Specifically watch Low Cut for a wrong-partway-through reading
+             (the one uncross-checked display formula) and try the Stereo/
+             Mono toggle (three-mid pair, only one observed in this capture).
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
 STATUS:      provisional — FUTURE CLEANUP CANDIDATE, not acted on
 AREA:        Bank Scan feature — possibly unneeded, not dead code
 FINDING:     While ruling out cross-launch caching as a cause of the FX1
