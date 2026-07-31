@@ -152,6 +152,16 @@ NEXT:        Charlie builds and tests live: symmetric bands should behave as
              before; Output should now read close to 0.0 dB (within ~0.3-0.5
              dB, per the granularity note above) when parked near its visual
              "0" tick, instead of the earlier +20.0 dB baseline.
+CONFIRMED (2026-07-31, Charlie's live test): CSS overlap fixed, layout reads
+             fine ("old eyes... can get the idea, EQ is more about your ears
+             than your eyes" — ticks legible enough, no further sizing work
+             requested). Output reads +0.3 dB at its visual zero, matching
+             the predicted ~0.3-0.5 dB granularity gap exactly — working as
+             designed, not a bug. Stereo/Mono toggle survives (knobs hold
+             position, no unwanted rebuild — same fix class as Flanger's).
+             Graphic EQ is DONE. FX1 now has 4 of 10 models captured and
+             TESTED LIVE (C1 Chorus/Vibrato, Dyn3 Compressor, Flanger,
+             Graphic EQ).
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31
