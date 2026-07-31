@@ -128,6 +128,21 @@ NEXT:        Charlie offered to redo the Voices capture cleanly (walk 1
              moving on) so the middle four values can be hardware-confirmed
              rather than assumed. Not urgent — the 6-way spread is a
              reasonable placeholder and matches the confirmed endpoints.
+RESOLVED (2026-07-31, same day, Charlie's diagnostic recapture): the
+             6-way spread was WRONG — Avid's own Voices dropdown skips 5
+             entirely (Charlie's screenshot: "1, 2, 3, 4, 6", no 5th real
+             slot). The diagnostic capture itself (MultiChorus_Voices_
+             Diag_1.pcapng, handle 0x48) was a continuous raw sweep 127->0
+             from a mouse-drag/scroll test, not a clean set of dropdown
+             clicks — not directly usable for zone boundaries — but the
+             dropdown screenshot settled it on its own: the ORIGINAL
+             capture's 5 raw values (0/32/64/95/127) were correct all
+             along. The only defect was ever the label on the last option
+             ("5" should have read "6"). Reverted FX1_MODELS' Voices cell
+             to those 5 original values, relabeled 1/2/3/4/6.
+NEXT:        Charlie builds and re-tests: Voices dropdown should now show
+             1, 2, 3, 4, 6 (no 5) and each position should select the
+             correct real voice count including 6 at the top.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31
