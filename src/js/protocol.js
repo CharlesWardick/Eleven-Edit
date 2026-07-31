@@ -1534,7 +1534,13 @@ const FX1_MODELS = [
   // Fits all 19 captured points within ~1.5 at the very top of the range
   // and under 0.3 almost everywhere else — well inside the rounding noise
   // of reading a wheel-click display by eye. Session Log has the raw points.
-  { mid: 0x16, name: 'Dyn3 Compressor', captured: true,
+  // MONO/STEREO MID PAIR — FOUND MISSING 2026-07-31, same audit that caught
+  // Graphic EQ's identical gap (see that entry's comment for the trace that
+  // found this bug class). MODEL_NAMES/MODEL_OUT_STEREO above list mono
+  // 0x15 and stereo 0x16 as "Dyn3 Compressor", but only 0x16 was registered
+  // when this model was captured — a patch with Dyn3 in mono would have hit
+  // the exact same "mid unknown" failure as Graphic EQ did.
+  { mid: 0x16, mids: [0x15, 0x16], name: 'Dyn3 Compressor', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
     rows: [
       [ {label:'Threshold', lo:0x02, display: function(v) { return (-60 + (v/127)*60).toFixed(1) + ' dB'; }},
@@ -1631,7 +1637,21 @@ const FX1_MODELS = [
   // Charlie's 7/31 request, we have the panel width to spare where Avid only
   // has room for one side). 0 is always included so the 0 dB reference line
   // is always visible regardless of range.
-  { mid: 0x11, name: 'Graphic EQ', captured: true,
+  // MONO/STEREO MID PAIR — FOUND MISSING 2026-07-31 (a session log traced a
+  // real "requestFx1Params: mid=0x10 unknown" failure to this exact gap; see
+  // Session Log for the full trace). Graphic EQ has the same dual-mid pattern
+  // as C1 Chorus (0x01/0x03) and Flanger (0x07/0x08) — MODEL_NAMES/
+  // MODEL_OUT_STEREO above list BOTH 0x10 (mono) and 0x11 (stereo) as
+  // "Graphic EQ" — but the mids[] pairing was left off when this model was
+  // captured, unlike Chorus/Flanger where it was handled deliberately. A
+  // patch whose FX1 slot held Graphic EQ in mono reported mid 0x10, which
+  // wasn't in FX1_MODEL_BY_MID, so the panel opened but couldn't resolve a
+  // model — same failure class as the Flanger dropdown bug, just silent
+  // instead of visibly blank. Lesson for every future FX1/FX2/MOD/DELAY
+  // model: always check MODEL_NAMES for a second mid before assuming a
+  // model is single-mid, not just when Charlie happens to report a stereo/
+  // mono symptom.
+  { mid: 0x11, mids: [0x10, 0x11], name: 'Graphic EQ', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
     rows: [
       [ {label:'100 Hz',   lo:0x02, slider:true, min:-12, max:12, ticks:[12,0,-12],

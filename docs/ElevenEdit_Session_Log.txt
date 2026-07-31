@@ -40,6 +40,58 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — root cause of the
+             "unreproduced bug" flagged earlier this session, now identified
+AREA:        FX1 — Graphic EQ AND Dyn3 Compressor both missing their mono
+             mid registration (silent "model unknown" failure)
+FINDING:     Charlie sent a session log (session20260731124228.log) from
+             general use, not a targeted repro, and asked whether it showed
+             anything — it did, and it is almost certainly the "bug I can't
+             put my finger on yet" flagged earlier today (see that entry
+             above). Line 405: "requestFx1Params: mid=0x10 unknown" /
+             "openFx1Panel: mid=0x10 handle=0x1A" — the FX1 panel opened for
+             a block reporting mid 0x10, which FX1_MODEL_BY_MID had no entry
+             for, so the panel could not resolve a model (renders nothing
+             useful instead of the real controls).
+             ROOT CAUSE: 0x10 is Graphic EQ's MONO wire id (MODEL_NAMES/
+             MODEL_OUT_STEREO both list 0x10 mono / 0x11 stereo as "Graphic
+             EQ" — same dual-mid pattern already handled correctly for C1
+             Chorus and Flanger) — but Graphic EQ's FX1_MODELS entry was
+             registered under mid 0x11 ONLY, no mids:[0x10,0x11] pairing, an
+             omission made when it was captured. A patch whose FX1 slot held
+             Graphic EQ in mono would silently fail exactly like this.
+             AUDITED every other captured model for the same gap while at
+             it: Dyn3 Compressor had the IDENTICAL bug (mono 0x15 / stereo
+             0x16, only 0x16 registered) — not yet caught by name because
+             Charlie's Dyn3 testing likely never happened to land on a mono
+             patch. C1 Chorus and Flanger were already correct (built the
+             pairing deliberately). Gray Compressor confirmed single-mid
+             only (0x14, no second name in MODEL_NAMES) — no gap there,
+             consistent with Charlie's "mono all the time" description.
+FIX APPLIED: Graphic EQ -> mids:[0x10,0x11]; Dyn3 Compressor ->
+             mids:[0x15,0x16] (protocol.js). No handler code changed — same
+             as the earlier Chorus-knob R7 fix, this is a data-table gap,
+             not a logic bug; FX1_MODEL_BY_MID already builds its lookup
+             generically off each model's mids[] array.
+STANDING REMINDER for the six still-uncaptured FX1 models: MODEL_NAMES shows
+             Vibe Phaser (0x09/0x0A), Orange Phaser (0x0B/0x0C), and Roto
+             Speaker (0x0D/0x0E/0x0F, THREE mids) all have multi-mid entries
+             already in that table — check it BEFORE assuming a model is
+             single-mid when capturing MultiChorus/Orange Phaser/Parametric
+             EQ/Roto Speaker/Vibe Phaser next, not just when a stereo/mono
+             symptom is reported.
+EVIDENCE:    session20260731124228.log (Charlie, from general use). node
+             --check passed on protocol.js. NOT hardware re-tested since the
+             fix (the log evidence is real hardware behaviour already).
+NEXT:        Charlie builds and tests: specifically try to force Graphic EQ
+             and Dyn3 Compressor into MONO chain state (Stereo/Mono toggle
+             with either in the FX1 slot) and confirm the panel now resolves
+             instead of going blank/unknown. If the original "can't
+             reproduce" bug recurs after this fix, it is something else —
+             dig further rather than assuming this was the whole story.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 — Gray Compressor model captured (5th of 10 FX1 models)
 FINDING:     Charlie supplied Gray_Compressor_Knob_Capture.pcapng, picked
