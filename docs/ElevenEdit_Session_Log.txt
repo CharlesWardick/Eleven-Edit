@@ -40,7 +40,7 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-31
-STATUS:      provisional — OPEN CODE FIX (found during contract writing)
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 Chorus panel missing the Sync interlock (R7) the amp has
 FINDING:     The amp Sync/Speed interlock (Tech Ref Sec 11 / now R7 in the
              Sec 20A Knob Contract) says: grabbing a Sync-driven knob sends
@@ -52,13 +52,25 @@ FINDING:     The amp Sync/Speed interlock (Tech Ref Sec 11 / now R7 in the
              Noticed by Charlie 7/31. This is the exact scatter failure the new
              contract exists to prevent — the rule lived only in the amp context
              and was not carried to the effect panel.
-FIX (to do): apply R7 to the FX1 Chorus Sync/Rate control (send Sync=OFF once
-             per drag on grab, then write normally; no write guard, no grey-out).
-             Same fix will be needed on every future synced control (MOD/DELAY).
-             Belongs to the Sec 20A code audit below.
+FIX APPLIED (2026-07-31, Claude Code): Rate (paramLo 0x04) marked
+             syncDriven:true in FX1_MODELS (protocol.js). fx-panels.js FX1 drag
+             handler now clears Sync (paramLo 0x06 -> 0) once per drag on grab
+             of any syncDriven cell before writing the knob, matching the amp
+             pattern exactly (mousedown latch, mousemove check, no write-guard/
+             grey-out). Same interlock applied to the FX1 dblclick (R8) handler,
+             since a baseline-restore is a knob move too. Built generically
+             (fx1SyncCellLo / fx1CellIsSyncDriven / fx1ClearSyncIfDriving read
+             the model's row data, not a hardcoded paramLo) so MOD/DELAY's
+             future Sync-driven controls only need the syncDriven flag on their
+             model row, not new interlock code.
+EVIDENCE:    Code only — node --check passed on fx-panels.js/protocol.js/ui.js.
+             NOT hardware-tested (no bridge in this session per usual).
+NEXT:        Charlie builds the EXE and tests live: grab Rate while Sync is
+             engaged on C1 Chorus, confirm Sync clears to OFF and Rate takes
+             the manual value, matching the amp Speed/Sync behaviour.
 -------------------------------------------------------------------
 DATE:        2026-07-31
-STATUS:      provisional — NEW FEATURE to implement (universal knob rule R8)
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        Double-click knob -> jump to load baseline (Sec 20A R8)
 FINDING:     New universal knob rule added to the contract: double-clicking a
              knob returns THAT knob to its load-baseline value (the R3 baseline),
@@ -66,10 +78,26 @@ FINDING:     New universal knob rule added to the contract: double-clicking a
              clears, one knob only, no save. Uses the baseline the app already
              tracks for red-ring (R3). Added before the 50+ new knobs so every
              new panel inherits it.
-FIX (to do): implement double-click-to-baseline on all knobs; retrofit to the
-             existing five panels during the Sec 20A code audit. Obeys R1
-             (endpoint sentinels) and R6 (drag-queue safety) since it sends to
-             the rack like any knob change.
+FIX APPLIED (2026-07-31, Claude Code): a dblclick handler already existed on
+             every knob (amp tone knobs + DIST/REVERB/WAH/VOL/FX1) but jumped
+             to a HARDCODED CENTRE VALUE (64), not the load baseline — same
+             scatter problem as R7, a rule that existed in intent but was never
+             written down until Sec 20A. All six handlers (ui.js tone-knob
+             delegated handler + generic wireKnobDrag dblclick + fx-panels.js
+             DIST/REVERB/WAH/VOL/FX1) now read wrap.dataset.orig (the R3
+             baseline, falling back to 64 only if unset) instead of a literal
+             64, then route through the same send function as a normal drag —
+             so R1 endpoint sentinels and R6 drag-queue safety apply for free,
+             no new code path. Amp tone-knob dblclick also picked up the R7
+             Sync-clear check for Speed (0x11), which the drag handler already
+             had but the dblclick handler didn't.
+EVIDENCE:    Code only — node --check passed on ui.js/fx-panels.js. NOT
+             hardware-tested.
+NEXT:        Charlie builds the EXE and tests live: double-click a knob that
+             has been turned away from its loaded value on each of the six
+             surfaces (amp tone, DIST, REVERB, WAH, VOL, FX1) and confirm it
+             snaps back to the ORIGINAL loaded value (not centre) and the red
+             ring clears.
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      provisional — STANDING TASK, run in Claude Code (needs repo access)

@@ -210,12 +210,15 @@ function refreshDistPanelAfterChainMap() {
     if (!wrap) return;
     var paramLo = parseInt(wrap.dataset.distLo, 16);
     if (isNaN(paramLo)) return;
-    wrap.dataset.value = 64;
-    drawKnob(wrap.querySelector('canvas'), 64);
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
     var loHex = paramLo.toString(16).padStart(2,'0');
     var vEl = document.getElementById('dist-v-' + loHex);
-    if (vEl) vEl.textContent = valDisplay(64);
-    if (bridgeMidiReady) queueKnobSend('dist:' + paramLo, function(v) { sendDistParamWrite(paramLo, v); }, 64);
+    if (vEl) vEl.textContent = valDisplay(val);
+    if (bridgeMidiReady) queueKnobSend('dist:' + paramLo, function(v) { sendDistParamWrite(paramLo, v); }, val);
   });
 })();
 
@@ -431,8 +434,11 @@ function refreshReverbPanelAfterChainMap() {
     if (!wrap) return;
     var paramLo = parseInt(wrap.dataset.reverbLo, 16);
     if (isNaN(paramLo)) return;
-    updateReverbKnob(paramLo, 64);
-    if (bridgeMidiReady) queueKnobSend('reverb:' + paramLo, function(v) { sendReverbParamWrite(paramLo, v); }, 64);
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    updateReverbKnob(paramLo, val);
+    if (bridgeMidiReady) queueKnobSend('reverb:' + paramLo, function(v) { sendReverbParamWrite(paramLo, v); }, val);
   });
 })();
 
@@ -566,8 +572,11 @@ function refreshWahPanelAfterChainMap() {
     if (!wrap) return;
     var paramLo = parseInt(wrap.dataset.wahLo, 16);
     if (isNaN(paramLo)) return;
-    updateWahKnob(paramLo, 64);
-    if (bridgeMidiReady) queueKnobSend('wah:' + paramLo, function(v) { sendWahParamWrite(paramLo, v); }, 64);
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    updateWahKnob(paramLo, val);
+    if (bridgeMidiReady) queueKnobSend('wah:' + paramLo, function(v) { sendWahParamWrite(paramLo, v); }, val);
   });
 })();
 
@@ -744,8 +753,11 @@ function refreshVolPanelAfterChainMap() {
     if (!wrap) return;
     var paramLo = parseInt(wrap.dataset.volLo, 16);
     if (isNaN(paramLo)) return;
-    updateVolKnob(paramLo, 64);
-    if (bridgeMidiReady) queueKnobSend('vol:' + paramLo, function(v) { sendVolParamWrite(paramLo, v); }, 64);
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    updateVolKnob(paramLo, val);
+    if (bridgeMidiReady) queueKnobSend('vol:' + paramLo, function(v) { sendVolParamWrite(paramLo, v); }, val);
   });
 })();
 
@@ -965,9 +977,45 @@ function refreshFx1PanelAfterChainMap() {
     + ' handle=0x' + fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase());
 }
 
+// ── R7 helpers — shared by the FX1 drag and dblclick handlers below.
+// Generic over any future Sync-driven cell (MOD/DELAY etc.), not just
+// Chorus/Rate: driven by the model row data (cell.sync / cell.syncDriven,
+// protocol.js), not a hardcoded paramLo. ──
+function fx1SyncCellLo(model) {
+  var lo = null;
+  model.rows.forEach(function(row) { row.forEach(function(c) { if (c && c.sync) lo = c.lo; }); });
+  return lo;
+}
+function fx1CellIsSyncDriven(model, paramLo) {
+  var found = null;
+  model.rows.forEach(function(row) { row.forEach(function(c) { if (c && c.lo === paramLo) found = c; }); });
+  return !!(found && found.syncDriven);
+}
+function fx1CurrentSyncZone(model) {
+  var syncLo = fx1SyncCellLo(model);
+  if (syncLo === null) return 0;
+  var sel = document.getElementById('fx1-sync-' + syncLo.toString(16).padStart(2,'0'));
+  return sel ? (parseInt(sel.value, 10) || 0) : 0;
+}
+// Grabbing/restoring a Sync-driven knob clears Sync first, once, mirroring
+// the amp Speed/Sync interlock (R7) — hands control back to the user
+// exactly like the rack's own front-panel knob, rather than write-guarding
+// or greying the knob out (both tried and rejected for the amp case).
+function fx1ClearSyncIfDriving(model, paramLo) {
+  if (!fx1CellIsSyncDriven(model, paramLo)) return;
+  var syncLo = fx1SyncCellLo(model);
+  if (syncLo === null) return;
+  if (fx1CurrentSyncZone(model) === 0) return;
+  updateFx1Knob(syncLo, 0);
+  if (bridgeMidiReady) sendFx1ParamWrite(syncLo, 0);
+  appLog('FX1 knob 0x' + paramLo.toString(16).padStart(2,'0') + ' moved while Sync was engaged'
+         + ' — clearing Sync to OFF first (the rack does the same)');
+}
+
 // ── FX1 knob drag — delegated, keyed on data-fx1-lo (hex paramLo) ──
 (function() {
   var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+  var syncClearedThisFx1Drag = false;
 
   document.addEventListener('mousedown', function(e) {
     var wrap = e.target.closest('.knob-wrap[data-fx1-lo]');
@@ -978,6 +1026,7 @@ function refreshFx1PanelAfterChainMap() {
     startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
     startY = e.clientY;
     dragging = true;
+    syncClearedThisFx1Drag = false;   // one Sync clear per drag, not per mousemove
     e.preventDefault();
   });
 
@@ -990,6 +1039,11 @@ function refreshFx1PanelAfterChainMap() {
     // the exact bug that produced paramLo=-1 (byte 0xFF, an illegal SysEx
     // data byte) mid-message and wedged the hardware, 2026-07-30, FX1 Ratio.
     var lo = activeParamLo;
+    var model = currentFx1Model();
+    if (model && !syncClearedThisFx1Drag && fx1CellIsSyncDriven(model, lo) && fx1CurrentSyncZone(model) !== 0) {
+      syncClearedThisFx1Drag = true;
+      fx1ClearSyncIfDriving(model, lo);
+    }
     if (bridgeMidiReady) queueKnobSend('fx1:' + lo, function(v) { sendFx1ParamWrite(lo, v); }, val);
   });
 
@@ -1001,7 +1055,12 @@ function refreshFx1PanelAfterChainMap() {
     if (!wrap) return;
     var paramLo = parseInt(wrap.dataset.fx1Lo, 16);
     if (isNaN(paramLo)) return;
-    updateFx1Knob(paramLo, 64);
-    if (bridgeMidiReady) queueKnobSend('fx1:' + paramLo, function(v) { sendFx1ParamWrite(paramLo, v); }, 64);
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    var model = currentFx1Model();
+    if (model) fx1ClearSyncIfDriving(model, paramLo);   // R7 — restore is a knob move too
+    updateFx1Knob(paramLo, val);
+    if (bridgeMidiReady) queueKnobSend('fx1:' + paramLo, function(v) { sendFx1ParamWrite(paramLo, v); }, val);
   });
 })();

@@ -343,9 +343,13 @@ function initKnob(wrapId, valId, dispFn, onChangeCB) {
   window.addEventListener('mouseup', () => { dragging = false; });
   window.addEventListener('blur', () => { dragging = false; });
   wrap.addEventListener('dblclick', () => {
-    val = 64; wrap.dataset.value = 64;
+    // R8 — double-click restores the knob to its load baseline (R3's
+    // dataset.orig), not a fixed centre value. Same send path as a normal
+    // drag, so R1 endpoint sentinels apply automatically via onChangeCB.
+    val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    wrap.dataset.value = val;
     drawKnob(canvas, val); if (valSpan) valSpan.textContent = dispFn(val);
-    if (onChangeCB) queueKnobSend('knob:' + wrapId, onChangeCB, 64);
+    if (onChangeCB) queueKnobSend('knob:' + wrapId, onChangeCB, val);
   });
   wrap.addEventListener('wheel', e => {
     e.preventDefault();
@@ -1952,14 +1956,29 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
     if (!wrap) return;
     const idx = parseInt(wrap.dataset.toneIdx);
     if (isNaN(idx) || idx < 0) return;
-    wrap.dataset.value = 64;
-    drawKnob(wrap.querySelector('canvas'), 64);
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    const val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
     const vEl = document.getElementById('tone-v' + idx);
-    if (vEl) vEl.textContent = valDisplay(64);
+    if (vEl) vEl.textContent = valDisplay(val);
     const ap = currentAmpKey ? AMP_TONE_PARAMS[currentAmpKey] : null;
     if (ap && currentParamHi >= 0) {
       const knobs = ap.knobs.filter(k => k.type === 'knob');
-      if (idx < knobs.length) queueKnobSend('tone:' + knobs[idx].lo, function(v) { sendParamWrite(knobs[idx].lo, v); }, 64);
+      if (idx < knobs.length) {
+        const lo = knobs[idx].lo;
+        // R7 — Speed is Sync-driven; a double-click restore must clear Sync
+        // first too, same as a drag grab (see the mousedown/mousemove pair
+        // above).
+        if (lo === 0x11 && currentSyncZone !== 0 && !syncClearedThisDrag) {
+          syncClearedThisDrag = true;
+          sendParamWrite(0x12, 0);
+          appLog('Speed double-click restore while Sync was on ' + SYNC_DIVISIONS[currentSyncZone].text
+                 + ' — clearing Sync to OFF first (the rack does the same)');
+        }
+        queueKnobSend('tone:' + lo, function(v) { sendParamWrite(lo, v); }, val);
+      }
     }
   });
 })();

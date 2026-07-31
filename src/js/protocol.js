@@ -1505,7 +1505,12 @@ const FX1_MODELS = [
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
     rows: [
       [ {label:'Chorus', lo:0x02},
-        {label:'Rate',   lo:0x04},
+        // R7 (Tech Ref Sec 20A) — Rate is Sync-driven, same relationship as
+        // the amp Speed/Sync interlock: grabbing it while Sync is engaged
+        // must clear Sync first. Fixed 2026-07-31 (Session Log); the
+        // syncDriven flag is what fx-panels.js's FX1 drag/dblclick handlers
+        // check to apply the interlock generically for future models too.
+        {label:'Rate',   lo:0x04, syncDriven:true},
         {label:'Depth',  lo:0x03},
         {label:'Sync',   lo:0x06, sync:true},
         {label:'Mode',   lo:0x05, toggle:true, options:['Chorus','Vibrato']} ]
