@@ -1504,12 +1504,15 @@ const FX1_MODELS = [
   { mid: 0x01, mids: [0x01, 0x02, 0x03], name: 'C1 Chorus/Vibrato', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
     rows: [
-      [ {label:'Chorus', lo:0x02},
-        // R7 (Tech Ref Sec 20A) — Rate is Sync-driven, same relationship as
-        // the amp Speed/Sync interlock: grabbing it while Sync is engaged
-        // must clear Sync first. Fixed 2026-07-31 (Session Log); the
-        // syncDriven flag is what fx-panels.js's FX1 drag/dblclick handlers
-        // check to apply the interlock generically for future models too.
+      // R7 (Tech Ref Sec 20A) — BOTH Chorus and Rate are Sync-driven on this
+      // model (confirmed by Charlie 2026-07-31: turning Chorus while Sync is
+      // engaged did not clear Sync, same gap as Rate) — unlike the amp,
+      // where only Speed is. Matches the earlier "Sync x Chorus/Rate matrix"
+      // capture note above (engaging Sync overwrites BOTH live values, not
+      // just Rate). The syncDriven flag is what fx-panels.js's FX1
+      // drag/dblclick handlers check to apply the interlock generically —
+      // any number of syncDriven cells per model works, not just one.
+      [ {label:'Chorus', lo:0x02, syncDriven:true},
         {label:'Rate',   lo:0x04, syncDriven:true},
         {label:'Depth',  lo:0x03},
         {label:'Sync',   lo:0x06, sync:true},
