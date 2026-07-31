@@ -143,6 +143,18 @@ RESOLVED (2026-07-31, same day, Charlie's diagnostic recapture): the
 NEXT:        Charlie builds and re-tests: Voices dropdown should now show
              1, 2, 3, 4, 6 (no 5) and each position should select the
              correct real voice count including 6 at the top.
+CONFIRMED (2026-07-31, Charlie's rebuild): Voices fix verified, panel
+             screenshot shows everything working — the grouped layout
+             (unlabeled Rate/Depth column, CHORUS box, MOD box, unlabeled
+             Voices/Mix column), all six knobs, Sync dropdown, Waveform
+             toggle, and R3 red-on-change all rendering correctly (Mix
+             shown red/changed, everything else green/baseline). Charlie:
+             the Avid panel is comparatively unreadable, which is the
+             whole point of this app. MultiChorus is DONE. FX1 now has 6
+             of 10 models captured and TESTED LIVE (C1 Chorus/Vibrato,
+             Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor,
+             MultiChorus). NEXT per Charlie's list: Orange Phaser,
+             Parametric EQ, Roto Speaker, Vibe Phaser remain.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31
