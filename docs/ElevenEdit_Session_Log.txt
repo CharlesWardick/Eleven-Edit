@@ -41,6 +41,60 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Graphic EQ model captured (4th of 10 FX1 models); FIRST
+             non-rotary FX1 control (vertical sliders, not knobs)
+FINDING:     Charlie supplied EQ_Vertical_Slider_Capture.pcapng plus a
+             screenshot of Avid's Graphic EQ panel (6 vertical faders, yellow
+             thumb) and per-band ranges. Decoded the same way as Flanger
+             (manual pcapng/USB-MIDI reassembly, no tshark in this session).
+             Single handle 0x2e, six paramLos, each swept 0->127->0 in its
+             own isolated window, in the exact left-to-right order tested:
+               0x02 100 Hz (-12..+12) · 0x03 370 Hz (-18..+18) · 0x04 800 Hz
+               (-18..+18) · 0x05 2 kHz (-18..+18) · 0x06 3.25 kHz (-12..+12) ·
+               0x07 Output (-20..+6).
+             No Sync control on this model — R7 does not apply.
+             DISPLAY — used the same two-slope-anchored-at-v127=64 dB shape as
+             valToAmpVol (eqSliderDb, ui.js) so 0.0 dB is always exactly
+             reachable, not interpolated near it (Sec 20A R5). Exact for the
+             four SYMMETRIC bands (100/370/800/2k/3.25k) by construction —
+             any symmetric range collapses to a plain proportional scale
+             regardless of anchor choice. NOT independently confirmed for the
+             ASYMMETRIC Output band (-20..+6): the raw v127 value where the
+             display reads exactly 0.0 dB is INFERRED from the same pattern,
+             not pinned by a capture (the sweep test went 0->127->0, never
+               parked at "0.0 dB" specifically for Output). Charlie should
+             watch for this on the Output slider specifically — if 0.0 dB
+             visually lands somewhere other than dead-centre of the fader
+             travel, this anchor assumption needs revisiting.
+             UI — new cell kind (cell.slider:true, min/max) and new drawing
+             function drawEqSlider (ui.js): a vertical groove + horizontal
+             thumb bar on a canvas, reusing the SAME .knob-wrap/data-fx1-lo
+             contract as every rotary knob, so the existing generic FX1 drag/
+             dblclick/scroll-wheel handlers (fx-panels.js/ui.js) needed NO
+             changes beyond dispatching by cell.slider in updateFx1Knob (draw
+             call: drawEqSlider vs drawKnob) — R1/R2/R4/R6/R8 all apply for
+             free through the existing send/queue path. NEW BASE COLOUR:
+             KNOB_COLORS.yellow (not FX green) per Charlie's screenshot and
+             description ("not green or amber but yellow... would change to
+             red if moved") — red-on-change (R3) unchanged, just a different
+             base.
+FIX APPLIED: FX1_MODELS Graphic EQ stub (protocol.js, mid 0x11 — matches
+             index.html's <option value="17">) replaced with the six-slider
+             row. eqSliderColor/drawEqSlider/eqSliderDb added to ui.js;
+             renderFx1Knobs/updateFx1Knob (fx-panels.js) taught the slider
+             branch.
+EVIDENCE:    EQ_Vertical_Slider_Capture.pcapng (Charlie, 2026-07-31) +
+             screenshot of Avid's Graphic EQ panel. node --check passed on
+             protocol.js/ui.js/fx-panels.js. NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm all six bands read/write
+             correctly, the fader visual reads sensibly (thumb position,
+             yellow/red colour swap), and specifically check where 0.0 dB
+             sits on the Output slider (see DISPLAY note above — the one
+             unconfirmed assumption here).
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 — Flanger model captured (3rd of 10 FX1 models)
 FINDING:     Charlie supplied Flanger_Knob_Capture.pcapng (Wireshark/USBPcap,
              single-block capture, handle 0x10) plus a screenshot of Avid's

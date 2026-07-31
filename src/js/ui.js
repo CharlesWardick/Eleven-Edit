@@ -13,9 +13,11 @@
 // panel, or Avid — turns the knob red, exactly as the hardware pointer does.
 // Kept as named values so item B can later read them from settings.json.
 const KNOB_COLORS = {
-  amber: '#e0a020',   // was hardcoded throughout drawKnob
-  green: '#30c050',   // theme --green, matches active chain blocks
-  red:   '#e83828'    // uncommitted change
+  amber:  '#e0a020',   // was hardcoded throughout drawKnob
+  green:  '#30c050',   // theme --green, matches active chain blocks
+  yellow: '#e8d030',   // Graphic EQ vertical sliders' base colour (Avid's own
+                       // panel uses yellow, not green, for this one) — 7/31/2026
+  red:    '#e83828'    // uncommitted change
 };
 
 // Decide a knob's colour from its wrap: fx base if data-base="fx", red if a
@@ -79,6 +81,53 @@ function drawKnob(canvas, value127) {
   ctx.restore();
 }
 
+// ── Vertical fader (Graphic EQ, 7/31/2026) — first non-rotary FX1 control.
+// Mimics Avid's own Graphic EQ panel: a vertical groove, a horizontal thumb
+// bar that rides it, base colour YELLOW (not green like every other FX
+// control) that turns RED on change from baseline (R3), same rule, new base
+// colour. minVal/maxVal are the SLIDER'S OWN range (e.g. -12..+12 for most
+// bands, -20..+6 for Output) — raw v127 is still 0-127 (R1/R2 unchanged),
+// just displayed and positioned against this range instead of 0-10 or dB
+// tone-knob math.
+function eqSliderColor(wrap, value127) {
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== ''
+      && parseInt(wrap.dataset.orig) !== value127) {
+    return KNOB_COLORS.red;
+  }
+  return KNOB_COLORS.yellow;
+}
+
+function drawEqSlider(canvas, value127, wrap) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w / 2;
+  const top = 6, bottom = h - 6;
+  const trackH = bottom - top;
+  const col = eqSliderColor(wrap, value127);
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Groove
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx, top); ctx.lineTo(cx, bottom);
+  ctx.stroke();
+
+  // Thumb — a horizontal bar, matching the Avid fader look. 0 = bottom,
+  // 127 = top (dragging UP raises the value, same convention as every
+  // knob's vertical drag).
+  const y = bottom - (value127 / 127) * trackH;
+  ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - (w/2 - 4), y); ctx.lineTo(cx + (w/2 - 4), y);
+  ctx.stroke();
+  // Centre notch on the thumb, like the real fader cap
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(cx, y, 2, 0, Math.PI*2);
+  ctx.fill();
+}
+
 // Drop main-panel baselines and repaint to base colour. Called at nav start so
 // the incoming patch's knobs show plain amber during the pull instead of a red
 // flash (the old patch's baseline would otherwise read every new value as
@@ -109,6 +158,22 @@ function captureKnobBaselines() {
 }
 
 function valDisplay(v127) { return (v127/127*10).toFixed(1); }
+
+// Graphic EQ band/output display — same two-slope-anchored-at-64 shape as
+// valToAmpVol (Sec 20A R5: anchor a symmetric OR asymmetric dB scale so 0.0
+// is exactly reachable, not interpolated near it). v127=64 -> exactly 0.0 dB
+// regardless of whether the range is symmetric (e.g. -12..+12) or not (e.g.
+// Output's -20..+6) — INFERRED from the same pattern as every other dB
+// control in the app, NOT independently hardware-confirmed for the asymmetric
+// Output band (no capture pins the exact raw value 0.0 dB sits at); flag for
+// confirmation on Charlie's first live test (Session Log 2026-07-31).
+function eqSliderDb(v127, minDb, maxDb) {
+  const below = -minDb / 64;
+  const above = maxDb / 63;
+  const db = (v127 < 64) ? (v127 - 64) * below : (v127 - 64) * above;
+  const t = db.toFixed(1);
+  return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
+}
 
 // ── Effect-panel knob baseline (item A, FX truth) ───────────────────
 // The effect-panel DOM is rebuilt every time a panel opens, so a knob's

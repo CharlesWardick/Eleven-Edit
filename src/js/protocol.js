@@ -1599,7 +1599,41 @@ const FX1_MODELS = [
         {label:'Sync',      lo:0x06, sync:true} ]
     ]
   },
-  { mid: 0x11, name: 'Graphic EQ',       captured: false, paramLos: [], rows: [] },
+  // ── GRAPHIC EQ — captured 2026-07-31 (Wireshark, EQ_Vertical_Slider_
+  // Capture.pcapng, handle 0x2e). First FX1 model with VERTICAL SLIDERS
+  // instead of knobs (cell.slider:true — see drawEqSlider/eqSliderDb, ui.js).
+  // paramLo assignment confirmed by six isolated 0->127->0 sweeps in the
+  // exact left-to-right order Charlie tested the panel, no overlap between
+  // any two paramLos' active windows:
+  //   0x02 100 Hz (-12..+12) · 0x03 370 Hz (-18..+18) · 0x04 800 Hz
+  //   (-18..+18) · 0x05 2 kHz (-18..+18) · 0x06 3.25 kHz (-12..+12) ·
+  //   0x07 Output (-20..+6).
+  // DISPLAY — dB range per band from Charlie's Avid-panel screenshot, using
+  // the same two-slope-anchored-at-v127=64 shape as valToAmpVol elsewhere
+  // (0.0 dB exactly reachable, not interpolated near it) — see eqSliderDb's
+  // header comment: confirmed for the symmetric bands by construction (any
+  // symmetric range collapses to a plain proportional scale), but the
+  // asymmetric Output band's exact 0.0 dB raw position is INFERRED from that
+  // same pattern, not independently captured — flag for Charlie's live test.
+  // No Sync control on this model — every cell is a plain slider, R7 does
+  // not apply here.
+  { mid: 0x11, name: 'Graphic EQ', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
+    rows: [
+      [ {label:'100 Hz',   lo:0x02, slider:true, min:-12, max:12,
+          display: function(v) { return eqSliderDb(v, -12, 12); }},
+        {label:'370 Hz',   lo:0x03, slider:true, min:-18, max:18,
+          display: function(v) { return eqSliderDb(v, -18, 18); }},
+        {label:'800 Hz',   lo:0x04, slider:true, min:-18, max:18,
+          display: function(v) { return eqSliderDb(v, -18, 18); }},
+        {label:'2 kHz',    lo:0x05, slider:true, min:-18, max:18,
+          display: function(v) { return eqSliderDb(v, -18, 18); }},
+        {label:'3.25 kHz', lo:0x06, slider:true, min:-12, max:12,
+          display: function(v) { return eqSliderDb(v, -12, 12); }},
+        {label:'Output',   lo:0x07, slider:true, min:-20, max:6,
+          display: function(v) { return eqSliderDb(v, -20, 6); }} ]
+    ]
+  },
   { mid: 0x14, name: 'Gray Compressor',  captured: false, paramLos: [], rows: [] },
   { mid: 0x06, name: 'MultiChorus',      captured: false, paramLos: [], rows: [] },
   { mid: 0x0C, name: 'Orange Phaser',    captured: false, paramLos: [], rows: [] },

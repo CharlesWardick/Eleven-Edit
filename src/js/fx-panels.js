@@ -897,6 +897,26 @@ function renderFx1Knobs(mid) {
         tglDiv.appendChild(lbl);
         tglDiv.appendChild(btn);
         rowDiv.appendChild(tglDiv);
+      } else if (cell.slider) {
+        // Vertical fader cell (Graphic EQ) — same .knob-wrap/data-fx1-lo
+        // contract as a knob (the generic FX1 drag/dblclick/scroll handlers
+        // below key off that, not the widget shape), just drawn as a
+        // vertical groove+thumb (drawEqSlider, ui.js) instead of a rotary
+        // arc, with its own base colour (yellow, not FX green).
+        const loHex = cell.lo.toString(16).padStart(2,'0');
+        const sliderDiv = document.createElement('div');
+        sliderDiv.className = 'ctrl-knob';
+        sliderDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+        sliderDiv.innerHTML =
+          '<label>' + cell.label + '</label>'
+          + '<span style="font-size:10px;color:var(--muted);">' + cell.max + '</span>'
+          + '<div class="knob-wrap" id="fx1-w-' + loHex + '" data-value="64" data-base="eq" data-fx1-lo="' + loHex + '">'
+          + '<canvas class="knob-canvas" width="34" height="130"></canvas></div>'
+          + '<span style="font-size:10px;color:var(--muted);">' + cell.min + '</span>'
+          + '<span class="knob-val" id="fx1-v-' + loHex + '">--</span>';
+        rowDiv.appendChild(sliderDiv);
+        const sWrap = sliderDiv.querySelector('.knob-wrap');
+        drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap);
       } else {
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const knobDiv = document.createElement('div');
@@ -951,7 +971,8 @@ function updateFx1Knob(paramLo, val) {
   if (wrap) {
     wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_FX1, loHex, val);
     wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
+    if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap);
+    else                     drawKnob(wrap.querySelector('canvas'), val);
   }
   if (valEl) valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);
 }
