@@ -40,6 +40,32 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-31
+STATUS:      provisional — FUTURE CLEANUP CANDIDATE, not acted on
+AREA:        Bank Scan feature — possibly unneeded, not dead code
+FINDING:     While ruling out cross-launch caching as a cause of the FX1
+             mystery bug, checked whether Bank Scan (walks all 104 slots,
+             caches name/ampKey/gate values to settings.json bankCache) was
+             leftover pre-Java-bridge workaround code, per Charlie's guess.
+             It is NOT — it's real, current code using the same Java-bridge
+             CMD reads as everything else (capture-scan.js), listed in the
+             Primer's WORKING section, with a full working overlay (progress
+             bar, Cancel button, #scan-overlay in index.html). CONFIRMED
+             UNRELATED to the FX1 bug: bankCache only ever holds patch name/
+             ampKey/two gate values per slot, never chain or FX1 model data.
+             ONE THING FOUND WHILE LOOKING: its trigger button
+             (#btn-scan-bank, index.html) is set to style="display:none" —
+             hidden from the toolbar, feature otherwise intact underneath.
+             Charlie: "it may turn out to be a fully working feature we
+             never need and can be removed completely at some point."
+NEXT:        No action now — not blocking anything, not part of the current
+             FX1 hunt. If Charlie later decides it's unneeded, removal would
+             touch: the hidden button + #scan-overlay markup (index.html),
+             the scan functions in capture-scan.js, the bankCache state var
+             (state.js) and its bank-cache IPC handlers (main.js). Revisit
+             only if/when Charlie asks.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
 STATUS:      CODE ADDED, NOT YET USED BY ANY CAPTURED MODEL — structural
              groundwork ahead of MultiChorus/Dynamic-Delay-shaped captures
 AREA:        FX1 panel — grouped/boxed layout support (fx-panels.js)
