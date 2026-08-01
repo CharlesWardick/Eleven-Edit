@@ -1807,7 +1807,126 @@ const FX1_MODELS = [
         {label:'Sync', lo:0x03, sync:true} ]
     ]
   },
-  { mid: 0x13, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },
+  // ── PARAMETRIC EQ — captured 2026-07-31 (Wireshark, Parametric_EQ_Sweep_
+  // Capture.pcapng, handle 0x10). Four bands (LF/LMF/HMF/HF) each with
+  // Gain/Freq/Q, LF and HF additionally have a Type dropdown (Output is a
+  // single trailing Gain knob) — 15 paramLos total, more controls than any
+  // other FX1 model so far.
+  // paramLo assignment confirmed by 15 cleanly isolated sweep windows, in
+  // the exact order Charlie listed and tested (LF Gain/Freq/Q/Type, LMF
+  // Gain/Freq/Q, HMF Gain/Freq/Q, HF Gain/Freq/Q/Type, Output) — this maps
+  // to a flat, unbroken 0x02-0x10 run:
+  //   0x02 LF Gain · 0x03 LF Freq · 0x04 LF Q · 0x05 LF Type ·
+  //   0x06 LMF Gain · 0x07 LMF Freq · 0x08 LMF Q ·
+  //   0x09 HMF Gain · 0x0A HMF Freq · 0x0B HMF Q ·
+  //   0x0C HF Gain · 0x0D HF Freq · 0x0E HF Q · 0x0F HF Type ·
+  //   0x10 Output Gain.
+  // TYPE (0x05, 0x0F) — captured as a genuinely continuous 0->127->0 sweep
+  // (like Roto Speaker's Speed originally was), same as every knob here,
+  // not discrete dropdown clicks. Per Charlie's explicit design call this
+  // session ("just have the drop list, omit the button" — a knob-linked
+  // dropdown risked being confused with the Gain/Freq/Q knobs beside it),
+  // built as a plain cell.select with the 6 named positions evenly
+  // quantized (0/25/51/76/102/127) — the exact interior zone boundaries
+  // are UNCONFIRMED (no discrete-click capture pins them precisely the way
+  // Sync/Voices captures did elsewhere), only the endpoints and the option
+  // COUNT/NAMES are certain. cell.wrapCycle:true — a trial run of Down/Up-
+  // arrow wraparound on this panel's dropdowns only (native <select> arrow-
+  // key cycling already works, it just doesn't wrap at the ends); Charlie
+  // will decide whether to retrofit it elsewhere after trying it here.
+  // DISPLAY —
+  //   Gain: LF/HF are ASYMMETRIC (-24..+12) — same lesson as Graphic EQ's
+  //   Output band (Session Log 2026-07-31): a two-slope-anchor-at-64 shape
+  //   would be wrong for an asymmetric range with no confirming capture, so
+  //   these use eqSliderDb's plain-linear (`linear:true`) variant instead.
+  //   LMF/HF/Output are SYMMETRIC (-18/-18/-24) and reuse eqSliderDb's
+  //   default two-slope-anchored-at-64 shape (0.0 dB exactly reachable).
+  //   Freq: exponential across each band's own Hz range (standard filter-
+  //   cutoff convention, same family as MultiChorus's Low Cut), displayed
+  //   via the new eqFreqDisplay (ui.js) — Hz below 1kHz, kHz above,
+  //   matching Avid's own panel ("100.0 Hz", "2.0 kHz"). NOT independently
+  //   multi-point-confirmed (only endpoints), same caveat as Low Cut.
+  //   Q: 0.2-10.0, exponential by the same convention — also endpoints
+  //   only, not multi-point confirmed.
+  // BAND COLOUR / CHANGE INDICATION — Avid colour-codes each band (LF red,
+  // LMF amber, HMF green, HF blue, OUT red — confirmed against Charlie's
+  // screenshot), which collides with this app's usual red-on-change arc
+  // (LF and OUT are ALREADY red). Fixed base colour per knob via
+  // cell.bandColor (knobColor, ui.js draws it unconditionally, never red);
+  // "changed" moved to the value-text readout instead (bold+red) — see
+  // updateFx1Knob's cell.bandColor branch, fx-panels.js. Colours below are
+  // LITERAL HEX, not KNOB_COLORS.* references — protocol.js loads and
+  // builds this array BEFORE ui.js defines KNOB_COLORS (index.html script
+  // order), so a live reference would be undefined at parse time. Must be
+  // kept in sync BY HAND with KNOB_COLORS.{red,amber,green,blue} (ui.js)
+  // if those ever change.
+  // LAYOUT — first FX1 model with FOUR grouped boxes (LF/LMF/HMF/HF) plus
+  // a trailing unlabeled Output column, using the grouped-layout plumbing
+  // built for MultiChorus. LMF/HMF's second row is Q alone (no Type slot)
+  // — box rows don't need equal cell counts.
+  // MONO/STEREO MID PAIR — 0x12 mono / 0x13 stereo (MODEL_NAMES/
+  // MODEL_OUT_STEREO above), registered per the standing Graphic EQ/Dyn3
+  // lesson though only one wire id was observed in this capture.
+  { mid: 0x13, mids: [0x12, 0x13], name: 'Parametric EQ', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10],
+    rows: [
+      { group:'LF', rows: [
+          [ {label:'Gain', lo:0x02, bandColor: '#e83828',
+              display: function(v) { return eqSliderDb(v, -24, 12, true); }},
+            {label:'Freq', lo:0x03, bandColor: '#e83828',
+              display: function(v) { return eqFreqDisplay(20 * Math.pow(2000 / 20, v / 127)); }} ],
+          [ {label:'Q',    lo:0x04, bandColor: '#e83828',
+              display: function(v) { return (0.2 * Math.pow(50, v / 127)).toFixed(1); }},
+            {label:'Type', lo:0x05, select:true, wrapCycle:true, options: [
+              {label:'Low Shelf',   v127:0},
+              {label:'Peaking',     v127:25},
+              {label:'Hipass 6dB',  v127:51},
+              {label:'Hipass 12dB', v127:76},
+              {label:'Hipass 24dB', v127:102},
+              {label:'Notch',       v127:127} ] } ]
+        ]
+      },
+      { group:'LMF', rows: [
+          [ {label:'Gain', lo:0x06, bandColor: '#e0a020',
+              display: function(v) { return eqSliderDb(v, -18, 18); }},
+            {label:'Freq', lo:0x07, bandColor: '#e0a020',
+              display: function(v) { return eqFreqDisplay(100 * Math.pow(100, v / 127)); }} ],
+          [ {label:'Q',    lo:0x08, bandColor: '#e0a020',
+              display: function(v) { return (0.2 * Math.pow(50, v / 127)).toFixed(1); }} ]
+        ]
+      },
+      { group:'HMF', rows: [
+          [ {label:'Gain', lo:0x09, bandColor: '#30c050',
+              display: function(v) { return eqSliderDb(v, -18, 18); }},
+            {label:'Freq', lo:0x0A, bandColor: '#30c050',
+              display: function(v) { return eqFreqDisplay(200 * Math.pow(100, v / 127)); }} ],
+          [ {label:'Q',    lo:0x0B, bandColor: '#30c050',
+              display: function(v) { return (0.2 * Math.pow(50, v / 127)).toFixed(1); }} ]
+        ]
+      },
+      { group:'HF', rows: [
+          [ {label:'Gain', lo:0x0C, bandColor: '#3f8fe0',
+              display: function(v) { return eqSliderDb(v, -24, 12, true); }},
+            {label:'Freq', lo:0x0D, bandColor: '#3f8fe0',
+              display: function(v) { return eqFreqDisplay(200 * Math.pow(100, v / 127)); }} ],
+          [ {label:'Q',    lo:0x0E, bandColor: '#3f8fe0',
+              display: function(v) { return (0.2 * Math.pow(50, v / 127)).toFixed(1); }},
+            {label:'Type', lo:0x0F, select:true, wrapCycle:true, options: [
+              {label:'High Shelf',   v127:0},
+              {label:'Peaking',      v127:25},
+              {label:'Lowpass 6dB',  v127:51},
+              {label:'Lowpass 12dB', v127:76},
+              {label:'Lowpass 24dB', v127:102},
+              {label:'Notch',        v127:127} ] } ]
+        ]
+      },
+      { rows: [
+          [ {label:'Output', lo:0x10, bandColor: '#e83828',
+              display: function(v) { return eqSliderDb(v, -24, 24); }} ]
+        ]
+      }
+    ]
+  },
   // ── ROTO SPEAKER — captured 2026-07-31 (Wireshark, Roto_Speaker_Knob_
   // Capture.pcapng, handle 0x3a).
   //   Speed — Avid draws this as an X--------> lever with named zones

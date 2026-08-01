@@ -879,6 +879,25 @@ function renderFx1Cell(cell, rowDiv) {
           updateFx1Knob(cell.lo, v127);
           if (bridgeMidiReady) sendFx1ParamWrite(cell.lo, v127);
         });
+        // cell.wrapCycle (Parametric EQ, 7/31/2026 — trial run, Charlie's
+        // idea) — a native <select> already cycles on Up/Down arrow while
+        // focused, but stops at the ends. This wraps instead (Down on the
+        // last option jumps to the first, and vice versa). Opt-in per cell
+        // rather than a global dropdown change: Charlie wants to try it on
+        // this one panel first before deciding whether to retrofit it to
+        // every cell.select/cell.sync dropdown in a later, separate pass.
+        if (cell.wrapCycle) {
+          sel.addEventListener('keydown', function(e) {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            const n = cell.options.length;
+            const idx = parseInt(sel.value, 10);
+            if (isNaN(idx)) return;
+            const next = (e.key === 'ArrowDown') ? (idx + 1) % n : (idx - 1 + n) % n;
+            e.preventDefault();
+            sel.value = String(next);
+            sel.dispatchEvent(new Event('change'));
+          });
+        }
         selDiv.appendChild(lbl);
         selDiv.appendChild(sel);
         rowDiv.appendChild(selDiv);
@@ -963,12 +982,19 @@ function renderFx1Cell(cell, rowDiv) {
         const sWrap = sliderDiv.querySelector('.knob-wrap');
         drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap, cell.min, cell.max, cell.ticks, cell.linear);
       } else {
+        // cell.bandColor (Parametric EQ, 7/31/2026) — a fixed per-band
+        // accent instead of the usual green FX base, matching Avid's own
+        // LF/LMF/HMF/HF colour coding. See knobColor (ui.js) for why the
+        // arc itself never turns red for these — "changed" shows on the
+        // value-text readout below instead (updateFx1Knob's bandColor
+        // branch), since some bands are already red/amber by design.
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const knobDiv = document.createElement('div');
         knobDiv.className = 'ctrl-knob';
         knobDiv.innerHTML =
           '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="fx1-w-' + loHex + '" data-value="64" data-base="fx" data-fx1-lo="' + loHex + '">'
+          + '<div class="knob-wrap" id="fx1-w-' + loHex + '" data-value="64" data-base="fx" data-fx1-lo="' + loHex + '"'
+          + (cell.bandColor ? ' data-band-color="' + cell.bandColor + '"' : '') + '>'
           + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
           + '<span class="knob-val" id="fx1-v-' + loHex + '">--</span>';
         rowDiv.appendChild(knobDiv);
@@ -1098,7 +1124,19 @@ function updateFx1Knob(paramLo, val) {
     if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap, cell.min, cell.max, cell.ticks, cell.linear);
     else                     drawKnob(wrap.querySelector('canvas'), val);
   }
-  if (valEl) valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);
+  if (valEl) {
+    valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);
+    // cell.bandColor knobs (Parametric EQ) never turn their arc red on
+    // change (see knobColor, ui.js) since the arc's fixed accent colour
+    // would collide with red-on-change for the LF/OUT bands. The value
+    // readout carries the "changed" signal instead.
+    if (cell && cell.bandColor) {
+      const changed = wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== ''
+        && parseInt(wrap.dataset.orig) !== val;
+      valEl.style.color = changed ? KNOB_COLORS.red : '';
+      valEl.style.fontWeight = changed ? 'bold' : '';
+    }
+  }
 }
 
 // Re-sync dropdown + controls after a chain map (model may have changed on

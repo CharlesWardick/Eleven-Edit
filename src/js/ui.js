@@ -17,13 +17,21 @@ const KNOB_COLORS = {
   green:  '#30c050',   // theme --green, matches active chain blocks
   yellow: '#e8d030',   // Graphic EQ vertical sliders' base colour (Avid's own
                        // panel uses yellow, not green, for this one) — 7/31/2026
+  blue:   '#3f8fe0',   // Parametric EQ's HF band accent — 7/31/2026
   red:    '#e83828'    // uncommitted change
 };
 
-// Decide a knob's colour from its wrap: fx base if data-base="fx", red if a
-// baseline is stored and the current value differs from it.
+// Decide a knob's colour from its wrap: fixed per-band accent color (no
+// red-on-change) if data-band-color is set, else fx/amber base with the
+// usual red-on-change. Band-accent knobs (Parametric EQ, 7/31/2026) needed
+// this split because their bands are ALREADY red/amber/green/blue by
+// design (matches Avid's own panel) — a generic red-on-change would be
+// indistinguishable from the LF/OUT bands' normal red, or the LMF band's
+// normal amber. Those knobs signal "changed" via the value-text readout
+// instead (see updateFx1Knob's cell.bandColor branch, fx-panels.js).
 function knobColor(canvas, value127) {
   const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
+  if (wrap && wrap.dataset.bandColor) return wrap.dataset.bandColor;
   let base = KNOB_COLORS.amber;
   if (wrap && wrap.dataset.base === 'fx') base = KNOB_COLORS.green;
   if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== ''
@@ -221,6 +229,12 @@ function eqSliderDb(v127, minDb, maxDb, linear) {
   return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
 }
 
+// Parametric EQ frequency readout — Hz below 1kHz, kHz above, one decimal
+// either way (matches Avid's own panel: "100.0 Hz", "2.0 kHz").
+function eqFreqDisplay(hz) {
+  return hz >= 1000 ? (hz / 1000).toFixed(1) + ' kHz' : hz.toFixed(1) + ' Hz';
+}
+
 // ── Effect-panel knob baseline (item A, FX truth) ───────────────────
 // The effect-panel DOM is rebuilt every time a panel opens, so a knob's
 // "original" value cannot live only on the wrap or it is lost on reopen —
@@ -314,6 +328,14 @@ function rebaselineOpenFxPanel() {
     }
     if (cell && cell.slider) drawEqSlider(w.querySelector('canvas'), v, w, cell.min, cell.max, cell.ticks, cell.linear);
     else                     drawKnob(w.querySelector('canvas'), v);
+    // cell.bandColor knobs (Parametric EQ) carry "changed" on the value-
+    // text readout, not the arc (see knobColor/updateFx1Knob) — a save
+    // must clear that red/bold styling too, or it survives a save just
+    // baselined to green would.
+    if (cell && cell.bandColor) {
+      var valEl = document.getElementById('fx1-v-' + loHex);
+      if (valEl) { valEl.style.color = ''; valEl.style.fontWeight = ''; }
+    }
   });
 }
 

@@ -38,6 +38,90 @@ NEXT:        what would confirm it, or what to do with it
 ENTRIES (newest first)
 ===================================================================
 
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Parametric EQ model captured (10th and FINAL of 10 FX1
+             models), THREE new pieces of reusable capability
+FINDING:     Charlie supplied Parametric_EQ_Sweep_Capture.pcapng plus a
+             full band-by-band range list and an Avid panel screenshot.
+             Biggest FX1 model yet — 4 bands (LF/LMF/HMF/HF) each with
+             Gain/Freq/Q, LF and HF additionally with a Type dropdown, plus
+             a trailing Output Gain — 15 paramLos total. Decoded the same
+             way as every other FX1 capture. Single handle 0x10, 15
+             isolated sweep windows in exactly the order Charlie listed and
+             tested, mapping to an unbroken 0x02-0x10 run:
+               0x02 LF Gain · 0x03 LF Freq · 0x04 LF Q · 0x05 LF Type ·
+               0x06 LMF Gain · 0x07 LMF Freq · 0x08 LMF Q ·
+               0x09 HMF Gain · 0x0A HMF Freq · 0x0B HMF Q ·
+               0x0C HF Gain · 0x0D HF Freq · 0x0E HF Q · 0x0F HF Type ·
+               0x10 Output Gain.
+             DESIGN DISCUSSION (before the capture arrived) settled two
+             things: (1) Avid's Type control on LF/HF is a knob linked to a
+             dropdown (same shape as REVERB's Eleven SR Type) with a
+             physical button that WRAPS at the ends — but Charlie decided
+             against copying that shape verbatim ("could get confused with
+             an EQ band setting"), going with a plain dropdown instead,
+             confirmed by the capture showing Type as a genuinely
+             continuous 0-127 sweep (same story as Roto Speaker's Speed
+             originally) — evenly quantized into 6 named positions since no
+             discrete-click capture pins the exact interior boundaries.
+             (2) Charlie wants Down/Up-arrow wraparound on this panel's
+             dropdowns as a TRIAL — native <select> already cycles on arrow
+             keys, it just stops at the ends; wrapping is a small opt-in
+             change (cell.wrapCycle) applied to Type's cells only for now.
+             If Charlie likes it live, a deliberate retrofit sweep across
+             other panels' dropdowns is a separate future task, not bundled
+             here.
+             BAND COLOUR / CHANGE INDICATION — Avid colour-codes each band
+             (LF red, LMF amber, HMF green, HF blue, OUT red — confirmed
+             against Charlie's screenshot), which collides with the app's
+             usual red-on-change knob arc (LF and OUT are ALREADY red).
+             Design agreed with Charlie ahead of the capture: knob arcs
+             keep their FIXED band colour always (cell.bandColor, never
+             red), and "changed" moves to the value-text readout instead
+             (bold+red) — new logic in updateFx1Knob and
+             rebaselineOpenFxPanel (save-repaint must clear the text
+             styling too, same lesson as the FX1 slider/save-corruption fix
+             earlier this session).
+             DISPLAY — Gain: LF/HF are ASYMMETRIC (-24..+12), reusing
+             eqSliderDb's plain-linear shape (`linear:true`) per the
+             Graphic EQ Output lesson (a false anchor-at-64 would be wrong
+             for an asymmetric range with no confirming capture); LMF/HMF/
+             Output are SYMMETRIC and reuse eqSliderDb's default two-slope-
+             anchored-at-64 shape. Freq and Q are exponential by standard
+             filter-control convention (same family as MultiChorus's Low
+             Cut) — new eqFreqDisplay (ui.js) formats Hz/kHz to match
+             Avid's own readout ("100.0 Hz", "2.0 kHz"). Freq/Q/Type's
+             interior shape/boundaries are NOT multi-point-confirmed (only
+             endpoints and, for Type, the option count/names) — same
+             caveat class as Low Cut.
+             LAYOUT — first FX1 model with FOUR grouped boxes (LF/LMF/HMF/
+             HF) plus a trailing unlabeled Output column, built on the
+             grouped-layout plumbing from MultiChorus. LMF/HMF's second row
+             is Q alone (no Type) — confirmed box rows don't need equal
+             cell counts.
+             MONO/STEREO — 0x12 mono / 0x13 stereo, registered per the
+             standing Graphic EQ/Dyn3 lesson, only one wire id observed.
+FIX APPLIED: FX1_MODELS Parametric EQ stub (protocol.js, mid 0x13 — matches
+             index.html's <option value="19">) replaced with the full
+             15-paramLo, 5-group layout. New: eqFreqDisplay (ui.js);
+             KNOB_COLORS.blue (ui.js); cell.bandColor support in knobColor/
+             renderFx1Cell/updateFx1Knob/rebaselineOpenFxPanel; cell.
+             wrapCycle support in the cell.select render branch.
+EVIDENCE:    Parametric_EQ_Sweep_Capture.pcapng + band range list + Avid
+             panel/dropdown screenshots (Charlie, 2026-07-31). node --check
+             passed on protocol.js/ui.js/fx-panels.js; inline <script>
+             blocks in index.html parsed clean; endpoint math for Gain/
+             Freq/Q spot-checked in a standalone script (all landed exactly
+             on the stated ranges). NOT hardware-tested.
+NEXT:        Charlie builds and tests live: all four bands' Gain/Freq/Q,
+             both Type dropdowns (values AND the arrow-key wrap trial),
+             Output, the fixed band colours holding steady while the value
+             text turns red/bold on change (and clears on save), the boxed
+             layout reading sensibly, and the Stereo/Mono toggle. THIS IS
+             THE LAST FX1 MODEL — once confirmed, FX1 is 10 of 10 done.
+-------------------------------------------------------------------
 [FOLDED IN 2026-07-31, FINALIZATION: every 2026-07-31 entry below this
 line, down through the "FLANGER CAPTURED" entry, is folded into
 Primer's 7/31 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED
