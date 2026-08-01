@@ -2741,6 +2741,33 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
 
+2026-08-01 (FX1 block wrap) — Parametric EQ captured and TESTED LIVE, the
+  10th and final FX1 model — Phase 14 is now COMPLETE. Added along with it:
+  cell.bandColor (fixed per-band accent colour, change indicated on the
+  value-text readout instead of the knob arc — Avid's own LF/OUT bands are
+  already red, colliding with the usual red-on-change scheme) and
+  cell.wrapCycle (opt-in Down/Up-arrow wraparound on cell.select dropdowns,
+  trial run on this panel only). Two same-day fixes: a dropdown-overflow
+  layout bug (cell.select's wrapper needed its own width override, same
+  class as the earlier .eq-slider/.h-slider fixes) and a startup-crash
+  regression from the SAME SESSION's own earlier graphics-scan logging fix
+  (appLog called before ui.js, which defines it, had finished loading —
+  fixed with a typeof-guarded wrapper matching the pattern already used
+  by neighbouring calls in that function).
+  DECISION, before FX2 or MOD are built: refactor FX1's panel CODE (not the
+  model DATA, already slot-independent) into one shared engine parameterized
+  by slot. FX2 hosts the identical model family and MOD hosts 6 of the same
+  10 models, so building either as its own copy-pasted panel means a future
+  bug fix needs porting to three places, not one — worse than the five-panel
+  endpoint-sentinel/drag-race porting problem already hit once. A related
+  idea folded into the same future work, not yet designed: FX-model-switch
+  value memory and sane per-model defaults, since a live test showed
+  switching FX1's model does NOT preserve values the way the amp block's
+  confirmed shared-storage-per-chain-slot behaviour does (CMD 0x21 assigns a
+  genuinely new handle, unlike the amp's CMD 0x0F) — Avid's firmware
+  supplies what Charlie calls "garbage defaults" on a switch instead.
+  Full reasoning and open questions in Session Log 2026-08-01.
+
 2026-07-31 (FX1 session) — Seven more FX1 models captured and TESTED LIVE
   (Flanger, Graphic EQ, Gray Compressor, MultiChorus, Orange Phaser, Roto
   Speaker, Vibe Phaser), bringing FX1 to 9 of 10. Retrofitted R7 (Sync

@@ -38,6 +38,12 @@ NEXT:        what would confirm it, or what to do with it
 ENTRIES (newest first)
 ===================================================================
 
+[FOLDED IN 2026-08-01, FINAL WRAP: every entry from here down through the
+"appLog is not defined" startup-crash fix is folded into Primer's Status
+line + WORKING/NOT YET IMPLEMENTED sections and Tech Ref Sec 24's
+2026-08-01 change-log entry. Session complete, branch merged to main by
+Charlie's request. Left in place per the log's append-only convention.]
+
 -------------------------------------------------------------------
 DATE:        2026-08-01
 STATUS:      DECISION AGREED — folded into the same planned refactor (see

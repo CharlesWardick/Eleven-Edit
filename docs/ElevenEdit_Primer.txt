@@ -1,12 +1,22 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-31
+Updated: 2026-08-01
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 14 IN PROGRESS (FX1 effect panel, generic
-host slot — 9 of 10 known FX1 models captured and TESTED LIVE (C1 Chorus/
+Status: Active development — Phase 14 COMPLETE (FX1 effect panel, generic
+host slot — ALL 10 known FX1 models captured and TESTED LIVE: C1 Chorus/
 Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor, MultiChorus,
-Orange Phaser, Roto Speaker, Vibe Phaser); only Parametric EQ remains,
-capture pending;
+Orange Phaser, Roto Speaker, Vibe Phaser, Parametric EQ). NEXT PLANNED WORK
+(agreed, not started): a refactor of the FX1 panel CODE (not the captured
+model data, which is already slot-independent) into one shared engine
+parameterized by slot, BEFORE building FX2 or MOD — both would otherwise
+need their own copy-pasted panel code hosting the same model family,
+tripling any future bug-fix/porting burden (see Session Log 2026-08-01,
+"REFACTOR FIRST" entry, for the full reasoning and Charlie's own framing:
+fix it once in a central place, not three call sites). A second, related
+but explicitly separate idea is also logged there — FX-model-switch value
+memory and sane per-model defaults instead of trusting the firmware's
+"garbage defaults" on a model change — folded into the same future refactor
+scope, not yet designed or built, possibly deferred indefinitely;
 Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
 Phase 11 complete (amp tremolo feature set);
@@ -649,33 +659,48 @@ WORKING:
     from the global Master Volume knob on the chain strip — this is the VOL
     block in the effect chain.)
   FX1 effect panel — generic host slot (Tech Ref Sec 4/23), same pattern as
-    above. NINE of ten known models captured and TESTED LIVE: C1 Chorus/
+    above. ALL TEN known models captured and TESTED LIVE: C1 Chorus/
     Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor,
-    MultiChorus, Orange Phaser, Roto Speaker, Vibe Phaser. Introduced two
-    new reusable control kinds beyond knob/toggle/sync — cell.slider
-    (vertical fader, Graphic EQ) and cell.select (generic named-position
-    dropdown, MultiChorus/Roto Speaker) — plus an optional grouped/boxed
-    row layout for models Avid presents in labeled sub-panels
-    (MultiChorus). Only Parametric EQ remains, capture pending. See
-    CURRENT APP STATE 7/31 entry above for the full model list and what
-    was built/fixed along the way.
+    MultiChorus, Orange Phaser, Roto Speaker, Vibe Phaser, Parametric EQ.
+    DONE — Phase 14 complete. Introduced three new reusable control kinds
+    beyond knob/toggle/sync — cell.slider (vertical fader, Graphic EQ),
+    cell.select (generic named-position dropdown, MultiChorus/Roto Speaker/
+    Parametric EQ), and cell.bandColor (fixed per-band accent colour with
+    change indicated on the value-text readout instead of the arc,
+    Parametric EQ) — plus an optional grouped/boxed row layout for models
+    Avid presents in labeled sub-panels (MultiChorus, Parametric EQ). See
+    CURRENT APP STATE 7/31 entry above and Session Log 2026-08-01 for full
+    detail, including the panel-code-duplication concern flagged before
+    FX2/MOD are built (see Status line above).
   GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
     moved off the old right-hand column for tighter window scaling (7/22).
 
 NOT YET IMPLEMENTED (largest first):
   Effect panels for the four remaining non-amp effect blocks (MOD, DELAY,
     FX2, FX LOOP) — clicking the chain row's arrow still shows a "coming
-    soon" placeholder. (DIST, REVERB, WAH and VOL panels are DONE. FX1 is
-    IN PROGRESS — panel built, 9 of 10 known models captured, see WORKING
-    above.) FX2 is expected to host the identical model family as FX1 per
-    Charlie — reuse FX1_MODELS rather than re-capturing from scratch.
-    The existing panels
-    established the full pattern: paramLo capture, rows-based layout in a
-    MODELS table, render/update/drag helpers, CMD 0x21 model change, and a
-    handle-scoped CMD 0x11 routing block. Replicate per slot. paramLo numbers
-    still needed for the remaining families. REVERB also proved out two extras
-    worth reusing: a selector rendered as a linked dropdown+knob, and a
-    per-knob unit/scale (ms) on the value readout.
+    soon" placeholder. (DIST, REVERB, WAH, VOL and FX1 panels are DONE — FX1
+    all 10 models, see WORKING above.) FX2 is expected to host the identical
+    model family as FX1 per Charlie, and MOD hosts 6 of the same 10 models
+    (confirmed from its own dropdown) — reuse FX1_MODELS rather than
+    re-capturing from scratch either way.
+    *** DO NOT "REPLICATE PER SLOT" FOR FX2/MOD — that was the DIST/REVERB/
+    WAH/VOL/FX1-era instruction and is EXPLICITLY SUPERSEDED (agreed
+    2026-08-01, Session Log). Building FX2 and MOD as their own copy-pasted
+    panel code, hosting the SAME model family FX1 already has, means any
+    future bug fix or new capture has to be ported to three places instead
+    of one. AGREED NEXT STEP, before FX2 or MOD are touched: refactor FX1's
+    panel code into one shared engine parameterized by slot, re-verify FX1
+    still behaves identically through it, THEN build FX2/MOD as callers of
+    that shared engine, not new copies. See Session Log 2026-08-01 for the
+    full reasoning and a second, related idea (FX-model-switch value memory
+    + sane per-model defaults) folded into the same future work. ***
+    The existing DIST/REVERB/WAH/VOL/FX1 build established the full
+    pattern this refactor will generalize: paramLo capture, rows-based
+    layout in a MODELS table, render/update/drag helpers, CMD 0x21 model
+    change, and a handle-scoped CMD 0x11 routing block. paramLo numbers
+    still needed for DELAY/FX LOOP's own families. REVERB also proved out
+    two extras worth reusing: a selector rendered as a linked dropdown+knob,
+    and a per-knob unit/scale (ms) on the value readout.
   To Amp source dropdowns — code present, GUI removed. SW sends don't move the
     HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
     defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
@@ -940,6 +965,17 @@ QUERY BUDGET — READ THIS BEFORE ADDING BLOCK PANELS
 
 LATER — EFFECT PANELS FOR REMAINING EIGHT SLOTS
 -------------------------------------------------------------------
+  *** STALE AS OF 2026-08-01 FOR FX2/MOD SPECIFICALLY — DO NOT FOLLOW STEPS
+  1-6 BELOW FOR THOSE TWO SLOTS. *** This section predates: WAH/VOLUME
+  shipping, FX1 finishing all 10 models, R7 being fixed (the "FX1 itself is
+  currently missing R7" line below is OLD, no longer true), and — most
+  importantly — the 2026-08-01 decision to refactor FX1's panel code into
+  one shared engine BEFORE building FX2 or MOD, specifically BECAUSE FX2/
+  MOD would otherwise be copy-paste #2 and #3 of the exact same model
+  family (see the NOT YET IMPLEMENTED section above and Session Log
+  2026-08-01). Steps 1-6 below are still the right recipe for DELAY/FX
+  LOOP's own, different model families — just not for FX2/MOD, which are
+  the reason the refactor is happening at all.
   The DIST panel established the full pattern. Eight
   non-amp slots remain: WAH, MOD, FX1, FX2, REVERB, DELAY, LOOP, VOLUME.
 
