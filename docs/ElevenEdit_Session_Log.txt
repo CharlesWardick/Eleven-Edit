@@ -39,6 +39,52 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-01
+STATUS:      DECISION AGREED — refactor first, before FX2 or MOD, in a
+             NEW chat/session
+AREA:        FX1 panel architecture — copy-paste duplication risk ahead of
+             FX2/MOD
+FINDING:     Charlie asked whether FX1's panel CODE (not the captured model
+             DATA) is shared or duplicated per slot before committing to
+             build FX2. Answer, traced from the actual code: the model data
+             (FX1_MODELS in protocol.js — paramLo maps, display formulas,
+             layouts) is genuinely slot-independent and already reusable as-
+             is. The PANEL CODE (open/render/update/drag functions,
+             #fx1-knob-row DOM, fx1-w-/fx1-v- element IDs, the CMD 0x11
+             sysex-handler routing block) is its own copy specific to FX1,
+             same pattern DIST/REVERB/WAH/VOL used before it — SLOT_FX2
+             exists as a constant (state.js) but no FX2 panel exists yet.
+             Charlie then flagged (with a MOD dropdown screenshot showing 6
+             of the 10 FX1 models: C1 Chorus/Vibrato, Flanger, MultiChorus,
+             Orange Phaser, Roto Speaker, Vibe Phaser) that building FX2 AND
+             MOD the copy-paste way means a bug found later in, say, C1
+             Chorus would need fixing in THREE separate places (FX1, FX2,
+             MOD), not one — worse than the five-panel porting problem
+             already hit once this project (endpoint-sentinel/drag-race
+             fixes, 2026-07-30). Also noted: all ten FX1 models "work the
+             proper control on the HW" but have NOT been heavily used/
+             vetted yet, so more edge cases are still likely to surface —
+             an argument for fixing the duplication risk now, before it's
+             tripled, rather than after.
+AGREED: refactor into ONE shared engine (open/render/update/drag,
+             parameterized by slot ID — FX1/FX2/MOD) BEFORE building either
+             FX2 or MOD, so a future bug fix or new capture only needs to
+             land once. MOD's dropdown would filter FX1_MODELS down to its
+             6 supported models rather than getting its own copy of the
+             table. Must re-verify FX1 behaves IDENTICALLY after the
+             refactor (it's currently working, tested code) before treating
+             it as done.
+NEXT:        Charlie is at/near his weekly usage limit (burning promotional
+             credits this session per his own call, not a hard block) and
+             plans to pause here, possibly discuss further today, then
+             likely WRAP THIS CHAT and do the refactor in a NEW session —
+             his call, not yet finalized. A fresh Claude Code session won't
+             have this conversation's history — per the Primer's own SESSION
+             START instructions it will read this log first, so THIS ENTRY
+             is the pointer: read it before starting the refactor, don't
+             re-derive the FX1/FX2/MOD architecture question from scratch.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CONFIRMED — FX1 EFFECT PANEL COMPLETE, 10 OF 10 MODELS
 AREA:        FX1 — session wrap
