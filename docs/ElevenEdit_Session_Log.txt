@@ -40,6 +40,30 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-31
+STATUS:      CONFIRMED — FX1 EFFECT PANEL COMPLETE, 10 OF 10 MODELS
+AREA:        FX1 — session wrap
+FINDING:     Charlie: Parametric EQ good (dropdown-overflow fix confirmed),
+             appLog startup-crash fix confirmed (no recurrence reported),
+             and Charlie called FX1 "wrapped" for this session. All ten
+             known FX1 models are now captured and TESTED LIVE: C1 Chorus/
+             Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray
+             Compressor, MultiChorus, Orange Phaser, Roto Speaker, Vibe
+             Phaser, Parametric EQ. Phase 14 (FX1 effect panel) is DONE.
+             Session parked here (not merged) — Charlie is at his weekly
+             usage limit; resuming in this same chat once it renews
+             (~14h14m from this message), rather than opening a fresh
+             session, per his own preference this pass.
+NEXT:        Next session (same chat, per Charlie): decide next target —
+             FX2 is expected to host the identical model family as FX1
+             (reuse FX1_MODELS rather than re-capturing, per Charlie's
+             earlier note), MOD is a lesser subset of the same family, and
+             the three Delay-shaped panels remain the acknowledged hard
+             part ("ugh, LOL"). Nothing captured yet for any of these —
+             first move next session is deciding which to start and getting
+             its capture, same recipe as this block.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
 STATUS:      provisional — LAYOUT AWARENESS NOTE, no action requested
 AREA:        Main window vertical space — taller FX panels vs Auto Advance
 FINDING:     Charlie noticed the grouped-layout FX1 panels (MultiChorus,
