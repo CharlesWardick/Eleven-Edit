@@ -1595,6 +1595,11 @@ const FX1_MODELS = [
   // fail on every chain map — including a plain mono/stereo toggle — forcing
   // an unwanted full knob-row rebuild + baseline wipe on every toggle. Same
   // root cause, both symptoms.
+  // STRUCTURALLY ELIMINATED 2026-08-01 (FX-host refactor): the dropdown is no
+  // longer a static HTML list to keep in sync by hand — populateFxHostModelSelect
+  // (fx-panels.js) builds it from m.mid directly, so this whole bug class (a
+  // hand-maintained option value drifting from the table) can't recur. Left
+  // here as history, not a live hazard.
   { mid: 0x08, mids: [0x07, 0x08], name: 'Flanger', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
     rows: [
@@ -2030,3 +2035,26 @@ const FX1_MODEL_BY_MID = {};
 FX1_MODELS.forEach(function(m) {
   (m.mids || [m.mid]).forEach(function(mid) { FX1_MODEL_BY_MID[mid] = m; });
 });
+
+// FX-HOST MODEL FILTER, keyed by slot id (2026-08-01 refactor) — the seam a
+// future FX2/MOD caller hooks into the shared engine through. FX1_MODELS is
+// the one shopping cart every generic host slot picks from (Session Log
+// 2026-08-01); a slot that can't host every model just lists which mids it
+// allows here, no new table, no panel-code changes. null/absent = no
+// filter, every captured model is offered (FX1's own behaviour, unchanged).
+// FX2 wired up 2026-08-01 (post FX1 re-verification): per Charlie, FX2 hosts
+// the IDENTICAL model family as FX1 (same mids, same paramLos) — unfiltered,
+// same as FX1. This is the expected-not-yet-independently-confirmed case
+// flagged in the Session Log 2026-08-01 entry; treat FX2 as NOT TESTED LIVE
+// until Charlie has actually opened it against real hardware, same as any
+// other feature here.
+// MOD wired up 2026-08-01, filtered to the 6 of 10 models Charlie's own MOD
+// dropdown screenshot showed (Session Log 2026-08-01): C1 Chorus/Vibrato
+// (mid 0x01), Flanger (0x08), MultiChorus (0x06), Orange Phaser (0x0C),
+// Roto Speaker (0x0F), Vibe Phaser (0x0A) — Dyn3 Compressor, Graphic EQ,
+// Gray Compressor and Parametric EQ are NOT in MOD's roster.
+const FX_HOST_ALLOWED_MIDS = {
+  [SLOT_FX1]: null,
+  [SLOT_FX2]: null,
+  [SLOT_MOD]: [0x01, 0x08, 0x06, 0x0C, 0x0F, 0x0A],
+};

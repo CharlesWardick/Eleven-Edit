@@ -394,7 +394,7 @@ function handleChainMap(data) {
     if (typeof refreshReverbPanelAfterChainMap === 'function') refreshReverbPanelAfterChainMap();
     if (typeof refreshWahPanelAfterChainMap === 'function') refreshWahPanelAfterChainMap();
     if (typeof refreshVolPanelAfterChainMap === 'function') refreshVolPanelAfterChainMap();
-    if (typeof refreshFx1PanelAfterChainMap === 'function') refreshFx1PanelAfterChainMap();
+    if (typeof refreshFxHostPanelAfterChainMap === 'function') refreshFxHostPanelAfterChainMap();
     // Release the post-nav pull's wait: currentParamHi and currentChain are
     // now valid, so amp-block queries can safely be addressed.
     chainMapRxSeq++;
@@ -654,18 +654,23 @@ function handleParamReadback(data) {
     }
   }
 
-  // ── FX1 parameter routing — same shape as DIST/REVERB. FX1 is a generic
-  // host slot; the paramLo range routed here is whichever model is
-  // currently loaded (only C1 Chorus/Vibrato, 0x02-0x06, as of 2026-07-30 —
-  // see FX1_MODELS in protocol.js). Uncaptured models simply have an empty
-  // paramLos list, so nothing routes for them yet — no crash, no-op.
-  if (fx1PanelOpen) {
-    const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
-    if (fx1Blk && instId === fx1Blk.handle) {
-      const fx1Model = FX1_MODEL_BY_MID[fx1Blk.modelId];
-      if (fx1Model && fx1Model.paramLos.indexOf(paramLo) !== -1) {
-        if (typeof updateFx1Knob === 'function') updateFx1Knob(paramLo, val);
-        appLog('CMD 0x11 FX1 paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+  // ── FX-HOST parameter routing (2026-08-01 refactor) — one generic block
+  // for every GENERIC HOST SLOT (FX1/FX2/MOD), replacing what used to be an
+  // FX1-only copy (same shape would otherwise get pasted again for FX2 and
+  // MOD). openFxHostSlot (state.js) is which slot's panel is open, if any —
+  // only one can be open at a time. The paramLo range routed here is
+  // whichever model is currently loaded in that slot (see FX1_MODELS in
+  // protocol.js, the shared model table every host slot reads from).
+  // Uncaptured models simply have an empty paramLos list, so nothing routes
+  // for them yet — no crash, no-op.
+  if (openFxHostSlot !== null) {
+    const fxHostBlk = currentChain.find(b => b.slotId === openFxHostSlot);
+    if (fxHostBlk && instId === fxHostBlk.handle) {
+      const fxHostModel = FX1_MODEL_BY_MID[fxHostBlk.modelId];
+      if (fxHostModel && fxHostModel.paramLos.indexOf(paramLo) !== -1) {
+        if (typeof updateFxHostKnob === 'function') updateFxHostKnob(paramLo, val);
+        appLog('CMD 0x11 FX-HOST slot=0x' + openFxHostSlot.toString(16).padStart(2,'0')
+          + ' paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
       }
     }
