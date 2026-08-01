@@ -351,6 +351,14 @@ function rebaselineOpenFxPanel() {
   else if (typeof wahPanelOpen !== 'undefined' && wahPanelOpen)     { slotId = SLOT_WAH;    sel = '#wah-knob-row .knob-wrap'; }
   else if (typeof volPanelOpen !== 'undefined' && volPanelOpen)     { slotId = SLOT_VOL;    sel = '#vol-knob-row .knob-wrap'; }
   if (slotId < 0) return;
+  // FX1 cell lookup for the non-round kinds (slider/hslider) — added
+  // 2026-07-31 after this function's blanket drawKnob() call corrupted
+  // Roto Speaker's horizontal Speed lever after a save (a 160x34 canvas
+  // painted with circular-arc math instead of drawHSlider — same latent
+  // bug would hit Graphic EQ's vertical sliders too, just unreported so
+  // far). Every other panel (DIST/REVERB/WAH/VOL) only ever has round
+  // knobs, so cell stays null there and drawKnob is always right.
+  var fx1Model = (slotId === SLOT_FX1 && typeof currentFx1Model === 'function') ? currentFx1Model() : null;
   document.querySelectorAll(sel).forEach(function(w) {
     var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fx1Lo || w.dataset.wahLo || w.dataset.volLo;
     if (loHex === undefined || w.dataset.value === undefined || w.dataset.value === '') return;
@@ -358,7 +366,14 @@ function rebaselineOpenFxPanel() {
     if (!fxBaseline[slotId]) fxBaseline[slotId] = {};
     fxBaseline[slotId][loHex] = v;
     w.dataset.orig = v;
-    drawKnob(w.querySelector('canvas'), v);
+    var cell = null;
+    if (fx1Model) {
+      var lo = parseInt(loHex, 16);
+      fx1AllCells(fx1Model).forEach(function(c) { if (c.lo === lo) cell = c; });
+    }
+    if (cell && cell.slider)       drawEqSlider(w.querySelector('canvas'), v, w, cell.min, cell.max, cell.ticks, cell.linear);
+    else if (cell && cell.hslider) drawHSlider(w.querySelector('canvas'), v, w, cell.ticks);
+    else                            drawKnob(w.querySelector('canvas'), v);
   });
 }
 

@@ -95,6 +95,32 @@ NEXT:        Charlie builds and tests live: confirm Speed drags smoothly
              right L:R split at both ends and near centre, Type's 8 presets
              select correctly, and the Stereo/Mono toggle (three-mid pair,
              unconfirmed by this capture).
+CORRECTION (2026-07-31, same day, Charlie's live test): THREE issues.
+  (1) FIXED — after a Save to Rack, the Speed lever rendered as a mangled
+      bar with no tick labels (screenshot: before-save showed Slow/Break/
+      Fast correctly, after-save showed a blank stretched shape). CAUSE:
+      rebaselineOpenFxPanel() (ui.js, fires after every save "so save-then-
+      green works") unconditionally called drawKnob() on every .knob-wrap
+      in the open panel — fine for every panel until now, since FX1 is the
+      first with non-round cell kinds. drawKnob's circular-arc math painted
+      onto Speed's 160x34 canvas, corrupting it. LATENT SAME BUG on Graphic
+      EQ's vertical sliders too (unreported so far, same root cause) — this
+      fix covers both, not just Speed. FIX: rebaselineOpenFxPanel now looks
+      up the FX1 cell for each wrap (via fx1AllCells) and dispatches to
+      drawEqSlider/drawHSlider/drawKnob same as everywhere else, instead of
+      a blanket drawKnob() call.
+  (2) FIXED — Type's dropdown read as cramped against the panel's right
+      border. FIX: wrapper padding widened on the trailing edge (12px 14px
+      -> 12px 28px 12px 14px) — a model with few narrow columns has less to
+      pad itself with than a wide multi-group layout like MultiChorus.
+  (3) NOT YET TOUCHED — Charlie: the Speed lever "always seems to be
+      fighting to want to jump to a speed" while dragging. Ambiguous
+      without more detail (could be a real hardware snap-to-detent on
+      release that our free-continuous drag doesn't model, could be a drag-
+      sensitivity/echo issue, could be something else) — per the Primer's
+      TWO-FAILED-FIXES rule, asked Charlie for specifics (does it jump
+      mid-drag or right after release? does the displayed number change on
+      its own after letting go?) rather than guessing a fix blind.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31
