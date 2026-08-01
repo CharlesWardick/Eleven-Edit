@@ -145,6 +145,12 @@ CORRECTION (2026-07-31, same day, Charlie's build test): "everything
       that Speed is also a dropdown at the LEFT edge, that side needed the
       same room. FIX: wrapper padding made symmetric (12px 28px 12px 14px
       -> 12px 28px, both sides equal).
+CONFIRMED (2026-07-31, Charlie's re-test): padding fix verified, panel
+      reads clean on both sides. Roto Speaker is DONE. FX1 now has 8 of 10
+      models captured and TESTED LIVE (C1 Chorus/Vibrato, Dyn3 Compressor,
+      Flanger, Graphic EQ, Gray Compressor, MultiChorus, Orange Phaser,
+      Roto Speaker). NEXT per Charlie: Vibe Phaser (capture pending),
+      Parametric EQ still after that — 2 models left.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31
