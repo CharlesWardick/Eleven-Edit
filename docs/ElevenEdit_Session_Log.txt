@@ -40,6 +40,22 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-07-31
+STATUS:      provisional — LAYOUT AWARENESS NOTE, no action requested
+AREA:        Main window vertical space — taller FX panels vs Auto Advance
+FINDING:     Charlie noticed the grouped-layout FX1 panels (MultiChorus,
+             Parametric EQ — the two/four-box designs) are taller than the
+             flat-row panels and push the Auto Advance bar down, eating
+             into the dead space that used to sit between it and the TFX/
+             Bank bar at the bottom. Explicitly fine as-is ("took me a
+             while to notice"), not a bug report — flagged so it's not
+             forgotten if that dead space ever gets removed/tightened in a
+             future layout pass, since a grouped-layout panel would then
+             have less room to grow into before something else moves.
+NEXT:        No action. Revisit only if/when the dead space between Auto
+             Advance and the TFX/Bank bar is deliberately reduced.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        Startup crash — "PROMISE: appLog is not defined" banner,
              regression from THIS SESSION's earlier graphics-scan logging
