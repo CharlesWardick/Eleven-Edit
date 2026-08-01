@@ -174,7 +174,6 @@ sees; he cannot write or debug code himself and won't fill in gaps.
     confirmation before implementation.
   - Be concise. Keep explanations outcome-focused, not technical.
   - Conclude internally; present the solution or finding, not the reasoning.
-  - Always build the EXE for testing — npm start has never worked here.
   - THE TEST STEP, EXACTLY (Charlie's own words, 7/29/2026): after code is
     handed over, he runs `npm run build` (electron-builder --win --x64),
     executes the resulting EXE, and tests it live against the real hardware.
