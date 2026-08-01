@@ -1809,17 +1809,20 @@ const FX1_MODELS = [
   },
   { mid: 0x13, name: 'Parametric EQ',    captured: false, paramLos: [], rows: [] },
   // ── ROTO SPEAKER — captured 2026-07-31 (Wireshark, Roto_Speaker_Knob_
-  // Capture.pcapng, handle 0x3a). Two new control kinds, first uses in FX1:
-  //   cell.hslider — Speed. Avid draws this as an X--------> lever with
-  //   named zones (Slow/Break/Fast), but the capture confirms it's a REAL
-  //   continuous control (320-sample smooth sweep across the full 0-127
-  //   range during the test, not discrete jumps) — so it's a slider, not a
-  //   3-option dropdown, matching Charlie's own read ("I guess we can make
-  //   a dropdown? or maybe a slider" — went with slider once the capture
-  //   showed continuous data). See drawHSlider (ui.js) — same
-  //   .knob-wrap/data-fx1-lo contract as every FX1 control, just dragged
-  //   left-right instead of up-down (activeIsH branch in the FX1 drag
-  //   handler, fx-panels.js).
+  // Capture.pcapng, handle 0x3a).
+  //   Speed — Avid draws this as an X--------> lever with named zones
+  //   (Slow/Break/Fast). The capture showed a genuinely continuous 320-
+  //   sample sweep, and a horizontal-slider control (cell.hslider,
+  //   drawHSlider) was built for it first, but Charlie's live test found
+  //   the moving thumb covers the tick label it's sitting near/on (worst
+  //   right at "Break"), making it hard to read — REVERTED to cell.select,
+  //   a 3-option dropdown (Slow/Break/Fast at v127 0/64/127), matching
+  //   Type's shape for panel symmetry (dropdown | knob | dropdown) and
+  //   because "we know that works." The hslider control kind itself was
+  //   removed from the codebase (ui.js/fx-panels.js/index.html) since
+  //   nothing else uses it — see Session Log 2026-07-31 if a future model
+  //   needs a real continuous horizontal control again, the removed code
+  //   is in that commit's history, not worth carrying unused.
   //   cell.select — Type, reusing the generic named-position dropdown
   //   built for MultiChorus's Voices (no tempo relationship, Charlie: "Does
   //   not interact with other controls").
@@ -1835,10 +1838,10 @@ const FX1_MODELS = [
   // "50:50 makes sense" — v127=0 -> left 0/right 100, v127=127 -> left 100/
   // right 0, matches a plain proportional split with no anchor trick
   // needed since the endpoints are already whole numbers by construction).
-  // SPEED TICKS — Slow/Break/Fast placed at v127 0/64/127 (Break centred,
-  // per Charlie's own X------X-------X ASCII spacing) — LABEL POSITIONS
-  // ONLY, not discrete stops; the lever still reports every raw value in
-  // between, same as Sync-free knobs elsewhere.
+  // SPEED DROPDOWN — Slow/Break/Fast at v127 0/64/127. The underlying param
+  // is genuinely continuous (confirmed above), so this UI choice throws
+  // away any in-between raw value the hardware would accept — an accepted
+  // simplification per Charlie, not a hardware limitation.
   // MONO/STEREO — THREE mids (0x0D mono, BOTH 0x0E/0x0F stereo — matches
   // the Tech Ref's own "Roto Speaker (variant)" note), registered
   // defensively per the Graphic EQ/Dyn3 lesson though only one wire id was
@@ -1846,8 +1849,8 @@ const FX1_MODELS = [
   { mid: 0x0F, mids: [0x0D, 0x0E, 0x0F], name: 'Roto Speaker', captured: true,
     paramLos: [0x02, 0x03, 0x04],
     rows: [
-      [ {label:'Speed', lo:0x02, hslider:true, ticks: [
-            {v127:0, label:'Slow'}, {v127:64, label:'Break'}, {v127:127, label:'Fast'} ]},
+      [ {label:'Speed', lo:0x02, select:true, options: [
+            {label:'Slow', v127:0}, {label:'Break', v127:64}, {label:'Fast', v127:127} ]},
         {label:'Balance', lo:0x04,
           display: function(v) {
             var l = Math.round((v / 127) * 100);

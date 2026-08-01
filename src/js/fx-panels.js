@@ -962,24 +962,6 @@ function renderFx1Cell(cell, rowDiv) {
         rowDiv.appendChild(sliderDiv);
         const sWrap = sliderDiv.querySelector('.knob-wrap');
         drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap, cell.min, cell.max, cell.ticks, cell.linear);
-      } else if (cell.hslider) {
-        // Horizontal lever cell (Roto Speaker's Speed) — same .knob-wrap/
-        // data-fx1-lo contract as a knob, drawn as a horizontal groove+
-        // thumb (drawHSlider, ui.js) with printed named ticks below,
-        // standard FX green/red colouring (no special Avid accent colour
-        // for this one, unlike Graphic EQ's yellow).
-        const loHex = cell.lo.toString(16).padStart(2,'0');
-        const hDiv = document.createElement('div');
-        hDiv.className = 'ctrl-knob h-slider';
-        hDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
-        hDiv.innerHTML =
-          '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="fx1-w-' + loHex + '" data-value="64" data-base="fx" data-fx1-lo="' + loHex + '">'
-          + '<canvas class="knob-canvas" width="160" height="34"></canvas></div>'
-          + '<span class="knob-val" id="fx1-v-' + loHex + '">--</span>';
-        rowDiv.appendChild(hDiv);
-        const hWrap = hDiv.querySelector('.knob-wrap');
-        drawHSlider(hWrap.querySelector('canvas'), 64, hWrap, cell.ticks);
       } else {
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const knobDiv = document.createElement('div');
@@ -1113,9 +1095,8 @@ function updateFx1Knob(paramLo, val) {
   if (wrap) {
     wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_FX1, loHex, val);
     wrap.dataset.value = val;
-    if (cell && cell.slider)       drawEqSlider(wrap.querySelector('canvas'), val, wrap, cell.min, cell.max, cell.ticks, cell.linear);
-    else if (cell && cell.hslider) drawHSlider(wrap.querySelector('canvas'), val, wrap, cell.ticks);
-    else                            drawKnob(wrap.querySelector('canvas'), val);
+    if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap, cell.min, cell.max, cell.ticks, cell.linear);
+    else                     drawKnob(wrap.querySelector('canvas'), val);
   }
   if (valEl) valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);
 }
@@ -1178,7 +1159,7 @@ function fx1ClearSyncIfDriving(model, paramLo) {
 
 // ── FX1 knob drag — delegated, keyed on data-fx1-lo (hex paramLo) ──
 (function() {
-  var dragging = false, startY = 0, startX = 0, startVal = 0, activeWrap = null, activeParamLo = -1, activeIsH = false;
+  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
   var syncClearedThisFx1Drag = false;
 
   document.addEventListener('mousedown', function(e) {
@@ -1187,13 +1168,8 @@ function fx1ClearSyncIfDriving(model, paramLo) {
     activeParamLo = parseInt(wrap.dataset.fx1Lo, 16);
     if (isNaN(activeParamLo)) return;
     activeWrap = wrap;
-    // Horizontal levers (Roto Speaker's Speed, cell.hslider) drag left-right,
-    // not up-down like every rotary knob and the vertical EQ sliders — same
-    // .knob-wrap contract, just a different drag axis.
-    activeIsH = !!wrap.closest('.h-slider');
     startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
     startY = e.clientY;
-    startX = e.clientX;
     dragging = true;
     syncClearedThisFx1Drag = false;   // one Sync clear per drag, not per mousemove
     e.preventDefault();
@@ -1202,8 +1178,7 @@ function fx1ClearSyncIfDriving(model, paramLo) {
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
-    var delta = activeIsH ? (e.clientX - startX) : (startY - e.clientY);
-    var val = Math.max(0, Math.min(127, Math.round(startVal + delta)));
+    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
     updateFx1Knob(activeParamLo, val);
     // Snapshot before queuing — see the DIST handler above for why. This is
     // the exact bug that produced paramLo=-1 (byte 0xFF, an illegal SysEx
