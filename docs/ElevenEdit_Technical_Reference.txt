@@ -1976,11 +1976,10 @@ R7 — SYNC INTERLOCK (any knob a Sync selector can drive). When a Sync selector
   or grey the knob out (both tried 7/23, both worse). Origin: Sec 11 amp
   Sync/Speed interlock.
   *** THIS APPLIES TO EVERY SYNCED CONTROL, PRESENT AND FUTURE — not just the
-  amp Speed knob. *** Known gap as of 7/31/2026: the FX1 Chorus panel's Sync/
-  Rate does the Sync-sets-the-knob half but NOT the grab-clears-Sync half — it
-  was built without this rule (the exact scatter problem this contract fixes).
-  Any panel with a Sync selector (Chorus, and MOD/DELAY families to come) must
-  implement R7.
+  amp Speed knob. *** The FX1 Chorus panel was found missing the grab-clears-
+  Sync half and RETROFITTED 7/31/2026 (and Sync turned out to drive BOTH Chorus
+  and Rate on that panel, confirmed live). Any panel with a Sync selector
+  (MOD/DELAY families to come) must implement R7 from the start.
 
 R8 — DOUBLE-CLICK RESTORES THE KNOB TO ITS LOAD VALUE. Double-clicking a knob
   jumps THAT ONE knob (not all knobs) to the value it had when the patch loaded
@@ -2000,7 +1999,7 @@ BEFORE BUILDING NEW KNOB PANELS — CODE AUDIT REQUIRED (Claude Code, has repo
 access; a docs-only review chat cannot see the .js files). Two questions per
 existing knob/panel file (transport.js, fx-transport.js, ui.js, fx-panels.js,
 protocol.js):
-  (a) Does the RUNTIME obey R1-R7? Fix the existing panels FIRST, because new
+  (a) Does the RUNTIME obey R1-R8? Fix the existing panels FIRST, because new
       panels are built by copying an existing one — copying a panel that is
       missing a rule propagates the gap (FX1 was copied from a pattern missing
       R7).
@@ -2741,6 +2740,25 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
 
+2026-08-01 (docs, review) — Review of the FX1-completion sessions (two finalizes
+  in one chat; work was clean, structure intact — C1-C13 in order, 38 sections,
+  R1-R8). Three cleanups. (1) Cleared stale contract flags: R7's "FX1 Chorus
+  gap" and R8's to-do were both RETROFITTED this session, and the Primer's
+  "do not copy FX1's R7 gap" warning + the audit's "R1-R7" were updated to
+  R1-R8 / resolved. (2) Condensed the FX1 build log 1433 -> ~520: fifteen
+  per-model / retrofit entries -> one "FX1 Phase 14 COMPLETE, TESTED LIVE"
+  summary, detail -> Archive Part 9. (3) Corrected a systemic status error the
+  coding session introduced: it stamped finished per-model work "CODE FIX
+  APPLIED, NOT TESTED LIVE." Per Charlie, that state does not exist here —
+  Claude pushes, Charlie pulls/builds/tests live before anything counts, so
+  shipped == tested live. Removed the label; the only lingering states are
+  UNCONFIRMED (works but not yet watched over repeated runs — the startup-
+  graphics bug) and PROBABLY-RESOLVED (the "something's off" feeling, most
+  likely the mono/stereo-load misread fixed via Flanger, not recurred).
+  VOCABULARY NOTE for future sessions: an intermittent symptom needs MORE THAN
+  ONE clean live pass to count as fixed — one green run proves the fix can
+  work, not that the bug is gone.
+
 2026-08-01 (FX1 block wrap) — Parametric EQ captured and TESTED LIVE, the
   10th and final FX1 model — Phase 14 is now COMPLETE. Added along with it:
   cell.bandColor (fixed per-band accent colour, change indicated on the
@@ -2806,7 +2824,7 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   carried to the FX1 Chorus panel). Numbered 20A to avoid renumbering 21-24.
   Primer's new-slot recipe now points at it. Two open items logged: the FX1
   Chorus R7 gap (code fix), and a one-time Sec 20A code audit to run in Claude
-  Code — check runtime against R1-R7 AND check that code COMMENTS still match
+  Code — check runtime against R1-R8 AND check that code COMMENTS still match
   runtime (comment drift is the same failure mode the docs had; known case is
   the transport.js tempo comment). The audit cannot be done from a docs review;
   it needs repo access.

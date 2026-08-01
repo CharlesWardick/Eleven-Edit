@@ -4047,5 +4047,959 @@ UPDATE 7/28 (later still): two follow-ups from the ghost, requested
      own chip rather than folded into this pass.
 
 ===================================================================
+PART 9 — FX1 PHASE 14 COMPLETE, 2026-07-30 to 08-01 (build detail)
+===================================================================
+Moved from the session log 2026-08-01. The per-model build detail for all ten
+FX1 models, the R7/R8 contract retrofits, and the session's bug fixes (the
+mid-registration bug class, the graphics-scan race, the save-repaint cell-kind
+dispatch, the appLog startup crash). Conclusions are live in Tech Ref Sec 23
+(FX1 SLOT) and Sec 20A, plus the Primer app-state; this is the working detail
+and the per-model evidence.
+
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CONFIRMED — FX1 EFFECT PANEL COMPLETE, 10 OF 10 MODELS
+AREA:        FX1 — session wrap
+FINDING:     Charlie: Parametric EQ good (dropdown-overflow fix confirmed),
+             appLog startup-crash fix confirmed (no recurrence reported),
+             and Charlie called FX1 "wrapped" for this session. All ten
+             known FX1 models are now captured and TESTED LIVE: C1 Chorus/
+             Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray
+             Compressor, MultiChorus, Orange Phaser, Roto Speaker, Vibe
+             Phaser, Parametric EQ. Phase 14 (FX1 effect panel) is DONE.
+             Session parked here (not merged) — Charlie is at his weekly
+             usage limit; resuming in this same chat once it renews
+             (~14h14m from this message), rather than opening a fresh
+             session, per his own preference this pass.
+NEXT:        Next session (same chat, per Charlie): decide next target —
+             FX2 is expected to host the identical model family as FX1
+             (reuse FX1_MODELS rather than re-capturing, per Charlie's
+             earlier note), MOD is a lesser subset of the same family, and
+             the three Delay-shaped panels remain the acknowledged hard
+             part ("ugh, LOL"). Nothing captured yet for any of these —
+             first move next session is deciding which to start and getting
+             its capture, same recipe as this block.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      provisional — LAYOUT AWARENESS NOTE, no action requested
+AREA:        Main window vertical space — taller FX panels vs Auto Advance
+FINDING:     Charlie noticed the grouped-layout FX1 panels (MultiChorus,
+             Parametric EQ — the two/four-box designs) are taller than the
+             flat-row panels and push the Auto Advance bar down, eating
+             into the dead space that used to sit between it and the TFX/
+             Bank bar at the bottom. Explicitly fine as-is ("took me a
+             while to notice"), not a bug report — flagged so it's not
+             forgotten if that dead space ever gets removed/tightened in a
+             future layout pass, since a grouped-layout panel would then
+             have less room to grow into before something else moves.
+NEXT:        No action. Revisit only if/when the dead space between Auto
+             Advance and the TFX/Bank bar is deliberately reduced.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        Startup crash — "PROMISE: appLog is not defined" banner,
+             regression from THIS SESSION's earlier graphics-scan logging
+             fix; missing chain-row graphics came back as a side effect
+FINDING:     Charlie: got a red "PROMISE: appLog is not defined" banner on
+             launch, and the chain row was back to placeholder graphics —
+             "prior to that I had not had missing startup graphics since
+             you did the fix earlier." Traced it: the graphics-scan retry
+             logic (added earlier this session, index.html) calls appLog()
+             directly, unguarded, in four places. That inline <script>
+             block sits at line ~1506 in index.html, BEFORE <script
+             src="js/ui.js"> at line ~2113 — the file that actually defines
+             appLog. The scan's IPC calls (getAvidDir/scanAvidGraphics)
+             normally take just long enough to round-trip that ui.js has
+             already finished loading by the time their .then() callbacks
+             fire, which is why this worked on every earlier test — but on
+             this launch the timing flipped, the promise resolved before
+             ui.js was ready, and calling the plain global appLog threw a
+             ReferenceError. The .catch() handler ALSO called appLog
+             unguarded, so the error escaped even that and surfaced as an
+             unhandled promise rejection (protocol.js's global handler,
+             prefixed "PROMISE:") — which is why it wasn't silently
+             swallowed. The crash aborted the scan entirely, which is why
+             the graphics came back missing: not a repeat of the original
+             bug, a new one this session's OWN fix introduced.
+FIX APPLIED: every appLog() call in the graphics-scan block now goes
+             through a new safeAppLog() wrapper (typeof-guarded), matching
+             the SAME defensive pattern the neighbouring
+             setAvidGraphicsManifest/renderChainRow calls in that exact
+             function already used — those were guarded from the start,
+             the newly-added appLog calls just weren't. No script-tag
+             reordering; the guard is simpler and lower-risk.
+EVIDENCE:    Charlie's screenshot of the error banner + missing chain-row
+             graphics. Traced via index.html line numbers (script tag
+             order) and protocol.js's unhandledrejection handler (confirms
+             the "PROMISE:" prefix format). node --check / inline-script
+             syntax check passed. NOT hardware-tested.
+NEXT:        Charlie builds and tests live: launch a few times and confirm
+             no "PROMISE:" banner and the chain row graphics load
+             consistently. If it recurs, it's a different mechanism —
+             dig further rather than assuming a repeat of either bug.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Parametric EQ model captured (10th and FINAL of 10 FX1
+             models), THREE new pieces of reusable capability
+FINDING:     Charlie supplied Parametric_EQ_Sweep_Capture.pcapng plus a
+             full band-by-band range list and an Avid panel screenshot.
+             Biggest FX1 model yet — 4 bands (LF/LMF/HMF/HF) each with
+             Gain/Freq/Q, LF and HF additionally with a Type dropdown, plus
+             a trailing Output Gain — 15 paramLos total. Decoded the same
+             way as every other FX1 capture. Single handle 0x10, 15
+             isolated sweep windows in exactly the order Charlie listed and
+             tested, mapping to an unbroken 0x02-0x10 run:
+               0x02 LF Gain · 0x03 LF Freq · 0x04 LF Q · 0x05 LF Type ·
+               0x06 LMF Gain · 0x07 LMF Freq · 0x08 LMF Q ·
+               0x09 HMF Gain · 0x0A HMF Freq · 0x0B HMF Q ·
+               0x0C HF Gain · 0x0D HF Freq · 0x0E HF Q · 0x0F HF Type ·
+               0x10 Output Gain.
+             DESIGN DISCUSSION (before the capture arrived) settled two
+             things: (1) Avid's Type control on LF/HF is a knob linked to a
+             dropdown (same shape as REVERB's Eleven SR Type) with a
+             physical button that WRAPS at the ends — but Charlie decided
+             against copying that shape verbatim ("could get confused with
+             an EQ band setting"), going with a plain dropdown instead,
+             confirmed by the capture showing Type as a genuinely
+             continuous 0-127 sweep (same story as Roto Speaker's Speed
+             originally) — evenly quantized into 6 named positions since no
+             discrete-click capture pins the exact interior boundaries.
+             (2) Charlie wants Down/Up-arrow wraparound on this panel's
+             dropdowns as a TRIAL — native <select> already cycles on arrow
+             keys, it just stops at the ends; wrapping is a small opt-in
+             change (cell.wrapCycle) applied to Type's cells only for now.
+             If Charlie likes it live, a deliberate retrofit sweep across
+             other panels' dropdowns is a separate future task, not bundled
+             here.
+             BAND COLOUR / CHANGE INDICATION — Avid colour-codes each band
+             (LF red, LMF amber, HMF green, HF blue, OUT red — confirmed
+             against Charlie's screenshot), which collides with the app's
+             usual red-on-change knob arc (LF and OUT are ALREADY red).
+             Design agreed with Charlie ahead of the capture: knob arcs
+             keep their FIXED band colour always (cell.bandColor, never
+             red), and "changed" moves to the value-text readout instead
+             (bold+red) — new logic in updateFx1Knob and
+             rebaselineOpenFxPanel (save-repaint must clear the text
+             styling too, same lesson as the FX1 slider/save-corruption fix
+             earlier this session).
+             DISPLAY — Gain: LF/HF are ASYMMETRIC (-24..+12), reusing
+             eqSliderDb's plain-linear shape (`linear:true`) per the
+             Graphic EQ Output lesson (a false anchor-at-64 would be wrong
+             for an asymmetric range with no confirming capture); LMF/HMF/
+             Output are SYMMETRIC and reuse eqSliderDb's default two-slope-
+             anchored-at-64 shape. Freq and Q are exponential by standard
+             filter-control convention (same family as MultiChorus's Low
+             Cut) — new eqFreqDisplay (ui.js) formats Hz/kHz to match
+             Avid's own readout ("100.0 Hz", "2.0 kHz"). Freq/Q/Type's
+             interior shape/boundaries are NOT multi-point-confirmed (only
+             endpoints and, for Type, the option count/names) — same
+             caveat class as Low Cut.
+             LAYOUT — first FX1 model with FOUR grouped boxes (LF/LMF/HMF/
+             HF) plus a trailing unlabeled Output column, built on the
+             grouped-layout plumbing from MultiChorus. LMF/HMF's second row
+             is Q alone (no Type) — confirmed box rows don't need equal
+             cell counts.
+             MONO/STEREO — 0x12 mono / 0x13 stereo, registered per the
+             standing Graphic EQ/Dyn3 lesson, only one wire id observed.
+FIX APPLIED: FX1_MODELS Parametric EQ stub (protocol.js, mid 0x13 — matches
+             index.html's <option value="19">) replaced with the full
+             15-paramLo, 5-group layout. New: eqFreqDisplay (ui.js);
+             KNOB_COLORS.blue (ui.js); cell.bandColor support in knobColor/
+             renderFx1Cell/updateFx1Knob/rebaselineOpenFxPanel; cell.
+             wrapCycle support in the cell.select render branch.
+EVIDENCE:    Parametric_EQ_Sweep_Capture.pcapng + band range list + Avid
+             panel/dropdown screenshots (Charlie, 2026-07-31). node --check
+             passed on protocol.js/ui.js/fx-panels.js; inline <script>
+             blocks in index.html parsed clean; endpoint math for Gain/
+             Freq/Q spot-checked in a standalone script (all landed exactly
+             on the stated ranges). NOT hardware-tested.
+NEXT:        Charlie builds and tests live: all four bands' Gain/Freq/Q,
+             both Type dropdowns (values AND the arrow-key wrap trial),
+             Output, the fixed band colours holding steady while the value
+             text turns red/bold on change (and clears on save), the boxed
+             layout reading sensibly, and the Stereo/Mono toggle. THIS IS
+             THE LAST FX1 MODEL — once confirmed, FX1 is 10 of 10 done.
+CORRECTION (2026-07-31, same day, Charlie's live test): "great, other than
+             the drop lists going outside the lines" — everything else
+             (all 15 params, both Type dropdowns' values, band colours,
+             red/bold change text, layout) confirmed working. CAUSE: same
+             overlap-avoidance bug class as .eq-slider/.h-slider before —
+             cell.select's wrapper reused the plain .ctrl-knob class, fixed
+             at 88px width, but the dropdown itself is 118px — invisible
+             floating in open space (no border nearby to poke through) but
+             visible as soon as one sits inside Parametric EQ's bordered
+             LF/HF group boxes. FIX: new .fx1-select CSS override (130px)
+             applied alongside .ctrl-knob on the select cell's wrapper
+             (index.html/fx-panels.js) — the surrounding group box already
+             auto-sizes to its content, so no panel-widening needed.
+-------------------------------------------------------------------
+[FOLDED IN 2026-07-31, FINALIZATION: every 2026-07-31 entry below this
+line, down through the "FLANGER CAPTURED" entry, is folded into
+Primer's 7/31 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED
+lines, and Tech Ref Sec 24's matching 7/31 (FX1 session) change-log
+entry. Left in place per the log's own append-only convention (STATUS
+lines not individually rewritten — usage-limited finalize, condense on
+a future pass) rather than deleted; nothing below is provisional
+anymore, treat the master docs as truth for anything summarized there.]
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Vibe Phaser model captured (9th of 10 FX1 models)
+FINDING:     Charlie supplied Vibe_Phaswer_Knobs_Capture.pcapng plus a
+             layout/test description: 3 knobs (Rate/Volume/Depth, 0-10),
+             Chorus/Vibrato toggle (default Chorus), Sync tied to Rate.
+             Decoded the same way as every other FX1 capture. Single handle
+             0x3f, five paramLos, each isolated to its own test window in
+             the stated order (Volume, Depth, Rate, then Toggle, then Sync):
+               0x04 Volume · 0x03 Depth · 0x02 Rate (syncDriven) ·
+               0x05 Mode toggle · 0x06 Sync.
+             RATE x SYNC — 0x02 changed in lockstep with every 0x06 Sync-
+             zone broadcast, same 14-zone SYNC_DIVISIONS table as every
+             other FX1 Sync control.
+             DISPLAY — Rate/Volume/Depth plain 0-10 linear, default
+             valDisplay, no custom formula.
+             MODE TOGGLE — this model's own capture gave the OPPOSITE
+             polarity from C1 Chorus's Mode toggle: load state is Chorus
+             (unbroadcast), test sequence Chorus->Vib->Chorus->Vib->Chorus
+             (4 transitions), captured raw values 0/127/0/127 — meaning
+             val=0 lands on VIBRATO and val=127 lands on CHORUS here, the
+             exact reverse of C1 Chorus's own val=0->Chorus/val=127->
+             Vibrato. Built from THIS capture, not assumed from the sibling
+             model's convention — same "verify independently" lesson as
+             MultiChorus's Voices count and Graphic EQ's Output anchor.
+             MONO/STEREO — 0x09 mono / 0x0A stereo, registered per the
+             standing Graphic EQ/Dyn3 lesson, only one wire id observed.
+FIX APPLIED: FX1_MODELS Vibe Phaser stub (protocol.js, mid 0x0A — matches
+             index.html's <option value="10">) replaced with the five-cell
+             row (Rate, Volume, Depth, Mode toggle, Sync).
+EVIDENCE:    Vibe_Phaswer_Knobs_Capture.pcapng + Charlie's layout/test
+             description (2026-07-31). node --check passed on protocol.js.
+             NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm all three knobs, Sync x
+             Rate interlock, and SPECIFICALLY the Mode toggle polarity
+             (val=0 should show/select Vibrato, val=127 Chorus — opposite
+             of C1 Chorus's own toggle, easy to get backwards if eyeballed
+             instead of read off the capture) and the Stereo/Mono toggle.
+CONFIRMED (2026-07-31, Charlie's live test): Vibe Phaser is DONE. FX1 now
+             has 9 of 10 models captured and TESTED LIVE (C1 Chorus/
+             Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray
+             Compressor, MultiChorus, Orange Phaser, Roto Speaker, Vibe
+             Phaser). Only Parametric EQ remains — capture pending
+             (Charlie: "another that needs a creative design," to discuss
+             once the capture lands). Session hit its usage limit before
+             that capture arrived; Charlie asked for FINALIZATION per the
+             Primer.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Roto Speaker model captured (8th of 10 FX1 models), TWO
+             new control kinds (horizontal lever, ratio-display knob)
+FINDING:     Charlie supplied Roto_Speaker_Knob_Capture.pcapng plus a
+             description of Avid's panel: a "Speed" lever drawn as
+             X--------> with named zones (Slow/Break/Fast), a "Balance"
+             knob showing a ratio (0:100 to 100:0, ~50:50 at centre), and a
+             "Type" dropdown of 8 unrelated preset names that don't interact
+             with anything else. Decoded the same way as every other FX1
+             capture. Single handle 0x3a, three paramLos, each isolated to
+             its own test window in the stated order (Speed, Balance, Type):
+               0x02 Speed · 0x04 Balance · 0x03 Type.
+             SPEED — the capture showed a 320-sample SMOOTH sweep across the
+             full 0-127 range, not discrete jumps — so despite the visual
+             lever with three named zones, this is a genuinely continuous
+             control, not a 3-position dropdown. Built as a NEW cell kind,
+             cell.hslider (horizontal slider), the first FX1 control dragged
+             left-right instead of up-down.
+             BALANCE — 408-sample continuous sweep, confirmed by Charlie's
+             own test description as a plain 0:100..100:0 linear split
+             (v127=0 -> "0:100", v127=127 -> "100:0", v127=64 -> "50:50" by
+             construction, no anchor trick needed since the endpoints are
+             already whole numbers).
+             TYPE — 7 clean transitions, evenly spaced 0/18/36/54/73/91/
+             109/127 for an 8-position dropdown, exact match for
+             round(i*127/7) walking Charlie's 8 named types in listed order
+             from the load-state default "120". Reused the existing
+             cell.select (built for MultiChorus's Voices) — no tempo tie.
+             MONO/STEREO — THREE mids (0x0D mono, 0x0E/0x0F both stereo,
+             matching the Tech Ref's own long-standing "Roto Speaker
+             (variant)" note) — registered defensively per the Graphic EQ/
+             Dyn3 lesson, only one wire id observed in this capture.
+BUILT: new drawHSlider (ui.js) — a horizontal groove+thumb with printed
+             named ticks below (Slow/Break/Fast at v127 0/64/127), reusing
+             the STANDARD green/red FX knobColor() rather than a special
+             accent colour (no Avid-picture colour hint was given for this
+             one, unlike Graphic EQ's yellow). New .h-slider CSS override
+             in index.html (same overlap-avoidance need as .eq-slider — a
+             wide/short canvas instead of a knob-sized box). The generic FX1
+             drag handler (fx-panels.js) now tracks a per-drag activeIsH
+             flag so a horizontal-lever drag reads mouse X movement instead
+             of Y — every other FX1 control is unaffected (defaults to the
+             existing vertical-drag behaviour).
+FIX APPLIED: FX1_MODELS Roto Speaker stub (protocol.js, mid 0x0F — matches
+             index.html's <option value="15">) replaced with the three-cell
+             row (Speed hslider, Balance knob with L:R display, Type select).
+EVIDENCE:    Roto_Speaker_Knob_Capture.pcapng + Charlie's panel description
+             (2026-07-31). node --check passed on protocol.js/ui.js/
+             fx-panels.js; inline <script> blocks in index.html parsed clean.
+             NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm Speed drags smoothly
+             left-right and the tick labels read sensibly, Balance shows the
+             right L:R split at both ends and near centre, Type's 8 presets
+             select correctly, and the Stereo/Mono toggle (three-mid pair,
+             unconfirmed by this capture).
+CORRECTION (2026-07-31, same day, Charlie's live test): THREE issues.
+  (1) FIXED — after a Save to Rack, the Speed lever rendered as a mangled
+      bar with no tick labels (screenshot: before-save showed Slow/Break/
+      Fast correctly, after-save showed a blank stretched shape). CAUSE:
+      rebaselineOpenFxPanel() (ui.js, fires after every save "so save-then-
+      green works") unconditionally called drawKnob() on every .knob-wrap
+      in the open panel — fine for every panel until now, since FX1 is the
+      first with non-round cell kinds. drawKnob's circular-arc math painted
+      onto Speed's 160x34 canvas, corrupting it. LATENT SAME BUG on Graphic
+      EQ's vertical sliders too (unreported so far, same root cause) — this
+      fix covers both, not just Speed. FIX: rebaselineOpenFxPanel now looks
+      up the FX1 cell for each wrap (via fx1AllCells) and dispatches to
+      drawEqSlider/drawHSlider/drawKnob same as everywhere else, instead of
+      a blanket drawKnob() call.
+  (2) FIXED — Type's dropdown read as cramped against the panel's right
+      border. FIX: wrapper padding widened on the trailing edge (12px 14px
+      -> 12px 28px 12px 14px) — a model with few narrow columns has less to
+      pad itself with than a wide multi-group layout like MultiChorus.
+  (3) RESOLVED (not a bug) — Charlie clarified: the "fighting" wasn't a
+      value jump at all, it was the thumb physically covering the tick
+      label it was sitting near (worst right at "Break"), making it hard to
+      read while dragging. Charlie's call: replace Speed with a 3-option
+      dropdown (Slow/Break/Fast at v127 0/64/127, cell.select — same shape
+      as Type) rather than fix the slider's label legibility — gives the
+      panel dropdown|knob|dropdown symmetry and "we know that works." The
+      underlying param is still genuinely continuous per the capture; the
+      dropdown is an accepted UX simplification, not a hardware limit.
+FIX APPLIED: Roto Speaker's Speed cell switched from cell.hslider to
+      cell.select. Since nothing else uses the horizontal-slider control,
+      REMOVED it entirely rather than leave it as dead code: drawHSlider
+      (ui.js), the cell.hslider render/update branches (fx-panels.js), the
+      activeIsH horizontal-drag-axis tracking in the FX1 drag handler
+      (fx-panels.js), and the .h-slider CSS override (index.html). If a
+      future model needs a real continuous horizontal control again, this
+      commit's history has a working reference implementation.
+CLARIFIED (2026-07-31, same day, Charlie's fuller report): the actual
+      Speed-lever symptom was the value visibly OSCILLATING/bouncing
+      between the tick position and wherever the mouse was, near a
+      boundary — a real bug, not the label-occlusion read from the first,
+      shorter report. Charlie confirmed the dropdown swap is still the
+      right call regardless (avoids the whole class of drag-jitter-near-a-
+      snap-point problem, not just the label overlap) — no further action
+      on the removed slider code.
+CORRECTION (2026-07-31, same day, Charlie's build test): "everything
+      mechanically works... left side is cramped with drop list against
+      the frame border." The panel padding fix from the earlier round only
+      widened the RIGHT edge (when Type was the only outer column); now
+      that Speed is also a dropdown at the LEFT edge, that side needed the
+      same room. FIX: wrapper padding made symmetric (12px 28px 12px 14px
+      -> 12px 28px, both sides equal).
+CONFIRMED (2026-07-31, Charlie's re-test): padding fix verified, panel
+      reads clean on both sides. Roto Speaker is DONE. FX1 now has 8 of 10
+      models captured and TESTED LIVE (C1 Chorus/Vibrato, Dyn3 Compressor,
+      Flanger, Graphic EQ, Gray Compressor, MultiChorus, Orange Phaser,
+      Roto Speaker). NEXT per Charlie: Vibe Phaser (capture pending),
+      Parametric EQ still after that — 2 models left.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Orange Phaser model captured (7th of 10 FX1 models)
+FINDING:     Charlie supplied Orange_Phaser_Knob_Capture.pcapng plus a Sync-
+             zone -> Rate spreadsheet. Simplest FX1 shape yet: single Rate
+             knob (0-10 scale) + Sync, "the normal Sync/Rate relationship"
+             per Charlie. Decoded the same way as every other FX1 capture.
+             Single handle 0x35, two paramLos: 0x02 Rate (first-mover single-
+             knob sweep) and 0x03 Sync (13 breakpoints landing exactly on
+             the standard 14-zone SYNC_DIVISIONS table, same as every other
+             FX1 Sync control). 0x02 confirmed Sync-driven — changes in
+             lockstep with every 0x03 zone broadcast, same proof pattern as
+             C1 Chorus/Flanger/MultiChorus.
+             DISPLAY — plain 0-10 linear, i.e. the app's existing default
+             valDisplay, no custom formula. Cross-checked against Charlie's
+             13-point Sync-zone/Rate table: every value landed within
+             ~0.1-0.3 (typical wheel-click reading noise, same tolerance
+             seen on Flanger/MultiChorus), including two raw values that
+             were EXACT duplicates (zones 10 and 13, both raw 109) matching
+             two identical table entries (both 8.5) — strong self-
+             consistency check that the mapping is right.
+FIX APPLIED: FX1_MODELS Orange Phaser stub (protocol.js, mid 0x0C — matches
+             index.html's <option value="12">) replaced with the two-cell
+             row (Rate + Sync). Mono/stereo pair (0x0B/0x0C) registered
+             defensively per the Graphic EQ/Dyn3 lesson, only one wire id
+             observed in this capture.
+EVIDENCE:    Orange_Phaser_Knob_Capture.pcapng + Sync/Rate spreadsheet
+             (Charlie, 2026-07-31). node --check passed on protocol.js. NOT
+             hardware-tested.
+NEXT:        Charlie builds and tests live: confirm Rate reads/writes
+             correctly, Sync x Rate interlock (grab Rate while Sync engaged
+             -> Sync clears, matching the standing R7 rule), and the
+             Stereo/Mono toggle (mid pair unconfirmed by this capture).
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — MultiChorus model captured (6th of 10 FX1 models), FIRST
+             to use the new grouped/boxed layout
+FINDING:     Charlie supplied MultiChorus_Capture.pcapng plus a screenshot of
+             Avid's panel and a Sync-zone -> Rate spreadsheet. Decoded the
+             same way as the other FX1 captures. Single handle 0x30, nine
+             paramLos, each isolated to its own time window, no overlap, in
+             the exact test order (Rate, Low Cut, Width, Depth, Pre Delay,
+             Mix, then Sync, then Voices, then Waveform):
+               0x02 Rate (syncDriven) · 0x08 Low Cut · 0x09 Width ·
+               0x04 Depth · 0x06 Pre Delay · 0x05 Mix · 0x03 Sync ·
+               0x07 Voices · 0x0A Waveform.
+             RATE x SYNC — 0x02 changes in lockstep with every 0x03 Sync-
+             zone broadcast (same proof pattern as C1 Chorus/Flanger); same
+             14-zone SYNC_DIVISIONS table, 13 breakpoints landing exactly on
+             its zone boundaries.
+             RATE DISPLAY — CONFIRMED (not just inferred) via a 13-point
+             cross-check against Charlie's Sync-zone/Rate spreadsheet: every
+             computed value from rate=0.01*(10/0.01)^(v/127) matched his
+             table within ~0.03 — same exponential shape as Dyn3's Ratio
+             formula, independently reconfirmed here rather than assumed.
+             LOW COUT (24.4 Hz-1 kHz) uses the SAME exponential shape by
+             convention (log-scaled filter cutoffs are standard) but has NO
+             multi-point cross-check like Rate got — only the two endpoints
+             are hardware-confirmed. Flag this specifically on Charlie's
+             live test.
+             WIDTH/MIX (0-100%) and DEPTH/PRE DELAY (0.0-24 ms) — plain
+             linear, no ambiguity at this resolution.
+             VOICES — 5 discrete positions (1-5), captured transition set
+             (32, 64, 95, 127) matches a 5-step 0-127 spread exactly. New
+             cell.select generic dropdown (not cell.sync — no tempo tie).
+             WAVEFORM — Tri/Sine, existing cell.toggle (2-state), captured
+             sequence 127/0/127 confirms val=0 TRI / val=127 SINE, matching
+             the load-state screenshot (TRI is the default/unbroadcast
+             starting value).
+             MONO/STEREO — THREE mids this time (0x04 mono, 0x05/0x06
+             stereo — MultiChorus/"Multi Chorus" spelling quirk, Primer
+             GRAPHICS section already knew about this). Registered all
+             three defensively per the lesson from the Graphic EQ/Dyn3 bug
+             fixed earlier today, even though this capture only observed one
+             wire id.
+FIX APPLIED: FX1_MODELS MultiChorus stub (protocol.js, mid 0x06 — matches
+             index.html's <option value="6">) replaced with the grouped-
+             layout row: unlabeled Rate/Sync + Depth column, CHORUS box
+             (Low Cut/Width), MOD box (Pre Delay/Waveform), unlabeled
+             Voices/Mix column. This is the FIRST model to exercise the
+             grouped-layout code added earlier today — also needed one small
+             follow-up fix to that code itself (see below).
+CODE FIX (renderFx1Knobs/fx1AllCells, fx-panels.js): the grouped-layout
+             plumbing only recognized a box entry via `entry.group` being
+             truthy, so an UNLABELED stacked column (Rate above Depth,
+             Voices above Mix — needed for MultiChorus's actual layout, not
+             anticipated when the plumbing was speculative) fell through to
+             the flat-row path and rendered wrong. Changed the check to key
+             off `entry.rows` instead, with the group label now optional —
+             a box can stack rows with or without a header. Caught during
+             this capture's own build-out, not by a live test.
+EVIDENCE:    MultiChorus_Capture.pcapng + Avid panel screenshot + Sync/Rate
+             spreadsheet (Charlie, 2026-07-31). node --check passed on
+             protocol.js/fx-panels.js. NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm all six knobs, Sync x
+             Rate interlock (grab Rate while Sync engaged), Voices 5-position
+             dropdown, Waveform toggle, and the boxed layout reads sensibly.
+             Specifically watch Low Cut for a wrong-partway-through reading
+             (the one uncross-checked display formula) and try the Stereo/
+             Mono toggle (three-mid pair, only one observed in this capture).
+CORRECTION (2026-07-31, same day, Charlie's live test): Voices has SIX real
+             positions (1-6), not five — the capture's test walked 1->2->3->
+             4->5->6 (five transitions expected past the unbroadcast start of
+             1), but only FOUR landed (32/64/95/127), so the original 5-slot
+             mapping was wrong from position 5 onward: picking "5" in the
+             dropdown actually selected hardware voice 6, and there was no
+             entry at all for the real voice 5. One capture step was lost or
+             merged in the middle — not an indexing mistake on Charlie's
+             part.
+FIXED (no recapture yet — see below): switched Voices to the standard
+             6-way even spread (0/25/51/76/102/127), same convention every
+             other N-position control in this app uses. Endpoints (1 and 6)
+             are solid — 0 and 127 are always correct for an evenly-spaced
+             control regardless of step count. THE FOUR MIDDLE VALUES
+             (voices 2-5) ARE STILL UNCONFIRMED — built from the standard
+             formula, not from hardware data, since the capture's middle
+             points don't reliably resolve which position each belongs to.
+NEXT:        Charlie offered to redo the Voices capture cleanly (walk 1
+             through 6 one step at a time, confirming each lands before
+             moving on) so the middle four values can be hardware-confirmed
+             rather than assumed. Not urgent — the 6-way spread is a
+             reasonable placeholder and matches the confirmed endpoints.
+RESOLVED (2026-07-31, same day, Charlie's diagnostic recapture): the
+             6-way spread was WRONG — Avid's own Voices dropdown skips 5
+             entirely (Charlie's screenshot: "1, 2, 3, 4, 6", no 5th real
+             slot). The diagnostic capture itself (MultiChorus_Voices_
+             Diag_1.pcapng, handle 0x48) was a continuous raw sweep 127->0
+             from a mouse-drag/scroll test, not a clean set of dropdown
+             clicks — not directly usable for zone boundaries — but the
+             dropdown screenshot settled it on its own: the ORIGINAL
+             capture's 5 raw values (0/32/64/95/127) were correct all
+             along. The only defect was ever the label on the last option
+             ("5" should have read "6"). Reverted FX1_MODELS' Voices cell
+             to those 5 original values, relabeled 1/2/3/4/6.
+NEXT:        Charlie builds and re-tests: Voices dropdown should now show
+             1, 2, 3, 4, 6 (no 5) and each position should select the
+             correct real voice count including 6 at the top.
+CONFIRMED (2026-07-31, Charlie's rebuild): Voices fix verified, panel
+             screenshot shows everything working — the grouped layout
+             (unlabeled Rate/Depth column, CHORUS box, MOD box, unlabeled
+             Voices/Mix column), all six knobs, Sync dropdown, Waveform
+             toggle, and R3 red-on-change all rendering correctly (Mix
+             shown red/changed, everything else green/baseline). Charlie:
+             the Avid panel is comparatively unreadable, which is the
+             whole point of this app. MultiChorus is DONE. FX1 now has 6
+             of 10 models captured and TESTED LIVE (C1 Chorus/Vibrato,
+             Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor,
+             MultiChorus). NEXT per Charlie's list: Orange Phaser,
+             Parametric EQ, Roto Speaker, Vibe Phaser remain.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE ADDED, NOT YET USED BY ANY CAPTURED MODEL — structural
+             groundwork ahead of MultiChorus/Dynamic-Delay-shaped captures
+AREA:        FX1 panel — grouped/boxed layout support (fx-panels.js)
+FINDING:     Charlie flagged that MultiChorus and (worse) Dynamic Delay use
+             Avid panels boxed into labeled sub-groups (CHORUS/MOD;
+             DELAY/EQ/ENV MOD) rather than one flat knob row, and asked for
+             layout ideas ahead of capturing them, plus said several other
+             FX share this shape — worth building once rather than per
+             panel. Agreed approach: reuse everything already built (knobs/
+             toggle/sync/slider), add ONE new generic cell kind, and add
+             grouping as a layout-only concept — no new drag/read/write
+             logic anywhere.
+BUILT (ahead of any capture, so nothing here is hardware-confirmed data —
+             pure structural capability):
+  - GROUPED ROWS — a model's `rows` array entries can now be a flat array
+    of cells (unchanged, every existing model still works exactly as
+    before) OR a group object {group:'LABEL', rows:[[cells...],...]},
+    rendered as its own bordered/labeled sub-box inside the panel, matching
+    Avid's CHORUS/MOD/DELAY/EQ/ENV MOD boxes. Ungrouped top-level rows
+    (e.g. Rate/Depth sitting outside any box) render as a plain column so
+    they line up visually with boxed groups beside them.
+  - cell.select — a new generic named-position dropdown (cell.options =
+    [{label, v127}, ...]) for controls with 3+ discrete named positions
+    that aren't Sync/tempo-driven (e.g. Dynamic Delay's Feedback Mode
+    Mono/Stereo/Cross/Pong, MultiChorus's Voices). Nearest-match on
+    readback so an unexpected raw value still lands on the closest labeled
+    option. Same spirit as the existing cell.sync dropdown, generalized.
+  - Waveform Tri/Sine (MultiChorus) deliberately mapped to the EXISTING
+    cell.toggle (2-state), not a new control — no reason to build a new
+    widget for a binary choice. Avid's tiny rotary-switch graphics for both
+    Waveform and Feedback Mode are NOT being replicated pixel-for-pixel;
+    dropdowns/toggles are more legible at a glance (Primer's "old eyes"
+    rule) and we already own the send/read/R1-R8 plumbing for both shapes.
+  - fx1AllCells(model) — flattens a model's cells across flat rows AND
+    group sub-rows into one array. updateFx1Knob and the R7 sync-interlock
+    helpers (fx1SyncCellLo/fx1CellIsSyncDriven) now call this instead of
+    walking model.rows directly, so grouped models get correct hardware-
+    readback routing and Sync-interlock behaviour for free — no per-model
+    special-casing needed.
+VERIFIED: node --check on fx-panels.js; a standalone flatten test (not part
+             of the app) confirmed cells nested inside groups are found
+             correctly alongside flat-row cells.
+NOT YET DONE: no model actually uses group/select yet — MultiChorus and
+             Dynamic Delay both still need their Wireshark captures before
+             any real paramLo/model data lands. This entry is pure
+             plumbing, ready for whichever capture comes in first.
+NEXT:        When Charlie's MultiChorus (or Dynamic Delay) capture arrives,
+             build its FX1_MODELS entry using group/select as needed — no
+             further fx-panels.js changes anticipated unless the real
+             layout surfaces a shape not covered here.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — root cause of the
+             "unreproduced bug" flagged earlier this session, now identified
+AREA:        FX1 — Graphic EQ AND Dyn3 Compressor both missing their mono
+             mid registration (silent "model unknown" failure)
+FINDING:     Charlie sent a session log (session20260731124228.log) from
+             general use, not a targeted repro, and asked whether it showed
+             anything — it did, and it is almost certainly the "bug I can't
+             put my finger on yet" flagged earlier today (see that entry
+             above). Line 405: "requestFx1Params: mid=0x10 unknown" /
+             "openFx1Panel: mid=0x10 handle=0x1A" — the FX1 panel opened for
+             a block reporting mid 0x10, which FX1_MODEL_BY_MID had no entry
+             for, so the panel could not resolve a model (renders nothing
+             useful instead of the real controls).
+             ROOT CAUSE: 0x10 is Graphic EQ's MONO wire id (MODEL_NAMES/
+             MODEL_OUT_STEREO both list 0x10 mono / 0x11 stereo as "Graphic
+             EQ" — same dual-mid pattern already handled correctly for C1
+             Chorus and Flanger) — but Graphic EQ's FX1_MODELS entry was
+             registered under mid 0x11 ONLY, no mids:[0x10,0x11] pairing, an
+             omission made when it was captured. A patch whose FX1 slot held
+             Graphic EQ in mono would silently fail exactly like this.
+             AUDITED every other captured model for the same gap while at
+             it: Dyn3 Compressor had the IDENTICAL bug (mono 0x15 / stereo
+             0x16, only 0x16 registered) — not yet caught by name because
+             Charlie's Dyn3 testing likely never happened to land on a mono
+             patch. C1 Chorus and Flanger were already correct (built the
+             pairing deliberately). Gray Compressor confirmed single-mid
+             only (0x14, no second name in MODEL_NAMES) — no gap there,
+             consistent with Charlie's "mono all the time" description.
+FIX APPLIED: Graphic EQ -> mids:[0x10,0x11]; Dyn3 Compressor ->
+             mids:[0x15,0x16] (protocol.js). No handler code changed — same
+             as the earlier Chorus-knob R7 fix, this is a data-table gap,
+             not a logic bug; FX1_MODEL_BY_MID already builds its lookup
+             generically off each model's mids[] array.
+STANDING REMINDER for the six still-uncaptured FX1 models: MODEL_NAMES shows
+             Vibe Phaser (0x09/0x0A), Orange Phaser (0x0B/0x0C), and Roto
+             Speaker (0x0D/0x0E/0x0F, THREE mids) all have multi-mid entries
+             already in that table — check it BEFORE assuming a model is
+             single-mid when capturing MultiChorus/Orange Phaser/Parametric
+             EQ/Roto Speaker/Vibe Phaser next, not just when a stereo/mono
+             symptom is reported.
+EVIDENCE:    session20260731124228.log (Charlie, from general use). node
+             --check passed on protocol.js. NOT hardware re-tested since the
+             fix (the log evidence is real hardware behaviour already).
+NEXT:        Charlie builds and tests: specifically try to force Graphic EQ
+             and Dyn3 Compressor into MONO chain state (Stereo/Mono toggle
+             with either in the FX1 slot) and confirm the panel now resolves
+             instead of going blank/unknown. If the original "can't
+             reproduce" bug recurs after this fix, it is something else —
+             dig further rather than assuming this was the whole story.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Gray Compressor model captured (5th of 10 FX1 models)
+FINDING:     Charlie supplied Gray_Compressor_Knob_Capture.pcapng, picked
+             deliberately as a quick/easy capture (session running low)
+             ahead of MultiChorus. Simplest FX1 model yet: two plain knobs,
+             no Sync, no toggle, standard 0-10 display (no custom formula).
+             Decoded the same way as the other FX1 captures. Single handle
+             0x32, two paramLos, each swept 0->127->0 in its own isolated
+             window, no overlap: 0x02 first, 0x03 second. Matches Tech Ref
+             Sec 23's already-recorded bridge-sourced label order for this
+             model ("Sust, Levl") — labelled Sustain/Level accordingly.
+             MONO ONLY per Charlie's note this session (the one confirmed
+             exception to "every FX1 model is stereo-capable") — single mid
+             0x14, no mids[] pair needed (matches index.html's <option
+             value="20">, so no repeat of the Flanger dropdown-mismatch bug).
+FIX APPLIED: FX1_MODELS Gray Compressor stub (protocol.js, mid 0x14 —
+             already matched the HTML option) replaced with the two-knob row.
+EVIDENCE:    Gray_Compressor_Knob_Capture.pcapng (Charlie, 2026-07-31). node
+             --check passed on protocol.js. NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm Sustain/Level read/write
+             correctly and the panel stays mono regardless of the chain's
+             Stereo/Mono state (only band that should never show a mono/
+             stereo mid-pair issue).
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Graphic EQ model captured (4th of 10 FX1 models); FIRST
+             non-rotary FX1 control (vertical sliders, not knobs)
+FINDING:     Charlie supplied EQ_Vertical_Slider_Capture.pcapng plus a
+             screenshot of Avid's Graphic EQ panel (6 vertical faders, yellow
+             thumb) and per-band ranges. Decoded the same way as Flanger
+             (manual pcapng/USB-MIDI reassembly, no tshark in this session).
+             Single handle 0x2e, six paramLos, each swept 0->127->0 in its
+             own isolated window, in the exact left-to-right order tested:
+               0x02 100 Hz (-12..+12) · 0x03 370 Hz (-18..+18) · 0x04 800 Hz
+               (-18..+18) · 0x05 2 kHz (-18..+18) · 0x06 3.25 kHz (-12..+12) ·
+               0x07 Output (-20..+6).
+             No Sync control on this model — R7 does not apply.
+             DISPLAY — used the same two-slope-anchored-at-v127=64 dB shape as
+             valToAmpVol (eqSliderDb, ui.js) so 0.0 dB is always exactly
+             reachable, not interpolated near it (Sec 20A R5). Exact for the
+             four SYMMETRIC bands (100/370/800/2k/3.25k) by construction —
+             any symmetric range collapses to a plain proportional scale
+             regardless of anchor choice. NOT independently confirmed for the
+             ASYMMETRIC Output band (-20..+6): the raw v127 value where the
+             display reads exactly 0.0 dB is INFERRED from the same pattern,
+             not pinned by a capture (the sweep test went 0->127->0, never
+               parked at "0.0 dB" specifically for Output). Charlie should
+             watch for this on the Output slider specifically — if 0.0 dB
+             visually lands somewhere other than dead-centre of the fader
+             travel, this anchor assumption needs revisiting.
+             UI — new cell kind (cell.slider:true, min/max) and new drawing
+             function drawEqSlider (ui.js): a vertical groove + horizontal
+             thumb bar on a canvas, reusing the SAME .knob-wrap/data-fx1-lo
+             contract as every rotary knob, so the existing generic FX1 drag/
+             dblclick/scroll-wheel handlers (fx-panels.js/ui.js) needed NO
+             changes beyond dispatching by cell.slider in updateFx1Knob (draw
+             call: drawEqSlider vs drawKnob) — R1/R2/R4/R6/R8 all apply for
+             free through the existing send/queue path. NEW BASE COLOUR:
+             KNOB_COLORS.yellow (not FX green) per Charlie's screenshot and
+             description ("not green or amber but yellow... would change to
+             red if moved") — red-on-change (R3) unchanged, just a different
+             base.
+FIX APPLIED: FX1_MODELS Graphic EQ stub (protocol.js, mid 0x11 — matches
+             index.html's <option value="17">) replaced with the six-slider
+             row. eqSliderColor/drawEqSlider/eqSliderDb added to ui.js;
+             renderFx1Knobs/updateFx1Knob (fx-panels.js) taught the slider
+             branch.
+EVIDENCE:    EQ_Vertical_Slider_Capture.pcapng (Charlie, 2026-07-31) +
+             screenshot of Avid's Graphic EQ panel. node --check passed on
+             protocol.js/ui.js/fx-panels.js. NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm all six bands read/write
+             correctly, the fader visual reads sensibly (thumb position,
+             yellow/red colour swap), and specifically check where 0.0 dB
+             sits on the Output slider (see DISPLAY note above — the one
+             unconfirmed assumption here).
+FOLLOW-UP (2026-07-31, same day, before any live test): Charlie asked for two
+             things ahead of testing rather than after: (1) a re-capture that
+             parks every slider at 0.0 dB first, THEN sweeps to max, then to
+             lowest — this will pin the Output band's exact 0.0 dB raw value
+             directly instead of leaving it inferred (see the open question
+             above); Charlie will supply it when convenient, not blocking.
+             (2) UI: make the sliders taller (panel has vertical room to
+             spare) and add printed calibration numbers on both sides of the
+             track like Avid's own panel, panel free to grow wider too.
+FIX APPLIED: canvas enlarged 34x130 -> 74x173 (~1/3 taller, widened for tick
+             columns). drawEqSlider (ui.js) now draws static calibration
+             ticks + numbers on BOTH sides of the groove (Avid only prints
+             one side; we have the width). New eqDbToV127 (ui.js) is the
+             exact inverse of eqSliderDb so a tick's position matches exactly
+             where the thumb sits when the live value equals that tick's dB.
+             Tick sets added per band in FX1_MODELS (protocol.js):
+             100Hz/3.25kHz [12,0,-12], 370/800/2k [18,12,0,-12,-18], Output
+             [6,0,-20] — mirrors Avid's own panel scale. Still awaiting the
+             re-capture in (1); the Output anchor remains INFERRED until then.
+CORRECTION (2026-07-31, same day, Charlie's screenshot BEFORE the re-capture
+             landed): the taller/wider canvas overlapped the dB readout below
+             it — a REAL bug, not a display fluke. CAUSE: the new slider
+             canvas (74x173) is a child of .knob-wrap/.ctrl-knob, whose CSS
+             is hardcoded for the original round knobs (width:80px;
+             height:80px on .knob-wrap, width:88px on .ctrl-knob). The parent
+             box stayed knob-sized while the canvas painted its full height
+             inside it, so the tick labels near the bottom of the canvas
+             visually landed on top of the value text and the next column.
+FIXED: new .eq-slider modifier class (index.html) sized to match the slider
+             canvas (74x173 wrap / 90px column), applied alongside .ctrl-knob
+             on the slider cell's wrapper div (fx-panels.js) — the shared
+             .knob-wrap/.ctrl-knob rules are UNCHANGED for every other panel,
+             so no regression risk to existing rotary knobs.
+RE-CAPTURE RECEIVED (2026-07-31, same day): EQ_Capture_Start_at_0_Mark.
+             pcapng — every slider parked at 0.0 dB first, swept to the
+             extreme, then Charlie tried to dial each back to exactly 0.0 dB
+             ("some I overshot... eventually got to zero... that last one
+             [Output] I never could land it back on zero"). Decoded the same
+             way as the other captures. RESULT:
+               SYMMETRIC BANDS — return-to-zero attempts settled tightly on
+               raw 63/64 for all five, CONFIRMING the two-slope-anchored-at-64
+               formula exactly. No change.
+               OUTPUT — return-to-zero attempts clustered around raw 99-100,
+               NOWHERE NEAR 64, and never truly settled — proving the
+               two-slope-at-64 formula was WRONG for this band specifically
+               (explains the "+20.0 dB" baseline visible in Charlie's first
+               screenshot). Backed out the math: a plain proportional scale
+               across the full 0-127 range puts 0.0 dB at a non-integer raw
+               ~97.7, meaning EXACT 0.0 dB may not be reachable at 7-bit
+               resolution on this specific asymmetric range — a genuine
+               hardware granularity limit, which is exactly what Charlie
+               experienced, not a bug to hide.
+FIXED: eqSliderDb/eqDbToV127 (ui.js) both take a `linear` flag; Output's
+             FX1_MODELS cell now sets linear:true (plain proportional, full
+             0-127 range) while the five symmetric bands keep the unchanged
+             two-slope-at-64 formula. Ticks reuse the same flag so they still
+             line up with the live thumb position under either shape.
+NEXT:        Charlie builds and tests live: symmetric bands should behave as
+             before; Output should now read close to 0.0 dB (within ~0.3-0.5
+             dB, per the granularity note above) when parked near its visual
+             "0" tick, instead of the earlier +20.0 dB baseline.
+CONFIRMED (2026-07-31, Charlie's live test): CSS overlap fixed, layout reads
+             fine ("old eyes... can get the idea, EQ is more about your ears
+             than your eyes" — ticks legible enough, no further sizing work
+             requested). Output reads +0.3 dB at its visual zero, matching
+             the predicted ~0.3-0.5 dB granularity gap exactly — working as
+             designed, not a bug. Stereo/Mono toggle survives (knobs hold
+             position, no unwanted rebuild — same fix class as Flanger's).
+             Graphic EQ is DONE. FX1 now has 4 of 10 models captured and
+             TESTED LIVE (C1 Chorus/Vibrato, Dyn3 Compressor, Flanger,
+             Graphic EQ).
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Flanger model captured (3rd of 10 FX1 models)
+FINDING:     Charlie supplied Flanger_Knob_Capture.pcapng (Wireshark/USBPcap,
+             single-block capture, handle 0x10) plus a screenshot of Avid's
+             Flanger panel (Pre-Delay/Depth/Rate/Feedback, all 0-10 knobs) and
+             a hand-recorded Sync-zone -> Rate-value table. No tshark in this
+             session, so decoded the capture directly in Python (dpkt for
+             pcapng framing, manual USB-MIDI CIN reassembly of the 4-byte
+             packets into F0 13 0B 0F ... F7 SysEx messages) — see scratchpad
+             scripts, not committed to the repo.
+             PARAMLO MAP (handle 0x10, all confirmed): 0x02 Rate (syncDriven)
+             · 0x03 Depth · 0x04 Feedback · 0x05 Pre-Delay · 0x06 Sync.
+             Confirmed two independent ways: (1) each of 0x02/0x03/0x04/0x05
+             swept 0->127->0 in its own isolated time window, in the exact
+             order Charlie swept the panel (Pre-Delay, Depth, Rate, Feedback);
+             (2) 0x02 changed IN LOCKSTEP with every 0x06 Sync-zone change —
+             independent proof it's Rate, since Rate is the only Sync-driven
+             knob here (matches the C1 Chorus/amp pattern of one driven knob,
+             not the two-knob case C1 Chorus turned out to need).
+             DISPLAY — no custom formula needed. All four continuous knobs are
+             a plain 0-10 linear scale (Charlie's own description), which is
+             exactly ui.js's existing default valDisplay (v127/127*10, one
+             decimal) — confirmed by reproducing Charlie's Rate-under-Sync
+             table from the raw v127 values (64/71/85/98/96/102/110/119/110 ->
+             5.0/5.6/6.7/7.7/7.6/8.0/8.7/9.3/8.7, matching his screengrab
+             within transcription rounding).
+             SYNC — reuses SYNC_DIVISIONS/syncIndexFromV127, same as every
+             other FX1 Sync control; the 13 captured v127 breakpoints
+             (9,19,29,...,127) land exactly on that table's zone boundaries.
+FIX APPLIED: FX1_MODELS Flanger stub (protocol.js, was captured:false)
+             replaced with the real row/paramLo table; Rate marked
+             syncDriven:true so the existing generic R7 interlock (built for
+             C1 Chorus, 2026-07-31 earlier today) picks it up with no new
+             handler code. Mono/stereo mid pair (0x07 mono / 0x08 stereo) set
+             by pattern from C1 Chorus and MODEL_NAMES/MODEL_OUT_STEREO, NOT
+             independently observed this session — only 0x07 was in the
+             capture.
+EVIDENCE:    Flanger_Knob_Capture.pcapng (Charlie, 2026-07-31) + screenshot of
+             Avid's Flanger panel and Sync/Rate table. node --check passed on
+             protocol.js. NOT hardware-tested by the app itself.
+NEXT:        Charlie builds and tests live: open Flanger in the FX1 panel,
+             confirm knob labels/values match Avid's panel and the rack, and
+             specifically test Sync x Rate (grab Rate while Sync engaged ->
+             Sync should clear, matching the R7 fix already applied) and the
+             Stereo/Mono toggle (unconfirmed mid pair, see above).
+CORRECTION (2026-07-31, same day, Charlie's first live test): TWO bugs, one
+             root cause. (1) The dropdown went BLANK the instant Flanger was
+             selected (other models stayed showing their name fine). (2) The
+             Flanger knobs visibly reset/reload on every Stereo/Mono toggle —
+             no other FX1 model does this. CAUSE: index.html's static
+             fx1-model-select already had <option value="8">Flanger</option>
+             (seeded when the stub was captured:false), but this capture set
+             the model's primary `mid` to 0x07. openFx1Panel does
+             `sel.value = String(openModel.mid)` -> "7", which matches no
+             <option>, so the dropdown shows blank. The SAME mismatch broke
+             refreshFx1PanelAfterChainMap's "did the model actually change?"
+             guard (compares parseInt(sel.value) to the model's mid), so it
+             was NEVER equal — every chain map, including a plain mono/stereo
+             toggle, was misread as a model change and forced a full knob-row
+             rebuild + baseline wipe. One value fix explains both symptoms.
+FIXED: FX1_MODELS Flanger entry's primary `mid` corrected to 0x08 (matching
+             the HTML option), mids:[0x07,0x08] kept for inbound wire-id
+             resolution either way. General lesson for MOD/DELAY/FX2 model
+             tables going forward: primary `mid` MUST equal the pre-seeded
+             HTML <option value>, not just be A valid wire id for the model —
+             worth a quick cross-check against index.html whenever converting
+             a captured:false stub to captured:true.
+NEXT:        Charlie re-builds and re-tests: Flanger should now stay selected
+             in the dropdown, and knobs should hold their turned position
+             across a Stereo/Mono toggle like every other FX1 model.
+CONFIRMED (2026-07-31, Charlie's re-test): "That resolved it." Flanger is
+             DONE — dropdown stays selected, knobs hold across Stereo/Mono.
+             FX1 now has 3 of 10 models captured and TESTED LIVE (C1 Chorus/
+             Vibrato, Dyn3 Compressor, Flanger). NEXT model per Charlie:
+             Graphic EQ — awaiting capture.--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 Chorus panel missing the Sync interlock (R7) the amp has
+FINDING:     The amp Sync/Speed interlock (Tech Ref Sec 11 / now R7 in the
+             Sec 20A Knob Contract) says: grabbing a Sync-driven knob sends
+             Sync=OFF first, once per drag, then writes the knob — mirroring the
+             rack's own knob, which clears Sync when grabbed. The FX1 Chorus
+             panel (built 7/30) implements the Sync-SETS-the-knob half but NOT
+             the grab-CLEARS-Sync half: grabbing Rate while Sync is engaged does
+             not turn Sync off, unlike the amp panel and unlike the physical HW.
+             Noticed by Charlie 7/31. This is the exact scatter failure the new
+             contract exists to prevent — the rule lived only in the amp context
+             and was not carried to the effect panel.
+FIX APPLIED (2026-07-31, Claude Code): Rate (paramLo 0x04) marked
+             syncDriven:true in FX1_MODELS (protocol.js). fx-panels.js FX1 drag
+             handler now clears Sync (paramLo 0x06 -> 0) once per drag on grab
+             of any syncDriven cell before writing the knob, matching the amp
+             pattern exactly (mousedown latch, mousemove check, no write-guard/
+             grey-out). Same interlock applied to the FX1 dblclick (R8) handler,
+             since a baseline-restore is a knob move too. Built generically
+             (fx1SyncCellLo / fx1CellIsSyncDriven / fx1ClearSyncIfDriving read
+             the model's row data, not a hardcoded paramLo) so MOD/DELAY's
+             future Sync-driven controls only need the syncDriven flag on their
+             model row, not new interlock code.
+EVIDENCE:    Code only — node --check passed on fx-panels.js/protocol.js/ui.js.
+             NOT hardware-tested (no bridge in this session per usual).
+CORRECTION (2026-07-31, same day, Charlie's first live test): Rate cleared
+             Sync correctly, but Chorus did NOT — Charlie confirmed grabbing
+             Chorus while Sync was engaged left Sync on. Matches the earlier
+             capture note ("engaging Sync overwrites the live Chorus AND Rate
+             values") — Sync drives BOTH knobs on this model, not just Rate.
+             FIXED: Chorus (paramLo 0x02) also marked syncDriven:true in
+             FX1_MODELS (protocol.js). No handler code changed — the R7
+             interlock in fx-panels.js was already written generically against
+             "any syncDriven cell in the model", so adding the flag was the
+             entire fix. Noted as possibly the only FX1 model where Sync
+             drives two knobs at once (per Charlie) — worth checking on every
+             future Sync-bearing FX1/FX2/MOD/DELAY model rather than assuming
+             single-knob like the amp.
+NEXT:        Charlie re-builds and re-tests: grab Chorus while Sync is
+             engaged on C1 Chorus, confirm Sync clears to OFF now too, same as
+             Rate already does.-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        Double-click knob -> jump to load baseline (Sec 20A R8)
+FINDING:     New universal knob rule added to the contract: double-clicking a
+             knob returns THAT knob to its load-baseline value (the R3 baseline),
+             behaving exactly like a manual turn back — rack reacts live, ring
+             clears, one knob only, no save. Uses the baseline the app already
+             tracks for red-ring (R3). Added before the 50+ new knobs so every
+             new panel inherits it.
+FIX APPLIED (2026-07-31, Claude Code): a dblclick handler already existed on
+             every knob (amp tone knobs + DIST/REVERB/WAH/VOL/FX1) but jumped
+             to a HARDCODED CENTRE VALUE (64), not the load baseline — same
+             scatter problem as R7, a rule that existed in intent but was never
+             written down until Sec 20A. All six handlers (ui.js tone-knob
+             delegated handler + generic wireKnobDrag dblclick + fx-panels.js
+             DIST/REVERB/WAH/VOL/FX1) now read wrap.dataset.orig (the R3
+             baseline, falling back to 64 only if unset) instead of a literal
+             64, then route through the same send function as a normal drag —
+             so R1 endpoint sentinels and R6 drag-queue safety apply for free,
+             no new code path. Amp tone-knob dblclick also picked up the R7
+             Sync-clear check for Speed (0x11), which the drag handler already
+             had but the dblclick handler didn't.
+EVIDENCE:    Code only — node --check passed on ui.js/fx-panels.js. NOT
+             hardware-tested.
+NEXT:        Charlie builds the EXE and tests live: double-click a knob that
+             has been turned away from its loaded value on each of the six
+             surfaces (amp tone, DIST, REVERB, WAH, VOL, FX1) and confirm it
+             snaps back to the ORIGINAL loaded value (not centre) and the red
+             ring clears.-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      provisional — STANDING TASK, run in Claude Code (needs repo access)
+AREA:        Knob/Control Contract (Sec 20A) — one-time code audit of panels
+FINDING:     Sec 20A consolidates the seven knob rules that were scattered.
+             Before the 50+ new knobs across FX1/FX2/MOD/DELAY land, existing
+             knob panels must be audited against R1-R7 in a session that can
+             read the .js files (a docs review chat cannot). Two checks per
+             file (transport.js, fx-transport.js, ui.js, fx-panels.js,
+             protocol.js): (a) does the RUNTIME obey R1-R7 — fix existing panels
+             first, since new panels are copied from them; (b) do the COMMENTS
+             still match the runtime — comment-vs-code drift is a real bug (known
+             case: transport.js tempo comment "not per patch"). Record findings
+             here. Do NOT mark done from a docs review.
+--------------------------------------------------------------------------------------------------------------------------------------
+DATE:        2026-07-30  (FX1 Block 1 — condensed 2026-07-31 review)
+STATUS:      [FOLDED IN: Tech Ref Sec 23 (FX1 SLOT subsection + OUTPUT CHANNEL
+             TABLE mid 0x01) + Sec 24; Primer app-state / WORKING / code map /
+             HARDWARE SAFETY. All TESTED LIVE by end of session.]
+AREA:        FX1 effect panel — first two models + two cross-cutting bug fixes
+FINDING:     FX1 panel shipped with its first two models fully captured:
+               - C1 Chorus/Vibrato: Chorus/Depth/Rate/Mode(toggle)/Sync(14-zone,
+                 reuses amp Tremolo SYNC_DIVISIONS), plus the confirmed
+                 Sync x Chorus/Rate interaction matrix; mono/stereo mid triplet
+                 resolved (0x01=MONO confirmed live, 0x03=STEREO, 0x02 still
+                 enumeration-only). Closed the mid-0x01 gap the OUTPUT CHANNEL
+                 TABLE's own 7/19 retraction note had left open -> coverage 50/53.
+               - Dyn3 Compressor: Threshold/Attack/Release/Ratio/Knee/Gain, all
+                 six display formulas confirmed (Ratio exponential, verified by a
+                 19-point wheel sweep against Wireshark).
+             Two bugs found and fixed across ALL FIVE panels (DIST/REVERB/WAH/
+             VOL/FX1):
+               - THE 9.9 BUG: endpoint-sentinel write tail (from the 7/23 amp
+                 Speed-knob fix, Sec 3/4) was never ported to fx-transport.js, so
+                 panels couldn't hold their true max (9.9 not 10.0; Pre-Delay
+                 ~198ms not 200). Ported to all five send functions.
+               - DRAG-QUEUE RACE: a queued knob-drag write could fire after
+                 mouseup reset paramLo to -1, sending byte 0xFF (illegal 7-bit)
+                 mid-SysEx and hanging the rack. Fixed in all five drag handlers.
+                 See Primer HARDWARE SAFETY.
+NOTE:        FX1 (0x08) is a generic host slot; FX2 (0x09) hosts the same model
+             family, so a model captured here should apply to FX2 without its own
+             capture. 8 remaining FX1 models are dropdown-known but uncaptured
+             (protocol.js FX1_MODELS captured:false); all stereo-by-nature except
+             Gray Compressor per Charlie. Full build-by-build detail: Archive
+             Part 7.
+
+===================================================================
 END OF ARCHIVE
 ===================================================================

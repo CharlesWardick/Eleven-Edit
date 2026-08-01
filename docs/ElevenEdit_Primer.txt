@@ -283,6 +283,11 @@ HOW "TESTED" WORKS HERE — READ BEFORE WRITING ANY STATUS
   NOTE: Charlie builds the EXE and tests live during the session with the rack
   connected. There is no separate later hardware-test step to defer to — the
   session IS the test, or it is NOT TESTED LIVE.
+  INTERMITTENT BUGS need MORE THAN ONE clean live pass. A single green run on an
+  intermittent or mystery symptom proves the fix CAN work, not that the bug is
+  gone. Such fixes are UNCONFIRMED until they survive repeated runs, not TESTED
+  LIVE after one. (Example: the startup chain-graphics bug — fix applied, works
+  when it runs, not yet confirmed across repeated cold starts.)
 Build: electron-builder --win --x64 -> EXE.
 
 7/31/2026 — FX1 EFFECT PANEL, SEVEN MORE MODELS (Phase 14 continued) —
@@ -989,11 +994,11 @@ LATER — EFFECT PANELS FOR REMAINING EIGHT SLOTS
   *** BUILD EVERY KNOB AGAINST THE KNOB/CONTROL CONTRACT — Tech Ref Sec 20A. ***
   It is the single authoritative checklist (R1 endpoint sentinels, R2 zero-value
   safe, R3 red-on-change, R4 scroll-wheel, R5 scale anchoring, R6 drag-queue
-  safety, R7 Sync interlock). Copying an existing panel is NOT sufficient on its
-  own — panels predate rules. Note FX1 itself is currently missing R7 (the Sync
-  grab-clears-Sync behaviour); do not copy that gap into MOD/DELAY. Sec 20A also
-  requires a one-time CODE AUDIT of the existing panels against R1-R7, plus a
-  comment-vs-code check, run in Claude Code before the 50+ new knobs land.
+  safety, R7 Sync interlock, R8 double-click-to-baseline). Copying an existing
+  panel is NOT sufficient on its own — panels predate rules, so check the copy
+  against all of R1-R8. (FX1's R7/R8 gaps were retrofitted 7/31; the amp + five
+  effect panels now carry both. The Sec 20A one-time CODE AUDIT — runtime vs
+  R1-R8, plus comment-vs-code — still stands, run in Claude Code.)
 
   WHAT EACH NEW SLOT NEEDS — copy the FX1 panel (built 2026-07-30), NOT
   DIST/REVERB/WAH/VOL, which were built before two bugs were found and
