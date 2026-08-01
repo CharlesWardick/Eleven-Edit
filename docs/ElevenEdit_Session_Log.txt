@@ -121,6 +121,19 @@ NEXT:        Charlie builds and tests live: all four bands' Gain/Freq/Q,
              text turns red/bold on change (and clears on save), the boxed
              layout reading sensibly, and the Stereo/Mono toggle. THIS IS
              THE LAST FX1 MODEL — once confirmed, FX1 is 10 of 10 done.
+CORRECTION (2026-07-31, same day, Charlie's live test): "great, other than
+             the drop lists going outside the lines" — everything else
+             (all 15 params, both Type dropdowns' values, band colours,
+             red/bold change text, layout) confirmed working. CAUSE: same
+             overlap-avoidance bug class as .eq-slider/.h-slider before —
+             cell.select's wrapper reused the plain .ctrl-knob class, fixed
+             at 88px width, but the dropdown itself is 118px — invisible
+             floating in open space (no border nearby to poke through) but
+             visible as soon as one sits inside Parametric EQ's bordered
+             LF/HF group boxes. FIX: new .fx1-select CSS override (130px)
+             applied alongside .ctrl-knob on the select cell's wrapper
+             (index.html/fx-panels.js) — the surrounding group box already
+             auto-sizes to its content, so no panel-widening needed.
 -------------------------------------------------------------------
 [FOLDED IN 2026-07-31, FINALIZATION: every 2026-07-31 entry below this
 line, down through the "FLANGER CAPTURED" entry, is folded into

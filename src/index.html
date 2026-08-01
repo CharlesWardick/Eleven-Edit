@@ -507,6 +507,12 @@
      on the canvas in fx-panels.js's slider branch (renderFx1Knobs). */
   .eq-slider { width: 90px; }
   .eq-slider .knob-wrap { width: 74px; height: 173px; }
+  /* cell.select dropdowns (Parametric EQ Type, MultiChorus Voices, Roto
+     Speaker Type/Speed) — the 118px <select> overflows .ctrl-knob's fixed
+     88px box, invisible on single dropdowns floating in open space (no
+     border nearby to poke through) but visible as soon as one sits inside
+     a bordered group box (Parametric EQ, 2026-07-31). */
+  .fx1-select { width: 130px; }
   .knob-val { font-size: 12px; color: var(--accent); font-weight: bold; text-align: center; font-family: 'Consolas', monospace; min-width: 44px; }
   .knob-disabled { pointer-events: none; opacity: 0.3; }
   /* A knob the hardware DOES report but that we must not write to (Speed,

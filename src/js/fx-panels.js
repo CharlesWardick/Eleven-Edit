@@ -857,7 +857,11 @@ function renderFx1Cell(cell, rowDiv) {
         // position rather than showing nothing selected.
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const selDiv = document.createElement('div');
-        selDiv.className = 'ctrl-knob';
+        // fx1-select overrides .ctrl-knob's fixed 88px width — the 118px
+        // dropdown otherwise overflows its own container and pokes past
+        // the group box border (found on Parametric EQ, 2026-07-31 — same
+        // overlap-avoidance class of bug as .eq-slider/.h-slider before).
+        selDiv.className = 'ctrl-knob fx1-select';
         selDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
         const lbl = document.createElement('label');
         lbl.textContent = cell.label;
