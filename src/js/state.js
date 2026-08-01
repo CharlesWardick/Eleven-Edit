@@ -154,8 +154,14 @@ let wahPanelOpen = false;
 // VOL panel open flag — same role as distPanelOpen, for the VOL slot.
 let volPanelOpen = false;
 
-// FX1 panel open flag — same role as distPanelOpen, for the FX1 slot.
-let fx1PanelOpen = false;
+// FX-HOST panel open state — replaces a separate fx1PanelOpen/fx2PanelOpen/
+// modPanelOpen trio (2026-08-01 refactor). FX1/FX2/MOD share one engine and
+// one physical panel (fx-panels.js, index.html #panel-fxhost), so only one
+// of them can ever be open at a time — this single slot id IS the "is a
+// panel open, and which one" state, same role distPanelOpen/etc. play for
+// their own single-slot families. null = no FX-host panel open; otherwise
+// SLOT_FX1 / SLOT_FX2 / SLOT_MOD.
+let openFxHostSlot = null;
 
 // ── Amp Select receipt counter.
 // Incremented every time a CMD 0x11 paramLo 0x0F (Amp Select) reply is

@@ -499,12 +499,12 @@
   canvas.knob-canvas { display: block; }
   /* Graphic EQ vertical faders (7/31/2026) — same .ctrl-knob/.knob-wrap
      contract as a rotary knob (drag/scroll/dblclick handlers key off
-     [data-fx1-lo], not the widget shape), but the canvas is much taller/
+     [data-fxhost-lo], not the widget shape), but the canvas is much taller/
      wider than a round knob. Without this override the fixed 88px/80x80px
      boxes above clip the fader and its calibration numbers overlap the
      value readout below (found 7/31/2026 — a knob-sized box holding a
      slider-sized canvas). Sizes must match the width/height attributes set
-     on the canvas in fx-panels.js's slider branch (renderFx1Knobs). */
+     on the canvas in fx-panels.js's slider branch (renderFxHostKnobs). */
   .eq-slider { width: 90px; }
   .eq-slider .knob-wrap { width: 74px; height: 173px; }
   /* cell.select dropdowns (Parametric EQ Type, MultiChorus Voices, Roto
@@ -512,7 +512,7 @@
      88px box, invisible on single dropdowns floating in open space (no
      border nearby to poke through) but visible as soon as one sits inside
      a bordered group box (Parametric EQ, 2026-07-31). */
-  .fx1-select { width: 130px; }
+  .fxhost-select { width: 130px; }
   .knob-val { font-size: 12px; color: var(--accent); font-weight: bold; text-align: center; font-family: 'Consolas', monospace; min-width: 44px; }
   .knob-disabled { pointer-events: none; opacity: 0.3; }
   /* A knob the hardware DOES report but that we must not write to (Speed,
@@ -1270,34 +1270,32 @@
     </div>
   </div>
 
-  <!-- FX1 EFFECT PANEL — shown when FX1 ▼ is clicked. FX1 is a generic
-       host slot; the dropdown lists every model seen in the hardware's own
-       FX1 list (Session Log 2026-07-30), but only captured models render
-       real controls — see FX1_MODELS in protocol.js. -->
-  <div id="panel-fx1" style="display:none;" class="scard">
+  <!-- FX-HOST EFFECT PANEL — shared by every GENERIC HOST SLOT (FX1/FX2/
+       MOD, 2026-08-01 refactor; see fx-panels.js's FX-HOST EFFECT PANEL
+       header). Only one host slot is ever open at a time, so they share
+       ONE panel div instead of one copy each — openFxHostPanel(slotId)
+       (fx-panels.js) sets the title and populates the model dropdown
+       (filtered per FX_HOST_ALLOWED_MIDS, protocol.js) for whichever slot
+       is opening. Only captured models render real controls — see
+       FX1_MODELS in protocol.js, the shared model table every host slot
+       reads from. Today only FX1's chain-row ▼ opens this panel; FX2/MOD
+       still show the "coming soon" placeholder until their own chain-open
+       dispatch branch is added — see the panel-open switch below. -->
+  <div id="panel-fxhost" style="display:none;" class="scard">
     <div class="scard-hdr" style="flex-wrap:wrap;gap:10px;">
-      <span class="scard-title">FX1</span>
+      <span class="scard-title" id="fxhost-title">FX1</span>
       <div class="ctrl-dd">
         <label>Model</label>
-        <select id="fx1-model-select" style="min-width:200px;">
-          <option value="1">C1 Chorus/Vibrato</option>
-          <option value="22">Dyn3 Compressor</option>
-          <option value="8">Flanger</option>
-          <option value="17">Graphic EQ</option>
-          <option value="20">Gray Compressor</option>
-          <option value="6">MultiChorus</option>
-          <option value="12">Orange Phaser</option>
-          <option value="19">Parametric EQ</option>
-          <option value="15">Roto Speaker</option>
-          <option value="10">Vibe Phaser</option>
+        <select id="fxhost-model-select" style="min-width:200px;">
+          <!-- options injected dynamically by populateFxHostModelSelect() -->
         </select>
       </div>
-      <button id="btn-fx1-close" title="Close"
+      <button id="btn-fxhost-close" title="Close"
         style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 6px;"
         onmouseover="this.style.color='var(--fg)'" onmouseout="this.style.color='var(--muted)'">✕</button>
     </div>
-    <div id="fx1-knob-row" style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;padding:14px 16px;">
-      <!-- controls injected dynamically by renderFx1Knobs() -->
+    <div id="fxhost-knob-row" style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;padding:14px 16px;">
+      <!-- controls injected dynamically by renderFxHostKnobs() -->
     </div>
   </div>
 
@@ -1531,12 +1529,12 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
       document.getElementById('panel-reverb').style.display = 'none';
       document.getElementById('panel-wah').style.display = 'none';
       document.getElementById('panel-vol').style.display = 'none';
-      document.getElementById('panel-fx1').style.display = 'none';
+      document.getElementById('panel-fxhost').style.display = 'none';
       if (typeof closeDistPanel === 'function') closeDistPanel();
       if (typeof closeReverbPanel === 'function') closeReverbPanel();
       if (typeof closeWahPanel === 'function') closeWahPanel();
       if (typeof closeVolPanel === 'function') closeVolPanel();
-      if (typeof closeFx1Panel === 'function') closeFx1Panel();
+      if (typeof closeFxHostPanel === 'function') closeFxHostPanel();
     } else {
       btn.classList.add('panel-open');
       var panel = btn.dataset.panel;
@@ -1554,12 +1552,12 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
       document.getElementById('panel-reverb').style.display = 'none';
       document.getElementById('panel-wah').style.display = 'none';
       document.getElementById('panel-vol').style.display = 'none';
-      document.getElementById('panel-fx1').style.display = 'none';
+      document.getElementById('panel-fxhost').style.display = 'none';
       if (typeof closeDistPanel === 'function') closeDistPanel();
       if (typeof closeReverbPanel === 'function') closeReverbPanel();
       if (typeof closeWahPanel === 'function') closeWahPanel();
       if (typeof closeVolPanel === 'function') closeVolPanel();
-      if (typeof closeFx1Panel === 'function') closeFx1Panel();
+      if (typeof closeFxHostPanel === 'function') closeFxHostPanel();
 
       if (panel === 'dist') {
         var dp = document.getElementById('panel-dist');
@@ -1582,10 +1580,10 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
         vp.style.display = '';
         if (typeof openVolPanel === 'function') openVolPanel();
       } else if (panel === 'fx1') {
-        var f1p = document.getElementById('panel-fx1');
+        var f1p = document.getElementById('panel-fxhost');
         if (h) f1p.style.minHeight = h + 'px';
         f1p.style.display = '';
-        if (typeof openFx1Panel === 'function') openFx1Panel();
+        if (typeof openFxHostPanel === 'function') openFxHostPanel(SLOT_FX1);
       } else {
         var other = document.getElementById('panel-other');
         if (h) other.style.minHeight = h + 'px';
@@ -1655,21 +1653,22 @@ document.getElementById('btn-vol-close').addEventListener('click', function() {
   if (typeof closeVolPanel === 'function') closeVolPanel();
 });
 
-// FX1 model dropdown — switch model on hardware and re-render controls
-document.getElementById('fx1-model-select').addEventListener('change', function() {
+// FX-HOST model dropdown — switch model on hardware and re-render controls.
+// Works for whichever slot's panel is currently open (openFxHostSlot).
+document.getElementById('fxhost-model-select').addEventListener('change', function() {
   var newMid = parseInt(this.value, 10);
-  if (isNaN(newMid)) return;
-  if (typeof renderFx1Knobs === 'function') renderFx1Knobs(newMid);
-  if (typeof sendFx1ModelChange === 'function') sendFx1ModelChange(newMid);
-  // refreshFx1PanelAfterChainMap fires from the CMD 0x21 response and re-queries params
+  if (isNaN(newMid) || openFxHostSlot === null) return;
+  if (typeof renderFxHostKnobs === 'function') renderFxHostKnobs(newMid);
+  if (typeof sendFxHostModelChange === 'function') sendFxHostModelChange(openFxHostSlot, newMid);
+  // refreshFxHostPanelAfterChainMap fires from the CMD 0x21 response and re-queries params
 });
 
-// FX1 panel close button — same effect as clicking ▼ again
-document.getElementById('btn-fx1-close').addEventListener('click', function() {
+// FX-HOST panel close button — same effect as clicking ▼ again
+document.getElementById('btn-fxhost-close').addEventListener('click', function() {
   document.querySelectorAll('.chain-open').forEach(function(b) { b.classList.remove('panel-open'); });
-  document.getElementById('panel-fx1').style.display = 'none';
+  document.getElementById('panel-fxhost').style.display = 'none';
   document.getElementById('panel-ampcab').style.display = '';
-  if (typeof closeFx1Panel === 'function') closeFx1Panel();
+  if (typeof closeFxHostPanel === 'function') closeFxHostPanel();
 });
 
 // Patch name box click = open slot matrix

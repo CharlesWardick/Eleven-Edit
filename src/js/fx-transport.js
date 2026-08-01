@@ -4,31 +4,37 @@
 //
 // WHY THIS FILE EXISTS: transport.js's core (connection, nav pull, the
 // generic sendParamWrite/sendHex plumbing) doesn't grow as new effect
-// panels are added, but this DOES — every new panel (WAH, MOD, DELAY,
-// VOL, FX1, FX2, FX LOOP still to come) adds another three functions
-// here in the same DIST/REVERB shape. Keeping that growth in its own
-// file means transport.js stays the size it is today no matter how
-// many more panels get built; this file is where they land instead.
+// panels are added, but this DOES — every DISTINCT model family (WAH,
+// DELAY, VOL, DIST, REVERB, FX LOOP) adds another three functions here in
+// the same DIST/REVERB shape. Keeping that growth in its own file means
+// transport.js stays the size it is today no matter how many more panels
+// get built; this file is where they land instead.
+// GENERIC HOST SLOTS (FX1/FX2/MOD) are the exception — they share ONE
+// function set (send/requestFxHost...), parameterized by slot id, not a
+// new triple per slot. See the FX-HOST EFFECT PANEL section below.
 //
-// PATTERN for a new block (copy the FX1 functions below, not DIST/REVERB/
-// WAH/VOL — see 2026-07-30 note below for why):
+// PATTERN for a genuinely new model family (copy the DIST functions, not
+// the FX-host ones below — a new generic host slot is a config hook into
+// the shared engine, not a new copy of this pattern):
 //   send<Block>ModelChange(newMid) — CMD 0x21 chain rewrite, new mid in
 //     the block's own slot, handle=0x00 so firmware reassigns it.
 //   request<Block>Params()         — CMD 0x11 REQU per paramLo in the
 //     block's current model (from its MODELS table in protocol.js).
 //   send<Block>ParamWrite(paramLo, v127) — CMD 0x11 SNDSET on the
 //     block's runtime handle from currentChain — never a fixed value.
-//     MUST include the endpoint-sentinel tail logic (see sendFx1ParamWrite)
-//     — a flat 00 00 00 00 tail is THE 9.9 BUG (a knob can't hold its true
-//     min/max). Do not copy the plain-tail version.
+//     MUST include the endpoint-sentinel tail logic (see
+//     sendFxHostParamWrite) — a flat 00 00 00 00 tail is THE 9.9 BUG (a
+//     knob can't hold its true min/max). Do not copy the plain-tail version.
 //
 // PURE RELOCATION (7/27): every function below is unchanged from its
 // original position in transport.js — same logic, same comments, same
-// behaviour. Nothing was rewritten.
+// behaviour. Nothing was rewritten. (FX1's functions were later replaced by
+// the shared FX-host engine on 2026-08-01 — see that section below; this
+// note describes the file's original 7/27 split, not FX1's code today.)
 //
 // 2026-07-30 — THE 9.9 BUG, retrofitted to all five panels that existed at
 // the time (DIST/REVERB/WAH/VOL/FX1). Endpoint sentinels are now MANDATORY
-// for every new send<Block>ParamWrite — see sendFx1ParamWrite for the
+// for every new send<Block>ParamWrite — see sendFxHostParamWrite for the
 // pattern and the Session Log for the full incident (a related closure bug
 // in the same family of code briefly hung the rack — see fx-panels.js
 // header for the drag-handler half of that fix, also now mandatory).
@@ -83,7 +89,7 @@ function requestDistParams() {
 
 // ── Write one DIST knob value to hardware.
 // Uses the DIST block's runtime handle from currentChain — never a fixed value.
-// THE 9.9 BUG — see sendFx1ParamWrite for the full explanation. Endpoint
+// THE 9.9 BUG — see sendFxHostParamWrite for the full explanation. Endpoint
 // sentinels so every DIST knob can actually hold its true min/max.
 function sendDistParamWrite(paramLo, v127) {
   if (!bridgeMidiReady) return false;
@@ -147,7 +153,7 @@ function requestReverbParams() {
 }
 
 // Write one REVERB knob value to hardware — same 5-byte value payload as DIST.
-// THE 9.9 BUG — see sendFx1ParamWrite for the full explanation. Endpoint
+// THE 9.9 BUG — see sendFxHostParamWrite for the full explanation. Endpoint
 // sentinels so every REVERB knob can hold its true min/max. This is also
 // what was capping Pre-Delay at ~198ms instead of 200ms — its display is
 // just val/127*200, so once val can genuinely reach 127 the display reaches
@@ -210,7 +216,7 @@ function requestWahParams() {
   appLog('requestWahParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
 }
 
-// THE 9.9 BUG — see sendFx1ParamWrite for the full explanation. Endpoint
+// THE 9.9 BUG — see sendFxHostParamWrite for the full explanation. Endpoint
 // sentinels so Position can actually hold its true min/max on hardware.
 function sendWahParamWrite(paramLo, v127) {
   if (!bridgeMidiReady) return false;
@@ -272,7 +278,7 @@ function requestVolParams() {
   appLog('requestVolParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
 }
 
-// THE 9.9 BUG — see sendFx1ParamWrite for the full explanation. Endpoint
+// THE 9.9 BUG — see sendFxHostParamWrite for the full explanation. Endpoint
 // sentinels so Volume/Min Vol can actually hold their true min/max.
 function sendVolParamWrite(paramLo, v127) {
   if (!bridgeMidiReady) return false;
@@ -293,51 +299,58 @@ function sendVolParamWrite(paramLo, v127) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// FX1 EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
-// Mirror of the DIST panel functions, targeting SLOT_FX1. FX1 is a
-// generic host slot — newMid can be any model from FX1_MODELS, not one
-// family, but the model-change mechanism (rewrite the block's mid,
-// handle=0x00 so firmware reassigns it) is identical.
+// FX-HOST EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
+// Shared engine (2026-08-01 refactor) for every GENERIC HOST SLOT
+// (FX1/FX2/MOD — see fx-panels.js's FX-HOST EFFECT PANEL header for the
+// full rationale). Was three near-identical function sets in the making
+// (FX1 built 2026-07-30, FX2/MOD were about to copy it); now each one
+// takes the slot id as its first argument and resolves the chain block
+// through that, instead of a hardcoded SLOT_FX1. Mirror of the DIST panel
+// functions otherwise — newMid can be any model from FX1_MODELS (still
+// the shared model table name — see protocol.js), not one family, but the
+// model-change mechanism (rewrite the block's mid, handle=0x00 so firmware
+// reassigns it) is identical.
 // ════════════════════════════════════════════════════════════════════
-function sendFx1ModelChange(newMid) {
-  if (!bridgeMidiReady) { appLog('sendFx1ModelChange: bridge not ready'); return false; }
+function sendFxHostModelChange(slotId, newMid) {
+  if (!bridgeMidiReady) { appLog('sendFxHostModelChange: bridge not ready'); return false; }
   if (!currentChainInput || !currentChain.length) {
-    appLog('sendFx1ModelChange: no chain map yet'); return false;
+    appLog('sendFxHostModelChange: no chain map yet'); return false;
   }
   const b = [0xF0,0x13,0x0B,0x0F,0x00,0x21];
   b.push(SLOT_INPUT, currentChainInput.modelId, currentChainInput.handle);
   for (let i = 0; i < 10; i++) {
     const blk      = currentChain[i];
     const backLink = (i === 0) ? SLOT_INPUT : currentChain[i-1].slotId;
-    const mid      = (blk.slotId === SLOT_FX1) ? newMid : blk.modelId;
-    const handle   = (blk.slotId === SLOT_FX1) ? 0x00   : blk.handle;
+    const mid      = (blk.slotId === slotId) ? newMid : blk.modelId;
+    const handle   = (blk.slotId === slotId) ? 0x00   : blk.handle;
     b.push(backLink, mid, handle);
   }
   b.push(currentChain[9].slotId, 0xF7);
   const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
-  appLog('sendFx1ModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
+  appLog('sendFxHostModelChange: slot=0x' + slotId.toString(16).padStart(2,'0')
+    + ' newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
   return sendPatchWrite(hex);
 }
 
-// Query all knob params for the current FX1 model from hardware.
-function requestFx1Params() {
+// Query all knob params for the given slot's current model from hardware.
+function requestFxHostParams(slotId) {
   if (!bridgeMidiReady) return;
-  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
-  if (!fx1Blk) { appLog('requestFx1Params: no FX1 block in chain'); return; }
-  const model = FX1_MODEL_BY_MID[fx1Blk.modelId];
+  const blk = currentChain.find(b => b.slotId === slotId);
+  if (!blk) { appLog('requestFxHostParams: no block in chain for slot=0x' + slotId.toString(16).padStart(2,'0')); return; }
+  const model = FX1_MODEL_BY_MID[blk.modelId];
   if (!model || !model.captured) {
-    appLog('requestFx1Params: mid=0x' + fx1Blk.modelId.toString(16).padStart(2,'0')
+    appLog('requestFxHostParams: mid=0x' + blk.modelId.toString(16).padStart(2,'0')
       + (model ? ' (' + model.name + ') not yet captured' : ' unknown'));
     return;
   }
-  const hh = fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase();
+  const hh = blk.handle.toString(16).padStart(2,'0').toUpperCase();
   model.paramLos.forEach(function(lo) {
     sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
   });
-  appLog('requestFx1Params: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+  appLog('requestFxHostParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
 }
 
-// Write one FX1 control value to hardware — same 5-byte value payload as DIST.
+// Write one FX-host control value to hardware — same 5-byte value payload as DIST.
 // ── THE "9.9 BUG" — endpoint sentinels on writes (same fix as the amp
 // Tremolo Speed knob, transport.js sendParamWrite, 7/23/2026). A CMD 0x11
 // value is five 7-bit bytes, not one: v1..v4 are the LOW-ORDER bits of the
@@ -347,10 +360,10 @@ function requestFx1Params() {
 // 2026-07-30 — dial to 10, HW settles at 9.9) reports back one tick low.
 // Fix: special-case the true endpoints with sentinel tail bytes instead of
 // always sending the raw v0 with a zero tail.
-function sendFx1ParamWrite(paramLo, v127) {
+function sendFxHostParamWrite(slotId, paramLo, v127) {
   if (!bridgeMidiReady) return false;
-  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
-  if (!fx1Blk) { appLog('sendFx1ParamWrite: no FX1 block'); return false; }
+  const blk = currentChain.find(b => b.slotId === slotId);
+  if (!blk) { appLog('sendFxHostParamWrite: no block for slot=0x' + slotId.toString(16).padStart(2,'0')); return false; }
   let tail;
   if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
   else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
@@ -359,7 +372,7 @@ function sendFx1ParamWrite(paramLo, v127) {
     tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
   }
   const hex = 'F0 13 0B 0F 00 11 '
-    + fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + blk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
     + tail + ' F7';
   return sendPatchWrite(hex);

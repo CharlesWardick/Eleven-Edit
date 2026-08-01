@@ -38,6 +38,104 @@ NEXT:        what would confirm it, or what to do with it
 ENTRIES (newest first)
 ===================================================================
 
+-------------------------------------------------------------------
+DATE:        2026-08-01 (new session — the "next session" the prior wrap
+             pointed to)
+STATUS:      NOT TESTED LIVE — refactor code complete, awaiting Charlie's
+             rebuild + hardware re-verification that FX1 behaves identically.
+             Per this project's own rule, nothing here counts as done until
+             then; treat FX1 as "refactor applied, unverified" not "done".
+AREA:        FX1 panel architecture — shared FX-host engine (the agreed
+             "REFACTOR FIRST" work from the 2026-08-01 decision entry below)
+FINDING:     Scope confirmed with Charlie before building (his answer, after
+             losing an in-progress typed reply to a prompt-box timeout):
+             refactor-only this pass (do NOT stand up FX2/MOD panels yet —
+             re-verify FX1 first), one shared panel div/DOM (minimize
+             redundancy, matches "fix it once" framing), and the model-
+             switch value-memory/sane-defaults idea (logged separately,
+             2026-08-01 entry below) stays OUT of scope for this pass.
+             BUILT: every FX1-specific function/DOM id in fx-panels.js,
+             fx-transport.js, sysex-handler.js, ui.js's two FX1 branches, and
+             index.html's panel-fx1 markup was generalized to take/derive a
+             slot id instead of hardcoding SLOT_FX1:
+               state.js: fx1PanelOpen (bool) -> openFxHostSlot (null |
+                 SLOT_FX1/FX2/MOD) — single source of truth for which
+                 FX-host panel is open, since only one can be at a time.
+               protocol.js: FX_HOST_ALLOWED_MIDS, keyed by slot id, the seam
+                 a future MOD caller filters its 6-of-10 models through
+                 (SLOT_FX1 entry = null = unfiltered, current behaviour
+                 unchanged). FX1_MODELS/FX1_MODEL_BY_MID names kept as-is
+                 per the refactor decision's own framing (Charlie: "the FX
+                 central shopping cart").
+               index.html: panel-fx1 -> panel-fxhost (one shared div for
+                 FX1/FX2/MOD instead of one per slot); the model <select>'s
+                 10 hardcoded <option> tags replaced by
+                 populateFxHostModelSelect(slotId), built from FX1_MODELS in
+                 the same array order (verified identical to the old static
+                 list: same 10 mids, same order, same values) — this also
+                 structurally eliminates a whole bug class documented in
+                 protocol.js's Flanger entry (a hand-maintained HTML option
+                 value drifting from the model table's real mid, found
+                 2026-07-31), since the option value is now always m.mid by
+                 construction.
+               fx-panels.js: openFx1Panel/closeFx1Panel/renderFx1Knobs/
+                 renderFx1Row/renderFx1Cell/fx1AllCells/updateFx1Knob/
+                 refreshFx1PanelAfterChainMap/currentFx1Model + the four R7
+                 sync-interlock helpers + the drag/dblclick handlers all
+                 renamed to FxHost equivalents taking/deriving a slot id;
+                 DOM ids fx1-w-/fx1-v-/fx1-sel-/fx1-sync-/fx1-tgl-/
+                 fx1-knob-row/fx1-model-select -> fxhost- equivalents. No
+                 per-slot DOM prefix needed — only one FX-host panel is ever
+                 open, so the previous slot's controls are torn down before
+                 the next one renders.
+               fx-transport.js: sendFx1ModelChange/requestFx1Params/
+                 sendFx1ParamWrite -> sendFxHostModelChange(slotId,...)/
+                 requestFxHostParams(slotId)/sendFxHostParamWrite(slotId,...).
+                 Endpoint-sentinel ("9.9 bug") tail logic byte-for-byte
+                 unchanged, just re-parented under the slot arg.
+               sysex-handler.js: the FX1-only CMD 0x11 routing block ->
+                 one block gated on openFxHostSlot !== null.
+               ui.js: rebaselineOpenFxPanel's FX1 branch and the shared
+                 scroll-wheel dispatcher's FX1 branch both swapped from the
+                 fx1PanelOpen/data-fx1-lo pair to openFxHostSlot/
+                 data-fxhost-lo. DIST/REVERB/WAH/VOL branches untouched —
+                 they remain separate model families, not part of this
+                 refactor.
+             A future FX2 or MOD caller's entire hook into this engine, per
+             the plan: (1) a chain-open dispatch branch (index.html) calling
+             openFxHostPanel(SLOT_FX2)/openFxHostPanel(SLOT_MOD) — FX2/MOD
+             chain-row ▼ still falls through to the "coming soon" placeholder
+             today, deliberately untouched this pass — and (2) for MOD, an
+             FX_HOST_ALLOWED_MIDS entry. No new render/update/drag/query/send
+             functions, no new DOM, matching Charlie's "fix or modify it one
+             time, one place" framing from the original decision.
+EVIDENCE:    node --check clean on all six touched .js files; the single
+             inline <script> block in index.html parsed clean via a
+             standalone Function() check. NOT hardware/build tested — per
+             this project's own rule that is the ONLY real verification, and
+             it hasn't happened yet for this change.
+CONFLICTS:   none — no protocol bytes, paramLo maps, or display formulas
+             touched; this is a pure code-organization change. FX1's
+             observable behaviour is intended to be byte-for-byte identical
+             to before the refactor.
+NEXT:        Charlie builds the EXE and re-tests FX1 live end to end before
+             this counts as done: all 10 models' controls, the mono/stereo
+             mid-pair toggle (C1 Chorus, Gray Compressor's mono-only case),
+             the R7 Sync interlock (C1 Chorus's Chorus+Rate), R8 double-
+             click-to-baseline, drag/scroll/dblclick on every cell kind
+             (knob/toggle/sync/slider/select/bandColor), grouped/boxed
+             layouts (MultiChorus/Parametric EQ), save-then-green
+             (rebaselineOpenFxPanel), and the model dropdown itself (order,
+             switching, placeholder for any not-yet-captured entry — none
+             currently, all 10 are captured). If anything regresses, this is
+             a refactor bug, not a protocol bug — the fix belongs in the
+             shared engine, not a per-model special-case.
+             ONCE CONFIRMED: fold into Primer (move the Status-line note from
+             "not started" to "done, FX1 re-verified identical"), then FX2/
+             MOD become the next session's work — thin callers of this
+             engine per the plan above, not new copies.
+-------------------------------------------------------------------
+
 [FOLDED IN 2026-08-01, FINAL WRAP: every entry from here down through the
 "appLog is not defined" startup-crash fix is folded into Primer's Status
 line + WORKING/NOT YET IMPLEMENTED sections and Tech Ref Sec 24's

@@ -1595,6 +1595,11 @@ const FX1_MODELS = [
   // fail on every chain map — including a plain mono/stereo toggle — forcing
   // an unwanted full knob-row rebuild + baseline wipe on every toggle. Same
   // root cause, both symptoms.
+  // STRUCTURALLY ELIMINATED 2026-08-01 (FX-host refactor): the dropdown is no
+  // longer a static HTML list to keep in sync by hand — populateFxHostModelSelect
+  // (fx-panels.js) builds it from m.mid directly, so this whole bug class (a
+  // hand-maintained option value drifting from the table) can't recur. Left
+  // here as history, not a live hazard.
   { mid: 0x08, mids: [0x07, 0x08], name: 'Flanger', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
     rows: [
@@ -2030,3 +2035,18 @@ const FX1_MODEL_BY_MID = {};
 FX1_MODELS.forEach(function(m) {
   (m.mids || [m.mid]).forEach(function(mid) { FX1_MODEL_BY_MID[mid] = m; });
 });
+
+// FX-HOST MODEL FILTER, keyed by slot id (2026-08-01 refactor) — the seam a
+// future FX2/MOD caller hooks into the shared engine through. FX1_MODELS is
+// the one shopping cart every generic host slot picks from (Session Log
+// 2026-08-01); a slot that can't host every model just lists which mids it
+// allows here, no new table, no panel-code changes. null/absent = no
+// filter, every captured model is offered (FX1's own behaviour, unchanged).
+// MOD is known to host only 6 of the 10 (Charlie's dropdown screenshot,
+// Session Log 2026-08-01: C1 Chorus/Vibrato, Flanger, MultiChorus, Orange
+// Phaser, Roto Speaker, Vibe Phaser) but is NOT wired to the engine yet —
+// left out of this map entirely until a MOD panel is actually built, so an
+// absent entry can keep meaning "not hooked up" rather than "unfiltered".
+const FX_HOST_ALLOWED_MIDS = {
+  [SLOT_FX1]: null,
+};

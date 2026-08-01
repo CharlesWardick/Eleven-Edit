@@ -28,7 +28,7 @@ const KNOB_COLORS = {
 // design (matches Avid's own panel) — a generic red-on-change would be
 // indistinguishable from the LF/OUT bands' normal red, or the LMF band's
 // normal amber. Those knobs signal "changed" via the value-text readout
-// instead (see updateFx1Knob's cell.bandColor branch, fx-panels.js).
+// instead (see updateFxHostKnob's cell.bandColor branch, fx-panels.js).
 function knobColor(canvas, value127) {
   const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
   if (wrap && wrap.dataset.bandColor) return wrap.dataset.bandColor;
@@ -304,36 +304,36 @@ function rebaselineOpenFxPanel() {
   var slotId = -1, sel = '';
   if (typeof distPanelOpen !== 'undefined' && distPanelOpen)        { slotId = SLOT_DIST;   sel = '#dist-knob-row .knob-wrap'; }
   else if (typeof reverbPanelOpen !== 'undefined' && reverbPanelOpen){ slotId = SLOT_REVERB; sel = '#reverb-knob-row .knob-wrap'; }
-  else if (typeof fx1PanelOpen !== 'undefined' && fx1PanelOpen)     { slotId = SLOT_FX1;    sel = '#fx1-knob-row .knob-wrap'; }
+  else if (openFxHostSlot !== null)                                 { slotId = openFxHostSlot; sel = '#fxhost-knob-row .knob-wrap'; }
   else if (typeof wahPanelOpen !== 'undefined' && wahPanelOpen)     { slotId = SLOT_WAH;    sel = '#wah-knob-row .knob-wrap'; }
   else if (typeof volPanelOpen !== 'undefined' && volPanelOpen)     { slotId = SLOT_VOL;    sel = '#vol-knob-row .knob-wrap'; }
   if (slotId < 0) return;
-  // FX1 cell lookup for the non-round kinds (slider) — added 2026-07-31
+  // FX-host cell lookup for the non-round kinds (slider) — added 2026-07-31
   // after this function's blanket drawKnob() call corrupted Graphic EQ's
   // vertical sliders on save (a slider-shaped canvas painted with circular-
   // arc math). Every other panel (DIST/REVERB/WAH/VOL) only ever has round
   // knobs, so cell stays null there and drawKnob is always right.
-  var fx1Model = (slotId === SLOT_FX1 && typeof currentFx1Model === 'function') ? currentFx1Model() : null;
+  var fxHostModel = (openFxHostSlot !== null && typeof currentFxHostModel === 'function') ? currentFxHostModel(openFxHostSlot) : null;
   document.querySelectorAll(sel).forEach(function(w) {
-    var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fx1Lo || w.dataset.wahLo || w.dataset.volLo;
+    var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fxhostLo || w.dataset.wahLo || w.dataset.volLo;
     if (loHex === undefined || w.dataset.value === undefined || w.dataset.value === '') return;
     var v = parseInt(w.dataset.value);
     if (!fxBaseline[slotId]) fxBaseline[slotId] = {};
     fxBaseline[slotId][loHex] = v;
     w.dataset.orig = v;
     var cell = null;
-    if (fx1Model) {
+    if (fxHostModel) {
       var lo = parseInt(loHex, 16);
-      fx1AllCells(fx1Model).forEach(function(c) { if (c.lo === lo) cell = c; });
+      fxHostAllCells(fxHostModel).forEach(function(c) { if (c.lo === lo) cell = c; });
     }
     if (cell && cell.slider) drawEqSlider(w.querySelector('canvas'), v, w, cell.min, cell.max, cell.ticks, cell.linear);
     else                     drawKnob(w.querySelector('canvas'), v);
     // cell.bandColor knobs (Parametric EQ) carry "changed" on the value-
-    // text readout, not the arc (see knobColor/updateFx1Knob) — a save
+    // text readout, not the arc (see knobColor/updateFxHostKnob) — a save
     // must clear that red/bold styling too, or it survives a save just
     // baselined to green would.
     if (cell && cell.bandColor) {
-      var valEl = document.getElementById('fx1-v-' + loHex);
+      var valEl = document.getElementById('fxhost-v-' + loHex);
       if (valEl) { valEl.style.color = ''; valEl.style.fontWeight = ''; }
     }
   });
@@ -2196,17 +2196,19 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
       if (bridgeMidiReady) queueKnobSend('reverb:' + rlo, function(val){ sendReverbParamWrite(rlo, val); }, rv);
       return;
     }
-    // FX1 knobs (keyed by data-fx1-lo). Uses updateFx1Knob so a cell's
-    // custom display() formula (Dyn3 Threshold/Attack/etc.) is honoured
-    // instead of the generic 0-10 valDisplay.
-    var fw = e.target.closest('.knob-wrap[data-fx1-lo]');
+    // FX-HOST knobs (FX1/FX2/MOD, keyed by data-fxhost-lo). Uses
+    // updateFxHostKnob so a cell's custom display() formula (Dyn3
+    // Threshold/Attack/etc.) is honoured instead of the generic 0-10
+    // valDisplay.
+    var fw = e.target.closest('.knob-wrap[data-fxhost-lo]');
     if (fw) {
-      var flo = parseInt(fw.dataset.fx1Lo, 16);
+      var flo = parseInt(fw.dataset.fxhostLo, 16);
       if (isNaN(flo)) return;
       e.preventDefault();
       var fv = step(fw, e);
-      if (typeof updateFx1Knob === 'function') updateFx1Knob(flo, fv);
-      if (bridgeMidiReady) queueKnobSend('fx1:' + flo, function(val){ sendFx1ParamWrite(flo, val); }, fv);
+      var fSlot = openFxHostSlot;
+      if (typeof updateFxHostKnob === 'function') updateFxHostKnob(flo, fv);
+      if (bridgeMidiReady) queueKnobSend('fxhost:' + flo, function(val){ sendFxHostParamWrite(fSlot, flo, val); }, fv);
       return;
     }
     // WAH knobs (keyed by data-wah-lo)

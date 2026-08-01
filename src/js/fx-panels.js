@@ -5,29 +5,34 @@
 //
 // WHY THIS FILE EXISTS: ui.js's core (knob-drawing primitives, the tempo
 // clock, the chain row, general readouts) doesn't grow as new effect
-// panels are added, but this DOES — every new panel (WAH, MOD, DELAY,
-// VOL, FX1, FX2, FX LOOP still to come) adds another open/render/update/
-// refresh/drag set here in the same DIST/REVERB shape. Keeping that
-// growth in its own file means ui.js stays the size it is today no
-// matter how many more panels get built; this file is where they land
-// instead.
+// panels are added, but this DOES — every DISTINCT model family (WAH, MOD*,
+// DELAY, VOL, DIST, REVERB, FX LOOP) adds another open/render/update/
+// refresh/drag set here in the same DIST/REVERB shape. Keeping that growth
+// in its own file means ui.js stays the size it is today no matter how many
+// more panels get built; this file is where they land instead.
+// *MOD is a GENERIC HOST SLOT sharing FX1/FX2's model family (see FX-HOST
+// ENGINE below) — it does NOT get its own function set.
 //
-// PATTERN for a new block (copy the FX1 functions below, not DIST/REVERB/
-// WAH/VOL — see 2026-07-30 note below for why. REVERB's typeControl selector
-// cell and ms/unit display are still worth copying on top of the FX1
-// pattern, for blocks that need them):
+// PATTERN for a genuinely new model family (copy the DIST functions, not
+// FX1/FX2/MOD — those three share ONE engine, see the FX-HOST EFFECT PANEL
+// section below, and a new generic host slot is a config hook into that
+// engine, not a new copy of this pattern). REVERB's typeControl selector
+// cell and ms/unit display are still worth copying on top of DIST's
+// pattern, for blocks that need them:
 //   open<Block>Panel() / close<Block>Panel()
 //   render<Block>Knobs(mid)              — build the knob row DOM
 //   update<Block>Knob(paramLo, val)      — apply one CMD 0x11 value
 //   refresh<Block>PanelAfterChainMap()   — re-sync model + re-query
 //   a delegated drag handler keyed on a data-<block>-lo attribute
 //   a scroll-wheel branch in ui.js's shared wheel listener (search
-//     "SCROLL WHEEL on tone / DIST / REVERB knobs") — copy the FX1 branch
+//     "SCROLL WHEEL on tone / DIST / REVERB knobs")
 //   a branch in rebaselineOpenFxPanel() (ui.js) so save-then-green works
 //
 // PURE RELOCATION (7/27): every function below is unchanged from its
 // original position in ui.js — same logic, same comments, same
-// behaviour. Nothing was rewritten.
+// behaviour. Nothing was rewritten. (FX1's functions were later replaced
+// by the shared FX-host engine on 2026-08-01 — see that section below;
+// this note describes the file's original 7/27 split, not FX1's code today.)
 //
 // 2026-07-30 — TWO BUGS retrofitted to all five panels that existed at the
 // time (DIST/REVERB/WAH/VOL/FX1), both now MANDATORY for any new panel:
@@ -42,7 +47,7 @@
 //       before the queueKnobSend call in the mousemove handler, and close
 //       over that local. See any of the five drag handlers below for the
 //       exact shape.
-//   (2) THE 9.9 BUG — see fx-transport.js header / sendFx1ParamWrite for
+//   (2) THE 9.9 BUG — see fx-transport.js header / sendFxHostParamWrite for
 //       the send-side half of this (endpoint sentinels).
 // Session Log (2026-07-30, Dyn3 Ratio capture entries) has the full
 // incident for (1); do not copy a drag handler from before this date.
@@ -762,51 +767,90 @@ function refreshVolPanelAfterChainMap() {
 })();
 
 // ════════════════════════════════════════════════════════════════════
-// FX1 EFFECT PANEL
-// FX1 is a GENERIC HOST SLOT — the model dropdown lists every mid seen in
-// the hardware's own FX1 dropdown (Session Log 2026-07-30), but only
-// models with captured===true (see FX1_MODELS, protocol.js) have real
-// paramLos/rows; the rest render a "not yet captured" placeholder instead
-// of knobs. Otherwise a mirror of the DIST panel, plus two cell kinds
-// DIST doesn't need:
-//   - toggle cell (cell.toggle)  — copied from the VOL Taper pattern
-//   - sync cell   (cell.sync)    — a dropdown reusing SYNC_DIVISIONS /
-//     syncIndexFromV127 / syncV127FromIndex (protocol.js), the SAME
-//     14-zone table the amp Tremolo Sync uses, just at this model's own
-//     paramLo instead of 0x12 and against the FX1 block's own handle
-//     instead of currentParamHi.
-// Knob IDs: fx1-w-{loHex} / fx1-v-{loHex}, keyed by paramLo.
+// FX-HOST EFFECT PANEL — shared engine, parameterized by slot id
+// (2026-08-01 refactor; see Primer Status line + Session Log 2026-08-01
+// "REFACTOR FIRST"). FX1 was the first GENERIC HOST SLOT built (the model
+// dropdown lists every mid seen in the hardware's own dropdown, but only
+// models with captured===true — see FX1_MODELS, protocol.js — have real
+// paramLos/rows; the rest render a "not yet captured" placeholder). FX2 is
+// confirmed to host the identical model family, and MOD hosts 6 of the 10 —
+// rather than copy-pasting this whole panel per slot (which is exactly what
+// happened to DIST/REVERB/WAH/VOL/FX1 and tripled two bug fixes on
+// 2026-07-30), every function below is parameterized by slotId and keys off
+// the single openFxHostSlot state var (state.js) instead of a hardcoded
+// SLOT_FX1/fx1PanelOpen. Only one FX-host slot is ever open at a time, so
+// they all share ONE physical panel (#panel-fxhost, index.html) and ONE set
+// of control ids — no per-slot DOM prefix needed, the previous slot's
+// controls are torn down before the next slot's are rendered.
+// A future FX2/MOD caller's ENTIRE hook into this engine is: (1) a
+// chain-open dispatch branch (index.html) calling openFxHostPanel(SLOT_FX2)
+// / openFxHostPanel(SLOT_MOD), and (2) for MOD, a FX_HOST_ALLOWED_MIDS entry
+// (protocol.js) filtering the model dropdown to its known subset. No new
+// render/update/drag/query/send functions, no new DOM.
+// Cell kinds beyond knob (DIST's only kind): toggle (VOL Taper pattern),
+// sync (reuses SYNC_DIVISIONS / syncIndexFromV127 / syncV127FromIndex, the
+// SAME 14-zone table the amp Tremolo Sync uses, just at this model's own
+// paramLo instead of 0x12 and against the open slot's own handle instead of
+// currentParamHi), slider, select, bandColor — see renderFxHostCell.
+// Knob IDs: fxhost-w-{loHex} / fxhost-v-{loHex}, keyed by paramLo.
 // ════════════════════════════════════════════════════════════════════
 
-function currentFx1Model() {
-  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
-  if (!fx1Blk) return null;
-  return FX1_MODEL_BY_MID[fx1Blk.modelId] || null;
+// Resolve the currently-open FX-host slot's model from the chain map.
+// slotId defaults to openFxHostSlot so existing single-arg call sites (drag/
+// dblclick handlers, update-from-hardware) don't need to thread it through.
+function currentFxHostModel(slotId) {
+  if (slotId === undefined) slotId = openFxHostSlot;
+  if (slotId === null) return null;
+  const blk = currentChain.find(b => b.slotId === slotId);
+  if (!blk) return null;
+  return FX1_MODEL_BY_MID[blk.modelId] || null;
 }
 
-function openFx1Panel() {
-  fx1PanelOpen = true;
-  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
-  if (!fx1Blk) {
-    document.getElementById('fx1-knob-row').innerHTML =
+// Build the model dropdown for the given slot, filtered per
+// FX_HOST_ALLOWED_MIDS (protocol.js) — null/absent entry means unfiltered
+// (FX1's own behaviour today). Order matches FX1_MODELS array order, same
+// as the dropdown this replaces.
+function populateFxHostModelSelect(slotId) {
+  const sel = document.getElementById('fxhost-model-select');
+  if (!sel) return;
+  const allowed = FX_HOST_ALLOWED_MIDS[slotId];
+  sel.innerHTML = '';
+  FX1_MODELS.forEach(function(m) {
+    if (allowed && allowed.indexOf(m.mid) === -1) return;
+    const opt = document.createElement('option');
+    opt.value = String(m.mid);
+    opt.textContent = m.name;
+    sel.appendChild(opt);
+  });
+}
+
+function openFxHostPanel(slotId) {
+  openFxHostSlot = slotId;
+  const titleEl = document.getElementById('fxhost-title');
+  if (titleEl) titleEl.textContent = SLOT_ID_TO_NAME[slotId] || 'FX';
+  populateFxHostModelSelect(slotId);
+  const blk = currentChain.find(b => b.slotId === slotId);
+  if (!blk) {
+    document.getElementById('fxhost-knob-row').innerHTML =
       '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
-    appLog('openFx1Panel: no FX1 block in chain map yet');
+    appLog('openFxHostPanel: no block in chain map yet for slot=0x' + slotId.toString(16).padStart(2,'0'));
     return;
   }
   // Resolve through the model, not the raw wire mid — a model can report a
   // different mid depending on mono/stereo chain state (see FX1_MODELS
   // header, protocol.js), and the dropdown only has ONE option per model.
-  const sel = document.getElementById('fx1-model-select');
-  const openModel = FX1_MODEL_BY_MID[fx1Blk.modelId];
+  const sel = document.getElementById('fxhost-model-select');
+  const openModel = FX1_MODEL_BY_MID[blk.modelId];
   if (sel && openModel) sel.value = String(openModel.mid);
-  renderFx1Knobs(fx1Blk.modelId);
-  requestFx1Params();
-  appLog('openFx1Panel: mid=0x' + fx1Blk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase());
+  renderFxHostKnobs(blk.modelId);
+  requestFxHostParams(slotId);
+  appLog('openFxHostPanel: slot=0x' + slotId.toString(16).padStart(2,'0')
+    + ' mid=0x' + blk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + blk.handle.toString(16).padStart(2,'0').toUpperCase());
 }
 
-function closeFx1Panel() {
-  fx1PanelOpen = false;
+function closeFxHostPanel() {
+  openFxHostSlot = null;
 }
 
 // ── GROUPED LAYOUT (added 2026-07-31 for MultiChorus/Dynamic-Delay-shaped
@@ -831,7 +875,7 @@ function closeFx1Panel() {
 // INCLUDING cells nested inside group entries. Used by lookups that don't
 // care about layout (update-from-hardware, the R7 Sync-interlock helpers) —
 // keeps them working unchanged for grouped models with no per-caller edits.
-function fx1AllCells(model) {
+function fxHostAllCells(model) {
   const cells = [];
   model.rows.forEach(function(entry) {
     const rows = entry.rows ? entry.rows : [entry];
@@ -841,9 +885,9 @@ function fx1AllCells(model) {
 }
 
 // Render one cell (knob/toggle/sync/slider/select/spacer) into rowDiv.
-// Extracted from renderFx1Knobs so both a flat row and a group's sub-rows
+// Extracted from renderFxHostKnobs so both a flat row and a group's sub-rows
 // call the exact same cell logic — no duplication between the two layouts.
-function renderFx1Cell(cell, rowDiv) {
+function renderFxHostCell(cell, rowDiv) {
       if (!cell) {
         const sp = document.createElement('div');
         sp.style.cssText = 'width:80px;flex-shrink:0;';
@@ -857,17 +901,17 @@ function renderFx1Cell(cell, rowDiv) {
         // position rather than showing nothing selected.
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const selDiv = document.createElement('div');
-        // fx1-select overrides .ctrl-knob's fixed 88px width — the 118px
+        // fxhost-select overrides .ctrl-knob's fixed 88px width — the 118px
         // dropdown otherwise overflows its own container and pokes past
         // the group box border (found on Parametric EQ, 2026-07-31 — same
         // overlap-avoidance class of bug as .eq-slider/.h-slider before).
-        selDiv.className = 'ctrl-knob fx1-select';
+        selDiv.className = 'ctrl-knob fxhost-select';
         selDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
         const lbl = document.createElement('label');
         lbl.textContent = cell.label;
         const sel = document.createElement('select');
-        sel.id = 'fx1-sel-' + loHex;
-        sel.dataset.fx1Lo = loHex;
+        sel.id = 'fxhost-sel-' + loHex;
+        sel.dataset.fxhostLo = loHex;
         sel.style.cssText = 'width:118px;background:#1a1a1a;color:var(--text);'
           + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
         cell.options.forEach(function(opt, i) {
@@ -880,8 +924,8 @@ function renderFx1Cell(cell, rowDiv) {
           const idx = parseInt(this.value, 10);
           if (isNaN(idx) || !cell.options[idx]) return;
           const v127 = cell.options[idx].v127;
-          updateFx1Knob(cell.lo, v127);
-          if (bridgeMidiReady) sendFx1ParamWrite(cell.lo, v127);
+          updateFxHostKnob(cell.lo, v127);
+          if (bridgeMidiReady) sendFxHostParamWrite(openFxHostSlot, cell.lo, v127);
         });
         // cell.wrapCycle (Parametric EQ, 7/31/2026 — trial run, Charlie's
         // idea) — a native <select> already cycles on Up/Down arrow while
@@ -915,8 +959,8 @@ function renderFx1Cell(cell, rowDiv) {
         const lbl = document.createElement('label');
         lbl.textContent = cell.label;
         const sel = document.createElement('select');
-        sel.id = 'fx1-sync-' + loHex;
-        sel.dataset.fx1Lo = loHex;
+        sel.id = 'fxhost-sync-' + loHex;
+        sel.dataset.fxhostLo = loHex;
         sel.style.cssText = 'width:118px;background:#1a1a1a;color:var(--text);'
           + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
         SYNC_DIVISIONS.forEach(function(d, i) {
@@ -929,8 +973,8 @@ function renderFx1Cell(cell, rowDiv) {
           const idx = parseInt(this.value, 10);
           if (isNaN(idx)) return;
           const v127 = syncV127FromIndex(idx);
-          updateFx1Knob(cell.lo, v127);
-          if (bridgeMidiReady) sendFx1ParamWrite(cell.lo, v127);
+          updateFxHostKnob(cell.lo, v127);
+          if (bridgeMidiReady) sendFxHostParamWrite(openFxHostSlot, cell.lo, v127);
         });
         syDiv.appendChild(lbl);
         syDiv.appendChild(sel);
@@ -945,7 +989,7 @@ function renderFx1Cell(cell, rowDiv) {
         const lbl = document.createElement('label');
         lbl.textContent = cell.label;
         const btn = document.createElement('button');
-        btn.id = 'fx1-tgl-' + loHex;
+        btn.id = 'fxhost-tgl-' + loHex;
         btn.dataset.value = '0';
         btn.dataset.base = 'fx';
         btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
@@ -956,17 +1000,17 @@ function renderFx1Cell(cell, rowDiv) {
         btn.addEventListener('click', function() {
           const cur = parseInt(btn.dataset.value) || 0;
           const newVal = (cur === 0) ? 127 : 0;
-          updateFx1Knob(cell.lo, newVal);
-          if (bridgeMidiReady) sendFx1ParamWrite(cell.lo, newVal);
+          updateFxHostKnob(cell.lo, newVal);
+          if (bridgeMidiReady) sendFxHostParamWrite(openFxHostSlot, cell.lo, newVal);
         });
         tglDiv.appendChild(lbl);
         tglDiv.appendChild(btn);
         rowDiv.appendChild(tglDiv);
       } else if (cell.slider) {
-        // Vertical fader cell (Graphic EQ) — same .knob-wrap/data-fx1-lo
-        // contract as a knob (the generic FX1 drag/dblclick/scroll handlers
-        // below key off that, not the widget shape), just drawn as a
-        // vertical groove+thumb with printed calibration numbers
+        // Vertical fader cell (Graphic EQ) — same .knob-wrap/data-fxhost-lo
+        // contract as a knob (the generic FX-host drag/dblclick/scroll
+        // handlers below key off that, not the widget shape), just drawn as
+        // a vertical groove+thumb with printed calibration numbers
         // (drawEqSlider, ui.js) instead of a rotary arc, with its own base
         // colour (yellow, not FX green). Canvas 74x173 — enlarged ~1/3 and
         // widened for the two tick columns per Charlie's 7/31 request.
@@ -979,9 +1023,9 @@ function renderFx1Cell(cell, rowDiv) {
         sliderDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
         sliderDiv.innerHTML =
           '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="fx1-w-' + loHex + '" data-value="64" data-base="eq" data-fx1-lo="' + loHex + '">'
+          + '<div class="knob-wrap" id="fxhost-w-' + loHex + '" data-value="64" data-base="eq" data-fxhost-lo="' + loHex + '">'
           + '<canvas class="knob-canvas" width="74" height="173"></canvas></div>'
-          + '<span class="knob-val" id="fx1-v-' + loHex + '">--</span>';
+          + '<span class="knob-val" id="fxhost-v-' + loHex + '">--</span>';
         rowDiv.appendChild(sliderDiv);
         const sWrap = sliderDiv.querySelector('.knob-wrap');
         drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap, cell.min, cell.max, cell.ticks, cell.linear);
@@ -990,35 +1034,35 @@ function renderFx1Cell(cell, rowDiv) {
         // accent instead of the usual green FX base, matching Avid's own
         // LF/LMF/HMF/HF colour coding. See knobColor (ui.js) for why the
         // arc itself never turns red for these — "changed" shows on the
-        // value-text readout below instead (updateFx1Knob's bandColor
+        // value-text readout below instead (updateFxHostKnob's bandColor
         // branch), since some bands are already red/amber by design.
         const loHex = cell.lo.toString(16).padStart(2,'0');
         const knobDiv = document.createElement('div');
         knobDiv.className = 'ctrl-knob';
         knobDiv.innerHTML =
           '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="fx1-w-' + loHex + '" data-value="64" data-base="fx" data-fx1-lo="' + loHex + '"'
+          + '<div class="knob-wrap" id="fxhost-w-' + loHex + '" data-value="64" data-base="fx" data-fxhost-lo="' + loHex + '"'
           + (cell.bandColor ? ' data-band-color="' + cell.bandColor + '"' : '') + '>'
           + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
-          + '<span class="knob-val" id="fx1-v-' + loHex + '">--</span>';
+          + '<span class="knob-val" id="fxhost-v-' + loHex + '">--</span>';
         rowDiv.appendChild(knobDiv);
         drawKnob(knobDiv.querySelector('canvas'), 64);
       }
 }
 
 // Build one flat row (an array of cells) into parentEl.
-function renderFx1Row(rowCells, parentEl) {
+function renderFxHostRow(rowCells, parentEl) {
   const rowDiv = document.createElement('div');
   rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
-  rowCells.forEach(function(cell) { renderFx1Cell(cell, rowDiv); });
+  rowCells.forEach(function(cell) { renderFxHostCell(cell, rowDiv); });
   parentEl.appendChild(rowDiv);
 }
 
 // Build the control row for the given model mid. Uncaptured models (see
 // protocol.js FX1_MODELS) show a placeholder instead of knobs — there is
 // nothing to render yet, not a bug.
-function renderFx1Knobs(mid) {
-  const container = document.getElementById('fx1-knob-row');
+function renderFxHostKnobs(mid) {
+  const container = document.getElementById('fxhost-knob-row');
   if (!container) return;
   const model = FX1_MODEL_BY_MID[mid];
   if (!model) {
@@ -1044,7 +1088,7 @@ function renderFx1Knobs(mid) {
   // rendered straight into the outer wrapper) or a box object
   // {group:'LABEL'?, rows:[[cells...], ...]} — rendered as its own nested
   // box, matching Avid's boxed sub-panels (CHORUS/MOD, DELAY/EQ/ENV MOD,
-  // etc. — see the GROUPED LAYOUT comment above renderFx1Cell). The `group`
+  // etc. — see the GROUPED LAYOUT comment above renderFxHostCell). The `group`
   // label is OPTIONAL: a box with no label still stacks its own rows
   // vertically (e.g. MultiChorus's Rate-above-Depth and Voices-above-Mix
   // columns, added 2026-07-31) — same nested-box shape, just no header text,
@@ -1064,13 +1108,13 @@ function renderFx1Knobs(mid) {
           + 'letter-spacing:0.5px;font-weight:bold;';
         box.appendChild(hdr);
       }
-      entry.rows.forEach(function(rowCells) { renderFx1Row(rowCells, box); });
+      entry.rows.forEach(function(rowCells) { renderFxHostRow(rowCells, box); });
       wrapper.appendChild(box);
     } else {
       // Plain top-level flat row — no box, sits directly in the wrapper.
       const col = document.createElement('div');
       col.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
-      renderFx1Row(entry, col);
+      renderFxHostRow(entry, col);
       wrapper.appendChild(col);
     }
   });
@@ -1078,20 +1122,20 @@ function renderFx1Knobs(mid) {
   container.appendChild(wrapper);
 }
 
-// Update a single FX1 control from a broadcast/REQU response or a local
+// Update a single FX-host control from a broadcast/REQU response or a local
 // dropdown/toggle pick. Looks up cell kind (knob/toggle/sync) against the
 // current model so the right widget gets updated.
-function updateFx1Knob(paramLo, val) {
+function updateFxHostKnob(paramLo, val) {
   const loHex = paramLo.toString(16).padStart(2,'0');
-  const model = currentFx1Model();
+  const model = currentFxHostModel();
   let cell = null;
   if (model) {
-    fx1AllCells(model).forEach(function(c) { if (c.lo === paramLo) cell = c; });
+    fxHostAllCells(model).forEach(function(c) { if (c.lo === paramLo) cell = c; });
   }
 
   if (cell && cell.sync) {
     const idx = syncIndexFromV127(val);
-    const sel = document.getElementById('fx1-sync-' + loHex);
+    const sel = document.getElementById('fxhost-sync-' + loHex);
     if (sel) sel.value = String(idx);
     return;
   }
@@ -1099,7 +1143,7 @@ function updateFx1Knob(paramLo, val) {
     // Nearest-match: an unexpected raw value (rounding, or a position we
     // didn't enumerate) still lands on the closest labeled option rather
     // than leaving the dropdown showing nothing selected.
-    const sel = document.getElementById('fx1-sel-' + loHex);
+    const sel = document.getElementById('fxhost-sel-' + loHex);
     if (sel) {
       let bestIdx = 0, bestDist = Infinity;
       cell.options.forEach(function(opt, i) {
@@ -1111,19 +1155,19 @@ function updateFx1Knob(paramLo, val) {
     return;
   }
   if (cell && cell.toggle) {
-    const btn = document.getElementById('fx1-tgl-' + loHex);
+    const btn = document.getElementById('fxhost-tgl-' + loHex);
     if (btn) {
-      btn.dataset.orig  = fxBaselineSetIfUnset(SLOT_FX1, loHex, val);
+      btn.dataset.orig  = fxBaselineSetIfUnset(openFxHostSlot, loHex, val);
       btn.dataset.value = val;
       btn.textContent   = (val === 0) ? cell.options[0] : cell.options[1];
     }
     return;
   }
 
-  const wrap  = document.getElementById('fx1-w-' + loHex);
-  const valEl = document.getElementById('fx1-v-' + loHex);
+  const wrap  = document.getElementById('fxhost-w-' + loHex);
+  const valEl = document.getElementById('fxhost-v-' + loHex);
   if (wrap) {
-    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_FX1, loHex, val);
+    wrap.dataset.orig  = fxBaselineSetIfUnset(openFxHostSlot, loHex, val);
     wrap.dataset.value = val;
     if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap, cell.min, cell.max, cell.ticks, cell.linear);
     else                     drawKnob(wrap.querySelector('canvas'), val);
@@ -1145,75 +1189,77 @@ function updateFx1Knob(paramLo, val) {
 
 // Re-sync dropdown + controls after a chain map (model may have changed on
 // patch nav or via our own model switch), then re-query params.
-function refreshFx1PanelAfterChainMap() {
-  if (!fx1PanelOpen) return;
-  const fx1Blk = currentChain.find(b => b.slotId === SLOT_FX1);
-  if (!fx1Blk) return;
+function refreshFxHostPanelAfterChainMap() {
+  if (openFxHostSlot === null) return;
+  const blk = currentChain.find(b => b.slotId === openFxHostSlot);
+  if (!blk) return;
   // Compare against the RESOLVED model's primary mid, not the raw wire mid
   // — otherwise every mono/stereo toggle looks like a model change (it
   // isn't) and needlessly rebuilds the panel and drops the FX baseline.
-  const sel = document.getElementById('fx1-model-select');
-  const refreshModel = FX1_MODEL_BY_MID[fx1Blk.modelId];
+  const sel = document.getElementById('fxhost-model-select');
+  const refreshModel = FX1_MODEL_BY_MID[blk.modelId];
   if (sel && refreshModel && parseInt(sel.value) !== refreshModel.mid) {
     sel.value = String(refreshModel.mid);
-    renderFx1Knobs(fx1Blk.modelId);
-    clearFxBaselineForSlot(SLOT_FX1);
+    renderFxHostKnobs(blk.modelId);
+    clearFxBaselineForSlot(openFxHostSlot);
   }
-  setTimeout(requestFx1Params, 150);
-  appLog('refreshFx1PanelAfterChainMap: mid=0x' + fx1Blk.modelId.toString(16).padStart(2,'0')
-    + ' handle=0x' + fx1Blk.handle.toString(16).padStart(2,'0').toUpperCase());
+  const slotId = openFxHostSlot;
+  setTimeout(function() { requestFxHostParams(slotId); }, 150);
+  appLog('refreshFxHostPanelAfterChainMap: slot=0x' + openFxHostSlot.toString(16).padStart(2,'0')
+    + ' mid=0x' + blk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + blk.handle.toString(16).padStart(2,'0').toUpperCase());
 }
 
-// ── R7 helpers — shared by the FX1 drag and dblclick handlers below.
+// ── R7 helpers — shared by the FX-host drag and dblclick handlers below.
 // Generic over any future Sync-driven cell (MOD/DELAY etc.), not just
 // Chorus/Rate: driven by the model row data (cell.sync / cell.syncDriven,
 // protocol.js), not a hardcoded paramLo. ──
-function fx1SyncCellLo(model) {
+function fxHostSyncCellLo(model) {
   var lo = null;
-  fx1AllCells(model).forEach(function(c) { if (c.sync) lo = c.lo; });
+  fxHostAllCells(model).forEach(function(c) { if (c.sync) lo = c.lo; });
   return lo;
 }
-function fx1CellIsSyncDriven(model, paramLo) {
+function fxHostCellIsSyncDriven(model, paramLo) {
   var found = null;
-  fx1AllCells(model).forEach(function(c) { if (c.lo === paramLo) found = c; });
+  fxHostAllCells(model).forEach(function(c) { if (c.lo === paramLo) found = c; });
   return !!(found && found.syncDriven);
 }
-function fx1CurrentSyncZone(model) {
-  var syncLo = fx1SyncCellLo(model);
+function fxHostCurrentSyncZone(model) {
+  var syncLo = fxHostSyncCellLo(model);
   if (syncLo === null) return 0;
-  var sel = document.getElementById('fx1-sync-' + syncLo.toString(16).padStart(2,'0'));
+  var sel = document.getElementById('fxhost-sync-' + syncLo.toString(16).padStart(2,'0'));
   return sel ? (parseInt(sel.value, 10) || 0) : 0;
 }
 // Grabbing/restoring a Sync-driven knob clears Sync first, once, mirroring
 // the amp Speed/Sync interlock (R7) — hands control back to the user
 // exactly like the rack's own front-panel knob, rather than write-guarding
 // or greying the knob out (both tried and rejected for the amp case).
-function fx1ClearSyncIfDriving(model, paramLo) {
-  if (!fx1CellIsSyncDriven(model, paramLo)) return;
-  var syncLo = fx1SyncCellLo(model);
+function fxHostClearSyncIfDriving(model, paramLo) {
+  if (!fxHostCellIsSyncDriven(model, paramLo)) return;
+  var syncLo = fxHostSyncCellLo(model);
   if (syncLo === null) return;
-  if (fx1CurrentSyncZone(model) === 0) return;
-  updateFx1Knob(syncLo, 0);
-  if (bridgeMidiReady) sendFx1ParamWrite(syncLo, 0);
-  appLog('FX1 knob 0x' + paramLo.toString(16).padStart(2,'0') + ' moved while Sync was engaged'
+  if (fxHostCurrentSyncZone(model) === 0) return;
+  updateFxHostKnob(syncLo, 0);
+  if (bridgeMidiReady) sendFxHostParamWrite(openFxHostSlot, syncLo, 0);
+  appLog('FX-host knob 0x' + paramLo.toString(16).padStart(2,'0') + ' moved while Sync was engaged'
          + ' — clearing Sync to OFF first (the rack does the same)');
 }
 
-// ── FX1 knob drag — delegated, keyed on data-fx1-lo (hex paramLo) ──
+// ── FX-host knob drag — delegated, keyed on data-fxhost-lo (hex paramLo) ──
 (function() {
   var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
-  var syncClearedThisFx1Drag = false;
+  var syncClearedThisFxHostDrag = false;
 
   document.addEventListener('mousedown', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-fx1-lo]');
+    var wrap = e.target.closest('.knob-wrap[data-fxhost-lo]');
     if (!wrap) return;
-    activeParamLo = parseInt(wrap.dataset.fx1Lo, 16);
+    activeParamLo = parseInt(wrap.dataset.fxhostLo, 16);
     if (isNaN(activeParamLo)) return;
     activeWrap = wrap;
     startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
     startY = e.clientY;
     dragging = true;
-    syncClearedThisFx1Drag = false;   // one Sync clear per drag, not per mousemove
+    syncClearedThisFxHostDrag = false;   // one Sync clear per drag, not per mousemove
     e.preventDefault();
   });
 
@@ -1221,33 +1267,35 @@ function fx1ClearSyncIfDriving(model, paramLo) {
     if (!dragging || !activeWrap) return;
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
     var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
-    updateFx1Knob(activeParamLo, val);
+    updateFxHostKnob(activeParamLo, val);
     // Snapshot before queuing — see the DIST handler above for why. This is
     // the exact bug that produced paramLo=-1 (byte 0xFF, an illegal SysEx
     // data byte) mid-message and wedged the hardware, 2026-07-30, FX1 Ratio.
     var lo = activeParamLo;
-    var model = currentFx1Model();
-    if (model && !syncClearedThisFx1Drag && fx1CellIsSyncDriven(model, lo) && fx1CurrentSyncZone(model) !== 0) {
-      syncClearedThisFx1Drag = true;
-      fx1ClearSyncIfDriving(model, lo);
+    var slotId = openFxHostSlot;
+    var model = currentFxHostModel(slotId);
+    if (model && !syncClearedThisFxHostDrag && fxHostCellIsSyncDriven(model, lo) && fxHostCurrentSyncZone(model) !== 0) {
+      syncClearedThisFxHostDrag = true;
+      fxHostClearSyncIfDriving(model, lo);
     }
-    if (bridgeMidiReady) queueKnobSend('fx1:' + lo, function(v) { sendFx1ParamWrite(lo, v); }, val);
+    if (bridgeMidiReady) queueKnobSend('fxhost:' + lo, function(v) { sendFxHostParamWrite(slotId, lo, v); }, val);
   });
 
   window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
   window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
 
   document.addEventListener('dblclick', function(e) {
-    var wrap = e.target.closest('.knob-wrap[data-fx1-lo]');
+    var wrap = e.target.closest('.knob-wrap[data-fxhost-lo]');
     if (!wrap) return;
-    var paramLo = parseInt(wrap.dataset.fx1Lo, 16);
+    var paramLo = parseInt(wrap.dataset.fxhostLo, 16);
     if (isNaN(paramLo)) return;
     // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
     // centre value.
     var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
-    var model = currentFx1Model();
-    if (model) fx1ClearSyncIfDriving(model, paramLo);   // R7 — restore is a knob move too
-    updateFx1Knob(paramLo, val);
-    if (bridgeMidiReady) queueKnobSend('fx1:' + paramLo, function(v) { sendFx1ParamWrite(paramLo, v); }, val);
+    var slotId = openFxHostSlot;
+    var model = currentFxHostModel(slotId);
+    if (model) fxHostClearSyncIfDriving(model, paramLo);   // R7 — restore is a knob move too
+    updateFxHostKnob(paramLo, val);
+    if (bridgeMidiReady) queueKnobSend('fxhost:' + paramLo, function(v) { sendFxHostParamWrite(slotId, paramLo, v); }, val);
   });
 })();

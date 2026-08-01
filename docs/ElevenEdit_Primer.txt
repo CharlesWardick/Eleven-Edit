@@ -5,18 +5,24 @@ Author: Charles Wardick (charles.wardick@gmail.com)
 Status: Active development — Phase 14 COMPLETE (FX1 effect panel, generic
 host slot — ALL 10 known FX1 models captured and TESTED LIVE: C1 Chorus/
 Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor, MultiChorus,
-Orange Phaser, Roto Speaker, Vibe Phaser, Parametric EQ). NEXT PLANNED WORK
-(agreed, not started): a refactor of the FX1 panel CODE (not the captured
-model data, which is already slot-independent) into one shared engine
-parameterized by slot, BEFORE building FX2 or MOD — both would otherwise
-need their own copy-pasted panel code hosting the same model family,
-tripling any future bug-fix/porting burden (see Session Log 2026-08-01,
-"REFACTOR FIRST" entry, for the full reasoning and Charlie's own framing:
-fix it once in a central place, not three call sites). A second, related
+Orange Phaser, Roto Speaker, Vibe Phaser, Parametric EQ). FX-HOST PANEL
+REFACTOR ("REFACTOR FIRST", agreed 2026-08-01): CODE COMPLETE, NOT TESTED
+LIVE — FX1's panel code (open/render/update/drag/query/send, all of
+fx-panels.js/fx-transport.js/sysex-handler.js's FX1 sections plus two ui.js
+branches) has been generalized into one engine parameterized by slot id
+(openFxHostSlot, state.js), sharing one panel DOM (#panel-fxhost) instead
+of one copy per slot — see Session Log 2026-08-01 (new-session entry) for
+the full file-by-file change list. NEXT STEP: Charlie rebuilds and
+re-verifies FX1 behaves identically on real hardware before this counts as
+done (full checklist in that log entry) — do not treat FX1 as finished
+until that passes. FX2/MOD still show the "coming soon" placeholder;
+building them as thin callers of this engine is deliberately deferred to
+AFTER that re-verification, not done in the same pass. A second, related
 but explicitly separate idea is also logged there — FX-model-switch value
 memory and sane per-model defaults instead of trusting the firmware's
-"garbage defaults" on a model change — folded into the same future refactor
-scope, not yet designed or built, possibly deferred indefinitely;
+"garbage defaults" on a model change — stays OUT of scope for the refactor
+itself (Charlie's explicit call, 2026-08-01), not yet designed or built,
+possibly deferred indefinitely;
 Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
 Phase 11 complete (amp tremolo feature set);
@@ -695,9 +701,17 @@ NOT YET IMPLEMENTED (largest first):
     of one. AGREED NEXT STEP, before FX2 or MOD are touched: refactor FX1's
     panel code into one shared engine parameterized by slot, re-verify FX1
     still behaves identically through it, THEN build FX2/MOD as callers of
-    that shared engine, not new copies. See Session Log 2026-08-01 for the
-    full reasoning and a second, related idea (FX-model-switch value memory
-    + sane per-model defaults) folded into the same future work. ***
+    that shared engine, not new copies. THE REFACTOR ITSELF IS NOW CODE
+    COMPLETE (2026-08-01, same-day new session) — see Status line above and
+    Session Log 2026-08-01 (new-session entry) for the full file-by-file
+    change list — but NOT TESTED LIVE. FX2/MOD are still exactly as
+    described in this paragraph (placeholder, not built) until Charlie
+    re-verifies FX1 on real hardware through the new engine; only after
+    that passes do FX2/MOD become "call openFxHostPanel(slotId) + add a
+    FX_HOST_ALLOWED_MIDS entry", not a new build. See Session Log 2026-08-01
+    for the full reasoning and a second, related idea (FX-model-switch value
+    memory + sane per-model defaults) that stays OUT of this refactor's
+    scope per Charlie's explicit call. ***
     The existing DIST/REVERB/WAH/VOL/FX1 build established the full
     pattern this refactor will generalize: paramLo capture, rows-based
     layout in a MODELS table, render/update/drag helpers, CMD 0x21 model
