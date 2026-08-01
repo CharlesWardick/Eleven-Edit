@@ -41,6 +41,50 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        Startup crash — "PROMISE: appLog is not defined" banner,
+             regression from THIS SESSION's earlier graphics-scan logging
+             fix; missing chain-row graphics came back as a side effect
+FINDING:     Charlie: got a red "PROMISE: appLog is not defined" banner on
+             launch, and the chain row was back to placeholder graphics —
+             "prior to that I had not had missing startup graphics since
+             you did the fix earlier." Traced it: the graphics-scan retry
+             logic (added earlier this session, index.html) calls appLog()
+             directly, unguarded, in four places. That inline <script>
+             block sits at line ~1506 in index.html, BEFORE <script
+             src="js/ui.js"> at line ~2113 — the file that actually defines
+             appLog. The scan's IPC calls (getAvidDir/scanAvidGraphics)
+             normally take just long enough to round-trip that ui.js has
+             already finished loading by the time their .then() callbacks
+             fire, which is why this worked on every earlier test — but on
+             this launch the timing flipped, the promise resolved before
+             ui.js was ready, and calling the plain global appLog threw a
+             ReferenceError. The .catch() handler ALSO called appLog
+             unguarded, so the error escaped even that and surfaced as an
+             unhandled promise rejection (protocol.js's global handler,
+             prefixed "PROMISE:") — which is why it wasn't silently
+             swallowed. The crash aborted the scan entirely, which is why
+             the graphics came back missing: not a repeat of the original
+             bug, a new one this session's OWN fix introduced.
+FIX APPLIED: every appLog() call in the graphics-scan block now goes
+             through a new safeAppLog() wrapper (typeof-guarded), matching
+             the SAME defensive pattern the neighbouring
+             setAvidGraphicsManifest/renderChainRow calls in that exact
+             function already used — those were guarded from the start,
+             the newly-added appLog calls just weren't. No script-tag
+             reordering; the guard is simpler and lower-risk.
+EVIDENCE:    Charlie's screenshot of the error banner + missing chain-row
+             graphics. Traced via index.html line numbers (script tag
+             order) and protocol.js's unhandledrejection handler (confirms
+             the "PROMISE:" prefix format). node --check / inline-script
+             syntax check passed. NOT hardware-tested.
+NEXT:        Charlie builds and tests live: launch a few times and confirm
+             no "PROMISE:" banner and the chain row graphics load
+             consistently. If it recurs, it's a different mechanism —
+             dig further rather than assuming a repeat of either bug.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 — Parametric EQ model captured (10th and FINAL of 10 FX1
              models), THREE new pieces of reusable capability
 FINDING:     Charlie supplied Parametric_EQ_Sweep_Capture.pcapng plus a

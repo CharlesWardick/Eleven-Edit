@@ -2013,6 +2013,17 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
   // lock, disk not settled right after boot) left placeholders for the
   // whole session until Charlie manually re-ran Scan. Every failure path
   // now logs via appLog so a future occurrence leaves a trace either way.
+  // Guarded the same way setAvidGraphicsManifest/renderChainRow already
+  // are below — appLog (ui.js) crashed this block with an unhandled promise
+  // rejection ("appLog is not defined") on at least one real launch,
+  // 2026-07-31, taking the whole startup scan down with it (and, per
+  // Charlie, the missing chain-row graphics symptom this was supposed to
+  // fix came back as a side effect). Root cause not fully pinned down —
+  // possibly ui.js not finished initialising yet when one of these promise
+  // callbacks fires — but every appLog call in this function was missing
+  // the typeof guard its neighbours already use; added consistently here
+  // rather than leave it to reproduce again.
+  function safeAppLog(line) { if (typeof appLog === 'function') appLog(line); }
   function runAvidGraphicsScan(showBusy) {
     if (!window.electronAPI) return Promise.resolve(false);
     const resultEl = document.getElementById('settings-avid-scan-result');
@@ -2021,12 +2032,12 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
       if (!res || !res.ok) {
         var errMsg = (res && res.error) || 'unknown error';
         if (resultEl) resultEl.textContent = 'Scan failed: ' + errMsg;
-        appLog('Avid graphics scan failed: ' + errMsg);
+        safeAppLog('Avid graphics scan failed: ' + errMsg);
         return false;
       }
       const familyCount = Object.keys(res.families).length;
       if (resultEl) resultEl.textContent = familyCount + ' plugin folder(s), ' + res.totalCount + ' PNG(s) found.';
-      appLog('Avid graphics scan: ' + familyCount + ' folder(s), ' + res.totalCount + ' PNG(s), root=' + res.root);
+      safeAppLog('Avid graphics scan: ' + familyCount + ' folder(s), ' + res.totalCount + ' PNG(s), root=' + res.root);
       if (typeof setAvidGraphicsManifest === 'function') setAvidGraphicsManifest(res);
       if (typeof currentChain !== 'undefined' && currentChain.length && typeof renderChainRow === 'function') {
         renderChainRow();
@@ -2035,7 +2046,7 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
     }).catch(function(err) {
       var errMsg = err && err.message ? err.message : String(err);
       if (resultEl) resultEl.textContent = 'Scan failed: ' + errMsg;
-      appLog('Avid graphics scan failed: ' + errMsg);
+      safeAppLog('Avid graphics scan failed: ' + errMsg);
       return false;
     });
   }
@@ -2063,7 +2074,7 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
         attempt++;
         runAvidGraphicsScan(false).then(function(ok) {
           if (!ok && attempt < 3) {
-            appLog('Avid graphics auto-scan attempt ' + attempt + ' failed, retrying in 3s');
+            safeAppLog('Avid graphics auto-scan attempt ' + attempt + ' failed, retrying in 3s');
             setTimeout(tryScan, 3000);
           }
         });
