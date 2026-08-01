@@ -130,6 +130,21 @@ FIX APPLIED: Roto Speaker's Speed cell switched from cell.hslider to
       (fx-panels.js), and the .h-slider CSS override (index.html). If a
       future model needs a real continuous horizontal control again, this
       commit's history has a working reference implementation.
+CLARIFIED (2026-07-31, same day, Charlie's fuller report): the actual
+      Speed-lever symptom was the value visibly OSCILLATING/bouncing
+      between the tick position and wherever the mouse was, near a
+      boundary — a real bug, not the label-occlusion read from the first,
+      shorter report. Charlie confirmed the dropdown swap is still the
+      right call regardless (avoids the whole class of drag-jitter-near-a-
+      snap-point problem, not just the label overlap) — no further action
+      on the removed slider code.
+CORRECTION (2026-07-31, same day, Charlie's build test): "everything
+      mechanically works... left side is cramped with drop list against
+      the frame border." The panel padding fix from the earlier round only
+      widened the RIGHT edge (when Type was the only outer column); now
+      that Speed is also a dropdown at the LEFT edge, that side needed the
+      same room. FIX: wrapper padding made symmetric (12px 28px 12px 14px
+      -> 12px 28px, both sides equal).
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31

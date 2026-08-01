@@ -1002,13 +1002,13 @@ function renderFx1Knobs(mid) {
   }
   container.innerHTML = '';
 
-  // Extra right padding (2026-07-31, Charlie's Roto Speaker feedback) — a
-  // model with few, narrow columns (e.g. Speed/Balance/Type) left the last
-  // column crammed right against the border. Fixed-width columns already
-  // pad themselves on the left/between; only the trailing edge needed room.
+  // Extra side padding (2026-07-31, Charlie's Roto Speaker feedback,
+  // corrected same day once the Speed dropdown made it symmetric) — a
+  // model with few, narrow columns (e.g. Speed/Balance/Type) left the outer
+  // columns crammed against the border on BOTH sides, not just one.
   const wrapper = document.createElement('div');
   wrapper.style.cssText = 'display:flex;gap:18px;align-items:flex-start;'
-    + 'padding:12px 28px 12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+    + 'padding:12px 28px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
 
   // Each entry is either a flat row (array of cells — the original shape,
   // rendered straight into the outer wrapper) or a box object
