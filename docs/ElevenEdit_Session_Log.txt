@@ -41,6 +41,46 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
+AREA:        FX1 — Vibe Phaser model captured (9th of 10 FX1 models)
+FINDING:     Charlie supplied Vibe_Phaswer_Knobs_Capture.pcapng plus a
+             layout/test description: 3 knobs (Rate/Volume/Depth, 0-10),
+             Chorus/Vibrato toggle (default Chorus), Sync tied to Rate.
+             Decoded the same way as every other FX1 capture. Single handle
+             0x3f, five paramLos, each isolated to its own test window in
+             the stated order (Volume, Depth, Rate, then Toggle, then Sync):
+               0x04 Volume · 0x03 Depth · 0x02 Rate (syncDriven) ·
+               0x05 Mode toggle · 0x06 Sync.
+             RATE x SYNC — 0x02 changed in lockstep with every 0x06 Sync-
+             zone broadcast, same 14-zone SYNC_DIVISIONS table as every
+             other FX1 Sync control.
+             DISPLAY — Rate/Volume/Depth plain 0-10 linear, default
+             valDisplay, no custom formula.
+             MODE TOGGLE — this model's own capture gave the OPPOSITE
+             polarity from C1 Chorus's Mode toggle: load state is Chorus
+             (unbroadcast), test sequence Chorus->Vib->Chorus->Vib->Chorus
+             (4 transitions), captured raw values 0/127/0/127 — meaning
+             val=0 lands on VIBRATO and val=127 lands on CHORUS here, the
+             exact reverse of C1 Chorus's own val=0->Chorus/val=127->
+             Vibrato. Built from THIS capture, not assumed from the sibling
+             model's convention — same "verify independently" lesson as
+             MultiChorus's Voices count and Graphic EQ's Output anchor.
+             MONO/STEREO — 0x09 mono / 0x0A stereo, registered per the
+             standing Graphic EQ/Dyn3 lesson, only one wire id observed.
+FIX APPLIED: FX1_MODELS Vibe Phaser stub (protocol.js, mid 0x0A — matches
+             index.html's <option value="10">) replaced with the five-cell
+             row (Rate, Volume, Depth, Mode toggle, Sync).
+EVIDENCE:    Vibe_Phaswer_Knobs_Capture.pcapng + Charlie's layout/test
+             description (2026-07-31). node --check passed on protocol.js.
+             NOT hardware-tested.
+NEXT:        Charlie builds and tests live: confirm all three knobs, Sync x
+             Rate interlock, and SPECIFICALLY the Mode toggle polarity
+             (val=0 should show/select Vibrato, val=127 Chorus — opposite
+             of C1 Chorus's own toggle, easy to get backwards if eyeballed
+             instead of read off the capture) and the Stereo/Mono toggle.
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-07-31
+STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
 AREA:        FX1 — Roto Speaker model captured (8th of 10 FX1 models), TWO
              new control kinds (horizontal lever, ratio-display knob)
 FINDING:     Charlie supplied Roto_Speaker_Knob_Capture.pcapng plus a

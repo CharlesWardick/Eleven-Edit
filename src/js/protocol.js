@@ -1867,7 +1867,45 @@ const FX1_MODELS = [
           {label:'Watery',    v127:127} ] } ]
     ]
   },
-  { mid: 0x0A, name: 'Vibe Phaser',      captured: false, paramLos: [], rows: [] },
+  // ── VIBE PHASER — captured 2026-07-31 (Wireshark, Vibe_Phaswer_Knobs_
+  // Capture.pcapng, handle 0x3f). Same shape as C1 Chorus/Vibrato (3 knobs
+  // + Mode toggle + Sync-driven Rate) but VERIFIED INDEPENDENTLY, not
+  // assumed from that resemblance — see the toggle polarity note below,
+  // where assuming the family pattern would have gotten it backwards.
+  // paramLo confirmed by test-order isolation (Volume, Depth, Rate, then
+  // Toggle, then Sync — no overlap):
+  //   0x04 Volume · 0x03 Depth · 0x02 Rate (syncDriven) · 0x05 Mode toggle
+  //   · 0x06 Sync.
+  // RATE x SYNC — 0x02 changed in lockstep with every 0x06 Sync-zone
+  // broadcast (same proof pattern as every other FX1 Sync-driven Rate);
+  // same 14-zone SYNC_DIVISIONS table, 13 breakpoints on its zone
+  // boundaries.
+  // DISPLAY — Rate/Volume/Depth are plain 0-10 linear (Charlie's own
+  // description), the app's existing default valDisplay, no custom
+  // formula.
+  // MODE TOGGLE — CAPTURE-CONFIRMED POLARITY, opposite of C1 Chorus's Mode
+  // toggle. Load state is Chorus (unbroadcast default); the test sequence
+  // was Chorus->Vib->Chorus->Vib->Chorus (4 transitions: to Vib, to
+  // Chorus, to Vib, to Chorus). Captured raw values were 0, 127, 0, 127 —
+  // i.e. val=0 landed on Vibrato and val=127 landed on Chorus. C1 Chorus's
+  // own Mode toggle (protocol.js, above) is val=0->Chorus / val=127->
+  // Vibrato — the EXACT OPPOSITE. Built from this model's own capture, not
+  // assumed from the sibling model — a real instance of the "verify each
+  // capture independently" rule paying off (see also the MultiChorus
+  // Voices 5-vs-6 correction and the Graphic EQ Output-anchor lesson).
+  // MONO/STEREO MID PAIR — 0x09 mono / 0x0A stereo (MODEL_NAMES/
+  // MODEL_OUT_STEREO above), registered per the standing Graphic EQ/Dyn3
+  // lesson though only one wire id was observed in this capture.
+  { mid: 0x0A, mids: [0x09, 0x0A], name: 'Vibe Phaser', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06],
+    rows: [
+      [ {label:'Rate',   lo:0x02, syncDriven:true},
+        {label:'Volume', lo:0x04},
+        {label:'Depth',  lo:0x03},
+        {label:'Mode',   lo:0x05, toggle:true, options:['Vibrato','Chorus']},
+        {label:'Sync',   lo:0x06, sync:true} ]
+    ]
+  },
 ];
 const FX1_MODEL_BY_MID = {};
 FX1_MODELS.forEach(function(m) {
