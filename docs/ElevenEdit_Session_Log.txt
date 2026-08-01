@@ -40,6 +40,59 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-01
+STATUS:      DECISION AGREED — folded into the same planned refactor (see
+             the "REFACTOR FIRST" entry just above this one), not built now
+AREA:        FX1/FX2/MOD — model-switch value memory + sane defaults
+FINDING:     Charlie confirmed (from real hardware use, not yet a formal
+             capture/test) something worth designing for: switching FX1's
+             MODEL does NOT behave like the amp block's "shared storage
+             under per-model labels" (Sec 11's confirmed amp behaviour).
+             Concretely: load a patch with FX1 on Gray Compressor, its
+             saved values read back correctly — but switch to any other
+             model and back to Gray Compressor, and it shows different
+             (apparently default/firmware-supplied) values, not what the
+             patch had. Separately, some models' firmware-supplied defaults
+             are nonsensical on their own terms — Parametric EQ's Gain
+             knobs don't default to 0 dB (flat/no effect) the way a "just
+             selected this, haven't touched anything yet" state should,
+             they come in with some other value already cutting or
+             boosting. Charlie: "a lot of FX Avid put in garbage defaults."
+             This matches the Tech Ref's documented mechanism difference:
+             amp model change (CMD 0x0F) reuses the SAME handle and shared
+             storage (confirmed, tested); FX1/DIST-family model change
+             (CMD 0x21) assigns a GENUINELY NEW HANDLE — the Tech Ref only
+             confirms the handle reassignment itself, not what happens to
+             parameter storage across it. Charlie's live-use report is the
+             first evidence of what actually happens: it does NOT persist.
+TWO FEATURE IDEAS, explicitly NOT to be built as one-off FX1 code:
+  (1) Remember a slot's per-model values across a model switch within a
+      session (at minimum: the model the patch loaded with, so switching
+      away and back restores it — possibly generalized to EVERY model
+      visited that session, open question, Charlie's call not yet made).
+  (2) On ANY model switch, don't trust the firmware's freshly-broadcast
+      values at all — push our own defined-sensible per-model defaults
+      instead (Gain knobs at 0 dB/flat being the clearest example).
+AGREED: both belong in the SAME centralized FX-model refactor already
+      decided (see entry above) — Charlie's framing: "fix or modify it one
+      time, one place, then minor adjust as needed from the callers picking
+      from the FX central shopping cart" rather than three call sites each
+      needing the same fix. Explicitly NOT to be squeezed into current FX1
+      panel code that's about to be rewritten anyway.
+OPEN QUESTIONS for the refactor-planning session (not yet answered):
+  - Scope of (1): original-model-only, or every visited model this
+    session?
+  - Source of "sensible" defaults for (2): reuse each model's documented
+    capture-time load state (Session Log, per model) as-is, or does that
+    need its own review pass first (capture load states were TEST setup
+    points, not necessarily curated "good creative starting point"
+    defaults)?
+  - Session-only, or does per-model memory/defaults need to survive across
+    patch reloads / app relaunches too?
+NEXT:        Design and build together with the FX1/FX2/MOD centralized
+             engine refactor, next session (see the entry above this one).
+-------------------------------------------------------------------
+-------------------------------------------------------------------
+DATE:        2026-08-01
 STATUS:      DECISION AGREED — refactor first, before FX2 or MOD, in a
              NEW chat/session
 AREA:        FX1 panel architecture — copy-paste duplication risk ahead of
