@@ -38,6 +38,15 @@ NEXT:        what would confirm it, or what to do with it
 ENTRIES (newest first)
 ===================================================================
 
+[FOLDED IN 2026-07-31, FINALIZATION: every 2026-07-31 entry below this
+line, down through the "FLANGER CAPTURED" entry, is folded into
+Primer's 7/31 CURRENT APP STATE entry + WORKING/NOT YET IMPLEMENTED
+lines, and Tech Ref Sec 24's matching 7/31 (FX1 session) change-log
+entry. Left in place per the log's own append-only convention (STATUS
+lines not individually rewritten — usage-limited finalize, condense on
+a future pass) rather than deleted; nothing below is provisional
+anymore, treat the master docs as truth for anything summarized there.]
+
 -------------------------------------------------------------------
 DATE:        2026-07-31
 STATUS:      CODE FIX APPLIED, NOT TESTED LIVE — needs Charlie's build/HW test
@@ -77,6 +86,15 @@ NEXT:        Charlie builds and tests live: confirm all three knobs, Sync x
              (val=0 should show/select Vibrato, val=127 Chorus — opposite
              of C1 Chorus's own toggle, easy to get backwards if eyeballed
              instead of read off the capture) and the Stereo/Mono toggle.
+CONFIRMED (2026-07-31, Charlie's live test): Vibe Phaser is DONE. FX1 now
+             has 9 of 10 models captured and TESTED LIVE (C1 Chorus/
+             Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray
+             Compressor, MultiChorus, Orange Phaser, Roto Speaker, Vibe
+             Phaser). Only Parametric EQ remains — capture pending
+             (Charlie: "another that needs a creative design," to discuss
+             once the capture lands). Session hit its usage limit before
+             that capture arrived; Charlie asked for FINALIZATION per the
+             Primer.
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 DATE:        2026-07-31

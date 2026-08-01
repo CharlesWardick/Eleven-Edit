@@ -2741,6 +2741,27 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
 
+2026-07-31 (FX1 session) — Seven more FX1 models captured and TESTED LIVE
+  (Flanger, Graphic EQ, Gray Compressor, MultiChorus, Orange Phaser, Roto
+  Speaker, Vibe Phaser), bringing FX1 to 9 of 10. Retrofitted R7 (Sync
+  interlock) and R8 (double-click baseline) per Sec 20A's open items above.
+  Two new reusable FX1 control kinds: cell.slider (vertical fader, Graphic
+  EQ) and cell.select (generic named-position dropdown). Added optional
+  grouped/boxed row layout for models Avid presents in labeled sub-panels.
+  Found and fixed the SAME bug class three times: a model's primary `mid`
+  must register every wire id MODEL_NAMES lists for it (mono + all stereo
+  variants), not just the one observed in a capture — Graphic EQ and Dyn3
+  Compressor were both missing this, causing a real silent bug (FX1 panel
+  opens, can't resolve a model, no error) that Charlie traced from an
+  ordinary session log. Also fixed: the Avid graphics chain-row scan could
+  fail silently at startup with no retry (now logs every failure path and
+  retries automatically); rebaselineOpenFxPanel's post-save repaint
+  unconditionally used circular-knob math on every control, corrupting
+  Graphic EQ's/Roto Speaker's non-round controls after a save (now
+  dispatches by cell kind like everywhere else). Full per-model evidence in
+  Session Log 2026-07-31 entries and Primer's matching CURRENT APP STATE
+  entry — not restated here.
+
 2026-07-31 (docs) — Added R8 to the Knob Contract (Sec 20A): double-click a knob
   to jump it to its load baseline (the R3 baseline), behaving as a manual turn
   back to that value — rack reacts live, ring clears, one knob only, no save.

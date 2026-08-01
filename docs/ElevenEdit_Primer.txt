@@ -1,10 +1,12 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-07-30
+Updated: 2026-07-31
 Author: Charles Wardick (charles.wardick@gmail.com)
 Status: Active development — Phase 14 IN PROGRESS (FX1 effect panel, generic
-host slot — C1 Chorus/Vibrato and Dyn3 Compressor captured and shipped,
-8 of 10 known FX1 models still to go, starting with Flanger);
+host slot — 9 of 10 known FX1 models captured and TESTED LIVE (C1 Chorus/
+Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor, MultiChorus,
+Orange Phaser, Roto Speaker, Vibe Phaser); only Parametric EQ remains,
+capture pending;
 Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
 Phase 11 complete (amp tremolo feature set);
@@ -272,6 +274,77 @@ HOW "TESTED" WORKS HERE — READ BEFORE WRITING ANY STATUS
   connected. There is no separate later hardware-test step to defer to — the
   session IS the test, or it is NOT TESTED LIVE.
 Build: electron-builder --win --x64 -> EXE.
+
+7/31/2026 — FX1 EFFECT PANEL, SEVEN MORE MODELS (Phase 14 continued) —
+  Flanger, Graphic EQ, Gray Compressor, MultiChorus, Orange Phaser, Roto
+  Speaker, and Vibe Phaser all captured and TESTED LIVE, bringing FX1 to
+  9 of 10 known models (only Parametric EQ left, capture pending). All
+  paramLo maps, display formulas, and mono/stereo mid pairs came from
+  Wireshark captures decoded directly in Claude Code (no tshark available
+  in-session — pcapng framing + USB-MIDI CIN reassembly done by hand in
+  Python), cross-checked against Charlie's own capture-side spreadsheets/
+  screenshots where available, not guessed from family resemblance alone
+  — see Session Log for each model's specific evidence.
+  TWO NEW REUSABLE FX1 CONTROL KINDS (fx-panels.js/ui.js), on top of the
+  existing knob/toggle/sync:
+    cell.slider — a vertical fader (Graphic EQ's six EQ bands), with
+    printed calibration tick numbers on both sides (drawEqSlider/
+    eqSliderDb/eqDbToV127, ui.js). Confirmed a real, generic "linear vs
+    zero-anchored" display distinction: symmetric ranges use the same
+    two-slope-anchored-at-v127=64 shape as valToAmpVol; Graphic EQ's
+    asymmetric Output band needed a genuinely different plain-proportional
+    shape instead (0.0 dB sits at a non-integer raw value there — likely a
+    real 7-bit resolution limit, not a bug) — both shapes take a `linear`
+    flag.
+    cell.select — a generic named-position dropdown for any control with
+    3+ discrete positions that isn't Sync/tempo-driven (MultiChorus's
+    Voices, Roto Speaker's Type). A 2-position control still just reuses
+    the existing cell.toggle rather than getting its own kind.
+    (A THIRD kind, cell.hslider — a horizontal lever for Roto Speaker's
+    Speed — was built, then REMOVED same day after Charlie's live test
+    found the moving thumb visibly covering its own tick label, and a
+    3-option dropdown was simpler and matched the panel's layout better.
+    Nothing in the shipped code uses it; see git history if a future model
+    ever needs a true continuous horizontal control.)
+  GROUPED/BOXED LAYOUT — a model's row list can now mix plain flat rows
+  with box entries `{group:'LABEL'?, rows:[[cells...],...]}`, rendered as
+  a nested bordered box (labeled or not) instead of one flat knob row —
+  built for MultiChorus's CHORUS/MOD boxes and its unlabeled Rate/Depth +
+  Voices/Mix columns. Every FX1 lookup that walks a model's cells
+  (hardware-readback dispatch, the R7 Sync-interlock helpers) goes through
+  one flatten helper (fx1AllCells) so grouped models get correct behaviour
+  automatically, no per-model special-casing.
+  R7 (Sync interlock) and R8 (double-click-to-baseline) — both existing
+  Sec 20A contract rules — were retrofitted this session to close real
+  gaps found along the way: FX1 Chorus's Sync/Rate (and, once captured,
+  its Chorus knob too — Sync turned out to drive BOTH, confirmed live,
+  not assumed) was missing the grab-clears-Sync half of R7; ALL SIX knob
+  surfaces' (amp tone + five effect panels) double-click handler was
+  jumping to a hardcoded centre value instead of the R3 load baseline.
+  BUG CLASS FOUND AND FIXED THREE TIMES: a captured model's primary `mid`
+  must be registered with EVERY wire id MODEL_NAMES lists for it (mono AND
+  every stereo variant), not just the one id actually observed in a
+  capture — Graphic EQ and Dyn3 Compressor were both missing their mono
+  mid's registration, causing a genuine silent bug (FX1 panel opens but
+  can't resolve a model, no error, no log) that Charlie tracked down from
+  an ordinary session log with no dedicated repro — root-caused the
+  "bug I can't reproduce yet" flagged earlier the same session. Flanger,
+  MultiChorus, Orange Phaser, Roto Speaker, and Vibe Phaser were all built
+  registering every known mid up front from that lesson.
+  TWO OTHER REAL BUGS FOUND AND FIXED, both save/paint-path issues, not
+  protocol issues: (1) the Avid graphics chain-row scan could fail
+  silently at startup (no log entry either main- or renderer-side) with no
+  automatic retry, intermittently leaving the chain row's pedal thumbnails
+  as blank placeholders — fixed by logging every failure path and
+  auto-retrying the startup scan up to twice more. (2) rebaselineOpenFxPanel
+  (repaints an open FX panel's knobs to base colour after a save)
+  unconditionally called the circular-knob paint function on every control
+  in the panel — harmless for five panels of plain knobs, but corrupted
+  Graphic EQ's/Roto Speaker's non-round controls after a save; fixed to
+  dispatch by the same cell-kind logic as everywhere else.
+  Full per-model evidence (paramLo maps, display-formula cross-checks,
+  capture file names) lives in the Session Log, not restated here — this
+  is the durable summary, not the working notes.
 
 7/30/2026 — FX1 EFFECT PANEL (new panel, Phase 14, in progress) — FX1 is a
   GENERIC HOST SLOT (Tech Ref Sec 4/23): it can carry models from several
@@ -576,12 +649,16 @@ WORKING:
     from the global Master Volume knob on the chain strip — this is the VOL
     block in the effect chain.)
   FX1 effect panel — generic host slot (Tech Ref Sec 4/23), same pattern as
-    above. TWO of ten known models captured and TESTED LIVE: C1 Chorus/
-    Vibrato (Chorus/Rate/Depth knobs, Mode toggle, Sync selector reusing the
-    amp Tremolo's 14-zone table, mono/stereo mid pair handled) and Dyn3
-    Compressor (all six knobs with confirmed display formulas). The other
-    eight models show a "not yet captured" placeholder, not a crash, if
-    selected. See CURRENT APP STATE 7/30 entry above for full detail.
+    above. NINE of ten known models captured and TESTED LIVE: C1 Chorus/
+    Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor,
+    MultiChorus, Orange Phaser, Roto Speaker, Vibe Phaser. Introduced two
+    new reusable control kinds beyond knob/toggle/sync — cell.slider
+    (vertical fader, Graphic EQ) and cell.select (generic named-position
+    dropdown, MultiChorus/Roto Speaker) — plus an optional grouped/boxed
+    row layout for models Avid presents in labeled sub-panels
+    (MultiChorus). Only Parametric EQ remains, capture pending. See
+    CURRENT APP STATE 7/31 entry above for the full model list and what
+    was built/fixed along the way.
   GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
     moved off the old right-hand column for tighter window scaling (7/22).
 
@@ -589,7 +666,7 @@ NOT YET IMPLEMENTED (largest first):
   Effect panels for the four remaining non-amp effect blocks (MOD, DELAY,
     FX2, FX LOOP) — clicking the chain row's arrow still shows a "coming
     soon" placeholder. (DIST, REVERB, WAH and VOL panels are DONE. FX1 is
-    IN PROGRESS — panel built, 2 of 10 known models captured, see WORKING
+    IN PROGRESS — panel built, 9 of 10 known models captured, see WORKING
     above.) FX2 is expected to host the identical model family as FX1 per
     Charlie — reuse FX1_MODELS rather than re-capturing from scratch.
     The existing panels
