@@ -41,11 +41,16 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-01 (same session, immediately following FX1
              re-verification)
-STATUS:      CODE COMPLETE, NOT TESTED LIVE — FX2 and MOD chain-row ▼ now
-             open the shared FX-host panel (previously "coming soon"); this
-             is genuinely new surface, not a refactor of already-tested
-             code, so it needs its own real-hardware pass before it counts
-             as working, same as any other feature here.
+STATUS:      [FOLDED IN: Primer Status line/WORKING + Tech Ref Sec 23/24] —
+             TESTED LIVE (Charlie, 2026-08-01): "Live test indicate that the
+             plan went perfectly." Both FX2 and MOD confirmed working
+             against real hardware — FX2's model family IS wire-identical to
+             FX1's (the "expected, not yet confirmed" note below is now
+             resolved), and MOD's 6-model filter list is correct as
+             captured. Charlie's own caveat: "Time will tell and normal
+             program use" — ongoing use, not a repeated-pass requirement
+             like an intermittent bug; treat as done, reopen only if normal
+             use surfaces something.
 AREA:        FX2 and MOD — wired up as callers of the FX-host engine
 FINDING:     Charlie confirmed FX1 solid through the refactor and asked to
              wire up FX2, and MOD if the 6-model list was on hand — it was
@@ -93,11 +98,12 @@ NEXT:        Charlie builds and tests FX2 and MOD live. FX2 is the lower-risk
 -------------------------------------------------------------------
 DATE:        2026-08-01 (new session — the "next session" the prior wrap
              pointed to)
-STATUS:      TESTED LIVE (Charlie, 2026-08-01) — FX1 re-verified through
+STATUS:      [FOLDED IN: Primer Status line/WORKING + Tech Ref Sec 24] —
+             TESTED LIVE (Charlie, 2026-08-01) — FX1 re-verified through
              several iterations against the new shared engine; no regression
              from the pre-refactor behaviour. Refactor confirmed done. (See
-             the FX2/MOD entry above/below for the immediate follow-on work
-             this unblocked.)
+             the FX2/MOD entry above for the immediate follow-on work this
+             unblocked, folded in the same pass.)
 AREA:        FX1 panel architecture — shared FX-host engine (the agreed
              "REFACTOR FIRST" work from the 2026-08-01 decision entry below)
 FINDING:     Scope confirmed with Charlie before building (his answer, after
@@ -363,8 +369,11 @@ OPEN QUESTIONS for the refactor-planning session (not yet answered):
 NEXT:        Design and build together with the FX1/FX2/MOD centralized
              engine refactor, next session (see the entry above this one).--------------------------------------------------------------------------------------------------------------------------------------
 DATE:        2026-08-01
-STATUS:      DECISION AGREED — refactor first, before FX2 or MOD, in a
-             NEW chat/session
+STATUS:      [FOLDED IN: Primer Status line/WORKING + Tech Ref Sec 24] —
+             ACTED ON, same-day new session: refactor built and TESTED LIVE
+             (FX1 re-verified identical), then FX2 and MOD wired up and ALSO
+             TESTED LIVE — see the two newer entries above. Original decision
+             below kept for the reasoning, not just the outcome.
 AREA:        FX1 panel architecture — copy-paste duplication risk ahead of
              FX2/MOD
 FINDING:     Charlie asked whether FX1's panel CODE (not the captured model

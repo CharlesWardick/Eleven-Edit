@@ -2536,9 +2536,14 @@ FX1 SLOT — CMD 0x11 PARAMETER MAP (confirmed 2026-07-30)
 FX1 (slot 0x08) is a GENERIC HOST SLOT, not a fixed effect family — it can
 carry models from several other categories (Dynamics, EQ, Modulation),
 identified by slot ID, never by mid range (Sec 4). FX2 (slot 0x09) hosts
-the SAME model family — a model captured here is expected to apply
-directly to FX2 too, not need its own capture (Charlie, 2026-07-30). Some
-models may also turn up in MOD's roster — check before capturing fresh.
+the SAME model family — CONFIRMED live 2026-08-01 (Charlie, via the shared
+FX-host engine — Sec 24 change log) after being an unverified expectation
+since 2026-07-30; a model captured here applies directly to FX2, no
+separate capture needed. MOD (slot 0x04) hosts 6 of the same 10 (C1
+Chorus/Vibrato, Flanger, MultiChorus, Orange Phaser, Roto Speaker, Vibe
+Phaser — confirmed against Charlie's own MOD dropdown, then live 2026-08-01
+the same way as FX2); Dyn3 Compressor/Graphic EQ/Gray Compressor/Parametric
+EQ are NOT in MOD's roster.
 
 Ten models confirmed in this slot's dropdown (2026-07-30 dropdown capture,
 mid values below match Sec 23's CMD 0x20 enumeration): C1 Chorus/Vibrato,
@@ -2739,6 +2744,28 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-08-01 (FX-host engine refactor + FX2/MOD wire-up, new session) — Built
+  the "REFACTOR FIRST" decision from the prior session's wrap (below): FX1's
+  panel code (open/render/update/drag/query/send — fx-panels.js,
+  fx-transport.js, sysex-handler.js's FX1 routing block, two ui.js branches,
+  index.html's panel markup) was generalized into one engine parameterized
+  by slot id (openFxHostSlot, state.js; FX_HOST_ALLOWED_MIDS, protocol.js)
+  instead of hardcoded SLOT_FX1, sharing one panel DOM (#panel-fxhost)
+  instead of one copy per slot. TESTED LIVE (Charlie) — FX1 re-verified
+  through the new engine with no regression from pre-refactor behaviour.
+  FX2 and MOD then wired up the SAME session as the two-hook change the
+  refactor was designed to reduce this to (a FX_HOST_ALLOWED_MIDS entry per
+  slot + a chain-open dispatch branch, no new panel code) — ALSO TESTED
+  LIVE, confirming FX2 genuinely does host the identical model family as
+  FX1 (previously an unverified expectation, Sec 23) and MOD's 6-model
+  roster is correct. FX1_MODELS/FX1_MODEL_BY_MID (protocol.js) remain the
+  one shared model table all three slots read from — no per-slot copy.
+  The model-switch value-memory/sane-defaults idea from the same prior
+  decision stayed explicitly OUT of scope (Charlie's call), not yet
+  designed or built. Full file-by-file detail: Session Log 2026-08-01
+  (three entries, newest first: FX2/MOD wire-up, FX1 refactor, the original
+  "REFACTOR FIRST" decision).
 
 2026-08-01 (docs, review) — Review of the FX1-completion sessions (two finalizes
   in one chat; work was clean, structure intact — C1-C13 in order, 38 sections,

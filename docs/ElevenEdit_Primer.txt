@@ -2,33 +2,28 @@ ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
 Updated: 2026-08-01
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 14 COMPLETE (FX1 effect panel, generic
-host slot — ALL 10 known FX1 models captured and TESTED LIVE: C1 Chorus/
-Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor, MultiChorus,
-Orange Phaser, Roto Speaker, Vibe Phaser, Parametric EQ). FX-HOST PANEL
-REFACTOR ("REFACTOR FIRST", agreed 2026-08-01): DONE, TESTED LIVE — FX1's
-panel code (open/render/update/drag/query/send, all of fx-panels.js/
-fx-transport.js/sysex-handler.js's FX1 sections plus two ui.js branches)
-was generalized into one engine parameterized by slot id (openFxHostSlot,
-state.js), sharing one panel DOM (#panel-fxhost) instead of one copy per
-slot, and Charlie re-verified FX1 through it live the same day — no
-regression from pre-refactor behaviour. FX2 AND MOD WIRED UP the same day
-as thin callers of that engine (exactly the two-hook change the refactor
-was designed to reduce this to): protocol.js FX_HOST_ALLOWED_MIDS now has
-FX2 (unfiltered, same model family as FX1 per Charlie — not yet
-independently confirmed) and MOD (filtered to 6 of the 10: C1 Chorus/
-Vibrato, Flanger, MultiChorus, Orange Phaser, Roto Speaker, Vibe Phaser,
-from Charlie's own MOD dropdown screenshot); index.html's chain-open
-dispatch now opens the shared panel for all three slots. FX2/MOD are CODE
-COMPLETE, NOT TESTED LIVE — this is new surface, not a refactor of
-already-tested code, so it needs its own real-hardware pass (see Session
-Log 2026-08-01, the FX2/MOD entry, for the specific things to watch for on
-each). A second, related but explicitly separate idea is also logged
-there — FX-model-switch value memory and sane per-model defaults instead
-of trusting the firmware's "garbage defaults" on a model change — stays
-OUT of scope for this work (Charlie's explicit call, 2026-08-01), not yet
-designed or built, possibly deferred indefinitely;
-Phase 13 complete (rig tempo clock + chain-strip
+Status: Active development — Phase 15 COMPLETE (FX-HOST PANEL REFACTOR +
+FX2/MOD, "REFACTOR FIRST", agreed and built 2026-08-01, ALL TESTED LIVE).
+FX1's panel code (open/render/update/drag/query/send — fx-panels.js/
+fx-transport.js/sysex-handler.js's FX1 sections, two ui.js branches,
+index.html's panel markup) was generalized into one engine parameterized by
+slot id (openFxHostSlot, state.js) sharing one panel DOM (#panel-fxhost)
+instead of one copy per slot; Charlie re-verified FX1 through it live with
+no regression. FX2 and MOD then wired up the same session as thin callers
+of that engine (FX_HOST_ALLOWED_MIDS, protocol.js: FX2 unfiltered, MOD
+filtered to 6 of the 10 — C1 Chorus/Vibrato, Flanger, MultiChorus, Orange
+Phaser, Roto Speaker, Vibe Phaser) and confirmed TESTED LIVE the same
+day — FX2 genuinely does host the identical model family as FX1 (no longer
+just an expectation), MOD's 6-model list is correct. Full detail: Session
+Log 2026-08-01 (three entries) and Tech Ref Sec 23/24. A second, related
+idea from the same decision — FX-model-switch value memory and sane
+per-model defaults instead of trusting the firmware's "garbage defaults" on
+a model change — stayed explicitly OUT of scope (Charlie's call), not yet
+designed or built, possibly deferred indefinitely. Phase 14 COMPLETE (FX1
+effect panel, generic host slot — ALL 10 known FX1 models captured and
+TESTED LIVE: C1 Chorus/Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray
+Compressor, MultiChorus, Orange Phaser, Roto Speaker, Vibe Phaser,
+Parametric EQ); Phase 13 complete (rig tempo clock + chain-strip
 right-hand group); Phase 12 complete (amp model change refresh);
 Phase 11 complete (amp tremolo feature set);
 Phase 10 complete (REVERB effect panel); Phase 9 complete (DIST effect panel);
@@ -686,16 +681,18 @@ WORKING:
     Avid presents in labeled sub-panels (MultiChorus, Parametric EQ). See
     CURRENT APP STATE 7/31 entry above and Session Log 2026-08-01 for full
     detail on the panel-code-duplication concern that led to the FX-host
-    refactor (see Status line above).
+    refactor (Phase 15, DONE and TESTED LIVE — see Status line above and the
+    FX2/MOD entry just below).
   FX2 and MOD effect panels — both open the same shared FX-host panel as
     FX1 (2026-08-01 refactor + same-day wire-up, see Status line above and
-    Session Log 2026-08-01). FX2 offers the same 10 models as FX1
-    (unfiltered — expected to be the identical model family per Charlie);
-    MOD offers 6 of the 10 (C1 Chorus/Vibrato, Flanger, MultiChorus, Orange
-    Phaser, Roto Speaker, Vibe Phaser), per Charlie's own MOD dropdown.
-    CODE COMPLETE, NOT TESTED LIVE — this is new surface (FX2/MOD's own
-    handles have never been exercised through this panel before), not a
-    re-verification of already-tested code like FX1's refactor was.
+    Session Log 2026-08-01). TESTED LIVE (Charlie, 2026-08-01) — DONE, Phase
+    15 complete. FX2 offers the same 10 models as FX1 (unfiltered — now
+    CONFIRMED the identical model family, not just expected); MOD offers 6
+    of the 10 (C1 Chorus/Vibrato, Flanger, MultiChorus, Orange Phaser, Roto
+    Speaker, Vibe Phaser), confirmed correct against Charlie's own MOD
+    dropdown and live testing. Charlie's own framing: "Time will tell and
+    normal program use" — treated as done, not pending a repeated-pass
+    confirmation like an intermittent bug would need.
   GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
     moved off the old right-hand column for tighter window scaling (7/22).
 
@@ -703,10 +700,7 @@ NOT YET IMPLEMENTED (largest first):
   Effect panels for the two remaining non-amp effect blocks (DELAY, FX LOOP)
     — clicking the chain row's arrow still shows a "coming soon" placeholder.
     (DIST, REVERB, WAH, VOL, FX1, FX2 and MOD all open the shared FX-host
-    panel now — see WORKING above. FX2/MOD are CODE COMPLETE, NOT TESTED
-    LIVE as of 2026-08-01 — this is genuinely new surface, not the refactor
-    itself, so it needs its own real-hardware pass; see Session Log
-    2026-08-01, the FX2/MOD entry, for what to check.)
+    panel now, all TESTED LIVE — see WORKING above.)
     *** HISTORY, for context on why FX1/FX2/MOD share one engine instead of
     three copies: DIST/REVERB/WAH/VOL/FX1 were each built as their own
     copy-pasted panel (paramLo capture, rows-based layout, render/update/
@@ -795,8 +789,12 @@ covered under CONFIRMED ARCHITECTURE above.
                    patch dirty only for PER_PATCH_CCS = [17] (Rig Vol); input and
                    tuner CCs do not.
   fx-transport.js  Per-effect-block SEND/query functions (DIST, REVERB, WAH,
-                   VOL, FX1, and future blocks), split out so transport.js
-                   does not grow per panel. Every send<Block>ParamWrite here
+                   VOL, and DELAY/FX LOOP when built), split out so
+                   transport.js does not grow per panel. FX1/FX2/MOD share
+                   ONE slot-parameterized set instead (sendFxHostModelChange/
+                   requestFxHostParams/sendFxHostParamWrite, all taking a
+                   slot id — see the FX-HOST EFFECT PANEL section, 2026-08-01
+                   refactor). Every send<Block>ParamWrite/sendFxHostParamWrite
                    carries the endpoint-sentinel fix ("the 9.9 bug") —
                    mandatory for any new block, see the file header.
   sysex-handler.js Incoming message routing. Decodes bulk/patch bodies, live CMD
@@ -804,12 +802,17 @@ covered under CONFIRMED ARCHITECTURE above.
                    input (0x3D), and drives the matching UI updates.
   ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
                    handlers, chain-row render, knob-colour (dirty) tracking.
-  fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, FX1, future
-                   blocks), split out of ui.js for the same reason as
-                   fx-transport.js. Every drag handler here snapshots its
-                   paramLo into a local before queuing the hardware write —
-                   mandatory for any new block (a shared-variable closure
-                   race here could hang the rack, see file header).
+  fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, and DELAY/FX
+                   LOOP when built), split out of ui.js for the same reason
+                   as fx-transport.js. FX1/FX2/MOD share ONE slot-
+                   parameterized FX-HOST engine instead (openFxHostPanel/
+                   renderFxHostKnobs/updateFxHostKnob/etc., all taking or
+                   deriving a slot id via openFxHostSlot, state.js — one
+                   shared panel DOM, #panel-fxhost, 2026-08-01 refactor).
+                   Every drag handler here snapshots its paramLo into a
+                   local before queuing the hardware write — mandatory for
+                   any new block (a shared-variable closure race here could
+                   hang the rack, see file header).
   app-init.js      Startup wiring.
   patch-nav.js     Patch navigation logic and the post-nav state pull.
   capture-scan.js  TFX capture to disk, bank scan, load/save (Save-to-Rack and
@@ -829,8 +832,12 @@ KEY STATE VARIABLES (state.js):
   hasReceivedAmpOutValue  guard against premature Amp Out send
   currentMonoState        null / true / false (Stereo/Mono indicator)
   distPanelOpen           true when DIST panel is visible; gates CMD 0x11 DIST routing
-  reverbPanelOpen / wahPanelOpen / volPanelOpen / fx1PanelOpen
+  reverbPanelOpen / wahPanelOpen / volPanelOpen
                           same role as distPanelOpen, one per effect panel
+  openFxHostSlot          null, or SLOT_FX1/FX2/MOD — which GENERIC HOST
+                          SLOT's shared panel is open (2026-08-01 refactor;
+                          replaces the old fx1PanelOpen boolean), gates CMD
+                          0x11 routing for whichever of the three is active
   ampSelectRxSeq          bumped when an Amp Select (0x0F) reply is handled
   chainMapRxSeq           bumped when a chain map (0x21) has been applied
   navSeqId                post-nav pull generation; guards against stale replies
