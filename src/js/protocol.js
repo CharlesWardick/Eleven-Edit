@@ -2042,11 +2042,19 @@ FX1_MODELS.forEach(function(m) {
 // 2026-08-01); a slot that can't host every model just lists which mids it
 // allows here, no new table, no panel-code changes. null/absent = no
 // filter, every captured model is offered (FX1's own behaviour, unchanged).
-// MOD is known to host only 6 of the 10 (Charlie's dropdown screenshot,
-// Session Log 2026-08-01: C1 Chorus/Vibrato, Flanger, MultiChorus, Orange
-// Phaser, Roto Speaker, Vibe Phaser) but is NOT wired to the engine yet —
-// left out of this map entirely until a MOD panel is actually built, so an
-// absent entry can keep meaning "not hooked up" rather than "unfiltered".
+// FX2 wired up 2026-08-01 (post FX1 re-verification): per Charlie, FX2 hosts
+// the IDENTICAL model family as FX1 (same mids, same paramLos) — unfiltered,
+// same as FX1. This is the expected-not-yet-independently-confirmed case
+// flagged in the Session Log 2026-08-01 entry; treat FX2 as NOT TESTED LIVE
+// until Charlie has actually opened it against real hardware, same as any
+// other feature here.
+// MOD wired up 2026-08-01, filtered to the 6 of 10 models Charlie's own MOD
+// dropdown screenshot showed (Session Log 2026-08-01): C1 Chorus/Vibrato
+// (mid 0x01), Flanger (0x08), MultiChorus (0x06), Orange Phaser (0x0C),
+// Roto Speaker (0x0F), Vibe Phaser (0x0A) — Dyn3 Compressor, Graphic EQ,
+// Gray Compressor and Parametric EQ are NOT in MOD's roster.
 const FX_HOST_ALLOWED_MIDS = {
   [SLOT_FX1]: null,
+  [SLOT_FX2]: null,
+  [SLOT_MOD]: [0x01, 0x08, 0x06, 0x0C, 0x0F, 0x0A],
 };

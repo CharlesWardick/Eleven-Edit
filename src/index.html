@@ -1275,12 +1275,13 @@
        header). Only one host slot is ever open at a time, so they share
        ONE panel div instead of one copy each — openFxHostPanel(slotId)
        (fx-panels.js) sets the title and populates the model dropdown
-       (filtered per FX_HOST_ALLOWED_MIDS, protocol.js) for whichever slot
+       (filtered per FX_HOST_ALLOWED_MIDS, protocol.js — FX2 unfiltered
+       same as FX1, MOD filtered to its known 6-of-10) for whichever slot
        is opening. Only captured models render real controls — see
        FX1_MODELS in protocol.js, the shared model table every host slot
-       reads from. Today only FX1's chain-row ▼ opens this panel; FX2/MOD
-       still show the "coming soon" placeholder until their own chain-open
-       dispatch branch is added — see the panel-open switch below. -->
+       reads from. FX1/FX2/MOD's chain-row ▼ all open this panel (see the
+       panel-open switch below); DELAY/FX LOOP are separate, not-yet-built
+       model families and still show the "coming soon" placeholder. -->
   <div id="panel-fxhost" style="display:none;" class="scard">
     <div class="scard-hdr" style="flex-wrap:wrap;gap:10px;">
       <span class="scard-title" id="fxhost-title">FX1</span>
@@ -1579,11 +1580,16 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
         if (h) vp.style.minHeight = h + 'px';
         vp.style.display = '';
         if (typeof openVolPanel === 'function') openVolPanel();
-      } else if (panel === 'fx1') {
-        var f1p = document.getElementById('panel-fxhost');
-        if (h) f1p.style.minHeight = h + 'px';
-        f1p.style.display = '';
-        if (typeof openFxHostPanel === 'function') openFxHostPanel(SLOT_FX1);
+      } else if (panel === 'fx1' || panel === 'fx2' || panel === 'mod') {
+        // GENERIC HOST SLOTS — one shared panel/engine (2026-08-01 refactor,
+        // re-verified live on FX1; FX2/MOD wired up the same day as thin
+        // callers per the plan — see fx-panels.js's FX-HOST EFFECT PANEL
+        // header and Session Log 2026-08-01).
+        var slotId = (panel === 'fx1') ? SLOT_FX1 : (panel === 'fx2') ? SLOT_FX2 : SLOT_MOD;
+        var fhp = document.getElementById('panel-fxhost');
+        if (h) fhp.style.minHeight = h + 'px';
+        fhp.style.display = '';
+        if (typeof openFxHostPanel === 'function') openFxHostPanel(slotId);
       } else {
         var other = document.getElementById('panel-other');
         if (h) other.style.minHeight = h + 'px';
