@@ -2260,9 +2260,16 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
       var dv = step(dw, e);
       var dEl = document.getElementById('delay-v-' + dw.dataset.delayLo);
       if (dEl) dEl.textContent = (typeof delayKnobDisplay === 'function') ? delayKnobDisplay(dlo, dv) : valDisplay(dv);
-      // R7 — Delay is Sync-driven; the rack itself clears Sync on touch
-      // (Charlie confirmed), mirror it locally same as the drag handler.
-      if (dlo === 0x04 && typeof updateDelaySync === 'function') updateDelaySync(0);
+      // R7 — Delay is Sync-driven; the rack refuses the write unless we
+      // explicitly clear Sync first (same as amp Tremolo Speed) — a
+      // local-only UI clear is not enough (2026-08-02 live-test fix).
+      if (dlo === 0x04) {
+        var dsel = document.getElementById('delay-sync-select');
+        if (dsel && dsel.value !== '0') {
+          if (typeof updateDelaySync === 'function') updateDelaySync(0);
+          if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(0x05, 0);
+        }
+      }
       if (bridgeMidiReady) queueKnobSend('delay:' + dlo, function(val){ sendDelayParamWrite(dlo, val); }, dv);
       return;
     }

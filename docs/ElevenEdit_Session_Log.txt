@@ -40,6 +40,53 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
+STATUS:      confirmed fix (code written, NOT YET RE-TESTED LIVE)
+AREA:        DELAY effect panel — Rate/Delay knob (paramLo 0x04) vs Sync
+             (paramLo 0x05) interlock, the WRITE half
+FINDING:     4th live-test round: Sync mechanism itself now decodes
+             correctly (previous entry), but turning the Delay/Rate knob
+             while Sync was engaged set the Sync dropdown to OFF locally
+             yet did NOT change the hardware, and the knob itself felt
+             "not free" (rack ignoring the write). ROOT CAUSE: the R7 fix
+             two entries back only updated the UI locally
+             (updateDelaySync(0)) and never actually SENT a Sync-off write
+             to the hardware. The code comment at the time claimed
+             "Charlie confirmed the rack itself already clears Sync on
+             touch, no explicit clear write needed" — that claim was
+             never actually re-confirmed for the SOFTWARE-write path
+             specifically (only inferred from an earlier, more general
+             statement), and it was wrong: this is the SAME rule as amp
+             Tremolo Speed (ui.js, already correctly implemented there) —
+             the rack refuses a knob write while Sync is on a division
+             UNLESS the software explicitly sends the Sync-clear write
+             first. Applying the ALREADY-SOLVED Tremolo Speed pattern
+             (send sendDelayParamWrite(0x05, 0) once per drag before the
+             first Delay value send) fixes it — same as its own dedicated
+             comment already described but didn't implement.
+             STILL OPEN: Charlie again reported the ms readout "off by
+             .1", unspecified which control. NOT touched this pass —
+             deliberately asked him to confirm scope (0-10 knob vs the ms
+             number) rather than guess a third area wrong in the same
+             session; see NEXT.
+EVIDENCE:    Charlie's live-test report; direct code comparison against
+             ui.js's already-working Tremolo Speed vs Sync interlock
+             (mousedown/mousemove handler, "SPEED (0x11) — the rack
+             refuses a Speed write while Sync is on a division..."),
+             which DOES send sendParamWrite(0x12, 0) explicitly — the
+             DELAY version never had the equivalent send, only the UI
+             mirror.
+CONFLICTS:   corrects the "R7 interlock" entry earlier this session, which
+             wrongly asserted no explicit clear write was needed.
+NEXT:        Charlie re-tests: turning the Delay knob while a Sync
+             division is active should now actually move the hardware
+             (not just the dropdown), and separately confirm exactly
+             which readout is off by ~0.1 (a 0-10 knob's decimal, or the
+             ms number) so that can be looked at precisely instead of
+             guessed.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
 STATUS:      RETRACTION — corrects BOTH prior DELAY Sync entries below
 AREA:        DELAY effect panel — Sync (paramLo 0x05), full mechanism
 FINDING:     Charlie's third live test still failed (dropdown stuck on
