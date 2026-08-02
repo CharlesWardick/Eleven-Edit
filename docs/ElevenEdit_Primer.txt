@@ -3,8 +3,8 @@ ELEVEN EDIT — PROJECT PRIMER
 Updated: 2026-08-02
 Author: Charles Wardick (charles.wardick@gmail.com)
 Status: Active development — STARTUP GATE + SPLASH SCREEN COMPLETE
-(2026-08-02, TESTED LIVE). Phase 17 COMPLETE: the Primer's last
-remaining NOT YET IMPLEMENTED item — a startup-only "can't find
+(2026-08-02, TESTED LIVE). Phase 17 COMPLETE: a long-standing
+NOT YET IMPLEMENTED item — a startup-only "can't find
 hardware" gate, like Avid's own editor — is done. Main window now
 loads hidden behind a splash window (logo text + progress bar) instead
 of showing dead/unpopulated controls; the splash reveals the main

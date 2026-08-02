@@ -2896,7 +2896,8 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   Echo's 70-600 ms anchors matched to within 1 ms on every zone.
 
 2026-08-02 (STARTUP GATE + SPLASH SCREEN, new session) — Closed the
-  Primer's last remaining NOT YET IMPLEMENTED item: a startup-only
+  a long-standing NOT YET IMPLEMENTED item from the Primer: a
+  startup-only
   "can't find hardware" gate, like Avid's own editor. TESTED LIVE by
   Charlie same day, both the gate path (rack absent) and the normal
   path (rack present, splash reveals a fully-populated main window).
