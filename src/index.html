@@ -1600,6 +1600,33 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
   });
 });
 
+// 8/2/2026: click the pedal thumbnail itself to open its panel, matching
+// Avid's own editor (click the pedal graphic, not a separate control).
+// The ▼ caret stays exactly as it was — this is additive, not a replacement
+// (Charlie: "leave the existing down arrow carrot alone for now"). Simply
+// forwards to the sibling .chain-open's own click handler above so there is
+// only one place that knows how to open/close a panel. Skips the drag case
+// (chainDragActive, ui.js) and slots with no .chain-open panel target
+// (AMP-CAB's single thumb, the read-only INPUT clone) since those have
+// nothing to open.
+document.querySelectorAll('.chain-thumb').forEach(function(thumb) {
+  thumb.addEventListener('click', function() {
+    if (typeof chainDragActive !== 'undefined' && chainDragActive) return;
+    var slot = thumb.closest('.chain-slot, .chain-slot-stack');
+    if (!slot) return;
+    var opener = slot.querySelector('.chain-open[data-panel]');
+    if (opener) { opener.click(); return; }
+    // No .chain-open here — this is the AMP-CAB thumb (its only real
+    // controls live in the main amp panel, not a chain ▼ panel). 8/2/2026:
+    // clicking it now does the same job as ✕ / clicking an open ▼ again —
+    // close whatever effect panel is open and show the amp controls.
+    // Reuses the existing open .chain-open's own close branch instead of
+    // duplicating that logic; no-ops if nothing is open (amp already showing).
+    var openBtn = document.querySelector('.chain-open.panel-open');
+    if (openBtn) openBtn.click();
+  });
+});
+
 // DIST model dropdown — switch model on hardware and re-render knobs
 document.getElementById('dist-model-select').addEventListener('change', function() {
   var newMid = parseInt(this.value, 10);

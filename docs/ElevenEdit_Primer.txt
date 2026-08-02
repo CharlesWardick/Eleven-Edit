@@ -1,8 +1,13 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-08-01
+Updated: 2026-08-02
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — Phase 15 COMPLETE (FX-HOST PANEL REFACTOR +
+Status: Active development — CHAIN ROW, AVID-STYLE CLICK-TO-OPEN (2026-08-02,
+TESTED LIVE): clicking a block's pedal thumbnail now opens/closes its effect
+panel exactly like its ▼ caret (additive — the caret stays, per Charlie's
+call); clicking the AMP-CAB thumbnail closes whatever panel is open and
+returns to the amp controls, same job as ✕ or the caret. Full detail: Session
+Log 2026-08-02 (two entries). Phase 15 COMPLETE (FX-HOST PANEL REFACTOR +
 FX2/MOD, "REFACTOR FIRST", agreed and built 2026-08-01, ALL TESTED LIVE).
 FX1's panel code (open/render/update/drag/query/send — fx-panels.js/
 fx-transport.js/sysex-handler.js's FX1 sections, two ui.js branches,
@@ -554,6 +559,15 @@ WORKING:
     at any chain position. State queried for all ten after every chain map.
   Chain row — true per-patch order, model name on hover, stereo shown as
     stacked double connector lines (49 of 52 models resolved).
+  CHAIN ROW CLICK-TO-OPEN, AVID-STYLE (2026-08-02, TESTED LIVE) — resolves
+    the 7/28 "dropdown ▼ vs clicking the block" deferred question. Clicking a
+    block's .chain-thumb now opens/closes its effect panel, forwarding to the
+    same .chain-open click handler the ▼ caret uses (no duplicated open/close
+    logic) — additive, the ▼ caret is unchanged and still works, per Charlie's
+    call to leave it alone for now. Clicking the AMP-CAB thumbnail (which has
+    no ▼ of its own) closes whatever panel is open and returns to the amp
+    controls, same job as ✕ or the caret — finds whichever .chain-open is
+    currently .panel-open and reuses ITS close branch. Both index.html only.
   Chain reorder — drag and drop with live preview: blocks physically shift into
     place during the drag itself (not just on drop), and a chain-map arriving
     mid-drag no longer fights the preview. FX Loop placement enforced
