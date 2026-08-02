@@ -1134,8 +1134,15 @@ function refreshDelayPanelAfterChainMap() {
 }
 
 // ── DELAY knob drag — delegated, keyed on data-delay-lo ──
+// R7 — Delay (lo 0x04) is Sync-driven, same family as amp Tremolo Speed
+// and DELAY's own Sync (paramLo 0x05) overwriting it. UNLIKE Tremolo,
+// Charlie confirmed the rack ITSELF already clears Sync to OFF the moment
+// the Delay/Rate knob is touched (no explicit clear write needed here) —
+// so this only mirrors that locally in the Sync dropdown for immediate
+// feedback; the next live broadcast is still the source of truth.
 (function() {
   var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+  var delaySyncClearedThisDrag = false;
 
   document.addEventListener('mousedown', function(e) {
     var wrap = e.target.closest('.knob-wrap[data-delay-lo]');
@@ -1146,6 +1153,7 @@ function refreshDelayPanelAfterChainMap() {
     startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
     startY = e.clientY;
     dragging = true;
+    delaySyncClearedThisDrag = false;   // one Sync clear per drag, not per mousemove
     e.preventDefault();
   });
 
@@ -1154,6 +1162,10 @@ function refreshDelayPanelAfterChainMap() {
     if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
     var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
     updateDelayKnob(activeParamLo, val);
+    if (activeParamLo === 0x04 && !delaySyncClearedThisDrag) {
+      delaySyncClearedThisDrag = true;
+      if (typeof updateDelaySync === 'function') updateDelaySync(0);
+    }
     // Snapshot before queuing — R6, drag-queue race (Sec 20A).
     var lo = activeParamLo;
     if (bridgeMidiReady) queueKnobSend('delay:' + lo, function(v) { sendDelayParamWrite(lo, v); }, val);
@@ -1171,6 +1183,7 @@ function refreshDelayPanelAfterChainMap() {
     // centre value.
     var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
     updateDelayKnob(paramLo, val);
+    if (paramLo === 0x04 && typeof updateDelaySync === 'function') updateDelaySync(0);
     if (bridgeMidiReady) queueKnobSend('delay:' + paramLo, function(v) { sendDelayParamWrite(paramLo, v); }, val);
   });
 })();
