@@ -40,6 +40,39 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref Sec 20A R9, Primer's DELAY/FX LOOP recipe]
+AREA:        Knob/Control Contract — new rule, named per Charlie's request
+FINDING:     The "guard DELAY knob drag against broadcast repaint races" fix
+             (previous entry) is now a NAMED, permanent rule in the Sec 20A
+             checklist — Charlie asked for a codename so he can reference it
+             when deploying the same fix to other Sync-driven controls,
+             since he's certain the same gap exists elsewhere (any other R7
+             control built before today only got the WRITE half of R7, not
+             the READ-side guard). Named R9 — SYNC OFF KNOB JUMP (aka the
+             SYNC-CLEAR REPAINT RACE). Full rule text now lives in Tech Ref
+             Sec 20A, not restated here — key point: R9 must be deployed as
+             a PAIR with R7 on every Sync-interlocked control, not R7 alone,
+             since an R7-only implementation looks completely correct until
+             a live drag exposes the missing R9 half (exactly what happened
+             today — shipped, passed review, failed on the very next live
+             test). No other controls audited against R9 yet this session —
+             DELAY's Rate/Sync is the only one confirmed to have R9 applied;
+             amp Tremolo Speed (the original R7 precedent) was NOT
+             specifically re-checked for R9 this session and should be
+             audited before assuming it's clean.
+NEXT:        When Charlie says "deploy R9" (or "Sync Off Knob Jump fix") to
+             a control, that means: add a per-control dragging/active-target
+             flag (state.js) and a guard in that control's CMD 0x11 readback
+             path that skips repainting while the flag is set for that
+             paramLo, mirroring DELAY's delayDragLo (state.js) and its
+             sysex-handler.js guard. Check amp Tremolo Speed specifically —
+             it's the oldest R7 implementation and predates R9 being named,
+             so it's the most likely place for the same gap to exist
+             unnoticed.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
 STATUS:      provisional fix (code written, NOT YET LIVE-TESTED — Charlie
              stepped away to cool down after a frustrating round; asked
              for a diagnosis, not necessarily an immediate re-test)

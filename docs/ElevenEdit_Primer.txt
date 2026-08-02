@@ -1025,8 +1025,8 @@ LATER — EFFECT PANELS FOR REMAINING TWO SLOTS (DELAY, FX LOOP)
   which are genuinely distinct model families (not generic host slots), so
   each gets its own panel per the original DIST pattern rather than a hook
   into the FX-host engine. (Any "FX1 is missing R7" line further below is OLD
-  — R7/R8 were retrofitted 2026-07-31; build every knob against all of R1-R8,
-  Sec 20A, regardless.)
+  — R7/R8 were retrofitted 2026-07-31, R9 added 2026-08-02; build every knob
+  against all of R1-R9, Sec 20A, regardless.)
   The DIST panel established the full pattern. Two
   non-amp slots remain: DELAY, LOOP.
 
@@ -1040,11 +1040,14 @@ LATER — EFFECT PANELS FOR REMAINING TWO SLOTS (DELAY, FX LOOP)
   *** BUILD EVERY KNOB AGAINST THE KNOB/CONTROL CONTRACT — Tech Ref Sec 20A. ***
   It is the single authoritative checklist (R1 endpoint sentinels, R2 zero-value
   safe, R3 red-on-change, R4 scroll-wheel, R5 scale anchoring, R6 drag-queue
-  safety, R7 Sync interlock, R8 double-click-to-baseline). Copying an existing
-  panel is NOT sufficient on its own — panels predate rules, so check the copy
-  against all of R1-R8. (FX1's R7/R8 gaps were retrofitted 7/31; the amp + five
-  effect panels now carry both. The Sec 20A one-time CODE AUDIT — runtime vs
-  R1-R8, plus comment-vs-code — still stands, run in Claude Code.)
+  safety, R7 Sync interlock, R8 double-click-to-baseline, R9 Sync Off Knob
+  Jump / sync-clear repaint race — added 2026-08-02, deploy it as a PAIR with
+  R7 any time R7 applies, not R7 alone; see Sec 20A for why). Copying an
+  existing panel is NOT sufficient on its own — panels predate rules, so check
+  the copy against all of R1-R9. (FX1's R7/R8 gaps were retrofitted 7/31;
+  DELAY's R9 gap was found and fixed 8/2, the amp + effect panels now carry
+  all of them. The Sec 20A one-time CODE AUDIT — runtime vs R1-R9, plus
+  comment-vs-code — still stands, run in Claude Code.)
 
   WHAT EACH NEW SLOT NEEDS — copy the FX1 panel (built 2026-07-30), NOT
   DIST/REVERB/WAH/VOL, which were built before two bugs were found and

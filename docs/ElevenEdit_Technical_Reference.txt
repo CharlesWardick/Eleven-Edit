@@ -1995,11 +1995,45 @@ R8 — DOUBLE-CLICK RESTORES THE KNOB TO ITS LOAD VALUE. Double-clicking a knob
   sentinels (a baseline at max restores to 10.0, not 9.9) and R6 drag-queue
   safety. Applies to every knob on every panel.
 
+R9 — SYNC OFF KNOB JUMP (aka the SYNC-CLEAR REPAINT RACE). A DIFFERENT bug
+  from R7, easy to conflate with it because it looks identical to the user —
+  R7 is about the WRITE (the knob must send Sync=OFF so the rack accepts the
+  write at all); R9 is about the READ side once R7 is implemented. The moment
+  R7's Sync=OFF write goes out, the rack replies almost immediately with a
+  broadcast for the knob it just freed. If that broadcast is painted onto the
+  knob UNCONDITIONALLY, it can land WHILE the user's own drag is still moving
+  the mouse — visually the knob jumps to whatever transitional value the rack
+  reported, then snaps back to wherever the drag left it. Same visible shape
+  as the OLD R2 falsy-zero jump-to-default bug, DIFFERENT cause (a genuine
+  broadcast race, not a bad guard) — check R2 is actually fine before
+  assuming a recurrence; they can coexist as two candidate explanations for
+  the same symptom and only one may be present.
+  FIX: a per-control "currently being dragged" flag that the CMD 0x11
+  readback handler checks and skips repainting while true, clearing it on
+  mouseup/blur — i.e. R6's drag-queue guard, but for the READ direction
+  instead of the write queue. THIS PATTERN ALREADY EXISTED before R9 was
+  named: To Amp 1/2 (ui.js, toAmp1Dragging/toAmp2Dragging) — "readback
+  handler checks these and skips display update while the user is actively
+  dragging, preventing HW broadcasts from fighting the drag in progress."
+  R9 formalizes that existing pattern as a MANDATORY rule for any control
+  where R7 applies (a write-triggering interlock), since R7 is exactly the
+  situation that provokes the race — a plain knob with no side-effect write
+  on grab is much less exposed to it. Origin: DELAY Rate/Sync interlock,
+  found live 2026-08-02 (Session Log) — R7 was implemented first, R9's gap
+  surfaced on the very next live test as "grab the knob, it jumps to
+  midpoint then back," which Charlie recognised from the OLD R2 bug's
+  symptom and asked whether it had recurred; it had not — this was new.
+  DEPLOY CHECKLIST for any future R7 control: implement R7 (clear-write) and
+  R9 (drag-guard on the SAME paramLo) together, not just R7 alone — an R7-
+  only implementation LOOKS correct in every way except a live drag, which
+  is exactly why it shipped once already without R9 and needed a second
+  live-test round to catch.
+
 BEFORE BUILDING NEW KNOB PANELS — CODE AUDIT REQUIRED (Claude Code, has repo
 access; a docs-only review chat cannot see the .js files). Two questions per
 existing knob/panel file (transport.js, fx-transport.js, ui.js, fx-panels.js,
 protocol.js):
-  (a) Does the RUNTIME obey R1-R8? Fix the existing panels FIRST, because new
+  (a) Does the RUNTIME obey R1-R9? Fix the existing panels FIRST, because new
       panels are built by copying an existing one — copying a panel that is
       missing a rule propagates the gap (FX1 was copied from a pattern missing
       R7).
