@@ -597,7 +597,8 @@ NEXT:        Build this once the chain-row work (graphics/drag-handles +
              remaining effect panels) is done — Charlie's explicit priority
              order.-------------------------------------------------------------------
 DATE:        2026-07-28
-STATUS:      IDEA NOTED, not yet decided — a question for a LATER session
+STATUS:      RESOLVED 2026-08-02 — see that date's entries below (both
+             FOLDED IN)
 AREA:        Chain row — how effect panels get opened (dropdown ▼ vs
              clicking the block itself, matching Avid)
 FINDING:     Charlie's stated plan, in order: (1) graphics/drag-handle work
@@ -632,13 +633,14 @@ IMPLEMENTATION: index.html, one new listener block right after the existing
              no real .chain-open (AMP-CAB's shared thumb, the read-only INPUT
              clone) since .chain-open[data-panel] won't match their hidden
              dummy caret (no data-panel attribute).
-STATUS:      NOT TESTED LIVE — code written, not yet run against the rack.
-NEXT:        Charlie to build and test live: click each block's thumbnail and
-             confirm its panel opens/closes exactly like the ▼ caret does,
-             with no interference with drag-to-reorder.
+STATUS:      [FOLDED IN: Primer WORKING + Status line, 2026-08-02] TESTED
+             LIVE — Charlie confirmed working same session.
+NEXT:        None — done.
 -------------------------------------------------------------------
 DATE:        2026-08-02 (same day, 2nd change)
-STATUS:      BUILT — NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING + Status line, 2026-08-02] TESTED
+             LIVE — Charlie confirmed working same session ("quick easy and
+             done").
 AREA:        Chain row — click the AMP-CAB thumbnail to return to amp controls
 FINDING:     Charlie: clicking the AMP/CAB block should do the same job as
              clicking ✕ on an open effect panel or clicking the ▼ caret again
@@ -655,9 +657,7 @@ IMPLEMENTATION: index.html, same '.chain-thumb' click listener from the
              currently open anywhere in the row and calls .click() on it —
              reuses that button's own existing close branch rather than a
              third copy of the close-panel logic. No-op if nothing is open.
-NEXT:        Charlie to build and test live: with an effect panel open, click
-             the AMP-CAB thumbnail and confirm it closes the panel and shows
-             amp controls, same as ✕ or the caret.
+NEXT:        None — done.
 -------------------------------------------------------------------
 
 
