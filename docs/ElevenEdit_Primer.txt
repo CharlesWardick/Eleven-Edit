@@ -1,0 +1,1073 @@
+ELEVEN EDIT — PROJECT PRIMER
+===================================================================
+Updated: 2026-08-02
+Author: Charles Wardick (charles.wardick@gmail.com)
+Status: Active development — CHAIN ROW, AVID-STYLE CLICK-TO-OPEN (2026-08-02,
+TESTED LIVE): clicking a block's pedal thumbnail now opens/closes its effect
+panel exactly like its ▼ caret (additive — the caret stays, per Charlie's
+call); clicking the AMP-CAB thumbnail closes whatever panel is open and
+returns to the amp controls, same job as ✕ or the caret. Full detail: Session
+Log 2026-08-02 (two entries). Phase 15 COMPLETE (FX-HOST PANEL REFACTOR +
+FX2/MOD, "REFACTOR FIRST", agreed and built 2026-08-01, ALL TESTED LIVE).
+FX1's panel code (open/render/update/drag/query/send — fx-panels.js/
+fx-transport.js/sysex-handler.js's FX1 sections, two ui.js branches,
+index.html's panel markup) was generalized into one engine parameterized by
+slot id (openFxHostSlot, state.js) sharing one panel DOM (#panel-fxhost)
+instead of one copy per slot; Charlie re-verified FX1 through it live with
+no regression. FX2 and MOD then wired up the same session as thin callers
+of that engine (FX_HOST_ALLOWED_MIDS, protocol.js: FX2 unfiltered, MOD
+filtered to 6 of the 10 — C1 Chorus/Vibrato, Flanger, MultiChorus, Orange
+Phaser, Roto Speaker, Vibe Phaser) and confirmed TESTED LIVE the same
+day — FX2 genuinely does host the identical model family as FX1 (no longer
+just an expectation), MOD's 6-model list is correct. Full detail: Session
+Log 2026-08-01 (three entries) and Tech Ref Sec 23/24. A second, related
+idea from the same decision — FX-model-switch value memory and sane
+per-model defaults instead of trusting the firmware's "garbage defaults" on
+a model change — stayed explicitly OUT of scope (Charlie's call), not yet
+designed or built, possibly deferred indefinitely. Phase 14 COMPLETE (FX1
+effect panel, generic host slot — ALL 10 known FX1 models captured and
+TESTED LIVE: C1 Chorus/Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray
+Compressor, MultiChorus, Orange Phaser, Roto Speaker, Vibe Phaser,
+Parametric EQ); Phase 13 complete (rig tempo clock + chain-strip
+right-hand group); Phase 12 complete (amp model change refresh);
+Phase 11 complete (amp tremolo feature set);
+Phase 10 complete (REVERB effect panel); Phase 9 complete (DIST effect panel);
+Phase 8 complete; Phase 7a-1 complete; Phase 4a GUI Round 2 complete
+
+SESSION START — DO THIS BEFORE ANY WORK
+--------------------------------------------------
+(Rewritten 7/28/2026 — this project moved from upload-a-file-into-chat
+sessions to Claude Code, which reads this git repo directly. Most of what
+used to live here was about surviving that upload/paste-back cycle — a
+chat only knew whatever copy it had been handed, and could silently hand
+back something OLDER under the same filename. That whole class of risk is
+gone: there is one working tree, every session reads it fresh, and every
+edit is visible immediately via `git diff` and the commit history — not a
+line count guessed after the fact. See the Archive for the old version of
+this section and the incidents that shaped it; the lessons are still true
+history, just no longer the operating procedure.)
+
+  1. The repo IS the current state. No re-upload, no "which copy is this
+     thread holding" — just read the files that are actually there.
+  2. The one thing that DOES need checking at the start of a work session is
+     git/branch state, per the repo's own branch instructions: is the
+     previous work branch still unmerged (keep building on it) or already
+     merged into main (restart it fresh from main, keep any unmerged work by
+     rebasing it on top)? `git fetch origin main` +
+     `git merge-base --is-ancestor <branch> origin/main` answers this in one
+     step — do it before the first commit of a session, not after.
+  3. REVIEW SESSIONS — ASK FOR CODE WHEN THE DOCS ALONE CANNOT SETTLE IT.
+     A review compares documents against each other and cannot see the code
+     unless it is actually read; being "in the repo" does not make a claim
+     verified on its own. So doc-vs-code drift — a session that documents a
+     fix but ships something slightly different — is invisible unless you go
+     read the file. REQUEST/READ the specific file when:
+       - a retraction lands and the withdrawn behaviour may still be in code
+       - a named constant or formula is documented (settle times, dB anchors,
+         zone arithmetic) and can be checked against the source in seconds
+       - a symptom recurs after a documented fix — doc and binary disagree,
+         and only the code decides
+       - two docs describe one function differently, or a doc describes a
+         behaviour without naming the mechanism
+     WHERE TO LOOK: transport.js and protocol.js carry most protocol-critical
+     claims (send builders, constants, lookup tables, decoders);
+     sysex-handler.js for routing and format detection; ui.js for display
+     formulas. Read one or two files, never the whole set reflexively.
+     DO NOT read routinely just because you can. A well-scoped additive
+     session does not need it, and reading files that don't inform the task
+     costs context for no return. Expect to catch "the doc says 0.6 and the
+     code says 0.61", not architectural problems.
+
+
+READ THIS FIRST, THEN ONE OTHER DOCUMENT:
+  ElevenEdit_Technical_Reference.txt — the single authoritative protocol,
+  hardware, encoding, TFX, and dead-ends reference. It replaces all the older
+  Protocol_Research / USB_Protocol / Protocol_Findings / prior-Reference
+  files. Do not re-research anything confirmed there.
+
+This Primer is orientation only: what the project is, how to work with
+Charlie, current build state, code map, environment, and safety.
+
+
+HOW UPDATES WORK (read before adding any findings)
+--------------------------------------------------
+Three files, one direction of flow. Do NOT create new dated copies of any
+reference doc to hold updates.
+
+  ElevenEdit_Technical_Reference.txt  TRUTH — confirmed protocol/hardware facts
+  ElevenEdit_Primer.txt (this file)   TRUTH — orientation & current app state
+  ElevenEdit_Session_Log.txt          SCRATCH — provisional/in-progress findings
+  ElevenEdit_Archive.txt              DRAIN — superseded history, never read
+                                      during normal work
+
+A fact is either confirmed (lives in a main doc, EDITED IN PLACE) or
+provisional (lives in the session log). Never both, never a third dated file.
+During a session, findings go to the SESSION LOG only — that is the whole
+point of the log. Do NOT rewrite or regenerate the Technical Reference or the
+Primer on every turn; the masters are the ledger, not the scratchpad, and each
+full rewrite is a chance to drop a section or reorder something. Fold the log's
+confirmed findings into the masters ONCE, at wrap (see FINALIZATION), editing
+in place and marking each entry [FOLDED IN]. The log trends back toward empty;
+the masters stay current without being touched mid-session. This is what
+prevents the six-overlapping-documents problem.
+  WHY THIS STILL MATTERS UNDER CLAUDE CODE (7/28/2026): the original reason
+  for this split was that a chat session could only rewrite a master doc by
+  having the whole thing pasted back, and a full rewrite risked silently
+  dropping a section. Git removes that specific risk — every edit shows up
+  in `git diff` before it's committed. But the split is worth keeping anyway,
+  for a different reason: the Primer and Technical Reference are what a
+  fresh session reads FIRST to get oriented, every single time. Folding a
+  day's worth of provisional, still-shifting findings straight into them
+  would make that orientation read longer and noisier for no benefit —
+  better to let the log carry the day's mess and fold in only what turned
+  out to matter, once, at wrap.
+  ONE EXCEPTION — fold immediately, mid-session, only when a finding changes
+  what the next step does: a retraction the next task would otherwise build on,
+  or a hardware-safety item. Everything else waits for wrap.
+
+THE ARCHIVE (added 7/21). Promoted log entries and superseded narrative move
+to ElevenEdit_Archive.txt, one direction only — things go in, nothing comes
+back out. You do not need it to work; the Primer and Technical Reference are
+complete without it. Each block that moved left a one-line pointer behind.
+  DO NOT ARCHIVE anything that stops a future session repeating work, however
+  historical it reads: Section 20's dead ends, the retraction notes in Sec 6
+  and Sec 23, any WITHDRAWN block quoted in place, and unresolved conflicts.
+  Test: does it change what I would DO next? If it only explains WHY, it can
+  be archived. If it would stop someone repeating a mistake, it stays.
+
+
+FINALIZATION — HOW TO WRAP A SESSION (the method that has been working)
+----------------------------------------------------------------------
+This runs ONCE, when Charlie says to finalize/wrap — NOT every turn. During the
+session the masters are left alone and findings accumulate in the log (see HOW
+UPDATES WORK). Producing full Technical Reference / Primer files on every pass
+is wasted effort and adds risk; wait for the wrap signal, then do this in order:
+  1. FOLD IN. For each confirmed finding in the session log, edit the value
+     directly into the Technical Reference (or this Primer) IN PLACE — new
+     protocol facts into the relevant numbered section, plus a one-line entry
+     in Tech Ref Sec 24 (Change Log). Never create a dated copy.
+  2. MARK THE LOG. Change each folded entry's STATUS to
+     "[FOLDED IN: <doc + section>]". Leave the entry in place (do not delete);
+     the log trends toward empty over time, not in one wipe. Anything still
+     provisional or unverified stays as-is with a clear NEXT.
+  3. UPDATE PRIMER STATE. Bump the Status line and CURRENT APP STATE phase,
+     move the shipped feature into WORKING, trim it from NOT YET IMPLEMENTED,
+     and add its functions to the CODE FILE MAP.
+  4. REVIEW THE DIFF. Run `git diff` (or check each Edit result) on every
+     doc touched this session before committing. This is the current version
+     of the old "line-count tell" — git shows exactly what changed, including
+     an accidental deletion, instead of inferring one from a line count after
+     the fact (see the 7/20 and 7/23 incidents in the Archive for why that
+     check existed).
+  5. COMMIT AND PUSH. Code and docs land in the SAME commit (or the same
+     small batch of commits) on the session's working branch, then pushed —
+     see the repo's own branch/git-workflow instructions for the exact
+     commands and the merge-base check. Charlie tests the real build off
+     that branch; once confirmed on real hardware, he merges it into main
+     himself (or asks Claude Code to). There is no separate zip/fold-back
+     step — the branch IS the consistent set, and it stays that way until
+     Charlie says to merge.
+
+
+WHAT THIS PROJECT IS
+--------------------
+Eleven Edit is a full patch editor and bank manager for the Avid Eleven Rack
+guitar processor. It replaces the Avid editor entirely — no iLok, no Avid
+software needed. Built on the confirmed Java-bridge architecture below.
+
+
+HOW TO WORK WITH CHARLIE
+------------------------
+Non-developer, Pascal/Delphi background; no JavaScript, Electron, or Java.
+He defines requirements, reviews mockups, tests builds, and reports what he
+sees; he cannot write or debug code himself and won't fill in gaps.
+  - Agree on the approach before writing any code. All decisions need his
+    confirmation before implementation.
+  - Be concise. Keep explanations outcome-focused, not technical.
+  - Conclude internally; present the solution or finding, not the reasoning.
+  - THE TEST STEP, EXACTLY (Charlie's own words, 7/29/2026): after code is
+    handed over, he runs `npm run build` (electron-builder --win --x64),
+    executes the resulting EXE, and tests it live against the real hardware.
+    There is no other test step and no way to shortcut it — "there is nothing
+    to test when ElevenEdit can't communicate with hardware." Don't propose
+    unit tests, mocked bridges, or "verify without hardware" steps as a
+    substitute; they are not part of how this project gets verified.
+  - CHARLIE ONLY TESTS ON REAL HARDWARE, ALWAYS (confirmed 7/28/2026). He
+    builds this repo's code into an EXE and runs it against the real Eleven
+    Rack over the Java bridge — there is no "dry run" step in his workflow.
+    Without the bridge actually connected to hardware, essentially nothing
+    is testable beyond the about box, the settings panel, and the window's
+    close button; every other feature (chain row, effect panels, knobs,
+    bypass, patch load/save, tuner, etc.) requires a live connection to
+    produce any real signal to observe. So: a claim like "this needs testing
+    without hardware to isolate X" doesn't fit how testing happens here —
+    Charlie's confirmation IS the real-hardware test, not a step before it.
+    Two specific mistakes to not repeat (both made 7/28/2026, same session):
+    (1) treating in-conversation feedback ("good," "off," "almost there")
+    as provisional/pending a future hardware test — it is NOT provisional,
+    each round of feedback IS a fresh real-hardware test result, given live
+    while he has the rebuilt EXE running against the rack. Don't sign off
+    with "let me know how it feels once you test" after he has already just
+    told you the result. (2) the app does not run ON the hardware — it runs
+    on Charlie's PC/VM and REMOTE-CONTROLS the Eleven Rack over MIDI via the
+    Java bridge. Get this distinction right when describing the setup.
+  - Old eyes: amber-on-dark, readable fonts, generous sizing.
+  - THE REPO IS CANONICAL, FULL STOP (updated 7/28/2026 — under Claude Code,
+    not the old chat workflow). There is no separate "outputs" snapshot to
+    fall out of sync with: every file read is the actual working tree, every
+    edit lands in it directly, and `git status`/`git diff` show the true
+    current state at any point mid-session. No re-copy risk to guard against.
+  - TWO FAILED FIXES = STOP AND RE-DERIVE. If two consecutive changes produce
+    no change in observed behaviour, the problem is a wrong assumption, not a
+    wrong value. Go back to the raw evidence and re-derive from scratch rather
+    than adjusting bytes. On 7/18 this rule would have saved roughly a dozen
+    build cycles: every "fix" was a guess downstream of one unexamined
+    assumption (that USB CIN framing bytes were payload data).
+  - Update the session log in the SAME turn you present files, not later.
+  - TEST READBACK WITH THE AVID EDITOR CLOSED. Our app adopts any broadcast on
+    the wire, including ones triggered by the editor's own queries. With both
+    running, features that never query anything can appear to work perfectly.
+    This caused a false pass on 7/19 (per-block bypass). If a feature reads
+    state from the hardware, it is not proven until it has run solo.
+  - KNOB "JUMP TO CENTRE" — recurs every time a new knob type is added. When a
+    knob sitting at value 0 is grabbed, it leaps to the middle on the first
+    drag. Cause: reading the start value as `parseInt(dataset.value) || 64`,
+    where a legitimate 0 is falsy and becomes 64. FIX (copy from the tone-knob
+    drag, the known-good one): guard explicitly —
+    `(dataset.value !== undefined && dataset.value !== '') ? parseInt(...) : 64`.
+    Was present in DIST and REVERB panels; both fixed 7/22. Check for this
+    pattern in any new knob before building.
+  - A DISPLAY THAT CANNOT REACH A ROUND NUMBER IS A SCALE BUG, NOT DRIFT. Two
+    readouts were quietly wrong for weeks because a 0-127 integer was stretched
+    across a symmetric dB range, putting 0.0 dB between two integers where it
+    could never be shown. One was even written off as "log-pot nonlinearity".
+    Anchor any scale on its zero point. Same family: a write that asks for the
+    bottom of a step, which is why Speed would not reach 10.0.
+  - AN EDIT ANCHORED ON A LOOSE MARKER CAN SILENTLY DELETE A SECTION. Folding
+    in on 7/23, "cut from C11 to the next C12" removed Sections 23 and 24 of
+    the Technical Reference, because the FLAGGED CONFLICTS entries are not in
+    numeric order and C12's header sits ABOVE C11's. Nothing looked wrong;
+    only a manual line-count check caught it (this was before Claude Code —
+    under it, `git diff` shows a deletion like this immediately, without
+    having to think to check). Anchor on unique text and check the section
+    headers survive either way.
+
+
+CONFIRMED ARCHITECTURE (brief)
+------------------------------
+  ElevenRackBridge.jar (Java, javax.sound.midi) <-> ws://localhost:57121
+  <-> Electron UI.
+  IN  port: "Eleven Rack No details available" (Vendor Specific interface)
+  OUT port: "Eleven Rack External MIDI Port"
+  Java sees the Vendor Specific port that node-midi / Web MIDI cannot.
+  App-visible SysEx is clean: F0 13 0B 0F [dir] [cmd] ... F7 (no 0x04 framing).
+  Do NOT suggest Zadig, node-usb, node-midi, or Web MIDI — all confirmed dead
+  ends (Technical Reference, Section 20). Full wire details: Technical
+  Reference, Sections 1–2.
+
+
+CURRENT APP STATE
+(Phase history is in the Change Log, Tech Ref Sec 24 — not tracked in this heading.)
+-------------------------------------------------
+
+HOW "TESTED" WORKS HERE — READ BEFORE WRITING ANY STATUS
+  Eleven Edit does NOT run on the rack. It REMOTE-CONTROLS the rack over the
+  Java bridge. So a feature is only real when it has driven real hardware.
+  There are exactly these states — use ONLY these:
+    TESTED LIVE   — built to EXE and exercised against the real rack over a
+                    connected bridge, in session. This is the ONLY "done" for
+                    anything that touches hardware.
+    NOT TESTED LIVE — code written but not yet run against the rack. The only
+                    honest pending state.
+    BRIDGE-INDEPENDENT — the few things that work with no rack attached:
+                    About box, Settings panel, folder pickers, and the X/quit.
+                    (The main screen otherwise comes up empty — nothing to read
+                    back — so there is nothing else meaningful to test offline.)
+  FORBIDDEN as evidence of "working": "headless-Chromium render", "pixel
+  measurement", "simulated drag/click", or any in-Claude simulation. Those may
+  sanity-check code shape, but they are NOT verification — the feature is remote
+  control of hardware that no simulation contains. Never mark such a thing
+  "verified" or imply it is done. If Charlie has not run it live, it is
+  NOT TESTED LIVE, full stop. Do not invent "PENDING CHARLIE'S BUILD TEST" or
+  similar half-states.
+  NOTE: Charlie builds the EXE and tests live during the session with the rack
+  connected. There is no separate later hardware-test step to defer to — the
+  session IS the test, or it is NOT TESTED LIVE.
+  INTERMITTENT BUGS need MORE THAN ONE clean live pass. A single green run on an
+  intermittent or mystery symptom proves the fix CAN work, not that the bug is
+  gone. Such fixes are UNCONFIRMED until they survive repeated runs, not TESTED
+  LIVE after one. (Example: the startup chain-graphics bug — fix applied, works
+  when it runs, not yet confirmed across repeated cold starts.)
+Build: electron-builder --win --x64 -> EXE.
+
+7/31/2026 — FX1 EFFECT PANEL, SEVEN MORE MODELS (Phase 14 continued) —
+  Flanger, Graphic EQ, Gray Compressor, MultiChorus, Orange Phaser, Roto
+  Speaker, and Vibe Phaser all captured and TESTED LIVE, bringing FX1 to
+  9 of 10 known models (only Parametric EQ left, capture pending). All
+  paramLo maps, display formulas, and mono/stereo mid pairs came from
+  Wireshark captures decoded directly in Claude Code (no tshark available
+  in-session — pcapng framing + USB-MIDI CIN reassembly done by hand in
+  Python), cross-checked against Charlie's own capture-side spreadsheets/
+  screenshots where available, not guessed from family resemblance alone
+  — see Session Log for each model's specific evidence.
+  TWO NEW REUSABLE FX1 CONTROL KINDS (fx-panels.js/ui.js), on top of the
+  existing knob/toggle/sync:
+    cell.slider — a vertical fader (Graphic EQ's six EQ bands), with
+    printed calibration tick numbers on both sides (drawEqSlider/
+    eqSliderDb/eqDbToV127, ui.js). Confirmed a real, generic "linear vs
+    zero-anchored" display distinction: symmetric ranges use the same
+    two-slope-anchored-at-v127=64 shape as valToAmpVol; Graphic EQ's
+    asymmetric Output band needed a genuinely different plain-proportional
+    shape instead (0.0 dB sits at a non-integer raw value there — likely a
+    real 7-bit resolution limit, not a bug) — both shapes take a `linear`
+    flag.
+    cell.select — a generic named-position dropdown for any control with
+    3+ discrete positions that isn't Sync/tempo-driven (MultiChorus's
+    Voices, Roto Speaker's Type). A 2-position control still just reuses
+    the existing cell.toggle rather than getting its own kind.
+    (A THIRD kind, cell.hslider — a horizontal lever for Roto Speaker's
+    Speed — was built, then REMOVED same day after Charlie's live test
+    found the moving thumb visibly covering its own tick label, and a
+    3-option dropdown was simpler and matched the panel's layout better.
+    Nothing in the shipped code uses it; see git history if a future model
+    ever needs a true continuous horizontal control.)
+  GROUPED/BOXED LAYOUT — a model's row list can now mix plain flat rows
+  with box entries `{group:'LABEL'?, rows:[[cells...],...]}`, rendered as
+  a nested bordered box (labeled or not) instead of one flat knob row —
+  built for MultiChorus's CHORUS/MOD boxes and its unlabeled Rate/Depth +
+  Voices/Mix columns. Every FX1 lookup that walks a model's cells
+  (hardware-readback dispatch, the R7 Sync-interlock helpers) goes through
+  one flatten helper (fx1AllCells) so grouped models get correct behaviour
+  automatically, no per-model special-casing.
+  R7 (Sync interlock) and R8 (double-click-to-baseline) — both existing
+  Sec 20A contract rules — were retrofitted this session to close real
+  gaps found along the way: FX1 Chorus's Sync/Rate (and, once captured,
+  its Chorus knob too — Sync turned out to drive BOTH, confirmed live,
+  not assumed) was missing the grab-clears-Sync half of R7; ALL SIX knob
+  surfaces' (amp tone + five effect panels) double-click handler was
+  jumping to a hardcoded centre value instead of the R3 load baseline.
+  BUG CLASS FOUND AND FIXED THREE TIMES: a captured model's primary `mid`
+  must be registered with EVERY wire id MODEL_NAMES lists for it (mono AND
+  every stereo variant), not just the one id actually observed in a
+  capture — Graphic EQ and Dyn3 Compressor were both missing their mono
+  mid's registration, causing a genuine silent bug (FX1 panel opens but
+  can't resolve a model, no error, no log) that Charlie tracked down from
+  an ordinary session log with no dedicated repro — root-caused the
+  "bug I can't reproduce yet" flagged earlier the same session. Flanger,
+  MultiChorus, Orange Phaser, Roto Speaker, and Vibe Phaser were all built
+  registering every known mid up front from that lesson.
+  TWO OTHER REAL BUGS FOUND AND FIXED, both save/paint-path issues, not
+  protocol issues: (1) the Avid graphics chain-row scan could fail
+  silently at startup (no log entry either main- or renderer-side) with no
+  automatic retry, intermittently leaving the chain row's pedal thumbnails
+  as blank placeholders — fixed by logging every failure path and
+  auto-retrying the startup scan up to twice more. (2) rebaselineOpenFxPanel
+  (repaints an open FX panel's knobs to base colour after a save)
+  unconditionally called the circular-knob paint function on every control
+  in the panel — harmless for five panels of plain knobs, but corrupted
+  Graphic EQ's/Roto Speaker's non-round controls after a save; fixed to
+  dispatch by the same cell-kind logic as everywhere else.
+  Full per-model evidence (paramLo maps, display-formula cross-checks,
+  capture file names) lives in the Session Log, not restated here — this
+  is the durable summary, not the working notes.
+
+7/30/2026 — FX1 EFFECT PANEL (new panel, Phase 14, in progress) — FX1 is a
+  GENERIC HOST SLOT (Tech Ref Sec 4/23): it can carry models from several
+  other effect families, identified by slot ID (0x08) not mid range. Built
+  following the DIST/REVERB/WAH/VOL pattern, with two new reusable cell
+  kinds: a binary toggle (same shape as VOL's Taper) and a Sync selector
+  that reuses the amp Tremolo's existing 14-zone table instead of a new
+  one. TWO MODELS CAPTURED AND CONFIRMED so far (of 10 known in this slot's
+  dropdown — the rest are stub entries with no controls yet):
+    C1 CHORUS/VIBRATO — Chorus/Rate/Depth knobs, Mode toggle (Chorus/
+    Vibrato), Sync selector. Full Sync x Chorus/Rate interaction matrix
+    captured (engaging Sync overwrites live Chorus/Rate values — real
+    hardware behaviour). Has a MONO/STEREO MID PAIR (mono=0x01,
+    stereo=0x03) — TESTED LIVE including the Stereo/Mono toggle case.
+    DYN3 COMPRESSOR — Threshold/Attack/Release/Ratio/Knee/Gain, all six
+    with confirmed display formulas (Ratio's 1:1-100:1 curve turned out to
+    be a clean exponential, confirmed by a 19-point sweep). TESTED LIVE.
+  TWO CROSS-CUTTING BUGS found and fixed across ALL FIVE effect panels
+  (DIST/REVERB/WAH/VOL/FX1), not just FX1 — see Tech Ref Sec 23 FX1 SLOT
+  section and HARDWARE SAFETY below for full detail:
+    THE 9.9 BUG — a knob couldn't hold its true min/max endpoint on
+    hardware (settling one tick short, e.g. 9.9 instead of 10.0). Root
+    cause: the amp Tremolo Speed knob's 7/23 endpoint-sentinel fix never
+    got ported to the per-effect-panel send functions. Fixed in all five.
+    DRAG-QUEUE RACE — could hang the rack outright (not an assert, no
+    brick) by sending a malformed byte mid-SysEx. Fixed in all five drag
+    handlers; see HARDWARE SAFETY.
+  Both fixes are now MANDATORY parts of the template for any future panel
+  (fx-panels.js / fx-transport.js file headers updated) — copy the FX1
+  pattern for the next panel, not DIST's.
+  TESTED LIVE (Charlie, 2026-07-30): both models' controls, the mono/stereo
+  toggle fix, scroll wheel on all five panels, and repeated "try to break
+  it" testing on the drag-race fix (clean).
+  NEXT: Flanger is next per Charlie's model-by-model plan. FX2 (SLOT_FX2)
+  is expected to host the identical model family — reuse FX1_MODELS rather
+  than re-capturing. Some models may also turn up in MOD's roster.
+
+7/29/2026 — NAV TIMING DEV PANEL REMOVED. Charlie no longer needed it —
+  zeroing its two tunable values (Query gap, Recall settle) produced no
+  observable improvement or problem either way, so there was nothing left
+  worth tuning by hand. timing-panel.js deleted; its <script> tag removed
+  from index.html; lastNavPullMs/lastNavPullQueries (state.js) removed,
+  since the timing panel was their only reader. The four underlying NAV_*
+  constants in transport.js (NAV_QUERY_GAP=15, NAV_RECALL_SETTLE=100,
+  NAV_CHAIN_TIMEOUT=900, NAV_AMP_TIMEOUT=700) are UNCHANGED — only the
+  live-editing UI is gone, not the values or the behaviour they gate. The
+  nav pull still logs "Nav pull complete: N param queries, Xms" to the
+  monitor via appLog, so that number is still visible without the panel.
+
+7/29/2026 — MASTER VOLUME + MUTE (new feature):
+  MAIN VOL — CONFIRMED WORKING on Charlie's first hardware test. A compact
+    value box + stepper (arrows / mouse wheel while focused / up-down keys)
+    added to the chain-strip right-hand group, in the space above TEMPO that
+    was deliberately reserved for it. CMD 0x36 outSel 0x00, same wire family
+    as To Amp 1/2. FIXED SAME DAY: display was initially borrowed from To
+    Amp's -12..+12 dB scale (valToAmpVol) — Charlie's own test explanation
+    said "HW master volume was on 8" while dragging a plain 0-10 dial, and
+    the captured bytes decode exactly to that range. Now valToMasterVol
+    (0-10 linear, one decimal). Re-queried every nav pull; does NOT light
+    the SAVE dirty latch (per-patch-vs-global status still unconfirmed —
+    see Tech Ref).
+  MUTE MAIN / MUTE PHONES — two small buttons below the volume box, dim
+    normally and lit red when muted, matching Avid's own MUTE section.
+    CMD 0x3B, channel 0x00=Main/0x01=Phones. Retracts the old "front-panel
+    only, dead on send" reading — the capture shows Avid's own software
+    sending it successfully. TESTED: Main mute verified BY EAR on real
+    hardware and mirrored in the Avid software. Phones mute verified only by
+    Avid-software mirror, NOT yet by ear (Charlie hadn't dug out the
+    headphones) — treated as working since it mirrors correctly, to be
+    revisited only if a bug surfaces. No query form exists, so both default
+    to unmuted on connect/nav and only reflect real state once a send or
+    broadcast has been seen (same limitation as the Input Selector).
+  See CODE FILE MAP below (protocol.js / transport.js / sysex-handler.js /
+  state.js / index.html / ui.js) and Tech Ref Sec 18/C13 for full detail.
+
+7/27/2026 EVENING — CODE REORGANIZATION + one display fix (tested by Charlie
+  same day; no protocol or behaviour changes except where noted):
+  sysex-handler.js — parseSysEx was one 700+ line function running every
+    incoming CMD byte as a sequential if-chain. Split into one handleXxx(data)
+    function per command, dispatched from a thin switch; CMD 0x11 further
+    split into routeBypassMessage / routeFormatBAmpMessage / routeAmpBlockParam.
+  transport.js and ui.js — both grew by one repeated chunk per effect panel
+    (DIST, REVERB so far; 7 more planned). The per-effect send functions moved
+    out of transport.js into new fx-transport.js; the per-effect panel UI moved
+    out of ui.js into new fx-panels.js. Neither core file grows further as
+    panels are added — new panels' code belongs in the two new files (see
+    their header comments for the copy-this-pattern template).
+  Gate Release readout — was a bare rounded integer below 1000ms ("10 ms")
+    while every other readout (Gate Threshold, Rig Vol, Amp Out, To Amp Vol)
+    already showed one decimal place. Now consistent ("10.0 ms"). ACTUAL
+    DISPLAY CHANGE, not a pure reorg — scale/formula untouched.
+  See CODE FILE MAP below for the per-file detail; all three changes are on
+  branch claude/elevenedit-primer-review-njmhy5 (check git for current merge
+  status — that's tracked in git, not restated here).
+
+7/27/2026 FIXES (tested by Charlie same day; details in Tech Ref Sec 15/21/24):
+  Startup SAVE no longer green — sendCC marks the patch dirty only for per-patch
+    CCs (Rig Vol, CC 17); input (global) and tuner (transient) do not. The
+    startup forced-Guitar therefore no longer lights SAVE.
+  First connect reflects the rack's CURRENT patch (like Avid) instead of forcing
+    A1. No recall is sent; the current-rig reply drives the initial pull.
+  Phantom red on save fixed — save/capture no longer repaints the live continuous
+    knobs from the body (that int32->0-127 re-decode rounded a unit off the live
+    value and, via the tone-row re-render, could also blank it). Only re-renders/
+    repaints when the amp actually changed or in legacy bulk-on-nav mode.
+  DEFERRED: reflect live input / stop forcing Guitar (input is global — future
+    global-settings work; Tech Ref Sec 21).
+
+7/26/2026 UI PASS (all tested by Charlie same day; details in Tech Ref Sec 4/15/18/24):
+  Knob colour-state — a knob turns RED when its value differs from the loaded
+    patch, and returns to base when set back exactly. Base is AMBER on the amp
+    /main panel, GREEN on effect panels. The three colours are named values in
+    one place in ui.js (KNOB_COLORS) so item B can later make them user-chosen /
+    colourblind-safe. Baseline is captured on patch load (end of nav pull) and on
+    a rack save; a full patch nav resets it.
+  Effect-panel red-state PERSISTS across panel switches (per-effect baseline
+    store, fxBaseline), matching how the amp panel holds truth. The rack itself
+    forgets per-screen (shared physical knobs); we keep truth deliberately.
+    Accepted gaps: changing an effect on the front panel BEFORE opening its
+    panel baselines to the already-changed value (query budget); and an
+    amp/effect MODEL swap shows all-red (genuinely different controls).
+  SAVE button dirty latch — starts grey like Load TFX, turns green on the first
+    patch edit, stays green until a patch nav or a save. Pure latch, no polling.
+    Save to Disk leaves it green (not committed to the rack); Save to Rack and a
+    front-panel save clear it. Global writes (To Amp source) do NOT light it.
+  Knob-write throttle — all knob/slider drags AND scroll now pace their HW
+    writes through queueKnobSend (60 ms trailing), fixing a pre-existing flood
+    that could desync the amp handle and freeze the knobs. Post-save chain-map
+    re-read + handle self-heal back it up (Tech Ref Sec 4/15).
+  Scroll wheel — now on amp tone knobs, DIST/REVERB knobs, and the Speaker
+    Breakup slider (joining Gate/To Amp/Rig Vol/Amp Out). One notch = 1 unit.
+
+WORKING:
+  Patch navigation — SW controls and HW front panel (both update all displays)
+  Current patch display: slot, name, amp model, effect-chain graphic
+  Amp identification from TFX body ('6dls' marker scan)
+  Gate Threshold / Release — SW send + TFX readback + live HW readback
+  Amp Out — SW send + TFX readback + live HW readback (in the "Volumes" box)
+  Rig Volume — CC17 send + CMD 0x07 live readback (in the "Volumes" box)
+  Amp Select dropdown — CMD 0x11 send + readback
+  Tone stack — all 33 amps: SW drag, TFX initial readback, live HW readback
+  Bright toggle — SW button, TFX + live HW readback (12 amps). The label comes
+    from the amp table, so SL100 Drive correctly reads MOD.
+  AMP TREMOLO FEATURE SET — on the 15 amps that have it:
+    Depth and Speed knobs, a TREMOLO on/off button (paramLo 0x13, a control
+    Avid's editor does not have at all), and a 14-entry Sync dropdown showing
+    the note glyph and its name. All read and write.
+    Moving Speed clears Sync to OFF first, mirroring the rack. Avid's Speed
+    knob does nothing at all while Sync is engaged. Tech Ref Sec 11.
+    Laid out as a BRIGHT / TREMOLO / SYNC stack right of the tone knobs.
+  RIG TEMPO — a digital-clock field on the chain strip,
+    right of the Stereo/Mono badge. Reads and writes CMD 0x50, which is
+    microseconds per beat as four 6-bit digits (Tech Ref Sec 18). Click the
+    whole or tenths segment then use the stepper, the mouse wheel or the
+    up/down keys; or just type "120.5" and press Enter. Range 10.0-500.0,
+    clamped. Writes go out on a 150 ms trailing timer because a tempo change
+    makes the rack rebroadcast every tempo-synced parameter in the chain.
+    Tracks front-panel and Avid changes live, and is re-queried once per nav.
+  CHAIN STRIP RIGHT-HAND GROUP (7/24/2026, refined same day) — the "drag
+    blocks to reorder" hint is gone (10px on #555, unreadable). The Stereo/Mono
+    badge now sits at the END OF THE CHAIN FLOW, right after the last block,
+    preceded by a connector line like the ones between blocks: TWO lines when
+    STEREO, ONE when MONO (tracks the badge state, not any block's output).
+    STEREO is green like an active block, MONO amber; click-to-toggle unchanged
+    and still writes CMD 0x0D. TEMPO sits one button-width to its right with the
+    label stacked above the number box. Badge is fixed-width (sized for STEREO) so it does not resize when it switches to MONO (with asymmetric padding so the letter-spaced text sits optically centred), and it sits tight after the last block; TEMPO holds the far-right edge.
+  AMP MODEL CHANGE REFRESH — changing amp type inside an
+    open patch now re-reads the amp block and shows the real stored values,
+    instead of blanking every tone knob to "--". Fires whether the change came
+    from our dropdown, the rack's front panel or the Avid editor.
+    WHY IT LOOKS ODD BUT IS RIGHT: amp parameters are stored PER CHAIN SLOT,
+    not per model, so values survive a model change and a control shared by
+    two models under different names is ONE value — edit 59 Tweed's "Tone"
+    and a Treadplate's "Treble" shows it. Avid behaves identically.
+    Tech Ref Sec 11.
+  Tuner button — SW send (CC69) + CMD 0x40 HW state readback
+  To Amp 1/2 volume knobs — SW send + TFX readback + live HW readback
+  Cab Type / Mic Type dropdowns — SW send + TFX + live HW readback
+  Mic Axis toggle — SW send + TFX + live HW readback
+  Speaker Breakup slider — SW send + TFX + live HW readback
+  Stereo/Mono — clickable badge: SW send + TFX readback + live HW broadcast
+    (Phase 7a-1; send echo is unreliable and deliberately suppressed)
+  Chain map — full chain stored on every CMD 0x21 (order, block identity,
+    model, handle). Amp handle now correct at any chain position.
+  Amp and Cab bypass — clickable, position independent, state read from HW.
+  Per-block bypass — all ten blocks clickable, addressed by handle so it works
+    at any chain position. State queried for all ten after every chain map.
+  Chain row — true per-patch order, model name on hover, stereo shown as
+    stacked double connector lines (49 of 52 models resolved).
+  CHAIN ROW CLICK-TO-OPEN, AVID-STYLE (2026-08-02, TESTED LIVE) — resolves
+    the 7/28 "dropdown ▼ vs clicking the block" deferred question. Clicking a
+    block's .chain-thumb now opens/closes its effect panel, forwarding to the
+    same .chain-open click handler the ▼ caret uses (no duplicated open/close
+    logic) — additive, the ▼ caret is unchanged and still works, per Charlie's
+    call to leave it alone for now. Clicking the AMP-CAB thumbnail (which has
+    no ▼ of its own) closes whatever panel is open and returns to the amp
+    controls, same job as ✕ or the caret — finds whichever .chain-open is
+    currently .panel-open and reuses ITS close branch. Both index.html only.
+  Chain reorder — drag and drop with live preview: blocks physically shift into
+    place during the drag itself (not just on drop), and a chain-map arriving
+    mid-drag no longer fights the preview. FX Loop placement enforced
+    client-side.
+    AMP-CAB + LOOP LINKED DRAG — dragging AMP-CAB while LOOP sits immediately
+    adjacent now moves LOOP with it, same direction/distance, until LOOP hits
+    either end of the chain — matching Avid's feel, confirmed against the real
+    editor by Charlie 7/27 (see Session Log). Once LOOP is parked at an end,
+    AMP-CAB is free to roam alone again; dragging LOOP directly is unchanged
+    (existing jump-between-legal-stops behaviour). The reorder math was
+    verified by a standalone Node simulation before the first build (caught
+    and fixed one real bug: LOOP already parked at an end was wrongly still
+    being dragged along).
+    7/28 (same day, after build test): the FIRST build surfaced a real
+    problem the simulation could not have caught — native HTML5 drag-and-
+    drop does not tolerate the dragged-over elements being relocated live,
+    which is exactly what the preview does. Symptom: flickering ok/no-drop
+    cursor, worst on a two-block swap (rapid flashing between the two
+    blocks). FIXED by replacing native drag-and-drop with plain mousedown/
+    mousemove/mouseup tracking (wireChainDrag, ui.js) — the same technique
+    already used for every knob in this app. draggable="true" and its CSS
+    removed; no longer meaningful.
+    7/28 (3rd pass, same day): mouse-tracking fixed the flicker/impossible
+    moves, but surfaced a expected gap — native DnD used to draw a floating
+    "what you're carrying" visual automatically; mouse-tracking doesn't.
+    Added createChainDragGhost — a cloned, click-through, position:fixed
+    element that follows the cursor above everything else, while the
+    original block stays in the flex row as the dimmed "where it will land"
+    placeholder. Also PENDING: Charlie's full drag matrix re-test (not yet
+    done), and an unclear "timing var" he noticed — asked him to describe it
+    rather than guess at a fix.
+    7/28 (4th pass, same day): ghost now shows the SUPERBLOCK condition —
+    when the drag is the linked AMP-CAB+LOOP case, the ghost is both blocks
+    side by side (correct relative order), not just the one under the
+    cursor, so the linked state is visible during the drag, not just
+    inferable from where things land. linkedAmpLoopInfo() extracted as the
+    one shared answer to "is this linked", used by both computeReorder and
+    the ghost builder. [RESOLVED 7/28, 9th pass ui.js — see CODE FILE MAP:
+    the ghost itself was removed entirely and replaced with a FLIP animation
+    on the real blocks, once Charlie's screen recording of Avid's own editor
+    showed it uses no ghost at all. Left here for history since this note is
+    what correctly predicted the fix would need FLIP.]
+    7/28 (5th pass, same day): position 1's whole width now counts as a legal
+    landing target (not just its left half) — there wasn't enough window
+    room to reliably cross its midpoint. PLUS a passive read-only clone of
+    the active INPUT selection now sits before position 1 with its own
+    single-line connector, shifting the whole row right so that room exists
+    at all — mirrors setInputButtons(), not a new control (see CODE FILE MAP:
+    index.html, ui.js). A functional input dropdown there was considered and
+    rejected for this pass — input switching is its own separate, already-
+    incomplete feature area. PENDING CHARLIE'S REBUILD TEST.
+  CHAIN ROW GRAPHICS-READY LAYOUT (7/28) — next evolution of the chain row,
+    aimed at the Avid pedal-graphics plan (GRAPHICS section below) AND at
+    fixing the drag/click conflict at the same time. Row grew 62px->110px
+    (matches the original Primer graphics estimate). Every block now has a
+    .chain-thumb above its label — currently a dashed-border DUMMY PLACEHOLDER
+    box (real Avid pedal/amp/cab images are a separate, not-yet-built step;
+    see NEXT below). The thumb is the ONLY drag handle now — dragging no
+    longer starts from anywhere on the label, which is what previously let a
+    drag attempt sometimes misfire as a bypass toggle and vice versa (Charlie:
+    "the clicker is also the drag handle"). Matches how Avid's own editor
+    works (the pedal graphic is what you grab there too). Label stays the
+    only bypass-click target, unchanged. UNIFORM fallback rule (revised from
+    the original mixed-height plan after a POC the day before): every block
+    gets the same-size thumb whether or not it has a real image — a missing
+    image is a dummy box, not a shorter block, so the row never looks jagged
+    depending on which specific blocks happen to have art. PENDING CHARLIE'S
+    BUILD TEST — drag-handle split not yet exercised on real hardware.
+    7/28 follow-up fix: AMP/CAB's thumb was sitting 10px higher than every
+    other block's thumb (same 64x60 size, read as "smaller" from reduced
+    headroom) — root cause was #chainstrip's align-items:flex-end bottom-
+    aligning each slot at ITS OWN natural content height, and AMP/CAB's
+    2-label stack is naturally 10px taller than a normal 1-label slot.
+    Fixed by switching to align-items:stretch (every slot now stretches to
+    one shared row height) + margin-top:auto on each slot's label element,
+    so the thumb pins top and the label pins bottom regardless of how many
+    labels follow. Also fixed GUITAR/STEREO reading "too high" — their
+    position was already correct (bottoms matched), it was font-size/
+    padding (11px/3px vs the real .chain-name's 13px/5px) making them look
+    lighter; matched the real values. See Session Log 7/28 (thumb position
+    entry) for the full CDP-verified detail. Row height 130px -> 140px,
+    the minimum bump needed — does not touch the effect-panel area below.
+    NEXT (separate step, deliberately not done in this pass): the actual
+    recursive Avid-graphics-folder scanner (main.js) and the MID-to-filename
+    mapping table (a new dedicated JS data file, not the docs — see the
+    "mapping table" note below and Session Log 7/28 for the real folder
+    listing this will be built from).
+  TFX capture to disk — on hardware save (auto) or via SAVE ▾ → Save to Disk
+  Load TFX (memory load) — round-trip verified
+  Save to Current Slot — via SAVE ▾ → Save to Rack… (includes rename + auto
+    TFX capture in one operation; see Tech Ref Sec 15)
+  Patch rename — via SAVE ▾ → Save to Rack… name prompt (CMD 0x05 + full
+    save sequence); max 16 chars
+  Auto-advance (roller) with configurable interval; bank scan
+  Settings panel — gear ⚙ button opens panel in amp panel slot:
+    Captures folder (set + open), Avid Editor folder (set), Open Logs Folder.
+    Paths persisted in userData/settings.json.
+  DIST effect panel — all five models: Tri-Knob Fuzz, Black Op
+    Distortion, Green JRC Overdrive, White Boost, DC Distortion. Model
+    dropdown (pre-loaded from chain map), model switching via CMD 0x21,
+    knobs with Avid-correct labels and per-model 2D layout, SW drag sends
+    CMD 0x11, live HW readback, ✕ close button. Confirmed solo 7/21/2026.
+    Pattern established for the remaining effect slots.
+  REVERB effect panel — both models: Blackpanel Spring Reverb and
+    Eleven SR. Model dropdown, model switching via CMD 0x21, knobs with
+    Avid-correct labels, SW drag sends CMD 0x11, live HW readback, ✕ close.
+    Eleven SR adds a Type control (linked dropdown + knob, 25 named zones) and
+    a Pre-Delay knob shown in ms (0–200). Confirmed solo 7/22/2026. Exposed and
+    fixed the amp-bypass paramLo-0x06 handle collision (Tech Ref Sec 3 / 23).
+  WAH effect panel — built, tested, passed initial QC. Same pattern (model
+    dropdown, CMD 0x21 model switch, CMD 0x11 knobs, live HW readback, ✕ close).
+  VOL effect panel — built, tested, passed initial QC. Same pattern. (Distinct
+    from the global Master Volume knob on the chain strip — this is the VOL
+    block in the effect chain.)
+  FX1 effect panel — generic host slot (Tech Ref Sec 4/23), same pattern as
+    above. ALL TEN known models captured and TESTED LIVE: C1 Chorus/
+    Vibrato, Dyn3 Compressor, Flanger, Graphic EQ, Gray Compressor,
+    MultiChorus, Orange Phaser, Roto Speaker, Vibe Phaser, Parametric EQ.
+    DONE — Phase 14 complete. Introduced three new reusable control kinds
+    beyond knob/toggle/sync — cell.slider (vertical fader, Graphic EQ),
+    cell.select (generic named-position dropdown, MultiChorus/Roto Speaker/
+    Parametric EQ), and cell.bandColor (fixed per-band accent colour with
+    change indicated on the value-text readout instead of the arc,
+    Parametric EQ) — plus an optional grouped/boxed row layout for models
+    Avid presents in labeled sub-panels (MultiChorus, Parametric EQ). See
+    CURRENT APP STATE 7/31 entry above and Session Log 2026-08-01 for full
+    detail on the panel-code-duplication concern that led to the FX-host
+    refactor (Phase 15, DONE and TESTED LIVE — see Status line above and the
+    FX2/MOD entry just below).
+  FX2 and MOD effect panels — both open the same shared FX-host panel as
+    FX1 (2026-08-01 refactor + same-day wire-up, see Status line above and
+    Session Log 2026-08-01). TESTED LIVE (Charlie, 2026-08-01) — DONE, Phase
+    15 complete. FX2 offers the same 10 models as FX1 (unfiltered — now
+    CONFIRMED the identical model family, not just expected); MOD offers 6
+    of the 10 (C1 Chorus/Vibrato, Flanger, MultiChorus, Orange Phaser, Roto
+    Speaker, Vibe Phaser), confirmed correct against Charlie's own MOD
+    dropdown and live testing. Charlie's own framing: "Time will tell and
+    normal program use" — treated as done, not pending a repeated-pass
+    confirmation like an intermittent bug would need.
+  GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
+    moved off the old right-hand column for tighter window scaling (7/22).
+
+NOT YET IMPLEMENTED (largest first):
+  Effect panels for the two remaining non-amp effect blocks (DELAY, FX LOOP)
+    — clicking the chain row's arrow still shows a "coming soon" placeholder.
+    (DIST, REVERB, WAH, VOL, FX1, FX2 and MOD all open the shared FX-host
+    panel now, all TESTED LIVE — see WORKING above.)
+    *** HISTORY, for context on why FX1/FX2/MOD share one engine instead of
+    three copies: DIST/REVERB/WAH/VOL/FX1 were each built as their own
+    copy-pasted panel (paramLo capture, rows-based layout, render/update/
+    drag helpers, CMD 0x21 model change, a handle-scoped CMD 0x11 routing
+    block) — fine for genuinely distinct model families, but FX2 was
+    expected to host the IDENTICAL family as FX1 and MOD 6 of the same 10
+    models, so building those as further copies would have tripled any
+    future bug fix. AGREED 2026-08-01 (Session Log, "REFACTOR FIRST"):
+    refactor FX1's panel code into one shared engine parameterized by slot
+    FIRST, re-verify FX1 behaves identically through it, THEN build FX2/MOD
+    as callers of that engine, not new copies. Both steps are now DONE
+    (refactor built + FX1 re-verified live, then FX2/MOD wired up as the
+    two-hook change the refactor was designed to reduce this to — a
+    FX_HOST_ALLOWED_MIDS entry per slot in protocol.js, no new panel code)
+    — full detail in Session Log 2026-08-01's three entries. A second,
+    related idea from that same decision — FX-model-switch value memory and
+    sane per-model defaults — stayed OUT of scope per Charlie's explicit
+    call, not yet designed or built, possibly deferred indefinitely. ***
+    The existing DIST/REVERB/WAH/VOL/FX-host build established the full
+    pattern DELAY/FX LOOP should follow: paramLo capture, rows-based layout
+    in a MODELS table, render/update/drag helpers, CMD 0x21 model change,
+    and a handle-scoped CMD 0x11 routing block — DELAY/FX LOOP are their
+    own, different model families (not generic host slots), so they get
+    their own panel per the original DIST pattern, not a hook into the
+    FX-host engine. paramLo numbers still needed for both. REVERB also
+    proved out two extras worth reusing: a selector rendered as a linked
+    dropdown+knob, and a per-knob unit/scale (ms) on the value readout.
+  To Amp source dropdowns — code present, GUI removed. SW sends don't move the
+    HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
+    defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
+    slot argument and never used currentParamHi. Do not assume it is fixed.
+  Save to Different Slot — slot picker UI not yet built; SAVE ▾ menu item
+    exists but is greyed. Protocol is the same save sequence with a different
+    target slot number. When built, Load TFX + Save to Different Slot will
+    serve as "load file into any slot".
+  Startup connect gate (like Avid's) — the app currently loads into a dead main
+    screen with no data when the rack is not found, and never says why. Avid's
+    editor refuses to load without hardware and pops "try again / quit". Build
+    the same: a startup-only blocking modal keyed on bridgeMidiReady (the bridge
+    will not reach connected without seeing the rack, so that IS the "rack
+    found" signal), reusing the existing watchdog-overlay pattern, with a few-
+    second timeout for normal connect latency. Startup only — not a mid-session
+    disconnect gate (the status-bar indicator + retry button already cover that).
+    Full agreed design in the session log.
+  Bank backup/restore (EHB — protocol known)
+  FX Loop connector variants 0x2E, 0x2F, 0x33 — the only three models with no
+    output-channel entry; they draw a dashed connector until observed.
+
+
+DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
+-------------------------------------------------------------------
+  Zadig / node-usb / node-midi / Web MIDI for the Vendor Specific port
+  Sending CMD 0x37 (To Amp Source) — every assert on it has BRICKED the rack
+    (full factory reset), 3x over 2 days. Do not send. 0x36 volume is safe.
+  Hardcoding paramHi — it is a runtime handle from the chain map
+  Caching a block handle across a chain map — re-read after every CMD 0x21
+    and every CMD 0x0D
+  Identifying a chain block by mid range — use its SLOT ID (Tech Ref Sec 4)
+  Deriving paramLo from sldX letters, or tfxKey from paramLo, above 9
+  ElevenHack's encode7bit — use the protocol.js version
+  Standard (v+64)%128 for cab/mic type — use the lookup tables
+
+
+CODE FILE MAP
+-------------
+Present responsibilities only. When each function/flag was added is in the
+Change Log (Tech Ref Sec 24) and Archive — not here. ElevenRackBridge.java is
+covered under CONFIRMED ARCHITECTURE above.
+
+  main.js          Electron main process: launches the Java bridge, IPC, folder
+                   pickers (captures / Avid editor / logs), logs to userData/logs/.
+  preload.js       Electron preload; exposes electronAPI to the renderer.
+  index.html       Full UI — HTML + CSS + script tags. All panels (amp, cab/mic,
+                   DIST, REVERB), the SAVE dropdown, settings panel, chain row.
+  state.js         Shared mutable runtime state (currentParamHi, currentAmpKey,
+                   currentSlot, brightOn, currentMonoState, currentMasterVol,
+                   mute flags, panel-open flags, reply-arrival sequence counters).
+  protocol.js      Constants and decoders: AMP_TONE_PARAMS, cab/mic lookup + type
+                   lists, amp/effect model tables, Sync divisions, tempo
+                   encode/decode, DIST/REVERB model tables, REQU/command byte defs.
+  transport.js     Core SEND functions and CAB/MIC v0 lookup tables. Per-patch
+                   writes route through sendPatchWrite (lights the SAVE dirty
+                   latch); queries and readbacks call sendHex directly. Master
+                   Volume (CMD 0x36 outSel 0x00) and Mute (CMD 0x3B) live here.
+                   NAV_* timing constants gate the post-nav pull. sendCC marks the
+                   patch dirty only for PER_PATCH_CCS = [17] (Rig Vol); input and
+                   tuner CCs do not.
+  fx-transport.js  Per-effect-block SEND/query functions (DIST, REVERB, WAH,
+                   VOL, and DELAY/FX LOOP when built), split out so
+                   transport.js does not grow per panel. FX1/FX2/MOD share
+                   ONE slot-parameterized set instead (sendFxHostModelChange/
+                   requestFxHostParams/sendFxHostParamWrite, all taking a
+                   slot id — see the FX-HOST EFFECT PANEL section, 2026-08-01
+                   refactor). Every send<Block>ParamWrite/sendFxHostParamWrite
+                   carries the endpoint-sentinel fix ("the 9.9 bug") —
+                   mandatory for any new block, see the file header.
+  sysex-handler.js Incoming message routing. Decodes bulk/patch bodies, live CMD
+                   0x11, chain map (CMD 0x21), tuner (0x40), stereo/mono (0x0D),
+                   input (0x3D), and drives the matching UI updates.
+  ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
+                   handlers, chain-row render, knob-colour (dirty) tracking.
+  fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, and DELAY/FX
+                   LOOP when built), split out of ui.js for the same reason
+                   as fx-transport.js. FX1/FX2/MOD share ONE slot-
+                   parameterized FX-HOST engine instead (openFxHostPanel/
+                   renderFxHostKnobs/updateFxHostKnob/etc., all taking or
+                   deriving a slot id via openFxHostSlot, state.js — one
+                   shared panel DOM, #panel-fxhost, 2026-08-01 refactor).
+                   Every drag handler here snapshots its paramLo into a
+                   local before queuing the hardware write — mandatory for
+                   any new block (a shared-variable closure race here could
+                   hang the rack, see file header).
+  app-init.js      Startup wiring.
+  patch-nav.js     Patch navigation logic and the post-nav state pull.
+  capture-scan.js  TFX capture to disk, bank scan, load/save (Save-to-Rack and
+                   Save-to-Disk, rename).
+  tfx-inspect.js   CLI: decode a TFX file.
+  tfx-diff.js      CLI: diff two TFX files.
+
+KEY STATE VARIABLES (state.js):
+  currentParamHi          runtime CMD 0x11 handle for AMP block, -1 if unset
+  currentAmpKey           e.g. 'tweed_lux', 'dc_mod_od'
+  currentSlot             current patch slot 0–103
+  brightOn                Bright toggle state (ui.js)
+  tremOn                  Tremolo on/off; UNDEFINED until the hardware reports
+                          it, so a first click cannot invert a guess (ui.js)
+  currentSyncZone         live Sync zone 0-13, 0 = OFF (ui.js)
+  syncClearedThisDrag     per-drag latch so a Speed drag clears Sync once
+  hasReceivedAmpOutValue  guard against premature Amp Out send
+  currentMonoState        null / true / false (Stereo/Mono indicator)
+  distPanelOpen           true when DIST panel is visible; gates CMD 0x11 DIST routing
+  reverbPanelOpen / wahPanelOpen / volPanelOpen
+                          same role as distPanelOpen, one per effect panel
+  openFxHostSlot          null, or SLOT_FX1/FX2/MOD — which GENERIC HOST
+                          SLOT's shared panel is open (2026-08-01 refactor;
+                          replaces the old fx1PanelOpen boolean), gates CMD
+                          0x11 routing for whichever of the three is active
+  ampSelectRxSeq          bumped when an Amp Select (0x0F) reply is handled
+  chainMapRxSeq           bumped when a chain map (0x21) has been applied
+  navSeqId                post-nav pull generation; guards against stale replies
+
+
+ENVIRONMENT
+-----------
+  Two Avid Eleven Rack units; Focusrite Scarlett 18i10.
+  Electron ^25.0.0; electron-builder --win --x64 (npm start never works).
+  Java: bridge is Java 8 compatible (--release 8). Compiled under JDK 25;
+  runtimes verified on 21, 25 and 26. JRE sufficient at runtime.
+
+  PLATFORM MATRIX (7/21/2026) — Avid USB driver v1.1.12 throughout.
+    Windows 10 (VM + physical)  Eleven Edit WORKS   Avid Editor RUNS
+    Windows 11 22H2 (VM)        Eleven Edit WORKS   Avid Editor BSODs
+    Windows 11 26H1 (VM)        Eleven Edit WORKS   Avid Editor untested,
+                                                    assume it BSODs
+  26H1 was stood up 7/21 to check the revised Microsoft MIDI stack against
+  the bridge — no effect, everything behaves as on Win10.
+  Full detail and the concurrency history: Tech Ref Section 1.
+  Avid driver: v1.1.12 (confirmed working, current, fully featured). The older
+  v1.0.11 was only needed by the abandoned node-usb path.
+
+
+HARDWARE SAFETY
+---------------
+  Always back up patches before any SW-send testing session.
+  CMD 0x37 (To Amp Source) is the project's most dangerous command. EVERY
+    assert on it has BRICKED the rack and forced a full factory reset — three
+    times across two non-consecutive days, all from 0x37 selects, never from
+    0x36 volume. Patches survive only from backup. A CMD 0x3A query-first
+    sequence avoided the assert in limited testing, but the feature never
+    worked and why SW sends don't move the HW source is unknown, so the
+    dropdowns stay removed. DO NOT send 0x37 until an observation-only capture
+    explains the difference (see the To Amp Source investigation brief). This
+    brick-on-assert behaviour is SPECIFIC to 0x37: asserts elsewhere
+    (bad-patch-format while learning TFX, front-panel oddities) recovered with
+    a nav-away-and-back and never needed a reset. See Tech Ref Sec 18.
+  NEVER run the Avid Editor on Windows 11 — BSOD. It may be installed there
+    for its graphics, but never launched (see GRAPHICS below).
+  Never drive the Avid Editor and Eleven Edit at the same time. Several BSODs
+    early in development; roughly the last week has been clean with both open
+    but use ALTERNATING, never overlapping. The rule stands regardless.
+  Factory reset (loses all patches): hold FX Loop + Mod + Reverb at power on,
+    wait for the logo with no scroll bar, power off, then power on normally.
+  After a firmware assert (MAudioFW...): power-cycle the hardware.
+  KNOB-DRAG RACE COULD SEND A MALFORMED BYTE AND HANG THE RACK (found
+    2026-07-30, fixed same day — Session Log has full detail). Every effect
+    panel's knob drag (DIST/REVERB/WAH/VOL/FX1) queued its hardware write
+    through a closure over the drag's SHARED paramLo variable rather than a
+    per-call snapshot; releasing the mouse within the 60ms send-throttle
+    window could fire the queued send AFTER mouseup reset that variable to
+    -1, sending paramLo as raw byte 0xFF — not a legal 7-bit MIDI data byte,
+    and it landed mid-SysEx. Rack went unresponsive to everything (including
+    the Avid Editor), no assert, no brick — recovered by power-cycle, same
+    as any other firmware confusion, NOT the CMD 0x37 brick class. Fixed in
+    all five panels (fx-panels.js, snapshot `var lo = activeParamLo;` before
+    queuing). If a hang recurs after this fix, it is NOT this bug — dig
+    further rather than assuming a recurrence.
+
+
+CREDIT
+------
+Protocol foundation: Guillaume Schmid — ElevenHack (2013), Apache License 2.0.
+
+GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
+-------------------------------------------------------------------
+  WHERE THE GRAPHICS LIVE (confirmed 7/21/2026). The pedal/amp/cab images are
+  files in one folder:
+      C:\Program Files\Avid\Eleven Rack Editor\System Plug-Ins
+  They ship with the Avid Editor, but the Editor never has to RUN to use them —
+  which is what makes graphics viable on Windows 11, where the Editor BSODs. It
+  does not even need to stay installed once that folder is in hand. The app
+  only reads the folder; it launches nothing. (This is the "skin" idea: dress
+  the panels in the Avid pedal art. See the note under GRAPHICS below.)
+
+  NEVER BUNDLE AVID'S ARTWORK. The app reads images from the user's existing
+  Avid editor installation. The repo contains our mapping table and loader and
+  none of Avid's assets — this keeps the project clean to open-source and
+  avoids the question entirely rather than arguing it. Consequences:
+    - path discovery, with a manual "point at your install" fallback
+    - graphics are an ENHANCEMENT; the text-only UI stays the baseline and
+      must look deliberate, not broken, for users without the editor installed
+    - the loader fails quietly if Avid's file layout differs by version
+
+  CHAIN ROW: pedal thumbnail ABOVE our existing text label — not instead of
+  it. Avid's row has a tiny image with a tiny label and is hard to scan, which
+  is the whole reason this app exists. Thumbnail plus our larger label beats
+  either app alone. Keep the hover text too: it costs nothing and covers users
+  without the graphics. Row grows from 62px to roughly 110px (BUILT 7/28, see
+  WORKING: CHAIN ROW GRAPHICS-READY LAYOUT — currently dummy placeholders,
+  real images are the next step below).
+
+  7/28 UPDATES (folder handling + real data, ahead of actually loading images):
+    SETTING RENAMED "Avid Editor Folder" -> "Avid Graphics Folder" (index.html,
+    main.js) — reflects that this no longer needs to be a live Editor install.
+    FOLDER DEPTH: do NOT require the user to pick an exact folder depth (not
+    the Editor root specifically, not System Plug-Ins specifically). The
+    loader (not yet built) should search recursively for the plugin image
+    structure wherever it sits inside whatever folder is chosen. This is what
+    makes "copy the folder off before uninstalling Avid on a Win11 box"
+    actually work — a fixed-depth picker breaks the moment that copy gets
+    reorganized even slightly, and Win11 users are exactly the ones most
+    likely to only ever have a one-time copied-out folder, never a live
+    install on that machine.
+    REAL FOLDER LISTING obtained (Charlie, full recursive dir listing off a
+    real install, 3934 lines / 3623 PNGs across 11 plugin folders: AmpsCabs,
+    Delay, Distortion, Dynamics, EQ, FX Loop, Modulation, Reverb, Tuner,
+    Volume, WAH). CONFIRMED FACTS from it:
+      - Pedal thumbnails live at <Plugin>.aaxplugin\Contents\Resources\Images\
+        <ModelName>.png (+ a same-named _sel.png — a plain generic amber
+        rounded-rect outline, NOT a per-pedal custom asset, so it can likely
+        just be a CSS border instead of another image dependency).
+      - The Resources ROOT (sibling to Images\) holds only per-model GUI
+        layout XML (<ModelName>GUI.xml) — not images. Easy to grab the wrong
+        level if not checked; confirmed by directly inspecting the Distortion
+        and Reverb folders.
+      - Avid spells it "GreenJVCOD", not "GreenJRCOD" — a real naming quirk,
+        consistent with the "MultiChorus spelled two ways" one already noted
+        above.
+      - AMP IMAGES ARE MANY-TO-ONE: only 17 amp_*.png files exist for 33
+        documented amp models — several modeled amps share one thumbnail
+        (same physical chassis, different channel/mode). The mapping table
+        must account for this; it is not one row per amp model.
+    MAPPING TABLE ARCHITECTURE (decided, not yet built): the MID->filename
+    table itself is CODE DATA, not documentation — it belongs in its own
+    dedicated JS file (like fx-transport.js/fx-panels.js), not pasted into
+    any doc. The docs get a short pointer paragraph (this one) plus gotchas,
+    never the raw table.
+
+  EFFECT PANELS: pedal image in the panel HEADER only, for recognition, with
+  real sliders and labelled values below — the way our amp panel already
+  works. Do NOT make the pedal image the interactive surface: that is what
+  forces Avid's small unlabelled knobs, and it would need a hand-positioned
+  hitbox map for ~26 panels.
+
+  Scope if built: ~27 distinct effect graphics (note the firmware spells
+  MultiChorus two ways), ~34 amps, one cab. Key the lookup by MID, not by
+  name — names contain slashes and inconsistent spellings that make bad
+  filenames. Bypassed blocks dim via a CSS filter, no second image set.
+
+
+NEXT SESSION — EFFECT PANEL FOR ANOTHER BLOCK
+-------------------------------------------------------------------
+  The remaining chunk is the two non-amp effect panels still on placeholders:
+  DELAY and FX LOOP. (DIST, REVERB, WAH, VOL, FX1, FX2 and MOD are DONE.) The
+  existing panels established the whole pattern; each new slot needs one
+  Wireshark capture for its paramLo numbers, then the same six edits copied
+  across. Full recipe and recommended order are in the LATER — EFFECT PANELS
+  section below.
+  Read QUERY BUDGET first: fetch a block's parameters when its panel OPENS,
+  not on every nav.
+
+QUERY BUDGET — READ THIS BEFORE ADDING BLOCK PANELS
+-------------------------------------------------------------------
+  Measured from Avid (7/23/2026), per patch recall: 11 bypass flags, one per
+  block, PLUS 25 parameters for the AMP BLOCK ONLY. Avid queries NO parameters
+  for MOD, DELAY or any other block on recall — only their bypass flags. It
+  pulls the amp in full because the amp is the panel it shows.
+  So our ~20 queries should NOT grow toward Avid's 47 as blocks are added.
+  Fetch a block's parameters WHEN ITS PANEL OPENS, not on every nav — the
+  distPanelOpen / reverbPanelOpen flags already point this way. Querying every
+  block on every patch change adds permanent cost for values nobody is looking
+  at, and would make us slower than Avid rather than faster.
+
+LATER — EFFECT PANELS FOR REMAINING TWO SLOTS (DELAY, FX LOOP)
+-------------------------------------------------------------------
+  *** SCOPE: DELAY and FX LOOP ONLY. *** FX1/FX2/MOD are DONE — they share the
+  2026-08-01 FX-host engine, not this per-slot recipe; WAH/VOLUME/REVERB also
+  shipped. Steps 1-6 below remain the right recipe for DELAY and FX LOOP,
+  which are genuinely distinct model families (not generic host slots), so
+  each gets its own panel per the original DIST pattern rather than a hook
+  into the FX-host engine. (Any "FX1 is missing R7" line further below is OLD
+  — R7/R8 were retrofitted 2026-07-31; build every knob against all of R1-R8,
+  Sec 20A, regardless.)
+  The DIST panel established the full pattern. Two
+  non-amp slots remain: DELAY, LOOP.
+
+  WHAT IS ALREADY DONE:
+    - DIST_MODELS rows-based layout in protocol.js (label, lo, 2D position)
+    - renderDistKnobs / updateDistKnob / drag handler in ui.js (keyed on
+      data-dist-lo, no index arithmetic)
+    - CMD 0x21 model-change send in transport.js (sendDistModelChange pattern)
+    - Panel open/close, chain-open handler routing, ✕ close button in index.html
+
+  *** BUILD EVERY KNOB AGAINST THE KNOB/CONTROL CONTRACT — Tech Ref Sec 20A. ***
+  It is the single authoritative checklist (R1 endpoint sentinels, R2 zero-value
+  safe, R3 red-on-change, R4 scroll-wheel, R5 scale anchoring, R6 drag-queue
+  safety, R7 Sync interlock, R8 double-click-to-baseline). Copying an existing
+  panel is NOT sufficient on its own — panels predate rules, so check the copy
+  against all of R1-R8. (FX1's R7/R8 gaps were retrofitted 7/31; the amp + five
+  effect panels now carry both. The Sec 20A one-time CODE AUDIT — runtime vs
+  R1-R8, plus comment-vs-code — still stands, run in Claude Code.)
+
+  WHAT EACH NEW SLOT NEEDS — copy the FX1 panel (built 2026-07-30), NOT
+  DIST/REVERB/WAH/VOL, which were built before two bugs were found and
+  fixed that day (a rack-hanging drag-queue race, and "the 9.9 bug" —
+  see fx-panels.js / fx-transport.js file headers and the Session Log for
+  both):
+    1. A Wireshark capture: with our app running, open the effect panel in the
+       Avid editor and sweep each knob in order. One capture per model family
+       (3-knob, 4-knob etc.) is sufficient. Supply the .pcapng file.
+    2. A model table entry (like FX1_MODELS) in protocol.js.
+    3. A panel div and chain-open routing in index.html (copy the FX1 pattern).
+    4. Open/close/refresh functions + scroll-wheel branch + rebaselineOpenFxPanel
+       branch in ui.js/fx-panels.js (copy the FX1 pattern, not DIST's).
+    5. CMD 0x11 routing in sysex-handler.js (copy the FX1 routing block).
+    6. sendModelChange / requestParams / sendParamWrite in fx-transport.js
+       (copy the FX1 functions — sendParamWrite MUST have the endpoint-
+       sentinel tail logic, not a flat 00 00 00 00 tail).
+
+  RECOMMENDED ORDER (by capture simplicity):
+    DELAY — multi-model family, needs one capture per layout.
+    LOOP — minimal controls; protocol known from TFX work.
+
+  FX1 / FX2 / MOD OVERLAP — SUPERSEDED, moved to Archive 2026-08-01: all
+  three are built and TESTED LIVE via the shared FX-host engine (Phase 15).
+  Live facts (FX2 = identical model family, MOD 6-of-10, Gray Compressor
+  mono-only exception) live in Tech Ref Sec 23.
