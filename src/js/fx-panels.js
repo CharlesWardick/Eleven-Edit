@@ -1012,8 +1012,10 @@ function renderDelayKnobs(mid) {
         tglDiv.appendChild(btn);
         rowDiv.appendChild(tglDiv);
       } else if (cell.delaySync) {
-        // Sync — plain named-position dropdown, no paired knob (wide
-        // 28-bit wire encoding, not a draggable v127 control).
+        // Sync — plain named-position dropdown, no paired knob. Standard
+        // v127 Sync mechanism (SYNC_DIVISIONS / syncIndexFromV127 /
+        // syncV127FromIndex), same as amp Tremolo and FX1 C1 Chorus —
+        // NOT a special encoding (retracted 2026-08-02, see protocol.js).
         const syDiv = document.createElement('div');
         syDiv.className = 'ctrl-knob';
         syDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
@@ -1031,8 +1033,9 @@ function renderDelayKnobs(mid) {
         sel.addEventListener('change', function() {
           const idx = parseInt(this.value, 10);
           if (isNaN(idx)) return;
-          updateDelaySync(idx);
-          if (bridgeMidiReady && typeof sendDelaySyncWrite === 'function') sendDelaySyncWrite(idx);
+          const v127 = syncV127FromIndex(idx);
+          updateDelaySync(v127);
+          if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(0x05, v127);
         });
         syDiv.appendChild(sel);
         rowDiv.appendChild(syDiv);
@@ -1112,9 +1115,16 @@ function updateDelayKnob(paramLo, val) {
 // Sync isn't a knob — just move the dropdown. No baseline/red-state
 // tracking (R3) for it: it's a discrete selector, not a continuous value
 // that can drift from a loaded patch by a small amount.
-function updateDelaySync(zoneIdx) {
+// Takes a v127 value (0-127), same as every other Sync readout in the
+// app (ui.js's updateSyncReadout) — NOT a zone index. Quantises locally
+// via the standard syncIndexFromV127. No baseline/red-state tracking
+// (R3): it's a discrete selector, not a continuous value that can drift
+// from a loaded patch by a small amount.
+function updateDelaySync(val) {
   const sel = document.getElementById('delay-sync-select');
-  if (sel) sel.value = String(zoneIdx);
+  if (!sel) return;
+  const idx = syncIndexFromV127(val);
+  sel.value = String(idx);
 }
 
 function refreshDelayPanelAfterChainMap() {

@@ -40,6 +40,90 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
+STATUS:      RETRACTION — corrects BOTH prior DELAY Sync entries below
+AREA:        DELAY effect panel — Sync (paramLo 0x05), full mechanism
+FINDING:     Charlie's third live test still failed (dropdown stuck on
+              "1/4 triplet" for every selection, including patch load
+              with Sync off) — the OFF-value fix wasn't the real bug, it
+              was a smaller instance of a much bigger mistake in the same
+              area. ROOT CAUSE, fully re-derived from scratch this pass:
+              paramLo 0x05 is NOT a special 28-bit-encoded parameter.
+              It uses the EXACT SAME plain single-byte v127 Sync encoding
+              as every other Sync control in the app (amp Tremolo paramLo
+              0x12, FX1/FX-host C1 Chorus) — SYNC_DIVISIONS +
+              syncIndexFromV127 + syncV127FromIndex, unmodified, no new
+              code needed at all. The two earlier entries this session
+              (the original "wide 28-bit lookup table" build, and the
+              "OFF value fix" that patched one entry in that same wrong
+              table) were built on a misread: bytes 1-3 of the broadcast
+              were treated as meaningful 28-bit precision, when they are
+              actually incidental live-precision noise — the SAME noise
+              pattern already correctly identified and ignored on the
+              Delay knob itself (paramLo 0x04) in the very first DELAY
+              entry below. Applying that already-known lesson to paramLo
+              0x05 too, instead of building new machinery for it, would
+              have avoided three live-test failures.
+              PROOF (byte0 of the ORIGINAL sweep capture, through the
+              pre-existing, already-proven syncIndexFromV127 — no new
+              table, no fuzzy matching): v0=0x49(1/1)->val9->zone1,
+              0x53->val19->zone2, 0x5D->val29->zone3, 0x67->val39->zone4,
+              0x71->val49->zone5, 0x7B->val59->zone6, 0x04->val68->zone7,
+              0x0E->val78->zone8, 0x18->val88->zone9, 0x22->val98->zone10,
+              0x2C->val108->zone11, 0x36->val118->zone12,
+              0x3F->val127->zone13, and separately 0x40->val0->zone0
+              (OFF, confirmed by the diagnostic capture) — every one
+              matches SYNC_DIVISIONS exactly.
+              FIX: deleted DELAY_SYNC_RAW, DELAY_SYNC_TAIL_HEX,
+              delaySyncIndexFromRaw, delaySyncRawFromIndex,
+              sendDelaySyncWrite entirely (~100 lines, protocol.js +
+              fx-transport.js). sysex-handler.js's DELAY routing now calls
+              updateDelaySync(val) using the SAME `val` every other
+              paramLo in the CMD 0x11 handler already decodes — no
+              special-case byte extraction. updateDelaySync (fx-panels.js)
+              now takes a v127 (matching ui.js's updateSyncReadout for
+              Tremolo) and quantises locally via syncIndexFromV127. The
+              dropdown's change handler now calls sendDelayParamWrite(0x05,
+              syncV127FromIndex(idx)) — the SAME endpoint-sentinel tail
+              every other DELAY paramLo already uses, no custom checksum
+              table. R7 local-clear call sites (updateDelaySync(0) on
+              Delay-knob touch) needed NO changes — v127=0 already meant
+              zone 0/OFF under both the old and new signature, coincidence
+              that masked how wrong the rest of the mechanism was.
+              LESSON (Charlie's own framing, direct quote worth keeping):
+              "What is different about this sync list that all the others
+              aren't... Added probably 8 sync lists doing the FX1 block, no
+              issues." Answer: nothing is actually different — FX1's Sync
+              controls were built by reusing the standard mechanism
+              directly, DELAY's Sync was NOT, for no real reason (the wire
+              evidence never actually required it — the 28-bit theory was
+              read into noisy bytes that a moment's comparison against the
+              already-solved Delay-knob noise pattern would have caught).
+              TWO FAILED FIXES = STOP AND RE-DERIVE (Primer, "How to work
+              with Charlie") applied in hindsight, one live-test-round
+              late — worth internalizing for any future "this control
+              looks unusually complicated" moment before building new
+              machinery instead of checking whether the standard one
+              already fits.
+EVIDENCE:    Re-analysis only, no new capture — every value cited above is
+             from the ALREADY-CAPTURED original sweep + diagnostic
+             capture, just decoded correctly this time.
+CONFLICTS:   RETRACTS the "DELAY SYNC — 28-bit big-endian" design entirely
+             (both the original entry's DELAY_SYNC_RAW/TAIL_HEX tables and
+             the "fix DELAY Sync OFF" entry's addition to the same wrong
+             table) — protocol.js's DELAY SYNC section now carries the
+             retraction note in place of the deleted code, not a dated
+             copy.
+NEXT:        Charlie re-tests live: patch load with Sync off should show
+             OFF (not 1/4 triplet), every dropdown pick should show the
+             right name and hold it, and the Delay-knob-clears-Sync
+             interlock (R7, already wired, untouched by this fix) should
+             now be visibly meaningful since the dropdown will actually
+             reflect real state. Only a clean pass promotes DELAY to
+             WORKING/TESTED LIVE.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
 STATUS:      confirmed — fixes DELAY EFFECT PANEL entry below (Sync OFF)
 AREA:        DELAY effect panel — Sync (paramLo 0x05) OFF value
 FINDING:     Charlie's live test reported the Sync dropdown always

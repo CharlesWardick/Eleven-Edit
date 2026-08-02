@@ -407,22 +407,12 @@ function sendDelayParamWrite(paramLo, v127) {
   return sendPatchWrite(hex);
 }
 
-// DELAY Sync (paramLo 0x05) — WIDE 28-bit encoding with what looks like a
-// real SysEx checksum trailing byte, not the standard endpoint-sentinel
-// tail. Uses the EXACT captured 5-byte tail per zone (DELAY_SYNC_TAIL_HEX,
-// protocol.js) rather than computing one. zoneIdx is a SYNC_DIVISIONS
-// index (0=OFF..13=1/16 triplet). OFF's tail is UNCONFIRMED (provisional).
-function sendDelaySyncWrite(zoneIdx) {
-  if (!bridgeMidiReady) return false;
-  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
-  if (!delayBlk) { appLog('sendDelaySyncWrite: no DELAY block'); return false; }
-  const tail = DELAY_SYNC_TAIL_HEX[zoneIdx] || DELAY_SYNC_TAIL_HEX[0];
-  const hex = 'F0 13 0B 0F 00 11 '
-    + delayBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' 05 '
-    + tail + ' F7';
-  appLog('sendDelaySyncWrite: zone=' + zoneIdx);
-  return sendPatchWrite(hex);
-}
+// DELAY Sync (paramLo 0x05) write — RETRACTED the old sendDelaySyncWrite
+// (a custom "captured checksum tail per zone" table, since deleted). It's
+// the standard mechanism after all: sendDelayParamWrite(0x05,
+// syncV127FromIndex(idx)) — same endpoint-sentinel tail as every other
+// DELAY paramLo. No dedicated function needed; call sites use that
+// directly (see protocol.js's DELAY SYNC comment for the full story).
 
 // ════════════════════════════════════════════════════════════════════
 // FX-HOST EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change

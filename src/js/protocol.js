@@ -1456,101 +1456,52 @@ VOL_MODELS.forEach(function(m) {
 //        endpoint) instead of sitting flat at 00 00 00 — read only byte0,
 //        same as every other knob; the extra bytes are readback noise/
 //        precision we don't need. Endpoint sentinel (R1) still applies.
-//   0x05 Sync      14-zone (OFF + 13 divisions), reuses the SAME
-//        SYNC_DIVISIONS table/order as amp Tremolo and FX1 C1 Chorus, but
-//        NOT the same 7-bit wire encoding — this is a 28-bit value (see
-//        DELAY_SYNC_RAW / delaySyncIndexFromRaw / delaySyncRawFromIndex
-//        below). Engaging Sync overwrites the live Delay (0x04) value —
-//        confirmed by every Sync broadcast in the capture being paired
-//        with a Delay re-broadcast, same interlock family as Tremolo/C1
-//        Chorus Sync (R7).
+//   0x05 Sync      14-zone (OFF + 13 divisions), reuses SYNC_DIVISIONS
+//        AND the standard 7-bit wire encoding (syncIndexFromV127 /
+//        syncV127FromIndex) — the SAME mechanism as amp Tremolo and FX1
+//        C1 Chorus, no special handling at all (an earlier pass this
+//        session wrongly built a from-scratch 28-bit scheme; see the
+//        DELAY SYNC comment below for the retraction and the byte-by-byte
+//        proof it was unnecessary). Engaging Sync overwrites the live
+//        Delay (0x04) value — confirmed by every Sync broadcast in the
+//        capture being paired with a Delay re-broadcast, same interlock
+//        family as Tremolo/C1 Chorus Sync (R7).
 //   0x06 Input     0-10, plain linear, same shape as Mix
 //   0x07 Depth     0-10, plain linear, same shape as Mix
 //   0x08 Chorus/Vibrato toggle — v0=0x40 -> Chorus, v0=0x3F -> Vibrato
 //   0x09 Expanded Delay toggle — v0=0x40 -> Off, v0=0x3F -> On
 //   0x0A Noise toggle          — v0=0x40 -> Off, v0=0x3F -> On
 // ════════════════════════════════════════════════════════════════════
-// DELAY SYNC — 28-bit big-endian raw value (byte0<<21|byte1<<14|byte2<<7|
-// byte3), NOT the standard 7-bit v127 used everywhere else. Every value
-// below, INCLUDING OFF, is the ACTUAL confirmed wire bytes from a
-// Wireshark capture, not a derived formula — safest possible source.
-// OFF was originally missing (the first sweep's first broadcast was
-// already the move INTO 1/1) and confirmed separately 2026-08-02 via a
-// targeted diagnostic capture (BBDDElay_Sync_Diag_1_Capture.pcapng, same
-// 240 BPM tempo as the original sweep): OFF's raw is 0x40000000 — the
-// exact midpoint of the 28-bit space, and its write tail is
-// "40 00 00 00 00", the same flat MIN-endpoint convention every other
-// knob uses (Sec 20A R1). This also confirms tempo was NOT the cause of
-// the "dropdown always reads OFF" bug Charlie hit — 1/1's raw reproduced
-// byte-for-byte at the same tempo — the real bug was OFF being entirely
-// absent from this table, so ANY unmatched broadcast (including OFF
-// itself) silently fell back to the same wrong answer either way.
-// Index matches SYNC_DIVISIONS (0=OFF, 1=1/1, ... 13=1/16 triplet).
-const DELAY_SYNC_RAW = [
-  0x40000000,  //  0  OFF
-  0x496C2731,  //  1  1/1
-  0x53584E62,  //  2  1/2 dotted
-  0x5D447613,  //  3  1/2
-  0x67311D44,  //  4  1/2 triplet
-  0x711D4476,  //  5  1/4 dotted
-  0x7B096C27,  //  6  1/4
-  0x04761358,  //  7  1/4 triplet
-  0x0E623B09,  //  8  1/8 dotted
-  0x184E623B,  //  9  1/8
-  0x223B096C,  // 10  1/8 triplet
-  0x2C27311D,  // 11  1/16 dotted
-  0x3613584E,  // 12  1/16
-  0x3F7F7F7F,  // 13  1/16 triplet — the max wire sentinel; the fastest
-               //     division sits at the same raw code as every other
-               //     knob's true-endpoint sentinel (Sec 20A R1), which is
-               //     consistent, not coincidental.
-];
-
-// Raw 28-bit value (byte0<<21|byte1<<14|byte2<<7|byte3) -> zone index.
-// Nearest-match against the confirmed table (now including OFF).
-function delaySyncIndexFromRaw(raw) {
-  let best = 0, bestDist = Infinity;
-  for (let i = 0; i < DELAY_SYNC_RAW.length; i++) {
-    const d = Math.abs(raw - DELAY_SYNC_RAW[i]);
-    if (d < bestDist) { bestDist = d; best = i; }
-  }
-  return best;
-}
-
-function delaySyncRawFromIndex(i) {
-  return DELAY_SYNC_RAW[i] || 0;
-}
-
-// WRITE side — the exact confirmed 5-byte SysEx tail (4 value bytes + a
-// trailing byte) for each zone, taken VERBATIM from real CMD 0x11 OUT
-// sends, not computed. The trailing byte is NOT a flat write-mode
-// constant like every other knob's endpoint sentinel (Sec 20A R1) — it
-// visibly varies per non-OFF zone (04, 07, 0B, 0E, 02, 06, 09, 0D, 01,
-// 04, 08, 0B, 0F), almost certainly a real SysEx checksum over the
-// preceding bytes we haven't reverse-engineered — so reproducing the
-// exact captured tail per zone is the only safe way to write this
-// parameter until that checksum is understood. OFF's tail (confirmed
-// 2026-08-02, BBDDElay_Sync_Diag_1_Capture.pcapng) IS the flat MIN
-// convention every other knob uses ("40 00 00 00 00") — it just happens
-// to also be a real checksum match, or this parameter's checksum is
-// trivially zero at the range's exact midpoint. Either way, confirmed,
-// not provisional.
-const DELAY_SYNC_TAIL_HEX = [
-  '40 00 00 00 00',  //  0  OFF
-  '49 6C 27 31 04',  //  1  1/1
-  '53 58 4E 62 07',  //  2  1/2 dotted
-  '5D 44 76 13 0B',  //  3  1/2
-  '67 31 1D 44 0E',  //  4  1/2 triplet
-  '71 1D 44 76 02',  //  5  1/4 dotted
-  '7B 09 6C 27 06',  //  6  1/4
-  '04 76 13 58 09',  //  7  1/4 triplet
-  '0E 62 3B 09 0D',  //  8  1/8 dotted
-  '18 4E 62 3B 01',  //  9  1/8
-  '22 3B 09 6C 04',  // 10  1/8 triplet
-  '2C 27 31 1D 08',  // 11  1/16 dotted
-  '36 13 58 4E 0B',  // 12  1/16
-  '3F 7F 7F 7F 0F',  // 13  1/16 triplet
-];
+// DELAY SYNC — RETRACTED 2026-08-02. This used to be a from-scratch
+// 28-bit wide-encoding scheme (DELAY_SYNC_RAW / DELAY_SYNC_TAIL_HEX /
+// delaySyncIndexFromRaw / delaySyncRawFromIndex, ~90 lines, all deleted).
+// It was WRONG — a misread, not a different encoding. paramLo 0x05 is
+// the SAME plain single-byte v127 Sync encoding every other Sync control
+// in this app already uses (amp Tremolo paramLo 0x12, FX1/FX-host C1
+// Chorus) — reuse syncIndexFromV127 / syncV127FromIndex directly, exactly
+// like Tremolo's sync-select does (ui.js). Bytes 1-3 of the broadcast are
+// incidental live-precision noise, the same pattern already seen (and
+// already correctly ignored) on the Delay knob itself (paramLo 0x04) —
+// treating them as meaningful 28-bit data was the original mistake.
+// PROOF (re-derived from the original capture, byte0 only, through the
+// EXISTING syncIndexFromV127 function, zero new code):
+//   v0=0x49(1/1)->val9->zone1   v0=0x71(1/4 dotted)->val49->zone5
+//   v0=0x53(1/2 dot)->val19->zone2  v0=0x7B(1/4)->val59->zone6
+//   v0=0x5D(1/2)->val29->zone3  v0=0x04(1/4 trip)->val68->zone7
+//   v0=0x67(1/2 trip)->val39->zone4  ... every remaining zone through
+//   v0=0x3F(1/16 triplet)->val127->zone13, and v0=0x40(OFF)->val0->zone0,
+//   all match SYNC_DIVISIONS exactly, no exceptions, no fuzzy matching.
+// WRITE side: also just the standard mechanism — sendDelayParamWrite(0x05,
+// syncV127FromIndex(idx)), the SAME endpoint-sentinel tail every other
+// DELAY paramLo already uses (fx-transport.js). The "checksum" theory for
+// the trailing tail byte was also wrong: it's the ordinary endpoint-
+// sentinel tail (transport.js sendParamWrite, same rule), not a checksum —
+// OFF's write ("40 00 00 00 00") is just the standard MIN-endpoint tail,
+// and every other captured tail is the standard mid-range "v0 + flat
+// 00 00 00 00" tail for whatever exact v127 Charlie's live drag landed on
+// within that zone (not the zone's nominal centre — real-world variance,
+// which syncIndexFromV127's 10-wide zone quantisation already tolerates).
+// ════════════════════════════════════════════════════════════════════
 
 // DELAY is a multi-model slot like DIST/REVERB (Tech Ref Sec 23), not a
 // single fixed model like VOL/FX LOOP — three distinct effect families can

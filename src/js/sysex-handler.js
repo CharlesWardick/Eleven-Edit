@@ -668,17 +668,16 @@ function handleParamReadback(data) {
     }
   }
 
-  // ── DELAY parameter routing — same shape as VOL/FX LOOP, except paramLo
-  // 0x05 (Sync), which uses a wide 28-bit encoding (not the standard
-  // single-byte v0) and needs the full 4-byte value field, not `val`.
+  // ── DELAY parameter routing — same shape as VOL/FX LOOP. paramLo 0x05
+  // (Sync) is the SAME plain single-byte `val` every other Sync control
+  // uses (amp Tremolo, FX1 C1 Chorus) — retracted 2026-08-02's wide
+  // 28-bit raw-extraction misread; see protocol.js's DELAY SYNC comment.
   if (delayPanelOpen) {
     const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
     if (delayBlk && instId === delayBlk.handle) {
       if (paramLo === 0x05) {
-        const raw = ((data[8] << 21) | (data[9] << 14) | (data[10] << 7) | data[11]) >>> 0;
-        const zoneIdx = delaySyncIndexFromRaw(raw);
-        if (typeof updateDelaySync === 'function') updateDelaySync(zoneIdx);
-        appLog('CMD 0x11 DELAY Sync raw=0x' + raw.toString(16).padStart(8,'0') + ' zone=' + zoneIdx);
+        if (typeof updateDelaySync === 'function') updateDelaySync(val);
+        appLog('CMD 0x11 DELAY Sync val=' + val + ' -> zone ' + syncIndexFromV127(val));
         return;
       }
       if (paramLo >= 0x02 && paramLo <= 0x0A) {
