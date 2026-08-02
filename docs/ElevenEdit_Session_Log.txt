@@ -40,6 +40,67 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
+STATUS:      confirmed — fixes DELAY EFFECT PANEL entry below (Sync OFF)
+AREA:        DELAY effect panel — Sync (paramLo 0x05) OFF value
+FINDING:     Charlie's live test reported the Sync dropdown always
+             reading OFF no matter what he picked, and that touching the
+             Delay/Rate knob while Sync was engaged didn't visibly clear
+             it. Root cause confirmed: OFF (zone 0) was entirely absent
+             from DELAY_SYNC_RAW/DELAY_SYNC_TAIL_HEX (the original sweep
+             never captured it — its first broadcast was already the move
+             INTO 1/1), and the decode fallback for "no match found" was
+             ALSO index 0 (OFF) — so every unmatched broadcast, including
+             OFF's own real broadcast, silently produced the same visible
+             symptom either way, masking whether real divisions were even
+             being decoded correctly.
+             Fixed with a targeted diagnostic capture, same 240 BPM tempo
+             as the original sweep (ruling out tempo-dependence as an
+             alternate theory floated earlier this session): OFF raw =
+             0x40000000 (the exact midpoint of the 28-bit space), write
+             tail = "40 00 00 00 00" (the same flat MIN-endpoint
+             convention every other knob already uses, Sec 20A R1) — not
+             a special case after all. 1/1's raw reproduced byte-for-byte
+             identical to the original sweep's capture, confirming the
+             table's other 13 values are solid and tempo was never the
+             issue.
+             delaySyncIndexFromRaw now includes index 0 as a real
+             candidate (previously the loop started at i=1, structurally
+             unable to ever return a genuine OFF match) and its
+             now-unnecessary "too far, fall back to 0" branch was removed
+             — every raw value nearest-matches to one of the 14 real
+             confirmed zones now, no silent default.
+             SEPARATE — also fixed same session, independent of the above:
+             R7 interlock (dragging/scrolling the Delay knob now clears
+             the Sync dropdown locally, mirroring rack behaviour Charlie
+             confirmed already happens on hardware) — this was a real gap
+             in the first DELAY build, not just a symptom of the OFF bug.
+             STILL OPEN, minor: Charlie reported the Delay-ms readout
+             being "off by perhaps .1" after a Sync pick. Not investigated
+             this pass — likely the plain-linear 32-400ms display formula
+             not exactly matching the rack's real (possibly Sec 21-style
+             cosmetic-nonlinear) conversion from sync-locked time to the
+             pedal's raw v127 range. Low priority; flag if it recurs or
+             gets worse once the OFF fix is retested.
+EVIDENCE:    BBDDElay_Sync_Diag_1_Capture.pcapng (Charlie, 2026-08-02),
+             240 BPM confirmed, targeted 3-step capture (OFF -> 1/1 ->
+             OFF): 6 clean SysEx frames (2 OUT sends, 4 IN broadcasts).
+             OUT: "F0 13 0B 0F 00 11 65 05 49 6C 27 31 04 F7" (-> 1/1),
+             "F0 13 0B 0F 00 11 65 05 40 00 00 00 00 F7" (-> OFF).
+CONFLICTS:   supersedes the FIRST DELAY entry's "OFF UNCONFIRMED,
+             provisional 0x00000000" note — that placeholder is gone,
+             replaced with this confirmed value, in protocol.js directly
+             (DELAY_SYNC_RAW[0], DELAY_SYNC_TAIL_HEX[0]).
+NEXT:        Charlie re-tests live: select each Sync division and confirm
+             the dropdown now shows the right name (not just OFF), select
+             OFF explicitly and confirm it reads back correctly, and
+             re-check that touching Delay/Rate while a division is active
+             now visibly flips the dropdown to OFF. A clean pass on all of
+             that (plus the original 8 controls already reported working)
+             promotes the whole DELAY panel to WORKING/TESTED LIVE.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
 STATUS:      provisional (code written, NOT TESTED LIVE) — ONE CONTROL
              (Sync OFF) explicitly UNCONFIRMED even pending live test
 AREA:        DELAY effect panel (new panel, Phase 16 continued) — DELAY

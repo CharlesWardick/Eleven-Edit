@@ -1471,16 +1471,23 @@ VOL_MODELS.forEach(function(m) {
 //   0x0A Noise toggle          — v0=0x40 -> Off, v0=0x3F -> On
 // ════════════════════════════════════════════════════════════════════
 // DELAY SYNC — 28-bit big-endian raw value (byte0<<21|byte1<<14|byte2<<7|
-// byte3), NOT the standard 7-bit v127 used everywhere else. The 13
-// non-OFF zone values below are the ACTUAL confirmed wire bytes from the
-// capture (Charlie's sweep, "starting from off and going down the list"),
-// not a derived formula — safest possible source. OFF's raw value was
-// NOT captured (the sweep's first broadcast was already the move INTO
-// 1/1, so OFF's own broadcast never appeared) — UNCONFIRMED, provisional
-// 0x00000000 pending a live test. Do not treat OFF as settled.
+// byte3), NOT the standard 7-bit v127 used everywhere else. Every value
+// below, INCLUDING OFF, is the ACTUAL confirmed wire bytes from a
+// Wireshark capture, not a derived formula — safest possible source.
+// OFF was originally missing (the first sweep's first broadcast was
+// already the move INTO 1/1) and confirmed separately 2026-08-02 via a
+// targeted diagnostic capture (BBDDElay_Sync_Diag_1_Capture.pcapng, same
+// 240 BPM tempo as the original sweep): OFF's raw is 0x40000000 — the
+// exact midpoint of the 28-bit space, and its write tail is
+// "40 00 00 00 00", the same flat MIN-endpoint convention every other
+// knob uses (Sec 20A R1). This also confirms tempo was NOT the cause of
+// the "dropdown always reads OFF" bug Charlie hit — 1/1's raw reproduced
+// byte-for-byte at the same tempo — the real bug was OFF being entirely
+// absent from this table, so ANY unmatched broadcast (including OFF
+// itself) silently fell back to the same wrong answer either way.
 // Index matches SYNC_DIVISIONS (0=OFF, 1=1/1, ... 13=1/16 triplet).
 const DELAY_SYNC_RAW = [
-  0x00000000,  //  0  OFF            — UNCONFIRMED, provisional
+  0x40000000,  //  0  OFF
   0x496C2731,  //  1  1/1
   0x53584E62,  //  2  1/2 dotted
   0x5D447613,  //  3  1/2
@@ -1500,15 +1507,14 @@ const DELAY_SYNC_RAW = [
 ];
 
 // Raw 28-bit value (byte0<<21|byte1<<14|byte2<<7|byte3) -> zone index.
-// Nearest-match against the confirmed table (OFF excluded, since its raw
-// code is unconfirmed) — falls back to OFF (index 0) if nothing is close.
+// Nearest-match against the confirmed table (now including OFF).
 function delaySyncIndexFromRaw(raw) {
   let best = 0, bestDist = Infinity;
-  for (let i = 1; i < DELAY_SYNC_RAW.length; i++) {
+  for (let i = 0; i < DELAY_SYNC_RAW.length; i++) {
     const d = Math.abs(raw - DELAY_SYNC_RAW[i]);
     if (d < bestDist) { bestDist = d; best = i; }
   }
-  return (bestDist < 0x00200000) ? best : 0;  // within ~1/128 of a zone
+  return best;
 }
 
 function delaySyncRawFromIndex(i) {
@@ -1516,17 +1522,21 @@ function delaySyncRawFromIndex(i) {
 }
 
 // WRITE side — the exact confirmed 5-byte SysEx tail (4 value bytes + a
-// trailing byte) for each zone, taken VERBATIM from the capture's own
-// CMD 0x11 OUT sends, not computed. The trailing byte is NOT a flat
-// write-mode constant like every other knob's endpoint sentinel (Sec 20A
-// R1) — it visibly varies per zone (04, 07, 0B, 0E, 02, 06, 09, 0D, 01,
+// trailing byte) for each zone, taken VERBATIM from real CMD 0x11 OUT
+// sends, not computed. The trailing byte is NOT a flat write-mode
+// constant like every other knob's endpoint sentinel (Sec 20A R1) — it
+// visibly varies per non-OFF zone (04, 07, 0B, 0E, 02, 06, 09, 0D, 01,
 // 04, 08, 0B, 0F), almost certainly a real SysEx checksum over the
 // preceding bytes we haven't reverse-engineered — so reproducing the
 // exact captured tail per zone is the only safe way to write this
-// parameter until that checksum is understood. OFF (index 0) was never
-// captured being written — UNCONFIRMED, provisional all-zero tail.
+// parameter until that checksum is understood. OFF's tail (confirmed
+// 2026-08-02, BBDDElay_Sync_Diag_1_Capture.pcapng) IS the flat MIN
+// convention every other knob uses ("40 00 00 00 00") — it just happens
+// to also be a real checksum match, or this parameter's checksum is
+// trivially zero at the range's exact midpoint. Either way, confirmed,
+// not provisional.
 const DELAY_SYNC_TAIL_HEX = [
-  '00 00 00 00 00',  //  0  OFF — UNCONFIRMED, provisional
+  '40 00 00 00 00',  //  0  OFF
   '49 6C 27 31 04',  //  1  1/1
   '53 58 4E 62 07',  //  2  1/2 dotted
   '5D 44 76 13 0B',  //  3  1/2
