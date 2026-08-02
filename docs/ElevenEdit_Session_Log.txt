@@ -40,6 +40,78 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
+STATUS:      provisional (code written, NOT TESTED LIVE)
+AREA:        DELAY effect panel — EP Tape Echo model (THIRD AND LAST
+             DELAY family — DELAY panel now has all three models built:
+             EP Tape Echo, BBD Delay, Dyn Delay)
+FINDING:     EP Tape Echo (mid 0x1C/0x1D, Tech Ref Sec 23 TFX 1C, 9
+             params) needed ZERO new rendering code — every cell kind it
+             uses (toggle, delaySync, plain knob) already existed from
+             BBD Delay/Dyn Delay, so this was a pure protocol.js data
+             addition. paramLo map:
+               0x02 Mix (1.0-9.0) · 0x03 Feedback (1.0-9.0) · 0x04 Delay
+               (70-600 ms) · 0x05 Sync (standard) · 0x06 Rec Level
+               (0.0-10.0) · 0x07 Wow/Flutter (0%-2%) · 0x08 Head Tilt
+               (0-10) · 0x09 Expanded Delay (toggle) · 0x0A Tape Hiss
+               (toggle).
+             SYNC CHECKED AGAINST THE STANDARD MECHANISM FIRST — third
+             time this session — confirmed byte-for-byte identical to
+             BBD Delay's and Dyn Delay's own Sync tables before writing
+             any code. This is now a settled, load-bearing fact for the
+             whole DELAY panel: every Sync control found so far (amp
+             Tremolo, FX1 C1 Chorus, all three DELAY families) uses the
+             exact same mechanism, zero exceptions.
+             DELAY RANGE (70-600 ms) CONFIRMED to unusual precision: all
+             13 Sync-derived raw values cross-checked against Charlie's
+             corrected sync-ms chart, landing within 1 ms of every stated
+             value (several exact, e.g. 1/16 triplet = 83 ms on the nose)
+             using plain linear ms = 70 + v127/127*530. Charlie's own
+             test-notes line "Sync OFF first move is 1/1 = 70 ms"
+             contradicts this (wire data puts 1/1 at ~500 ms, matching
+             the chart) — treated as a note slip, the 13-point
+             cross-check being much stronger evidence than one written
+             line; flagged in protocol.js in case live testing proves the
+             note right instead.
+             TWO TOGGLES confirmed by wire shape alone (clean binary
+             alternation) before cross-referencing the test notes, same
+             tell used for every other toggle/dropdown found this
+             session.
+             FEEDBACK/MIX's stated 1.0-9.0 range (not 0-10) taken
+             literally — Charlie explicitly said this was "double and
+             triple checked," not a typo, so no attempt was made to round
+             it to a cleaner-looking range.
+             LAYOUT — Claude Code's own best-effort read of Avid's panel
+             screenshot, NOT pixel-confirmed the way Dyn Delay's was:
+             Charlie explicitly said "do your best on layout since we
+             didn't discuss specifics." A small mini-panel box (both
+             toggles + Head Tilt/Wow-Flutter as knobs, per Charlie's own
+             note that sliders can render as knobs in this app), a
+             Delay+Sync stack, and the three main knobs in their own row.
+             Flag for rearrangement if Charlie's live test wants it
+             closer to Avid's actual grouping.
+EVIDENCE:    Tape_Echo_Capture.pcapng (Charlie, 2026-08-02), handle 0x45,
+             525 CMD 0x11 frames (271 IN + 254 OUT). paramLo identities
+             confirmed against Charlie's Tape_Echo_Test.txt sweep order
+             (Expanded Delay, Tape Hiss, Head Tilt, Wow/Flutter, Delay,
+             Sync, Feedback, Rec Level, Mix), matched against the
+             capture's own temporal paramLo run order with no ambiguity.
+CONFLICTS:   none — DELAY_MODELS' EP Tape Echo entry was a captured:false
+             stub before this; replaced in place. All three DELAY models
+             are now captured — DELAY_MODELS has no remaining stubs.
+NEXT:        Charlie builds and tests live: all 9 controls read/write
+             correctly, Sync's R7/R9 interlock behaves the same as the
+             other two families (same code path), the 70-600 ms Delay
+             range reads sensibly across the full travel (not just the
+             13 Sync-derived checkpoints), Feedback/Mix's 1.0-9.0 range
+             holds at both true endpoints, and the layout is usable even
+             if not pixel-matched to Avid. A clean live pass completes
+             the DELAY panel entirely (all three models TESTED LIVE) and
+             folds the full paramLo map into Tech Ref Sec 23's EP Tape
+             Echo row.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
 STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-02): "All of the
              controls land in the correct place and operate as intended."
              Sync-vs-HW confirmed always landing correctly regardless of

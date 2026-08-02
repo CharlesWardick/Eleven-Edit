@@ -1512,7 +1512,78 @@ VOL_MODELS.forEach(function(m) {
 // as FX1_MODELS' uncaptured entries, so the model dropdown is honest about
 // what's really available without blocking on the other two captures.
 const DELAY_MODELS = [
-  { mid: 0x1C, mids: [0x1C, 0x1D], name: 'EP Tape Echo', captured: false },
+  // ── EP TAPE ECHO — captured 2026-08-02 (Wireshark, Tape_Echo_Capture.
+  // pcapng, handle 0x45, 525 CMD 0x11 frames). Layout is Claude Code's own
+  // best-effort read of Avid's panel screenshot — Charlie explicitly did
+  // not spec exact box grouping this time ("do your best on layout since
+  // we didn't discuss specifics"), unlike Dyn Delay's pixel-confirmed
+  // layout. Structure: a small mini-panel box (Expanded Delay/Tape Hiss
+  // toggles, Head Tilt/Wow-Flutter — Avid draws these as sliders, but
+  // Charlie's own test note says "Gui can show a knob", so they're plain
+  // knobs here, not a new slider widget), a Delay+Sync stack, and the
+  // three main knobs (Feedback/Rec Level/Mix) in their own row — not a
+  // pixel-verified match to Avid's real panel, flag if Charlie's live
+  // test wants it rearranged.
+  // paramLo assignment confirmed by isolated sweeps in the exact order
+  // Charlie's test notes describe (Expanded Delay, Tape Hiss, Head Tilt,
+  // Wow/Flutter, Delay, Sync, Feedback, Rec Level, Mix):
+  //   0x02 Mix · 0x03 Feedback · 0x04 Delay · 0x05 Sync · 0x06 Rec Level ·
+  //   0x07 Wow/Flutter · 0x08 Head Tilt · 0x09 Expanded Delay ·
+  //   0x0A Tape Hiss.
+  // TWO TOGGLES (0x09/0x0A) confirmed by wire shape alone before even
+  // checking the test notes: clean 0x3F/0x40 binary alternation (4
+  // transitions each, matching "off, on, off, on, off"), unlike every
+  // other paramLo's continuous climb-wrap-descend sweep — same tell
+  // already used for Dyn Delay's Feedback Mode dropdown and DIST/REVERB/
+  // WAH's toggles.
+  // SYNC (0x05) — checked against the standard mechanism FIRST, same as
+  // Dyn Delay: byte-for-byte IDENTICAL raw values to BBD Delay's and Dyn
+  // Delay's own confirmed Sync tables (SYNC_DIVISIONS/syncIndexFromV127/
+  // syncV127FromIndex, no special encoding). Third confirmation this
+  // session that Sync is ALWAYS the standard mechanism.
+  // DELAY (0x04) — 70-600 ms, plain linear, CONFIRMED to unusual precision
+  // by cross-checking all 13 Sync-derived raw values against Charlie's
+  // corrected sync-ms chart (2026-08-02): every zone lands within 1 ms of
+  // the chart's stated value using ms = 70 + v127/127*(600-70) (several
+  // land EXACTLY — e.g. 1/16 triplet = 83 ms on the nose). Charlie's own
+  // test-notes line "Sync OFF first move is 1/1 = 70 ms" does NOT match
+  // this (the wire data puts 1/1 at ~500 ms, matching the chart) — treated
+  // as a note slip, not evidence of a different range; the 13-point
+  // cross-check is much stronger evidence than a single written line.
+  // FEEDBACK (1.0-9.0) / MIX (1.0-9.0) — Charlie's stated odd range,
+  // double/triple-checked by him ("wtf on the scales") — taken as
+  // literal, NOT stretched to a rounder 0-10. Plain linear.
+  // REC LEVEL (0.0-10.0) / HEAD TILT (0-10) / WOW-FLUTTER (0%-2%) — plain
+  // linear, no capture ambiguity at this resolution (Sec 20A R5).
+  { mid: 0x1C, mids: [0x1C, 0x1D], name: 'EP Tape Echo', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A],
+    rows: [
+      { rows: [
+          [ {label:'Expanded Delay', lo:0x09, toggle:true, options:['Off','On']},
+            {label:'Tape Hiss',      lo:0x0A, toggle:true, options:['Off','On']} ],
+          [ {label:'Head Tilt', lo:0x08,
+              display: function(v) { return (v / 127 * 10).toFixed(1); }},
+            {label:'Wow/Flutter', lo:0x07,
+              display: function(v) { return (v / 127 * 2).toFixed(2) + '%'; }} ]
+        ]
+      },
+      { rows: [
+          [ {label:'Delay', lo:0x04,
+              display: function(v) { return Math.round(70 + (v / 127) * (600 - 70)) + ' ms'; }} ],
+          [ {label:'Sync', lo:0x05, delaySync:true} ]
+        ]
+      },
+      { rows: [
+          [ {label:'Feedback', lo:0x03,
+              display: function(v) { return (1 + (v / 127) * 8).toFixed(1); }},
+            {label:'Rec Level', lo:0x06,
+              display: function(v) { return (v / 127 * 10).toFixed(1); }},
+            {label:'Mix', lo:0x02,
+              display: function(v) { return (1 + (v / 127) * 8).toFixed(1); }} ]
+        ]
+      }
+    ]
+  },
   { mid: 0x1E, mids: [0x1E, 0x1F], name: 'BBD Delay', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A],
     rows: [
