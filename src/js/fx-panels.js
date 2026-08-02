@@ -956,6 +956,135 @@ function closeDelayPanel() {
   delayPanelOpen = false;
 }
 
+// Flatten a DELAY model's rows into a plain cell list, walking both box
+// entries ({group?, rows:[[cells],...]}) and plain top-level flat rows —
+// same shape/purpose as fxHostAllCells above, ported here because DELAY
+// keeps its own render/update functions rather than sharing the FX-host
+// engine (Primer: DELAY/FX LOOP are distinct model families, not generic
+// host slots). Added for Dyn Delay's grouped/boxed layout (2026-08-02);
+// BBD Delay's flat-only rows still work unchanged (entry.rows is just
+// absent, falls through to the `[entry]` branch).
+function delayAllCells(model) {
+  const cells = [];
+  model.rows.forEach(function(entry) {
+    const rows = entry.rows ? entry.rows : [entry];
+    rows.forEach(function(row) { row.forEach(function(c) { if (c) cells.push(c); }); });
+  });
+  return cells;
+}
+
+// Render one DELAY cell (knob/toggle/delaySync/select/spacer) into rowDiv.
+// Extracted so both a flat row and a group box's sub-rows share one path.
+function renderDelayCell(cell, rowDiv) {
+  if (!cell) {
+    const sp = document.createElement('div');
+    sp.style.cssText = 'width:80px;flex-shrink:0;';
+    rowDiv.appendChild(sp);
+    return;
+  }
+  if (cell.toggle) {
+    const loHex = cell.lo.toString(16).padStart(2,'0');
+    const tglDiv = document.createElement('div');
+    tglDiv.className = 'ctrl-knob';
+    tglDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+    const lbl = document.createElement('label');
+    lbl.textContent = cell.label;
+    const btn = document.createElement('button');
+    btn.id = 'delay-tgl-' + loHex;
+    btn.dataset.value = '0';
+    btn.dataset.base = 'fx';
+    btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
+      + 'border:1px solid #666;border-radius:4px;color:var(--fg);cursor:pointer;font-size:12px;';
+    btn.textContent = cell.options[0];
+    btn.addEventListener('mouseover', function() { this.style.borderColor = '#aaa'; });
+    btn.addEventListener('mouseout',  function() { this.style.borderColor = '#666'; });
+    btn.addEventListener('click', function() {
+      var cur = parseInt(btn.dataset.value) || 0;
+      var newVal = (cur === 0) ? 127 : 0;
+      updateDelayKnob(cell.lo, newVal);
+      if (typeof sendDelayParamWrite === 'function') sendDelayParamWrite(cell.lo, newVal);
+    });
+    tglDiv.appendChild(lbl);
+    tglDiv.appendChild(btn);
+    rowDiv.appendChild(tglDiv);
+  } else if (cell.delaySync) {
+    // Sync — plain named-position dropdown, no paired knob. Standard
+    // v127 Sync mechanism (SYNC_DIVISIONS / syncIndexFromV127 /
+    // syncV127FromIndex), same as amp Tremolo and FX1 C1 Chorus —
+    // NOT a special encoding (retracted 2026-08-02, see protocol.js).
+    const syDiv = document.createElement('div');
+    syDiv.className = 'ctrl-knob';
+    syDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+    const lbl = document.createElement('label');
+    lbl.textContent = cell.label;
+    let opts = '';
+    SYNC_DIVISIONS.forEach(function(z, i) { opts += '<option value="' + i + '">' + z.text + '</option>'; });
+    syDiv.appendChild(lbl);
+    const sel = document.createElement('select');
+    sel.id = 'delay-sync-select';
+    sel.style.cssText = 'width:112px;background:#1a1a1a;color:var(--text);'
+      + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
+    sel.innerHTML = opts;
+    sel.addEventListener('change', function() {
+      const idx = parseInt(this.value, 10);
+      if (isNaN(idx)) return;
+      const v127 = syncV127FromIndex(idx);
+      updateDelaySync(v127);
+      if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(0x05, v127);
+    });
+    syDiv.appendChild(sel);
+    rowDiv.appendChild(syDiv);
+  } else if (cell.select) {
+    // Generic named-position dropdown (Dyn Delay's Feedback Mode —
+    // 4-way, no tempo relationship, so cell.select not cell.delaySync).
+    // Nearest-match on readback, same as FX-host's cell.select.
+    const loHex = cell.lo.toString(16).padStart(2,'0');
+    const selDiv = document.createElement('div');
+    selDiv.className = 'ctrl-knob';
+    selDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+    const lbl = document.createElement('label');
+    lbl.textContent = cell.label;
+    const sel = document.createElement('select');
+    sel.id = 'delay-sel-' + loHex;
+    sel.style.cssText = 'width:112px;background:#1a1a1a;color:var(--text);'
+      + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
+    cell.options.forEach(function(opt, i) {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = opt.label;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function() {
+      const idx = parseInt(this.value, 10);
+      if (isNaN(idx) || !cell.options[idx]) return;
+      const v127 = cell.options[idx].v127;
+      updateDelayKnob(cell.lo, v127);
+      if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(cell.lo, v127);
+    });
+    selDiv.appendChild(lbl);
+    selDiv.appendChild(sel);
+    rowDiv.appendChild(selDiv);
+  } else {
+    const loHex = cell.lo.toString(16).padStart(2,'0');
+    const knobDiv = document.createElement('div');
+    knobDiv.className = 'ctrl-knob';
+    knobDiv.innerHTML =
+      '<label>' + cell.label + '</label>'
+      + '<div class="knob-wrap" id="delay-w-' + loHex + '" data-value="64" data-base="fx" data-delay-lo="' + loHex + '">'
+      + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
+      + '<span class="knob-val" id="delay-v-' + loHex + '">--</span>';
+    rowDiv.appendChild(knobDiv);
+    drawKnob(knobDiv.querySelector('canvas'), 64);
+  }
+}
+
+function renderDelayRow(rowCells, parentEl) {
+  const rowDiv = document.createElement('div');
+  rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+  rowCells.forEach(function(cell) { renderDelayCell(cell, rowDiv); });
+  parentEl.appendChild(rowDiv);
+}
+
 function renderDelayKnobs(mid) {
   const container = document.getElementById('delay-knob-row');
   if (!container) return;
@@ -972,109 +1101,55 @@ function renderDelayKnobs(mid) {
   container.innerHTML = '';
 
   const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
-    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+  wrapper.style.cssText = 'display:flex;gap:18px;align-items:flex-start;'
+    + 'padding:12px 20px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
 
-  model.rows.forEach(function(rowCells) {
-    const rowDiv = document.createElement('div');
-    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
-
-    rowCells.forEach(function(cell) {
-      if (!cell) {
-        const sp = document.createElement('div');
-        sp.style.cssText = 'width:80px;flex-shrink:0;';
-        rowDiv.appendChild(sp);
-        return;
+  // Each entry is either a flat row (array of cells) or a box object
+  // {group:'LABEL'?, rows:[[cells...],...]} — same GROUPED LAYOUT shape as
+  // MultiChorus/FX-host (fx-panels.js FX-HOST section), ported here for
+  // Dyn Delay's DELAY/EQ/ENV MOD boxes. Charlie's own framing: reuse
+  // MultiChorus as a REFERENCE for the mechanism, not a literal copy —
+  // this is that reuse.
+  model.rows.forEach(function(entry) {
+    if (entry && entry.rows) {
+      const box = document.createElement('div');
+      box.style.cssText = 'display:flex;flex-direction:column;gap:10px;'
+        + 'padding:10px 12px;background:#242424;border-radius:5px;border:1px solid #444;';
+      if (entry.group) {
+        const hdr = document.createElement('div');
+        hdr.textContent = entry.group;
+        hdr.style.cssText = 'font-size:11px;color:var(--label);text-transform:uppercase;'
+          + 'letter-spacing:0.5px;font-weight:bold;';
+        box.appendChild(hdr);
       }
-      if (cell.toggle) {
-        const loHex = cell.lo.toString(16).padStart(2,'0');
-        const tglDiv = document.createElement('div');
-        tglDiv.className = 'ctrl-knob';
-        tglDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
-        const lbl = document.createElement('label');
-        lbl.textContent = cell.label;
-        const btn = document.createElement('button');
-        btn.id = 'delay-tgl-' + loHex;
-        btn.dataset.value = '0';
-        btn.dataset.base = 'fx';
-        btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
-          + 'border:1px solid #666;border-radius:4px;color:var(--fg);cursor:pointer;font-size:12px;';
-        btn.textContent = cell.options[0];
-        btn.addEventListener('mouseover', function() { this.style.borderColor = '#aaa'; });
-        btn.addEventListener('mouseout',  function() { this.style.borderColor = '#666'; });
-        btn.addEventListener('click', function() {
-          var cur = parseInt(btn.dataset.value) || 0;
-          var newVal = (cur === 0) ? 127 : 0;
-          updateDelayKnob(cell.lo, newVal);
-          if (typeof sendDelayParamWrite === 'function') sendDelayParamWrite(cell.lo, newVal);
-        });
-        tglDiv.appendChild(lbl);
-        tglDiv.appendChild(btn);
-        rowDiv.appendChild(tglDiv);
-      } else if (cell.delaySync) {
-        // Sync — plain named-position dropdown, no paired knob. Standard
-        // v127 Sync mechanism (SYNC_DIVISIONS / syncIndexFromV127 /
-        // syncV127FromIndex), same as amp Tremolo and FX1 C1 Chorus —
-        // NOT a special encoding (retracted 2026-08-02, see protocol.js).
-        const syDiv = document.createElement('div');
-        syDiv.className = 'ctrl-knob';
-        syDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
-        const lbl = document.createElement('label');
-        lbl.textContent = cell.label;
-        let opts = '';
-        SYNC_DIVISIONS.forEach(function(z, i) { opts += '<option value="' + i + '">' + z.text + '</option>'; });
-        syDiv.innerHTML = '';
-        syDiv.appendChild(lbl);
-        const sel = document.createElement('select');
-        sel.id = 'delay-sync-select';
-        sel.style.cssText = 'width:112px;background:#1a1a1a;color:var(--text);'
-          + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
-        sel.innerHTML = opts;
-        sel.addEventListener('change', function() {
-          const idx = parseInt(this.value, 10);
-          if (isNaN(idx)) return;
-          const v127 = syncV127FromIndex(idx);
-          updateDelaySync(v127);
-          if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(0x05, v127);
-        });
-        syDiv.appendChild(sel);
-        rowDiv.appendChild(syDiv);
-      } else {
-        const loHex = cell.lo.toString(16).padStart(2,'0');
-        const knobDiv = document.createElement('div');
-        knobDiv.className = 'ctrl-knob';
-        knobDiv.innerHTML =
-          '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="delay-w-' + loHex + '" data-value="64" data-base="fx" data-delay-lo="' + loHex + '">'
-          + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
-          + '<span class="knob-val" id="delay-v-' + loHex + '">--</span>';
-        rowDiv.appendChild(knobDiv);
-        drawKnob(knobDiv.querySelector('canvas'), 64);
-      }
-    });
-
-    wrapper.appendChild(rowDiv);
+      entry.rows.forEach(function(rowCells) { renderDelayRow(rowCells, box); });
+      wrapper.appendChild(box);
+    } else {
+      const col = document.createElement('div');
+      col.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+      renderDelayRow(entry, col);
+      wrapper.appendChild(col);
+    }
   });
 
   container.appendChild(wrapper);
 }
 
-// Display string for a DELAY knob value — the four 0-10 knobs (Input,
-// Feedback, Depth, Mix) are plain linear one-decimal; Delay itself is
-// 32-400 ms, also plain linear (see protocol.js header for why only
-// byte0 is used).
+// Display string for a DELAY knob value. cell.display can be a function
+// (Dyn Delay — one per knob, its own real formula) or one of BBD Delay's
+// legacy string flags ('delayTen'/'delayMs', kept for backward compat
+// rather than rewritten to functions for no reason).
 function delayKnobDisplay(paramLo, val) {
   const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
   const model = delayBlk ? DELAY_MODEL_BY_MID[delayBlk.modelId] : null;
   if (!model || !model.rows) return valDisplay(val);
-  for (let r = 0; r < model.rows.length; r++) {
-    const row = model.rows[r];
-    for (let c = 0; c < row.length; c++) {
-      const cell = row[c];
-      if (!cell || cell.lo !== paramLo) continue;
-      if (cell.display === 'delayTen') return (val / 127 * 10).toFixed(1);
-      if (cell.display === 'delayMs')  return (32 + val / 127 * (400 - 32)).toFixed(0) + ' ms';
-    }
+  const cells = delayAllCells(model);
+  for (let i = 0; i < cells.length; i++) {
+    const cell = cells[i];
+    if (cell.lo !== paramLo) continue;
+    if (typeof cell.display === 'function') return cell.display(val);
+    if (cell.display === 'delayTen') return (val / 127 * 10).toFixed(1);
+    if (cell.display === 'delayMs')  return (32 + val / 127 * (400 - 32)).toFixed(0) + ' ms';
   }
   return valDisplay(val);
 }
@@ -1082,23 +1157,31 @@ function delayKnobDisplay(paramLo, val) {
 function updateDelayKnob(paramLo, val) {
   const loHex = paramLo.toString(16).padStart(2,'0');
   const model = DELAY_MODEL_BY_MID[(currentChain.find(function(b) { return b.slotId === SLOT_DELAY; }) || {}).modelId];
-  var isToggle = false, toggleOptions = ['Off','On'];
+  let cell = null;
   if (model && model.rows) {
-    model.rows.forEach(function(row) {
-      row.forEach(function(cell) {
-        if (cell && cell.lo === paramLo && cell.toggle) {
-          isToggle = true;
-          if (cell.options) toggleOptions = cell.options;
-        }
-      });
-    });
+    delayAllCells(model).forEach(function(c) { if (c.lo === paramLo) cell = c; });
   }
-  if (isToggle) {
+  if (cell && cell.toggle) {
     const btn = document.getElementById('delay-tgl-' + loHex);
     if (btn) {
+      const toggleOptions = cell.options || ['Off','On'];
       btn.dataset.orig  = fxBaselineSetIfUnset(SLOT_DELAY, loHex, val);
       btn.dataset.value = val;
       btn.textContent   = (val === 0) ? toggleOptions[0] : toggleOptions[1];
+    }
+    return;
+  }
+  if (cell && cell.select) {
+    // Nearest-match, same as FX-host's cell.select — an unexpected raw
+    // value still lands on the closest labeled option.
+    const sel = document.getElementById('delay-sel-' + loHex);
+    if (sel) {
+      let bestIdx = 0, bestDist = Infinity;
+      cell.options.forEach(function(opt, i) {
+        const d = Math.abs(opt.v127 - val);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      });
+      sel.value = String(bestIdx);
     }
     return;
   }

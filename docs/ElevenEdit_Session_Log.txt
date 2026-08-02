@@ -40,6 +40,87 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
+STATUS:      provisional (code written, NOT TESTED LIVE)
+AREA:        DELAY effect panel — Dyn Delay model (third and last DELAY
+             family; BBD Delay and now Dyn Delay both done, EP Tape Echo
+             remains a stub)
+FINDING:     Dyn Delay (mid 0x20 mono/0x21/0x22, Tech Ref Sec 23 TFX
+             50/51/52) has 12 controls across paramLo 0x02-0x0D, laid out
+             in Avid's own panel as three grouped/boxed sub-panels
+             (DELAY, EQ, ENV MOD) plus flat left/right columns — Charlie's
+             own call to use MultiChorus's existing grouped-layout
+             mechanism as a REFERENCE (not a literal copy):
+               0x02 Mix (main, 0-100%) · 0x03 Feedback (0-100%) ·
+               0x04 Delay (1-4000 ms) · 0x05 Sync (14-zone, standard
+               mechanism, confirmed identical wire values to BBD Delay's
+               own Sync) · 0x06 Feedback Mode (4-way select: Mono/Stereo/
+               Cross/Pong) · 0x07 L/R Ratio (bipolar, displayed as "L:R"
+               text) · 0x08 Stereo Width (0-100%) · 0x09 High Cut
+               (1 kHz-20 kHz, log) · 0x0A Low Cut (20 Hz-1 kHz, log) ·
+               0x0B Rate/env (10 ms-1.0 s, log) · 0x0C FBK/env (bipolar
+               -100%..+100%) · 0x0D Mix/env (bipolar, ASSUMED same shape
+               as FBK — Charlie's own written spec had "100% to +100%"
+               for this one, almost certainly a dropped minus sign next
+               to FBK's correctly-written "-100% to +100%"; NOT
+               independently confirmed, flagged in protocol.js).
+             SYNC CHECKED AGAINST THE STANDARD MECHANISM FIRST THIS TIME
+             (explicit lesson from BBD Delay's Sync saga earlier the same
+             session) — confirmed byte-for-byte identical to BBD's own
+             13 confirmed Sync raw values before writing any code, so no
+             repeat of the wide-28-bit-misread mistake.
+             FEEDBACK MODE CONFIRMED AS A DROPDOWN, NOT A KNOB, from the
+             wire shape alone: its raw sequence is four long HELD
+             PLATEAUS (0x40/0x6A/0x15/0x3F, decoding to v127 0/42/85/127 —
+             an even 4-way spread) instead of every other paramLo's
+             continuous climb-wrap-descend shape — same tell already used
+             to identify DIST/REVERB/WAH toggle vs knob shapes.
+             CODE INFRASTRUCTURE ADDED: DELAY's panel only supported flat
+             rows before (built for BBD Delay's simpler layout) — ported
+             the FX-host engine's grouped/boxed rendering (box entries
+             {group?, rows:[[cells],...]} mixed with flat rows) and
+             cell.select (generic dropdown) into DELAY's OWN render
+             functions (delayAllCells/renderDelayCell/renderDelayRow,
+             fx-panels.js), matching the Primer's explicit call for DELAY/
+             FX LOOP to keep their own per-block panel code rather than
+             hook into the shared FX-host engine — this is a PORT of the
+             mechanism, not a shared dependency on FX-HOST's functions.
+             delayKnobDisplay/updateDelayKnob were updated to walk the new
+             box-aware cell list (delayAllCells) instead of assuming
+             model.rows is flat — BBD Delay's existing flat-row model
+             still works unchanged through the same functions (no
+             regression risk, verified the fallback path: entry.rows
+             absent -> treated as a single flat row, same as before).
+EVIDENCE:    Dynamic_Delay_Capture.pcapng (Charlie, 2026-08-02; a same-
+             named-file mixup first sent a duplicate of the FX Loop
+             capture — caught via MD5 comparison before any code was
+             written, re-sent correctly). 1098 CMD 0x11 frames (706 IN +
+             392 OUT), handle 0x2A. paramLo identities confirmed via
+             Charlie's own described sweep order (Delay+Sync, Feedback,
+             then top-down through DELAY/EQ/ENV MOD boxes, then Feedback
+             Mode + Mix) matched directly against the capture's temporal
+             paramLo run order (4,5 interleaved, then 3,7,8,10,9,11,12,
+             13,6,2) — exact 1:1 correspondence, no ambiguity this round.
+             Layout independently cross-checked against a screenshot of
+             Avid's actual Dyn Delay panel (not just Charlie's verbal
+             description) — the 3-box center layout and left/right column
+             split are pixel-confirmed, not inferred.
+CONFLICTS:   none — DELAY_MODELS' Dyn Delay entry was a captured:false
+             stub before this; replaced in place.
+NEXT:        Charlie builds and tests live: all 12 controls read/write
+             correctly, the boxed layout renders sensibly (scale knobs
+             down if the panel feels cramped — Charlie's pre-approved that
+             tradeoff), Sync's R7/R9 interlock behaves the same as BBD
+             Delay's (same code path, same paramLo 0x04/0x05 pair), Mix
+             (env)'s assumed bipolar shape reads sensibly (flag if it's
+             actually unipolar 0-100%), and the three log-scaled controls
+             (Low Cut/High Cut/Rate) don't read backwards. Only a clean
+             live pass promotes Dyn Delay to WORKING/TESTED LIVE and folds
+             the paramLo map into Tech Ref Sec 23. EP Tape Echo remains
+             the one uncaptured DELAY family (stub, captured:false).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
 STATUS:      [FOLDED IN: Tech Ref Sec 20A R9, Primer's DELAY/FX LOOP recipe]
 AREA:        Knob/Control Contract — new rule, named per Charlie's request
 FINDING:     The "guard DELAY knob drag against broadcast repaint races" fix

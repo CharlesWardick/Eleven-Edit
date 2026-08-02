@@ -680,7 +680,7 @@ function handleParamReadback(data) {
         appLog('CMD 0x11 DELAY Sync val=' + val + ' -> zone ' + syncIndexFromV127(val));
         return;
       }
-      if (paramLo >= 0x02 && paramLo <= 0x0A) {
+      if (paramLo >= 0x02 && paramLo <= 0x0D) {
         // Drag guard (state.js delayDragLo) — same pattern as To Amp 1/2
         // (ui.js toAmp1Dragging/toAmp2Dragging): skip repainting THIS
         // paramLo while it's the user's active drag target, so a

@@ -1527,7 +1527,114 @@ const DELAY_MODELS = [
         {label:'Sync',           lo:0x05, delaySync:true} ]
     ]
   },
-  { mid: 0x20, mids: [0x20, 0x21, 0x22], name: 'Dyn Delay', captured: false },
+  // ── DYN DELAY — captured 2026-08-02 (Wireshark, Dynamic_Delay_Capture.
+  // pcapng, handle 0x2A, 1098 CMD 0x11 frames). Layout confirmed against
+  // Avid's own panel screenshot (three center boxes — DELAY/EQ/ENV MOD —
+  // same grouped/boxed shape as MultiChorus, per Charlie's own call to use
+  // that as reference; not a literal copy, just the same nested-box
+  // mechanism). paramLo assignment confirmed by isolated sweeps in the
+  // exact order Charlie described (Delay+Sync, Feedback, then top-down
+  // through the three center boxes, then Feedback Mode + Mix on the
+  // right) — each control's own ~76-message climb-wrap-descend sweep is a
+  // near-identical byte pattern to every OTHER control's sweep (same
+  // repeatable drag gesture performed once per control, not evidence they
+  // share a parameter):
+  //   0x02 Mix (main) · 0x03 Feedback · 0x04 Delay · 0x05 Sync ·
+  //   0x06 Feedback Mode · 0x07 L/R Ratio · 0x08 Stereo Width ·
+  //   0x09 High Cut · 0x0A Low Cut · 0x0B Rate (env) · 0x0C FBK (env) ·
+  //   0x0D Mix (env).
+  // SYNC (0x05) — CONFIRMED to reuse the exact standard mechanism
+  // (SYNC_DIVISIONS/syncIndexFromV127/syncV127FromIndex), same as BBD
+  // Delay's Sync and every other Sync control in the app: this capture's
+  // 13 raw values are BYTE-FOR-BYTE IDENTICAL to BBD Delay's own confirmed
+  // Sync table. No special encoding, no R9-style investigation needed —
+  // checked against the standard mechanism FIRST this time (lesson from
+  // BBD Delay's Sync saga, same session).
+  // FEEDBACK MODE (0x06) — 4-position dropdown, NOT a knob (confirmed by
+  // its raw sequence: four held plateaus 0x40/0x6A/0x15/0x3F, unlike every
+  // other paramLo's continuous climb-wrap-descend shape). Decodes to
+  // v127 0, 42, 85, 127 — an even 4-way spread, same shape as MultiChorus's
+  // Voices dropdown. Patch-loaded state was Mono; sweep order confirmed by
+  // Charlie: Mono -> Stereo -> Cross -> Pong.
+  // DELAY (0x04) — 1-4000 ms, plain linear. WIDER RANGE than BBD Delay's
+  // 32-400 ms, same wire shape otherwise (byte0 standard v127, bytes 1-3
+  // live sub-step precision noise, read-only-byte0 same as BBD).
+  // L/R RATIO (0x07), FBK (0x0C), MIX ENV (0x0D) — bipolar, centred at
+  // v127=64 (same two-slope-anchored-at-64 shape as valToAmpVol, just a
+  // different unit). L/R Ratio displays as "L:R" text per Charlie's
+  // description (50:100 at bottom, 100:100 centre, 100:50 at top) rather
+  // than a plain +/- number. Charlie's own written spec for Mix (env) read
+  // "100% to (0.0 midpoint) +100%", almost certainly a dropped minus sign
+  // matching FBK's adjacent "-100% to +100%" line — treated as the same
+  // bipolar shape as FBK here; FLAG FOR CONFIRMATION on first live test if
+  // Mix (env) turns out to actually be unipolar 0-100%.
+  // LOW CUT (20 Hz-1 kHz) / HIGH CUT (1 kHz-20 kHz) / RATE (10 ms-1.0 s) —
+  // log-scaled, same exponential shape as MultiChorus's Low Cut/Rate
+  // (single confirmed shape reused across every log-scaled control found
+  // so far in this app) — INFERRED direction (low raw = low end of range),
+  // not independently multi-point-confirmed the way Rate was for
+  // MultiChorus. Flag if a live test shows any of the three reading
+  // backwards or obviously wrong partway through its travel.
+  { mid: 0x20, mids: [0x20, 0x21, 0x22], name: 'Dyn Delay', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D],
+    rows: [
+      { rows: [
+          [ {label:'Delay', lo:0x04,
+              display: function(v) { return Math.round(1 + (v / 127) * (4000 - 1)) + ' ms'; }} ],
+          [ {label:'Sync', lo:0x05, delaySync:true} ],
+          [ {label:'Feedback', lo:0x03,
+              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+        ]
+      },
+      { group:'DELAY', rows: [
+          [ {label:'L/R Ratio', lo:0x07,
+              display: function(v) {
+                var l = (v < 64) ? Math.round(50 + (v / 64) * 50) : 100;
+                var r = (v < 64) ? 100 : Math.round(100 - ((v - 64) / 63) * 50);
+                return l + ':' + r;
+              }},
+            {label:'Stereo Width', lo:0x08,
+              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+        ]
+      },
+      { group:'EQ', rows: [
+          [ {label:'Low Cut', lo:0x0A,
+              display: function(v) { return (20 * Math.pow(1000 / 20, v / 127)).toFixed(1) + ' Hz'; }},
+            {label:'High Cut', lo:0x09,
+              display: function(v) {
+                var hz = 1000 * Math.pow(20000 / 1000, v / 127);
+                return (hz >= 1000) ? (hz / 1000).toFixed(1) + ' kHz' : hz.toFixed(0) + ' Hz';
+              }} ]
+        ]
+      },
+      { group:'ENV MOD', rows: [
+          [ {label:'Rate', lo:0x0B,
+              display: function(v) {
+                var ms = 10 * Math.pow(100, v / 127);
+                return (ms >= 1000) ? (ms / 1000).toFixed(2) + ' s' : ms.toFixed(1) + ' ms';
+              }},
+            {label:'FBK', lo:0x0C,
+              display: function(v) {
+                var pct = (v < 64) ? (v - 64) * (100 / 64) : (v - 64) * (100 / 63);
+                return (pct > 0 ? '+' : '') + pct.toFixed(0) + '%';
+              }},
+            {label:'Mix', lo:0x0D,
+              display: function(v) {
+                var pct = (v < 64) ? (v - 64) * (100 / 64) : (v - 64) * (100 / 63);
+                return (pct > 0 ? '+' : '') + pct.toFixed(0) + '%';
+              }} ]
+        ]
+      },
+      { rows: [
+          [ {label:'Feedback Mode', lo:0x06, select:true, options: [
+              {label:'Mono', v127:0}, {label:'Stereo', v127:42},
+              {label:'Cross', v127:85}, {label:'Pong', v127:127} ] } ],
+          [ {label:'Mix', lo:0x02,
+              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+        ]
+      }
+    ]
+  },
 ];
 const DELAY_MODEL_BY_MID = {};
 DELAY_MODELS.forEach(function(m) {
