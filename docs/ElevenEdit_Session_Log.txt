@@ -611,7 +611,32 @@ FINDING:     Charlie's stated plan, in order: (1) graphics/drag-handle work
 NEXT:        Revisit once graphics + remaining panels are done, per
              Charlie's own ordering.
 -------------------------------------------------------------------
-
+DATE:        2026-08-02
+STATUS:      DECIDED AND BUILT — resolves the 7/28 "IDEA NOTED" item above
+AREA:        Chain row — click the pedal thumbnail to open its effect panel
+FINDING:     Charlie: the chain row should behave more like Avid's own
+             editor now. Confirmed the specific change against the 7/28 note
+             before building: clicking a block's .chain-thumb now opens/
+             closes its effect panel, same as clicking its ▼ caret — NOT a
+             replacement, both work side by side. Charlie's own words: "leave
+             the existing down arrow carrot alone for now, we can remove it
+             later or perhaps leave it as is."
+IMPLEMENTATION: index.html, one new listener block right after the existing
+             '.chain-open' click handler (same script tag). Deliberately does
+             NOT duplicate the open/close logic — finds the clicked thumb's
+             containing .chain-slot/.chain-slot-stack, looks up its sibling
+             .chain-open[data-panel], and calls .click() on it, so there is
+             still exactly one place (the existing handler) that knows how to
+             open/close a panel. Skips when chainDragActive (ui.js) so a drag
+             release doesn't also fire a panel open, and no-ops on slots with
+             no real .chain-open (AMP-CAB's shared thumb, the read-only INPUT
+             clone) since .chain-open[data-panel] won't match their hidden
+             dummy caret (no data-panel attribute).
+STATUS:      NOT TESTED LIVE — code written, not yet run against the rack.
+NEXT:        Charlie to build and test live: click each block's thumbnail and
+             confirm its panel opens/closes exactly like the ▼ caret does,
+             with no interference with drag-to-reorder.
+-------------------------------------------------------------------
 
 
 
