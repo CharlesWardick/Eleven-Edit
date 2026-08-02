@@ -15,7 +15,34 @@ function isExternalMidiPort(name, desc) {
 
 async function initMIDI() {
   setStatus('Connecting to Java bridge...');
+  splashSetProgress('Starting Java bridge...', 0.1);
+  armStartupGate();
   connectBridgeWs();
+}
+
+// Arms the startup-only connect gate: if the rack still isn't found after
+// a few seconds' grace for normal connect latency, and this is still the
+// FIRST connect of the session, show the blocking modal. No-op if the
+// initial connect already succeeded once (see hasCompletedInitialConnect).
+function armStartupGate() {
+  clearTimeout(startupGateTimer);
+  startupGateTimer = setTimeout(function() {
+    if (!bridgeMidiReady && !hasCompletedInitialConnect) showStartupGate();
+  }, STARTUP_GATE_TIMEOUT_MS);
+}
+
+// Splash reveal — fires electronAPI.appReady() exactly once, the first
+// time BOTH the chain map and the post-nav param pull have landed (see
+// initialChainMapDone/initialNavPullDone, state.js). Called from
+// handleChainMap (sysex-handler.js) and requestPatchStateAfterNav's
+// finish() below, each time either one completes.
+function checkInitialPopulateReady() {
+  if (appRevealed) return;
+  if (!initialChainMapDone || !initialNavPullDone) return;
+  appRevealed = true;
+  splashSetProgress('Ready', 1);
+  if (window.electronAPI) window.electronAPI.appReady();
+  appLog('Startup: initial chain/knob state populated — revealing main window');
 }
 
 function connectBridgeWs() {
@@ -27,6 +54,7 @@ function connectBridgeWs() {
       bridgeReady = true;
       clearTimeout(bridgeReconnectTimer);
       setStatus('Bridge connected — finding ports...');
+      splashSetProgress('Bridge connected — looking for Eleven Rack...', 0.3);
       appLog('Bridge WS connected');
       // NOTE: no explicit list_ports request here — the bridge already
       // sends the port list automatically the instant a client connects
@@ -71,6 +99,9 @@ function handleBridgeMsg(msg) {
       break;
     case 'connected':
       bridgeMidiReady = true;
+      clearTimeout(startupGateTimer);
+      hideStartupGate();
+      splashSetProgress('Eleven Rack found — reading current patch...', 0.6);
       midiOutName = 'Eleven Rack (Java bridge)';
       document.getElementById('midi-dot').classList.add('connected');
       document.getElementById('midi-label').textContent = 'Connected';
@@ -967,6 +998,8 @@ async function requestPatchStateAfterNav() {
   function finish() {
     var ms = Date.now() - tStart;
     appLog('Nav pull complete: ' + qCount + ' param queries, ' + ms + ' ms');
+    initialNavPullDone = true;
+    checkInitialPopulateReady();
   }
 
   await sleep(NAV_RECALL_SETTLE);

@@ -124,6 +124,23 @@ let bridgeOutIdx = null;
 // that gets the predictability back without reintroducing that bug.
 let hasCompletedInitialConnect = false;
 
+// Startup-only connect gate (like Avid's) — armed once per launch/retry
+// cycle in initMIDI(), cleared the moment 'connected' arrives. Never
+// re-armed after the first successful connect (mid-session drops are the
+// status-bar indicator + retry button's job, not this modal's).
+let startupGateTimer = null;
+const STARTUP_GATE_TIMEOUT_MS = 5000;
+
+// Splash reveal readiness — the main window stays hidden behind the splash
+// until BOTH the first chain map and the first post-nav param pull have
+// landed at least once (their replies received, not just requested — see
+// checkInitialPopulateReady in transport.js). appRevealed guards against
+// firing electronAPI.appReady() more than once (chain map/nav pulls repeat
+// on every later patch change).
+let initialChainMapDone = false;
+let initialNavPullDone  = false;
+let appRevealed         = false;
+
 let pendingManualCapture = false;
 
 // Stereo/Mono state — null=unknown, true=Mono, false=Stereo

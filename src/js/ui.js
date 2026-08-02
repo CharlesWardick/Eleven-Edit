@@ -2016,6 +2016,38 @@ if (window.electronAPI) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// STARTUP CONNECT GATE — like Avid's own "can't find hardware" prompt.
+// Startup only (see armStartupGate/hasCompletedInitialConnect in
+// transport.js) — a mid-session drop is the status-bar indicator + retry
+// button's job, not this modal's. Main window stays hidden the whole
+// time this runs (main.js show:false); the splash window is what the
+// user actually sees, driven from here via the electronAPI splash* IPC.
+// ════════════════════════════════════════════════════════════════════
+function showStartupGate() {
+  appLog('Startup gate: rack not found within grace period — blocking');
+  if (window.electronAPI) window.electronAPI.splashShowGate();
+}
+function hideStartupGate() {
+  if (window.electronAPI) window.electronAPI.splashHideGate();
+}
+function splashSetProgress(message, fraction) {
+  if (window.electronAPI) window.electronAPI.splashProgress({ message: message, fraction: fraction });
+}
+if (window.electronAPI) {
+  // Fired when the splash window's own Try Again button is clicked —
+  // main.js relays it here rather than the splash having any bridge logic.
+  window.electronAPI.onStartupRetryClick(async () => {
+    hideStartupGate();
+    setStatus('Retrying — restarting Java bridge...');
+    appLog('Startup gate: Try Again — restarting bridge');
+    splashSetProgress('Restarting Java bridge...', 0.1);
+    try { await window.electronAPI.restartBridge(); } catch(e) {}
+    setTimeout(connectBridgeWs, 500);
+    armStartupGate();
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
 // BRIDGE PROCESS STATUS — surfaces jar launch/crash issues in the UI
 // ════════════════════════════════════════════════════════════════════
 if (window.electronAPI && window.electronAPI.onBridgeStatus) {

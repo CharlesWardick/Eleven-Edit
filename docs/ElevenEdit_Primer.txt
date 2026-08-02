@@ -2,7 +2,17 @@ ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
 Updated: 2026-08-02
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — FX LOOP + DELAY EFFECT PANELS COMPLETE
+Status: Active development — STARTUP GATE + SPLASH SCREEN COMPLETE
+(2026-08-02, TESTED LIVE). Phase 17 COMPLETE: the Primer's last
+remaining NOT YET IMPLEMENTED item — a startup-only "can't find
+hardware" gate, like Avid's own editor — is done. Main window now
+loads hidden behind a splash window (logo text + progress bar) instead
+of showing dead/unpopulated controls; the splash reveals the main
+window only once the rack is found AND the first chain map + patch
+param pull have both landed, or swaps to a Try Again/Quit box if the
+rack times out. Full detail: Tech Ref Sec 24 Change Log (2026-08-02
+STARTUP GATE entry).
+Previously: FX LOOP + DELAY EFFECT PANELS COMPLETE
 (2026-08-02, ALL TESTED LIVE). Phase 16 COMPLETE: the two remaining
 non-amp effect blocks now have working panels, closing out the last item
 in NOT YET IMPLEMENTED's effect-panel list — every one of the 10 chain
@@ -797,6 +807,21 @@ WORKING:
     session) both apply to every DELAY model's Delay knob.
   GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
     moved off the old right-hand column for tighter window scaling (7/22).
+  STARTUP GATE + SPLASH SCREEN (2026-08-02, TESTED LIVE) — like Avid's own
+    "can't find hardware" prompt. Main window now loads HIDDEN behind a
+    small splash window (src/splash.html — text logo, progress bar, status
+    line) instead of showing a dead, unpopulated main screen while the
+    bridge/rack connect. The main window is revealed only once the rack is
+    found AND the first chain map + patch param pull have both completed
+    (see Tech Ref Sec 24 Change Log for the exact readiness signal) — so it
+    always presents fully painted, no watch-it-load flicker. If the rack
+    isn't found within a few seconds, the splash swaps to a Try Again/Quit
+    box matching Avid's own wording; Try Again restarts the Java bridge
+    process and reconnects, Quit exits the app. Startup only — a
+    mid-session drop still uses the existing status-bar indicator + retry
+    button, unchanged. A one-off BSOD Charlie hit during testing did not
+    reproduce on retest (USB2 or USB3) and is not believed related — see
+    Tech Ref Sec 24 for the full note.
 
 NOT YET IMPLEMENTED (largest first):
   *** ALL 10 CHAIN BLOCKS NOW HAVE WORKING EFFECT PANELS as of 2026-08-02
@@ -814,15 +839,6 @@ NOT YET IMPLEMENTED (largest first):
     exists but is greyed. Protocol is the same save sequence with a different
     target slot number. When built, Load TFX + Save to Different Slot will
     serve as "load file into any slot".
-  Startup connect gate (like Avid's) — the app currently loads into a dead main
-    screen with no data when the rack is not found, and never says why. Avid's
-    editor refuses to load without hardware and pops "try again / quit". Build
-    the same: a startup-only blocking modal keyed on bridgeMidiReady (the bridge
-    will not reach connected without seeing the rack, so that IS the "rack
-    found" signal), reusing the existing watchdog-overlay pattern, with a few-
-    second timeout for normal connect latency. Startup only — not a mid-session
-    disconnect gate (the status-bar indicator + retry button already cover that).
-    Full agreed design in the session log.
   Bank backup/restore (EHB — protocol known)
   FX Loop connector variants 0x2E, 0x2F, 0x33 — the only three models with no
     output-channel entry; they draw a dashed connector until observed.
@@ -850,12 +866,27 @@ covered under CONFIRMED ARCHITECTURE above.
 
   main.js          Electron main process: launches the Java bridge, IPC, folder
                    pickers (captures / Avid editor / logs), logs to userData/logs/.
-  preload.js       Electron preload; exposes electronAPI to the renderer.
+                   Creates the splash window (src/splash.html) at launch and the
+                   main window HIDDEN (show:false); relays splash-progress/
+                   splash-show-gate/splash-hide-gate/startup-retry-click/app-ready
+                   IPC between the two windows (STARTUP GATE, 2026-08-02).
+  preload.js       Electron preload; exposes electronAPI to the renderer, incl.
+                   the splash* wrappers and quitApp/appReady used by the startup
+                   gate (both windows load the same preload.js).
   index.html       Full UI — HTML + CSS + script tags. All panels (amp, cab/mic,
                    DIST, REVERB), the SAVE dropdown, settings panel, chain row.
+  src/splash.html  Splash window shown while the bridge/rack connect and the
+                   first patch state loads (STARTUP GATE, 2026-08-02) — text
+                   logo, progress bar/status line, and the Try Again/Quit gate
+                   box (swapped in via IPC instead of the main window showing a
+                   dead screen). No bridge logic of its own; buttons just relay
+                   clicks back to the main-window renderer via main.js.
   state.js         Shared mutable runtime state (currentParamHi, currentAmpKey,
                    currentSlot, brightOn, currentMonoState, currentMasterVol,
                    mute flags, panel-open flags, reply-arrival sequence counters).
+                   Also startupGateTimer/STARTUP_GATE_TIMEOUT_MS and the splash-
+                   reveal readiness flags initialChainMapDone/initialNavPullDone/
+                   appRevealed (STARTUP GATE, 2026-08-02).
   protocol.js      Constants and decoders: AMP_TONE_PARAMS, cab/mic lookup + type
                    lists, amp/effect model tables, Sync divisions, tempo
                    encode/decode, DIST/REVERB model tables, REQU/command byte defs.
@@ -865,7 +896,9 @@ covered under CONFIRMED ARCHITECTURE above.
                    Volume (CMD 0x36 outSel 0x00) and Mute (CMD 0x3B) live here.
                    NAV_* timing constants gate the post-nav pull. sendCC marks the
                    patch dirty only for PER_PATCH_CCS = [17] (Rig Vol); input and
-                   tuner CCs do not.
+                   tuner CCs do not. Also armStartupGate/checkInitialPopulateReady
+                   and the splash progress messages sent at each connect stage
+                   (STARTUP GATE, 2026-08-02).
   fx-transport.js  Per-effect-block SEND/query functions (DIST, REVERB, WAH,
                    VOL, DELAY, FX LOOP), split out so
                    transport.js does not grow per panel. FX1/FX2/MOD share
@@ -877,9 +910,14 @@ covered under CONFIRMED ARCHITECTURE above.
                    mandatory for any new block, see the file header.
   sysex-handler.js Incoming message routing. Decodes bulk/patch bodies, live CMD
                    0x11, chain map (CMD 0x21), tuner (0x40), stereo/mono (0x0D),
-                   input (0x3D), and drives the matching UI updates.
+                   input (0x3D), and drives the matching UI updates. handleChainMap
+                   also flips initialChainMapDone and checks splash readiness
+                   (STARTUP GATE, 2026-08-02).
   ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
                    handlers, chain-row render, knob-colour (dirty) tracking.
+                   showStartupGate/hideStartupGate/splashSetProgress drive the
+                   splash window via IPC; onStartupRetryClick handles the
+                   splash's Try Again button (STARTUP GATE, 2026-08-02).
   fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, DELAY, FX
                    LOOP), split out of ui.js for the same reason
                    as fx-transport.js. DELAY additionally has its own

@@ -525,6 +525,7 @@ function killBridge(callback) {
 }
 
 ipcMain.handle('get-bridge-status', function() { return bridgeStatus; });
+ipcMain.handle('quit-app', function() { app.quit(); });
 ipcMain.handle('restart-bridge', function() {
   return new Promise(function(resolve) {
     killBridge(function() {
@@ -595,6 +596,51 @@ ipcMain.handle('set-zoom',        function(e, factor) {
 // ════════════════════════════════════════════════════════════════════
 // WINDOW
 // ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
+// SPLASH — shown at launch instead of the (hidden) main window, while the
+// bridge comes up and the first patch's chain/amp/knob state is pulled.
+// Main window is only revealed once the renderer says it's fully painted
+// (app-ready IPC below); if the rack never shows up, the splash swaps to
+// the Try Again/Quit gate instead of ever revealing a dead-controls screen.
+// ════════════════════════════════════════════════════════════════════
+let splashWindow = null;
+
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 480,
+    height: 300,
+    resizable: false,
+    frame: false,
+    show: true,
+    alwaysOnTop: true,
+    backgroundColor: '#0e0e0e',
+    webPreferences: {
+      preload:          path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration:  false,
+    }
+  });
+  splashWindow.loadFile('src/splash.html');
+  splashWindow.on('closed', function() { splashWindow = null; });
+}
+
+ipcMain.on('splash-progress', function(e, data) {
+  if (splashWindow) splashWindow.webContents.send('splash-progress', data);
+});
+ipcMain.on('splash-show-gate', function() {
+  if (splashWindow) splashWindow.webContents.send('splash-show-gate');
+});
+ipcMain.on('splash-hide-gate', function() {
+  if (splashWindow) splashWindow.webContents.send('splash-hide-gate');
+});
+ipcMain.on('startup-retry-click', function() {
+  if (mainWindow) mainWindow.webContents.send('startup-retry-click');
+});
+ipcMain.on('app-ready', function() {
+  if (mainWindow) mainWindow.show();
+  if (splashWindow) { splashWindow.close(); splashWindow = null; }
+});
+
 function createWindow() {
   const winBounds = storeGet('windowBounds', { width: 1400, height: 800 });
   const savedZoom = storeGet('zoomFactor', 1.0);
@@ -608,6 +654,7 @@ function createWindow() {
     icon:     path.join(__dirname, 'assets', 'icon.ico'),
     backgroundColor: '#0e0e0e',
     autoHideMenuBar: true,
+    show: false, // revealed only on 'app-ready' IPC — see SPLASH above
     webPreferences: {
       preload:              path.join(__dirname, 'preload.js'),
       contextIsolation:     true,
@@ -645,6 +692,7 @@ app.commandLine.appendSwitch('enable-blink-features', 'MIDIGetSupportedExtension
 app.whenReady().then(function() {
   initLog();
   launchBridge();
+  createSplashWindow();
   createWindow();
 });
 
