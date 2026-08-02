@@ -5001,5 +5001,26 @@ NOTE:        FX1 (0x08) is a generic host slot; FX2 (0x09) hosts the same model
              Part 7.
 
 ===================================================================
+MOVED 2026-08-01 (independent review) — Primer "FX1/FX2/MOD OVERLAP"
+subsection. Superseded once FX1/FX2/MOD were all built and TESTED LIVE
+via the shared FX-host engine (Phase 15). Its facts live in Tech Ref
+Sec 23; kept here for provenance only.
+===================================================================
+  FX1 / FX2 / MOD OVERLAP (per Charlie, 2026-07-30 — see protocol.js
+  FX1_MODELS header for the code-level note):
+    - FX2 (SLOT_FX2) hosts the SAME model family as FX1 — once a model is
+      captured for FX1, expect it to apply directly to FX2 too (same mids,
+      same paramLos). An FX2 panel build should reuse FX1_MODELS rather
+      than re-capturing every model from scratch.
+    - Some FX1/FX2 models may also turn up in MOD's roster — check for
+      overlap before capturing a MOD model fresh.
+    - MONO/STEREO MID PAIRS (like C1 Chorus/Vibrato needed, Session Log
+      2026-07-30): of the FX1 models still uncaptured, all are stereo by
+      nature except Gray Compressor (mono-only) — so this is expected to be
+      the exception, not the rule, going forward. Still worth a quick
+      Stereo/Mono toggle test on each new model once captured, just don't
+      expect to spend much time on it.
+
+===================================================================
 END OF ARCHIVE
 ===================================================================

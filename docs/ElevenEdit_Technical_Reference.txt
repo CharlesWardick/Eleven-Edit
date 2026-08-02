@@ -2768,7 +2768,7 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   "REFACTOR FIRST" decision).
 
 2026-08-01 (docs, review) — Review of the FX1-completion sessions (two finalizes
-  in one chat; work was clean, structure intact — C1-C13 in order, 38 sections,
+  in one chat; work was clean, structure intact — C1-C13 in order, 24 sections (+20A),
   R1-R8). Three cleanups. (1) Cleared stale contract flags: R7's "FX1 Chorus
   gap" and R8's to-do were both RETROFITTED this session, and the Primer's
   "do not copy FX1's R7 gap" warning + the audit's "R1-R7" were updated to
@@ -2857,7 +2857,7 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   it needs repo access.
 
 2026-07-31 (docs, review) — Review of the FX1 session. Additive, no protocol
-  errors, baseline intact, conflicts C1-C13 in order, 38 sections. The FX1 work
+  errors, baseline intact, conflicts C1-C13 in order, 24 sections (+20A). The FX1 work
   itself was clean and disciplined (both bug fixes correctly ported to all five
   panels; the mid-0x01 finding correctly tied to the OUTPUT CHANNEL TABLE's own
   retraction note; vocabulary rules followed). One housekeeping issue: the
@@ -2938,7 +2938,7 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   the Primer drifts toward changelog. Keep routing through a review cycle.
 
 2026-07-27 (docs, review) — Review sweep of the connect/dirty/phantom-red
-  session. Additive fold-in, baseline intact, conflicts in order, 38 sections.
+  session. Additive fold-in, baseline intact, conflicts in order, 24 sections (+20A).
   Found and resolved one contradiction the session left open: Section 14's TFX
   global-section table lists WorB (Input Selector) as living in the patch body,
   while today's finding says input is GLOBAL. Charlie's hardware test settles
@@ -2972,7 +2972,7 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   Deferred: 1c (reflect live input / stop forcing Guitar) — Sec 21.
 
 2026-07-26 (docs, review) — Review sweep of the UI/handle session. Purely
-  additive fold-in; baseline intact, conflicts in order, 38 sections. Verified
+  additive fold-in; baseline intact, conflicts in order, 24 sections (+20A). Verified
   the "saves reassign handles" finding sits consistently in Sec 4 alongside the
   reorder and Stereo/Mono handle-change blocks (three triggers, one shared rule:
   never cache a handle across a chain map). Confirmed with Charlie that every
@@ -3034,7 +3034,7 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   the correction lands where the work happened (Sec 18, Sec 21), the stale copy
   sits in a forward-looking or list section nobody reopened. Replaced it with
   the effect-panel next task. No other issues; baseline intact, conflicts in
-  order, 38 sections present.
+  order, 24 sections (+20A) present.
 
 2026-07-24 (code + protocol, evening) — RIG TEMPO SOLVED AND SHIPPED. CMD 0x50
   is microseconds per beat as four 6-bit digits; BPM = 60000000/us. Exact on

@@ -656,7 +656,7 @@ WORKING:
     dropdown (pre-loaded from chain map), model switching via CMD 0x21,
     knobs with Avid-correct labels and per-model 2D layout, SW drag sends
     CMD 0x11, live HW readback, ✕ close button. Confirmed solo 7/21/2026.
-    Pattern established for remaining eight effect slots.
+    Pattern established for the remaining effect slots.
   REVERB effect panel — both models: Blackpanel Spring Reverb and
     Eleven SR. Model dropdown, model switching via CMD 0x21, knobs with
     Avid-correct labels, SW drag sends CMD 0x11, live HW readback, ✕ close.
@@ -982,8 +982,8 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
 
 NEXT SESSION — EFFECT PANEL FOR ANOTHER BLOCK
 -------------------------------------------------------------------
-  The remaining chunk is the five non-amp effect panels still on placeholders:
-  MOD, DELAY, FX1, FX2, FX LOOP. (DIST, REVERB, WAH and VOL are DONE.) The
+  The remaining chunk is the two non-amp effect panels still on placeholders:
+  DELAY and FX LOOP. (DIST, REVERB, WAH, VOL, FX1, FX2 and MOD are DONE.) The
   existing panels established the whole pattern; each new slot needs one
   Wireshark capture for its paramLo numbers, then the same six edits copied
   across. Full recipe and recommended order are in the LATER — EFFECT PANELS
@@ -1003,21 +1003,18 @@ QUERY BUDGET — READ THIS BEFORE ADDING BLOCK PANELS
   block on every patch change adds permanent cost for values nobody is looking
   at, and would make us slower than Avid rather than faster.
 
-LATER — EFFECT PANELS FOR REMAINING EIGHT SLOTS
+LATER — EFFECT PANELS FOR REMAINING TWO SLOTS (DELAY, FX LOOP)
 -------------------------------------------------------------------
-  *** STALE AS OF 2026-08-01 FOR FX2/MOD SPECIFICALLY — DO NOT FOLLOW STEPS
-  1-6 BELOW FOR THOSE TWO SLOTS. *** This section predates: WAH/VOLUME
-  shipping, FX1 finishing all 10 models, R7 being fixed (the "FX1 itself is
-  currently missing R7" line below is OLD, no longer true), and — most
-  importantly — the 2026-08-01 decision to refactor FX1's panel code into
-  one shared engine BEFORE building FX2 or MOD, specifically BECAUSE FX2/
-  MOD would otherwise be copy-paste #2 and #3 of the exact same model
-  family (see the NOT YET IMPLEMENTED section above and Session Log
-  2026-08-01). Steps 1-6 below are still the right recipe for DELAY/FX
-  LOOP's own, different model families — just not for FX2/MOD, which are
-  the reason the refactor is happening at all.
-  The DIST panel established the full pattern. Eight
-  non-amp slots remain: WAH, MOD, FX1, FX2, REVERB, DELAY, LOOP, VOLUME.
+  *** SCOPE: DELAY and FX LOOP ONLY. *** FX1/FX2/MOD are DONE — they share the
+  2026-08-01 FX-host engine, not this per-slot recipe; WAH/VOLUME/REVERB also
+  shipped. Steps 1-6 below remain the right recipe for DELAY and FX LOOP,
+  which are genuinely distinct model families (not generic host slots), so
+  each gets its own panel per the original DIST pattern rather than a hook
+  into the FX-host engine. (Any "FX1 is missing R7" line further below is OLD
+  — R7/R8 were retrofitted 2026-07-31; build every knob against all of R1-R8,
+  Sec 20A, regardless.)
+  The DIST panel established the full pattern. Two
+  non-amp slots remain: DELAY, LOOP.
 
   WHAT IS ALREADY DONE:
     - DIST_MODELS rows-based layout in protocol.js (label, lo, 2D position)
@@ -1053,22 +1050,10 @@ LATER — EFFECT PANELS FOR REMAINING EIGHT SLOTS
        sentinel tail logic, not a flat 00 00 00 00 tail).
 
   RECOMMENDED ORDER (by capture simplicity):
-    WAH and VOLUME — single model each, simplest captures.
-    MOD / REVERB / DELAY — multi-model families, need one capture per layout.
-    FX1 / FX2 — generic slots; model population varies by patch.
+    DELAY — multi-model family, needs one capture per layout.
     LOOP — minimal controls; protocol known from TFX work.
 
-  FX1 / FX2 / MOD OVERLAP (per Charlie, 2026-07-30 — see protocol.js
-  FX1_MODELS header for the code-level note):
-    - FX2 (SLOT_FX2) hosts the SAME model family as FX1 — once a model is
-      captured for FX1, expect it to apply directly to FX2 too (same mids,
-      same paramLos). An FX2 panel build should reuse FX1_MODELS rather
-      than re-capturing every model from scratch.
-    - Some FX1/FX2 models may also turn up in MOD's roster — check for
-      overlap before capturing a MOD model fresh.
-    - MONO/STEREO MID PAIRS (like C1 Chorus/Vibrato needed, Session Log
-      2026-07-30): of the FX1 models still uncaptured, all are stereo by
-      nature except Gray Compressor (mono-only) — so this is expected to be
-      the exception, not the rule, going forward. Still worth a quick
-      Stereo/Mono toggle test on each new model once captured, just don't
-      expect to spend much time on it.
+  FX1 / FX2 / MOD OVERLAP — SUPERSEDED, moved to Archive 2026-08-01: all
+  three are built and TESTED LIVE via the shared FX-host engine (Phase 15).
+  Live facts (FX2 = identical model family, MOD 6-of-10, Gray Compressor
+  mono-only exception) live in Tech Ref Sec 23.
