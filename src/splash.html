@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Eleven Edit</title>
+<style>
+  :root { --accent: #ffb000; --accent-dim: #a87400; --text: #ddd; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #0e0e0e; color: var(--text);
+    font-family: 'Segoe UI', Arial, sans-serif; user-select: none;
+  }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 1px solid #333; height: 100vh;
+  }
+  #logo {
+    font-size: 34px; font-weight: 800; letter-spacing: 4px; color: var(--accent);
+    text-shadow: 0 0 10px rgba(255,176,0,0.35);
+  }
+  #subtitle { font-size: 12px; letter-spacing: 3px; color: #888; margin-top: 4px; text-transform: uppercase; }
+
+  #progress-view { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; padding: 0 40px; }
+  #progress-track {
+    width: 100%; height: 10px; background: #1a1a1a; border: 1px solid #333; border-radius: 5px; overflow: hidden;
+  }
+  #progress-bar { height: 100%; width: 5%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); transition: width 0.3s ease; }
+  #status-text { font-size: 13px; color: var(--text); min-height: 16px; }
+
+  #gate-view { display: none; flex-direction: column; align-items: center; gap: 16px; width: 100%; padding: 0 30px; }
+  #gate-view.open { display: flex; }
+  #progress-view.hidden { display: none; }
+  #gate-msg { font-size: 13px; line-height: 1.7; text-align: center; color: var(--text); }
+  #gate-buttons { display: flex; gap: 10px; width: 100%; }
+  #btn-startup-retry, #btn-startup-quit {
+    background: transparent; border: 2px solid var(--accent-dim); color: var(--accent);
+    font-size: 13px; font-weight: 700; letter-spacing: 2px; padding: 8px;
+    border-radius: 6px; cursor: pointer; text-transform: uppercase; flex: 1;
+  }
+  #btn-startup-retry:hover, #btn-startup-quit:hover { background: #1a1200; border-color: var(--accent); }
+</style>
+</head>
+<body>
+  <div id="logo">ELEVEN EDIT</div>
+  <div id="subtitle">Patch Editor for Avid Eleven Rack</div>
+  <div style="height:24px;"></div>
+
+  <div id="progress-view">
+    <div id="progress-track"><div id="progress-bar"></div></div>
+    <div id="status-text">Starting Java bridge...</div>
+  </div>
+
+  <div id="gate-view">
+    <div id="gate-msg">Unable to locate Eleven Rack. Make sure Eleven Rack is connected and turned on.<br>Click Try Again to rescan. Click Quit to close.</div>
+    <div id="gate-buttons">
+      <button id="btn-startup-retry">Try Again</button>
+      <button id="btn-startup-quit">Quit</button>
+    </div>
+  </div>
+
+<script>
+  const progressView = document.getElementById('progress-view');
+  const gateView      = document.getElementById('gate-view');
+  const progressBar   = document.getElementById('progress-bar');
+  const statusText    = document.getElementById('status-text');
+
+  window.electronAPI.onSplashProgress((data) => {
+    if (data.message) statusText.textContent = data.message;
+    if (typeof data.fraction === 'number') {
+      progressBar.style.width = Math.max(5, Math.min(100, data.fraction * 100)) + '%';
+    }
+  });
+
+  window.electronAPI.onSplashShowGate(() => {
+    progressView.classList.add('hidden');
+    gateView.classList.add('open');
+  });
+
+  window.electronAPI.onSplashHideGate(() => {
+    gateView.classList.remove('open');
+    progressView.classList.remove('hidden');
+    progressBar.style.width = '5%';
+  });
+
+  document.getElementById('btn-startup-retry').addEventListener('click', () => {
+    gateView.classList.remove('open');
+    progressView.classList.remove('hidden');
+    statusText.textContent = 'Retrying...';
+    progressBar.style.width = '5%';
+    window.electronAPI.sendStartupRetryClick();
+  });
+
+  document.getElementById('btn-startup-quit').addEventListener('click', () => {
+    window.electronAPI.quitApp();
+  });
+</script>
+</body>
+</html>

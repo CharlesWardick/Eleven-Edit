@@ -15,6 +15,7 @@ function isExternalMidiPort(name, desc) {
 
 async function initMIDI() {
   setStatus('Connecting to Java bridge...');
+  splashSetProgress('Starting Java bridge...', 0.1);
   armStartupGate();
   connectBridgeWs();
 }
@@ -30,6 +31,20 @@ function armStartupGate() {
   }, STARTUP_GATE_TIMEOUT_MS);
 }
 
+// Splash reveal — fires electronAPI.appReady() exactly once, the first
+// time BOTH the chain map and the post-nav param pull have landed (see
+// initialChainMapDone/initialNavPullDone, state.js). Called from
+// handleChainMap (sysex-handler.js) and requestPatchStateAfterNav's
+// finish() below, each time either one completes.
+function checkInitialPopulateReady() {
+  if (appRevealed) return;
+  if (!initialChainMapDone || !initialNavPullDone) return;
+  appRevealed = true;
+  splashSetProgress('Ready', 1);
+  if (window.electronAPI) window.electronAPI.appReady();
+  appLog('Startup: initial chain/knob state populated — revealing main window');
+}
+
 function connectBridgeWs() {
   try {
     if (bridgeWs && bridgeWs.readyState < 2) { try { bridgeWs.close(); } catch(e) {} }
@@ -39,6 +54,7 @@ function connectBridgeWs() {
       bridgeReady = true;
       clearTimeout(bridgeReconnectTimer);
       setStatus('Bridge connected — finding ports...');
+      splashSetProgress('Bridge connected — looking for Eleven Rack...', 0.3);
       appLog('Bridge WS connected');
       // NOTE: no explicit list_ports request here — the bridge already
       // sends the port list automatically the instant a client connects
@@ -85,6 +101,7 @@ function handleBridgeMsg(msg) {
       bridgeMidiReady = true;
       clearTimeout(startupGateTimer);
       hideStartupGate();
+      splashSetProgress('Eleven Rack found — reading current patch...', 0.6);
       midiOutName = 'Eleven Rack (Java bridge)';
       document.getElementById('midi-dot').classList.add('connected');
       document.getElementById('midi-label').textContent = 'Connected';
@@ -981,6 +998,8 @@ async function requestPatchStateAfterNav() {
   function finish() {
     var ms = Date.now() - tStart;
     appLog('Nav pull complete: ' + qCount + ' param queries, ' + ms + ' ms');
+    initialNavPullDone = true;
+    checkInitialPopulateReady();
   }
 
   await sleep(NAV_RECALL_SETTLE);

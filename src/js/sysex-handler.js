@@ -400,6 +400,8 @@ function handleChainMap(data) {
     // Release the post-nav pull's wait: currentParamHi and currentChain are
     // now valid, so amp-block queries can safely be addressed.
     chainMapRxSeq++;
+    initialChainMapDone = true;
+    checkInitialPopulateReady();
   } else {
     // Should not happen — every rig has an amp block.
     appLog('CMD 0x21: no AMP block (slot 0x00) found in chain map, paramHi unchanged');

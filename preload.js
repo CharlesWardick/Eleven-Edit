@@ -45,6 +45,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLogsDir:     ()              => ipcRenderer.invoke('get-logs-dir'),
   scanAvidGraphics: (rootDir)     => ipcRenderer.invoke('scan-avid-graphics', rootDir),
 
+  // Splash window — main window renderer drives progress/gate state; the
+  // splash window itself listens for these and relays button clicks back.
+  splashProgress:      (data)       => ipcRenderer.send('splash-progress', data),
+  splashShowGate:      ()           => ipcRenderer.send('splash-show-gate'),
+  splashHideGate:      ()           => ipcRenderer.send('splash-hide-gate'),
+  onSplashProgress:    (cb)         => ipcRenderer.on('splash-progress', (e, data) => cb(data)),
+  onSplashShowGate:    (cb)         => ipcRenderer.on('splash-show-gate', () => cb()),
+  onSplashHideGate:    (cb)         => ipcRenderer.on('splash-hide-gate', () => cb()),
+  sendStartupRetryClick: ()         => ipcRenderer.send('startup-retry-click'),
+  onStartupRetryClick: (cb)         => ipcRenderer.on('startup-retry-click', () => cb()),
+  appReady:            ()          => ipcRenderer.send('app-ready'),
+
   platform:   process.platform,
   isElectron: true,
 });
