@@ -344,6 +344,87 @@ function sendFxLoopParamWrite(paramLo, v127) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// DELAY EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
+// One user-facing model (BBD Delay); firmware picks mono (0x1E) or
+// stereo (0x1F). sendDelayModelChange kept for pattern consistency, same
+// reason as VOL/FX LOOP.
+// ════════════════════════════════════════════════════════════════════
+function sendDelayModelChange(newMid) {
+  if (!bridgeMidiReady) { appLog('sendDelayModelChange: bridge not ready'); return false; }
+  if (!currentChainInput || !currentChain.length) {
+    appLog('sendDelayModelChange: no chain map yet'); return false;
+  }
+  const b = [0xF0,0x13,0x0B,0x0F,0x00,0x21];
+  b.push(SLOT_INPUT, currentChainInput.modelId, currentChainInput.handle);
+  for (let i = 0; i < 10; i++) {
+    const blk      = currentChain[i];
+    const backLink = (i === 0) ? SLOT_INPUT : currentChain[i-1].slotId;
+    const mid      = (blk.slotId === SLOT_DELAY) ? newMid : blk.modelId;
+    const handle   = (blk.slotId === SLOT_DELAY) ? 0x00   : blk.handle;
+    b.push(backLink, mid, handle);
+  }
+  b.push(currentChain[9].slotId, 0xF7);
+  const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  appLog('sendDelayModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
+  return sendPatchWrite(hex);
+}
+
+function requestDelayParams() {
+  if (!bridgeMidiReady) return;
+  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+  if (!delayBlk) { appLog('requestDelayParams: no DELAY block in chain'); return; }
+  const model = DELAY_MODEL_BY_MID[delayBlk.modelId];
+  if (!model) {
+    appLog('requestDelayParams: unknown DELAY mid=0x' + delayBlk.modelId.toString(16).padStart(2,'0'));
+    return;
+  }
+  const hh = delayBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  model.paramLos.forEach(function(lo) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
+  });
+  appLog('requestDelayParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+}
+
+// THE 9.9 BUG — endpoint sentinels, same tail logic as sendVolParamWrite/
+// sendFxLoopParamWrite. Covers every DELAY paramLo EXCEPT Sync (0x05),
+// which has its own wide 28-bit encoding and its own send function below —
+// do not route Sync through this one.
+function sendDelayParamWrite(paramLo, v127) {
+  if (!bridgeMidiReady) return false;
+  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+  if (!delayBlk) { appLog('sendDelayParamWrite: no DELAY block'); return false; }
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
+  const hex = 'F0 13 0B 0F 00 11 '
+    + delayBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + tail + ' F7';
+  return sendPatchWrite(hex);
+}
+
+// DELAY Sync (paramLo 0x05) — WIDE 28-bit encoding with what looks like a
+// real SysEx checksum trailing byte, not the standard endpoint-sentinel
+// tail. Uses the EXACT captured 5-byte tail per zone (DELAY_SYNC_TAIL_HEX,
+// protocol.js) rather than computing one. zoneIdx is a SYNC_DIVISIONS
+// index (0=OFF..13=1/16 triplet). OFF's tail is UNCONFIRMED (provisional).
+function sendDelaySyncWrite(zoneIdx) {
+  if (!bridgeMidiReady) return false;
+  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+  if (!delayBlk) { appLog('sendDelaySyncWrite: no DELAY block'); return false; }
+  const tail = DELAY_SYNC_TAIL_HEX[zoneIdx] || DELAY_SYNC_TAIL_HEX[0];
+  const hex = 'F0 13 0B 0F 00 11 '
+    + delayBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' 05 '
+    + tail + ' F7';
+  appLog('sendDelaySyncWrite: zone=' + zoneIdx);
+  return sendPatchWrite(hex);
+}
+
+// ════════════════════════════════════════════════════════════════════
 // FX-HOST EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
 // Shared engine (2026-08-01 refactor) for every GENERIC HOST SLOT
 // (FX1/FX2/MOD — see fx-panels.js's FX-HOST EFFECT PANEL header for the

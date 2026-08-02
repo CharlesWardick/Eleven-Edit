@@ -1440,6 +1440,140 @@ VOL_MODELS.forEach(function(m) {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// BBD DELAY MODEL — DELAY slot (Sec 4 0x06). Tech Ref Sec 23: TFX 1B/30,
+// CMD 0x20 mid 0x1E (mono) / 0x1F (stereo). 9 params confirmed by
+// Wireshark capture (2026-08-02, BBDDelay_Capture.pcapng, 1364 broadcasts
+// + 21 sends, all 9 paramLos present). Sweep order and control identities
+// confirmed directly by Charlie (session log), not inferred from bytes
+// alone — the wire shape alone could not distinguish which paramLo was
+// which named knob/toggle:
+//   0x02 Mix       0-10, plain linear (v127 0->0.0, 127->10.0)
+//   0x03 Feedback  0-10, plain linear, same shape as Mix
+//   0x04 Delay     32-400 ms, plain linear (v127 0->32ms, 127->400ms).
+//        WIDER WIRE ENCODING than every other knob in the app: byte0 is
+//        the normal (v127+64)%128 value, but bytes 1-3 carry live
+//        sub-step precision while dragging (near 7F 7F 7X approaching an
+//        endpoint) instead of sitting flat at 00 00 00 — read only byte0,
+//        same as every other knob; the extra bytes are readback noise/
+//        precision we don't need. Endpoint sentinel (R1) still applies.
+//   0x05 Sync      14-zone (OFF + 13 divisions), reuses the SAME
+//        SYNC_DIVISIONS table/order as amp Tremolo and FX1 C1 Chorus, but
+//        NOT the same 7-bit wire encoding — this is a 28-bit value (see
+//        DELAY_SYNC_RAW / delaySyncIndexFromRaw / delaySyncRawFromIndex
+//        below). Engaging Sync overwrites the live Delay (0x04) value —
+//        confirmed by every Sync broadcast in the capture being paired
+//        with a Delay re-broadcast, same interlock family as Tremolo/C1
+//        Chorus Sync (R7).
+//   0x06 Input     0-10, plain linear, same shape as Mix
+//   0x07 Depth     0-10, plain linear, same shape as Mix
+//   0x08 Chorus/Vibrato toggle — v0=0x40 -> Chorus, v0=0x3F -> Vibrato
+//   0x09 Expanded Delay toggle — v0=0x40 -> Off, v0=0x3F -> On
+//   0x0A Noise toggle          — v0=0x40 -> Off, v0=0x3F -> On
+// ════════════════════════════════════════════════════════════════════
+// DELAY SYNC — 28-bit big-endian raw value (byte0<<21|byte1<<14|byte2<<7|
+// byte3), NOT the standard 7-bit v127 used everywhere else. The 13
+// non-OFF zone values below are the ACTUAL confirmed wire bytes from the
+// capture (Charlie's sweep, "starting from off and going down the list"),
+// not a derived formula — safest possible source. OFF's raw value was
+// NOT captured (the sweep's first broadcast was already the move INTO
+// 1/1, so OFF's own broadcast never appeared) — UNCONFIRMED, provisional
+// 0x00000000 pending a live test. Do not treat OFF as settled.
+// Index matches SYNC_DIVISIONS (0=OFF, 1=1/1, ... 13=1/16 triplet).
+const DELAY_SYNC_RAW = [
+  0x00000000,  //  0  OFF            — UNCONFIRMED, provisional
+  0x496C2731,  //  1  1/1
+  0x53584E62,  //  2  1/2 dotted
+  0x5D447613,  //  3  1/2
+  0x67311D44,  //  4  1/2 triplet
+  0x711D4476,  //  5  1/4 dotted
+  0x7B096C27,  //  6  1/4
+  0x04761358,  //  7  1/4 triplet
+  0x0E623B09,  //  8  1/8 dotted
+  0x184E623B,  //  9  1/8
+  0x223B096C,  // 10  1/8 triplet
+  0x2C27311D,  // 11  1/16 dotted
+  0x3613584E,  // 12  1/16
+  0x3F7F7F7F,  // 13  1/16 triplet — the max wire sentinel; the fastest
+               //     division sits at the same raw code as every other
+               //     knob's true-endpoint sentinel (Sec 20A R1), which is
+               //     consistent, not coincidental.
+];
+
+// Raw 28-bit value (byte0<<21|byte1<<14|byte2<<7|byte3) -> zone index.
+// Nearest-match against the confirmed table (OFF excluded, since its raw
+// code is unconfirmed) — falls back to OFF (index 0) if nothing is close.
+function delaySyncIndexFromRaw(raw) {
+  let best = 0, bestDist = Infinity;
+  for (let i = 1; i < DELAY_SYNC_RAW.length; i++) {
+    const d = Math.abs(raw - DELAY_SYNC_RAW[i]);
+    if (d < bestDist) { bestDist = d; best = i; }
+  }
+  return (bestDist < 0x00200000) ? best : 0;  // within ~1/128 of a zone
+}
+
+function delaySyncRawFromIndex(i) {
+  return DELAY_SYNC_RAW[i] || 0;
+}
+
+// WRITE side — the exact confirmed 5-byte SysEx tail (4 value bytes + a
+// trailing byte) for each zone, taken VERBATIM from the capture's own
+// CMD 0x11 OUT sends, not computed. The trailing byte is NOT a flat
+// write-mode constant like every other knob's endpoint sentinel (Sec 20A
+// R1) — it visibly varies per zone (04, 07, 0B, 0E, 02, 06, 09, 0D, 01,
+// 04, 08, 0B, 0F), almost certainly a real SysEx checksum over the
+// preceding bytes we haven't reverse-engineered — so reproducing the
+// exact captured tail per zone is the only safe way to write this
+// parameter until that checksum is understood. OFF (index 0) was never
+// captured being written — UNCONFIRMED, provisional all-zero tail.
+const DELAY_SYNC_TAIL_HEX = [
+  '00 00 00 00 00',  //  0  OFF — UNCONFIRMED, provisional
+  '49 6C 27 31 04',  //  1  1/1
+  '53 58 4E 62 07',  //  2  1/2 dotted
+  '5D 44 76 13 0B',  //  3  1/2
+  '67 31 1D 44 0E',  //  4  1/2 triplet
+  '71 1D 44 76 02',  //  5  1/4 dotted
+  '7B 09 6C 27 06',  //  6  1/4
+  '04 76 13 58 09',  //  7  1/4 triplet
+  '0E 62 3B 09 0D',  //  8  1/8 dotted
+  '18 4E 62 3B 01',  //  9  1/8
+  '22 3B 09 6C 04',  // 10  1/8 triplet
+  '2C 27 31 1D 08',  // 11  1/16 dotted
+  '36 13 58 4E 0B',  // 12  1/16
+  '3F 7F 7F 7F 0F',  // 13  1/16 triplet
+];
+
+// DELAY is a multi-model slot like DIST/REVERB (Tech Ref Sec 23), not a
+// single fixed model like VOL/FX LOOP — three distinct effect families can
+// load into it: EP Tape Echo (mid 0x1C/0x1D), BBD Delay (0x1E/0x1F), Dyn
+// Delay (0x20/0x21/0x22). Only BBD Delay is captured so far (Charlie's own
+// call, 2026-08-02: "that is the first one we are going to do") — the
+// other two are STUBS (name/mids only, captured:false), same convention
+// as FX1_MODELS' uncaptured entries, so the model dropdown is honest about
+// what's really available without blocking on the other two captures.
+const DELAY_MODELS = [
+  { mid: 0x1C, mids: [0x1C, 0x1D], name: 'EP Tape Echo', captured: false },
+  { mid: 0x1E, mids: [0x1E, 0x1F], name: 'BBD Delay', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A],
+    rows: [
+      [ {label:'Input',    lo:0x06, display:'delayTen'},
+        {label:'Delay',    lo:0x04, display:'delayMs'},
+        {label:'Feedback', lo:0x03, display:'delayTen'},
+        {label:'Depth',    lo:0x07, display:'delayTen'},
+        {label:'Mix',      lo:0x02, display:'delayTen'} ],
+      [ {label:'Chorus/Vibrato', lo:0x08, toggle:true, options:['Chorus','Vibrato']},
+        {label:'Expanded Delay', lo:0x09, toggle:true, options:['Off','On']},
+        {label:'Noise',          lo:0x0A, toggle:true, options:['Off','On']},
+        {label:'Sync',           lo:0x05, delaySync:true} ]
+    ]
+  },
+  { mid: 0x20, mids: [0x20, 0x21, 0x22], name: 'Dyn Delay', captured: false },
+];
+const DELAY_MODEL_BY_MID = {};
+DELAY_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { DELAY_MODEL_BY_MID[mid] = m; });
+});
+
+// ════════════════════════════════════════════════════════════════════
 // FX LOOP MODELS — Tech Ref Sec 23: TFX 0F/11/49, CMD 0x20 mid range
 // 0x2D-0x33 (7 routing variants — internal keys LMMM/LMSS/LYMM/LYMS/LSMM/
 // LSMS/LSSS = mono/stereo send+return combinations, firmware-picked by

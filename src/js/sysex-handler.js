@@ -395,6 +395,7 @@ function handleChainMap(data) {
     if (typeof refreshWahPanelAfterChainMap === 'function') refreshWahPanelAfterChainMap();
     if (typeof refreshVolPanelAfterChainMap === 'function') refreshVolPanelAfterChainMap();
     if (typeof refreshFxLoopPanelAfterChainMap === 'function') refreshFxLoopPanelAfterChainMap();
+    if (typeof refreshDelayPanelAfterChainMap === 'function') refreshDelayPanelAfterChainMap();
     if (typeof refreshFxHostPanelAfterChainMap === 'function') refreshFxHostPanelAfterChainMap();
     // Release the post-nav pull's wait: currentParamHi and currentChain are
     // now valid, so amp-block queries can safely be addressed.
@@ -662,6 +663,27 @@ function handleParamReadback(data) {
       if (paramLo >= 0x02 && paramLo <= 0x04) {
         if (typeof updateFxLoopKnob === 'function') updateFxLoopKnob(paramLo, val);
         appLog('CMD 0x11 FX LOOP paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+        return;
+      }
+    }
+  }
+
+  // ── DELAY parameter routing — same shape as VOL/FX LOOP, except paramLo
+  // 0x05 (Sync), which uses a wide 28-bit encoding (not the standard
+  // single-byte v0) and needs the full 4-byte value field, not `val`.
+  if (delayPanelOpen) {
+    const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+    if (delayBlk && instId === delayBlk.handle) {
+      if (paramLo === 0x05) {
+        const raw = ((data[8] << 21) | (data[9] << 14) | (data[10] << 7) | data[11]) >>> 0;
+        const zoneIdx = delaySyncIndexFromRaw(raw);
+        if (typeof updateDelaySync === 'function') updateDelaySync(zoneIdx);
+        appLog('CMD 0x11 DELAY Sync raw=0x' + raw.toString(16).padStart(8,'0') + ' zone=' + zoneIdx);
+        return;
+      }
+      if (paramLo >= 0x02 && paramLo <= 0x0A) {
+        if (typeof updateDelayKnob === 'function') updateDelayKnob(paramLo, val);
+        appLog('CMD 0x11 DELAY paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
       }
     }

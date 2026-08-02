@@ -40,6 +40,102 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
+STATUS:      provisional (code written, NOT TESTED LIVE) — ONE CONTROL
+             (Sync OFF) explicitly UNCONFIRMED even pending live test
+AREA:        DELAY effect panel (new panel, Phase 16 continued) — DELAY
+             slot 0x06, CMD 0x11 paramLo map, protocol.js/state.js/
+             fx-transport.js/fx-panels.js/sysex-handler.js/ui.js/index.html
+FINDING:     BBD Delay (mid 0x1E mono / 0x1F stereo, Tech Ref Sec 23 TFX
+             1B/30) has 9 controls across paramLo 0x02-0x0A. Charlie
+             confirmed the sweep order and control identities directly
+             (the wire shape alone could not distinguish them):
+               0x02 Mix        0-10 linear
+               0x03 Feedback   0-10 linear
+               0x04 Delay      32-400 ms linear
+               0x05 Sync       14-zone (OFF + 13 divisions, reuses
+                                SYNC_DIVISIONS), WIDE 28-bit encoding
+               0x06 Input      0-10 linear
+               0x07 Depth      0-10 linear
+               0x08 Chorus/Vibrato toggle
+               0x09 Expanded Delay toggle
+               0x0A Noise toggle
+             TWO GENUINELY NEW WIRE BEHAVIOURS not seen on any panel built
+             so far (FX1/FX2/MOD/DIST/REVERB/WAH/VOL/FX LOOP all use the
+             single-byte (v127+64)%128 shape throughout):
+             (1) Delay (0x04) reports live sub-step precision in bytes
+                 1-3 while dragging (values near 7F 7F 7X approaching an
+                 endpoint) instead of sitting flat at 00 00 00 like every
+                 other knob's byte0-only encoding. Treated as harmless
+                 readback noise — only byte0 is read (same formula as
+                 everywhere else), matching the confirmed endpoint
+                 sentinel "3F 7F 7F 7F" appearing at the true top exactly
+                 like every other knob.
+             (2) Sync (0x05) is NOT a v127 parameter at all — it's a
+                 28-bit big-endian value (byte0<<21|byte1<<14|byte2<<7|
+                 byte3) with what looks like a real SysEx checksum as a
+                 5th trailing byte on writes (varies per zone: 04, 07,
+                 0B, 0E, 02, 06, 09, 0D, 01, 04, 08, 0B, 0F — not the
+                 flat endpoint-sentinel convention). Rather than reverse
+                 the checksum algorithm, the WRITE side (DELAY_SYNC_TAIL_HEX,
+                 protocol.js) uses the EXACT captured 5-byte tail per zone
+                 verbatim — the safest option since we have all 13 real
+                 sends. The READ side (DELAY_SYNC_RAW) does nearest-match
+                 against the 4 leading value bytes only. Interlock with
+                 Delay (0x04) confirmed: every Sync broadcast in the
+                 capture paired with a Delay re-broadcast, matching the
+                 Tremolo/C1 Chorus Sync-overwrites-value family (R7).
+             UNCONFIRMED: Sync zone 0 (OFF) — its raw/tail bytes were
+             never captured (the sweep's first broadcast was already the
+             move INTO 1/1, so OFF's own send/broadcast never appeared).
+             Provisional all-zero tail in DELAY_SYNC_TAIL_HEX/DELAY_SYNC_RAW.
+             This is a genuine gap, not a guess dressed up as confirmed —
+             flagged in both the code comments and here.
+EVIDENCE:    BBDDelay_Capture.pcapng (Charlie, 2026-08-02) — same decode
+             pipeline as the FX LOOP capture (hand-written Python pcapng
+             + USBPcap header parser + USB-MIDI CIN reassembly), this time
+             capturing BOTH directions (endpoint 0x82 IN broadcasts AND
+             endpoint 0x02 OUT sends — the OUT sends are what supplied the
+             13 confirmed Sync write tails). 1364 IN + 21 OUT = 1385 clean
+             SysEx frames. Knob sweep order confirmed by Charlie: "Delay,
+             Feedback, Mix, Input, Depth" (matches the capture's own
+             temporal paramLo run order 4,3,2,6,7 exactly). Toggle order
+             confirmed: "Noise, Expanded, Chorus/vib" (matches temporal
+             run order 10,9,8 exactly). Sync order confirmed: "starting
+             from off and going down the list" (matches the 13 captured
+             raw values mapping 1:1 in order onto SYNC_DIVISIONS indices
+             1-13, with the final value landing exactly on the same
+             "3F 7F 7F 7F" sentinel every other knob's true-max uses).
+CONFLICTS:   none — no prior DELAY documentation existed beyond the TFX
+             param-name row already in Tech Ref Sec 23.
+NEXT:        Charlie builds the EXE and tests live: confirm all 5 knobs
+             read correct anchors (0.0/10.0 for the four 0-10 knobs,
+             32/400 ms for Delay), confirm all 3 toggles, confirm Sync
+             selects each of the 13 known divisions correctly AND that it
+             overwrites the Delay knob's displayed ms value on selection
+             (R7-style interlock) — and SPECIFICALLY test selecting Sync
+             OFF, since that write uses an unconfirmed placeholder tail
+             and may not work correctly on the real hardware; report back
+             exactly what OFF does (or doesn't do) so the real tail can be
+             captured if the placeholder is wrong. Only a clean live pass
+             (OFF included) promotes this to WORKING/TESTED LIVE in the
+             Primer and folds the paramLo map into Tech Ref Sec 23's BBD
+             Delay row.
+             CORRECTED MID-BUILD: DELAY is a multi-model slot like DIST/
+             REVERB (Tech Ref Sec 23 lists three families — EP Tape Echo
+             0x1C/0x1D, BBD Delay 0x1E/0x1F, Dyn Delay 0x20/0x21/0x22),
+             not a single fixed model like VOL/FX LOOP. First draft built
+             DELAY_MODELS with only the one captured entry and no dropdown
+             — fixed before finishing: DELAY_MODELS now has all three,
+             EP Tape Echo and Dyn Delay as captured:false stubs (same
+             convention as FX1_MODELS' uncaptured entries), with a real
+             model dropdown (#delay-model-select) so the panel is honest
+             about what's available. EP Tape Echo and Dyn Delay remain OUT
+             OF SCOPE for this pass — BBD Delay only, per Charlie's own
+             "that is the first one we are going to do."
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
 STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-02). Pending wrap to
              fold into Primer WORKING / Tech Ref Sec 23 FX LOOP row.
 AREA:        FX LOOP effect panel (new panel, Phase 16 start) — Sec 4 slot

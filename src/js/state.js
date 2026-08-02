@@ -157,6 +157,9 @@ let volPanelOpen = false;
 // FX LOOP panel open flag — same role as distPanelOpen, for the LOOP slot.
 let fxLoopPanelOpen = false;
 
+// DELAY panel open flag — same role as distPanelOpen, for the DELAY slot.
+let delayPanelOpen = false;
+
 // FX-HOST panel open state — replaces a separate fx1PanelOpen/fx2PanelOpen/
 // modPanelOpen trio (2026-08-01 refactor). FX1/FX2/MOD share one engine and
 // one physical panel (fx-panels.js, index.html #panel-fxhost), so only one
