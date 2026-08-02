@@ -651,24 +651,31 @@
   .matrix-close button { background: #222; border: 1px solid #555; color: #999; border-radius: 3px; padding: 3px 10px; font-size: 11px; cursor: pointer; }
 
   /* ══ MODALS ══ */
-  #watchdog-overlay, #scan-overlay, #about-overlay {
+  #watchdog-overlay, #scan-overlay, #about-overlay, #startup-gate-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.85);
     z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px;
   }
-  #watchdog-overlay.open, #scan-overlay.open, #about-overlay.open { display: flex; }
-  #watchdog-box, #scan-box, #about-box {
+  #watchdog-overlay.open, #scan-overlay.open, #about-overlay.open, #startup-gate-overlay.open { display: flex; }
+  #watchdog-box, #scan-box, #about-box, #startup-gate-box {
     background: #100808; border: 2px solid var(--accent-dim); border-radius: 10px;
     padding: 24px 28px; max-width: 460px; width: 100%; display: flex; flex-direction: column; gap: 14px;
   }
   #about-box { background: #121212; max-width: 500px; max-height: 80vh; overflow-y: auto; }
-  #watchdog-box h3, #scan-box h3, #about-box h2 { font-size: 15px; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
-  #watchdog-msg { font-size: 13px; color: var(--text); line-height: 1.7; white-space: pre-line; }
+  #watchdog-box h3, #scan-box h3, #about-box h2, #startup-gate-box h3 { font-size: 15px; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+  #watchdog-msg, #startup-gate-msg { font-size: 13px; color: var(--text); line-height: 1.7; white-space: pre-line; }
   #btn-watchdog-ok, #btn-scan-skip, #btn-about-close {
     background: transparent; border: 2px solid var(--accent-dim); color: var(--accent);
     font-size: 13px; font-weight: 700; letter-spacing: 2px; padding: 8px;
     border-radius: 6px; cursor: pointer; text-transform: uppercase; width: 100%;
   }
   #btn-watchdog-ok:hover, #btn-scan-skip:hover, #btn-about-close:hover { background: #1a1200; border-color: var(--accent); }
+  #startup-gate-buttons { display: flex; gap: 10px; }
+  #btn-startup-retry, #btn-startup-quit {
+    background: transparent; border: 2px solid var(--accent-dim); color: var(--accent);
+    font-size: 13px; font-weight: 700; letter-spacing: 2px; padding: 8px;
+    border-radius: 6px; cursor: pointer; text-transform: uppercase; flex: 1;
+  }
+  #btn-startup-retry:hover, #btn-startup-quit:hover { background: #1a1200; border-color: var(--accent); }
   #scan-progress-text { font-size: 13px; color: var(--text); font-family: 'Consolas', monospace; }
   #scan-progress-track { background: var(--raised); border: 1px solid var(--border2); border-radius: 4px; height: 10px; overflow: hidden; }
   #scan-progress-bar { background: var(--accent-dim); height: 100%; width: 0%; transition: width 0.15s linear; }
@@ -1480,6 +1487,19 @@
     <h3>⚠ Alert</h3>
     <div id="watchdog-msg"></div>
     <button id="btn-watchdog-ok">OK</button>
+  </div>
+</div>
+
+<!-- ══ STARTUP CONNECT GATE ══ -->
+<div id="startup-gate-overlay">
+  <div id="startup-gate-box">
+    <h3>⚠ Eleven Rack Not Found</h3>
+    <div id="startup-gate-msg">Unable to locate Eleven Rack. Make sure Eleven Rack is connected and turned on.
+Click Try Again to rescan. Click Quit to close.</div>
+    <div id="startup-gate-buttons">
+      <button id="btn-startup-retry">Try Again</button>
+      <button id="btn-startup-quit">Quit</button>
+    </div>
   </div>
 </div>
 

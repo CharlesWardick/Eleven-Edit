@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // WebSocket; these just cover the child-process lifecycle.
   getBridgeStatus:    ()          => ipcRenderer.invoke('get-bridge-status'),
   restartBridge:      ()          => ipcRenderer.invoke('restart-bridge'),
+  quitApp:            ()          => ipcRenderer.invoke('quit-app'),
   onBridgeStatus:     (cb)        => ipcRenderer.on('bridge-status', (e, data) => cb(data)),
   removeBridgeStatus: ()          => ipcRenderer.removeAllListeners('bridge-status'),
 

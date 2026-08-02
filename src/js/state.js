@@ -124,6 +124,13 @@ let bridgeOutIdx = null;
 // that gets the predictability back without reintroducing that bug.
 let hasCompletedInitialConnect = false;
 
+// Startup-only connect gate (like Avid's) — armed once per launch/retry
+// cycle in initMIDI(), cleared the moment 'connected' arrives. Never
+// re-armed after the first successful connect (mid-session drops are the
+// status-bar indicator + retry button's job, not this modal's).
+let startupGateTimer = null;
+const STARTUP_GATE_TIMEOUT_MS = 5000;
+
 let pendingManualCapture = false;
 
 // Stereo/Mono state — null=unknown, true=Mono, false=Stereo

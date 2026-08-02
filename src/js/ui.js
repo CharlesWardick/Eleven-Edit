@@ -2016,6 +2016,34 @@ if (window.electronAPI) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// STARTUP CONNECT GATE — like Avid's own "can't find hardware" prompt.
+// Startup only (see armStartupGate/hasCompletedInitialConnect in
+// transport.js) — a mid-session drop is the status-bar indicator + retry
+// button's job, not this modal's.
+// ════════════════════════════════════════════════════════════════════
+function showStartupGate() {
+  appLog('Startup gate: rack not found within grace period — blocking');
+  document.getElementById('startup-gate-overlay').classList.add('open');
+}
+function hideStartupGate() {
+  document.getElementById('startup-gate-overlay').classList.remove('open');
+}
+if (window.electronAPI) {
+  document.getElementById('btn-startup-retry').addEventListener('click', async () => {
+    hideStartupGate();
+    setStatus('Retrying — restarting Java bridge...');
+    appLog('Startup gate: Try Again — restarting bridge');
+    try { await window.electronAPI.restartBridge(); } catch(e) {}
+    setTimeout(connectBridgeWs, 500);
+    armStartupGate();
+  });
+  document.getElementById('btn-startup-quit').addEventListener('click', () => {
+    appLog('Startup gate: Quit clicked');
+    window.electronAPI.quitApp();
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
 // BRIDGE PROCESS STATUS — surfaces jar launch/crash issues in the UI
 // ════════════════════════════════════════════════════════════════════
 if (window.electronAPI && window.electronAPI.onBridgeStatus) {

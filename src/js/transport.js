@@ -15,7 +15,19 @@ function isExternalMidiPort(name, desc) {
 
 async function initMIDI() {
   setStatus('Connecting to Java bridge...');
+  armStartupGate();
   connectBridgeWs();
+}
+
+// Arms the startup-only connect gate: if the rack still isn't found after
+// a few seconds' grace for normal connect latency, and this is still the
+// FIRST connect of the session, show the blocking modal. No-op if the
+// initial connect already succeeded once (see hasCompletedInitialConnect).
+function armStartupGate() {
+  clearTimeout(startupGateTimer);
+  startupGateTimer = setTimeout(function() {
+    if (!bridgeMidiReady && !hasCompletedInitialConnect) showStartupGate();
+  }, STARTUP_GATE_TIMEOUT_MS);
 }
 
 function connectBridgeWs() {
@@ -71,6 +83,8 @@ function handleBridgeMsg(msg) {
       break;
     case 'connected':
       bridgeMidiReady = true;
+      clearTimeout(startupGateTimer);
+      hideStartupGate();
       midiOutName = 'Eleven Rack (Java bridge)';
       document.getElementById('midi-dot').classList.add('connected');
       document.getElementById('midi-label').textContent = 'Connected';

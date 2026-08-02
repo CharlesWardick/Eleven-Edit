@@ -525,6 +525,7 @@ function killBridge(callback) {
 }
 
 ipcMain.handle('get-bridge-status', function() { return bridgeStatus; });
+ipcMain.handle('quit-app', function() { app.quit(); });
 ipcMain.handle('restart-bridge', function() {
   return new Promise(function(resolve) {
     killBridge(function() {
