@@ -299,6 +299,51 @@ function sendVolParamWrite(paramLo, v127) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// FX LOOP EFFECT PANEL — CMD 0x11 sends only. One shared parameter set
+// (Send/Return/Mix) across all 7 routing-variant mids (Tech Ref Sec 23);
+// the variant itself is firmware-picked from chain/stereo context, not
+// user-selectable, so there is no model-change function here (unlike
+// VOL/DIST/REVERB, which keep one for pattern consistency).
+// ════════════════════════════════════════════════════════════════════
+function requestFxLoopParams() {
+  if (!bridgeMidiReady) return;
+  const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+  if (!loopBlk) { appLog('requestFxLoopParams: no FX LOOP block in chain'); return; }
+  const model = FXLOOP_MODEL_BY_MID[loopBlk.modelId];
+  if (!model) {
+    appLog('requestFxLoopParams: unknown FX LOOP mid=0x' + loopBlk.modelId.toString(16).padStart(2,'0'));
+    return;
+  }
+  const hh = loopBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  model.paramLos.forEach(function(lo) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
+  });
+  appLog('requestFxLoopParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+}
+
+// THE 9.9 BUG — see sendFxHostParamWrite for the full explanation. Endpoint
+// sentinels so Send/Return/Mix can actually hold their true min/max, same
+// tail logic as sendVolParamWrite, confirmed against the capture's sentinel
+// frames (3F 7F 7F 7F) at every knob's top endpoint.
+function sendFxLoopParamWrite(paramLo, v127) {
+  if (!bridgeMidiReady) return false;
+  const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+  if (!loopBlk) { appLog('sendFxLoopParamWrite: no FX LOOP block'); return false; }
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
+  const hex = 'F0 13 0B 0F 00 11 '
+    + loopBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + tail + ' F7';
+  return sendPatchWrite(hex);
+}
+
+// ════════════════════════════════════════════════════════════════════
 // FX-HOST EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
 // Shared engine (2026-08-01 refactor) for every GENERIC HOST SLOT
 // (FX1/FX2/MOD — see fx-panels.js's FX-HOST EFFECT PANEL header for the

@@ -1270,6 +1270,19 @@
     </div>
   </div>
 
+  <!-- FX LOOP EFFECT PANEL — shown when FX LOOP ▼ is clicked -->
+  <div id="panel-fxloop" style="display:none;" class="scard">
+    <div class="scard-hdr" style="flex-wrap:wrap;gap:10px;">
+      <span class="scard-title">FX LOOP</span>
+      <button id="btn-fxloop-close" title="Close"
+        style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 6px;"
+        onmouseover="this.style.color='var(--fg)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+    </div>
+    <div id="fxloop-knob-row" style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;padding:14px 16px;">
+      <!-- knobs injected dynamically by renderFxLoopKnobs() -->
+    </div>
+  </div>
+
   <!-- FX-HOST EFFECT PANEL — shared by every GENERIC HOST SLOT (FX1/FX2/
        MOD, 2026-08-01 refactor; see fx-panels.js's FX-HOST EFFECT PANEL
        header). Only one host slot is ever open at a time, so they share
@@ -1280,8 +1293,9 @@
        is opening. Only captured models render real controls — see
        FX1_MODELS in protocol.js, the shared model table every host slot
        reads from. FX1/FX2/MOD's chain-row ▼ all open this panel (see the
-       panel-open switch below); DELAY/FX LOOP are separate, not-yet-built
-       model families and still show the "coming soon" placeholder. -->
+       panel-open switch below); FX LOOP is now its own panel (#panel-fxloop,
+       2026-08-02) per the original DIST pattern; DELAY is still not built
+       and shows the "coming soon" placeholder. -->
   <div id="panel-fxhost" style="display:none;" class="scard">
     <div class="scard-hdr" style="flex-wrap:wrap;gap:10px;">
       <span class="scard-title" id="fxhost-title">FX1</span>
@@ -1530,11 +1544,13 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
       document.getElementById('panel-reverb').style.display = 'none';
       document.getElementById('panel-wah').style.display = 'none';
       document.getElementById('panel-vol').style.display = 'none';
+      document.getElementById('panel-fxloop').style.display = 'none';
       document.getElementById('panel-fxhost').style.display = 'none';
       if (typeof closeDistPanel === 'function') closeDistPanel();
       if (typeof closeReverbPanel === 'function') closeReverbPanel();
       if (typeof closeWahPanel === 'function') closeWahPanel();
       if (typeof closeVolPanel === 'function') closeVolPanel();
+      if (typeof closeFxLoopPanel === 'function') closeFxLoopPanel();
       if (typeof closeFxHostPanel === 'function') closeFxHostPanel();
     } else {
       btn.classList.add('panel-open');
@@ -1553,11 +1569,13 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
       document.getElementById('panel-reverb').style.display = 'none';
       document.getElementById('panel-wah').style.display = 'none';
       document.getElementById('panel-vol').style.display = 'none';
+      document.getElementById('panel-fxloop').style.display = 'none';
       document.getElementById('panel-fxhost').style.display = 'none';
       if (typeof closeDistPanel === 'function') closeDistPanel();
       if (typeof closeReverbPanel === 'function') closeReverbPanel();
       if (typeof closeWahPanel === 'function') closeWahPanel();
       if (typeof closeVolPanel === 'function') closeVolPanel();
+      if (typeof closeFxLoopPanel === 'function') closeFxLoopPanel();
       if (typeof closeFxHostPanel === 'function') closeFxHostPanel();
 
       if (panel === 'dist') {
@@ -1580,6 +1598,11 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
         if (h) vp.style.minHeight = h + 'px';
         vp.style.display = '';
         if (typeof openVolPanel === 'function') openVolPanel();
+      } else if (panel === 'fxloop') {
+        var flp = document.getElementById('panel-fxloop');
+        if (h) flp.style.minHeight = h + 'px';
+        flp.style.display = '';
+        if (typeof openFxLoopPanel === 'function') openFxLoopPanel();
       } else if (panel === 'fx1' || panel === 'fx2' || panel === 'mod') {
         // GENERIC HOST SLOTS — one shared panel/engine (2026-08-01 refactor,
         // re-verified live on FX1; FX2/MOD wired up the same day as thin
@@ -1684,6 +1707,14 @@ document.getElementById('btn-vol-close').addEventListener('click', function() {
   document.getElementById('panel-vol').style.display = 'none';
   document.getElementById('panel-ampcab').style.display = '';
   if (typeof closeVolPanel === 'function') closeVolPanel();
+});
+
+// FX LOOP panel close button — same effect as clicking ▼ again
+document.getElementById('btn-fxloop-close').addEventListener('click', function() {
+  document.querySelectorAll('.chain-open').forEach(function(b) { b.classList.remove('panel-open'); });
+  document.getElementById('panel-fxloop').style.display = 'none';
+  document.getElementById('panel-ampcab').style.display = '';
+  if (typeof closeFxLoopPanel === 'function') closeFxLoopPanel();
 });
 
 // FX-HOST model dropdown — switch model on hardware and re-render controls.

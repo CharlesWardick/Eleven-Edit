@@ -394,6 +394,7 @@ function handleChainMap(data) {
     if (typeof refreshReverbPanelAfterChainMap === 'function') refreshReverbPanelAfterChainMap();
     if (typeof refreshWahPanelAfterChainMap === 'function') refreshWahPanelAfterChainMap();
     if (typeof refreshVolPanelAfterChainMap === 'function') refreshVolPanelAfterChainMap();
+    if (typeof refreshFxLoopPanelAfterChainMap === 'function') refreshFxLoopPanelAfterChainMap();
     if (typeof refreshFxHostPanelAfterChainMap === 'function') refreshFxHostPanelAfterChainMap();
     // Release the post-nav pull's wait: currentParamHi and currentChain are
     // now valid, so amp-block queries can safely be addressed.
@@ -649,6 +650,18 @@ function handleParamReadback(data) {
       if (paramLo >= 0x02 && paramLo <= 0x04) {
         if (typeof updateVolKnob === 'function') updateVolKnob(paramLo, val);
         appLog('CMD 0x11 VOL paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
+        return;
+      }
+    }
+  }
+
+  // ── FX LOOP parameter routing — same shape as VOL.
+  if (fxLoopPanelOpen) {
+    const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+    if (loopBlk && instId === loopBlk.handle) {
+      if (paramLo >= 0x02 && paramLo <= 0x04) {
+        if (typeof updateFxLoopKnob === 'function') updateFxLoopKnob(paramLo, val);
+        appLog('CMD 0x11 FX LOOP paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;
       }
     }

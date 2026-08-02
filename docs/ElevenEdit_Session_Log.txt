@@ -39,6 +39,75 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      provisional (code written, NOT TESTED LIVE)
+AREA:        FX LOOP effect panel (new panel, Phase 16 start) — Sec 4 slot
+             0x01, CMD 0x11 paramLo map, protocol.js/state.js/fx-transport.js/
+             fx-panels.js/sysex-handler.js/ui.js/index.html
+FINDING:     FX LOOP panel built following the VOL pattern (single fixed
+             model, no dropdown — the block's 7 routing-variant mids
+             0x2D-0x33 are firmware-picked from chain/stereo context, not
+             user-selectable). Three knobs, paramLo 0x02/0x03/0x04:
+               Send   -12..+12 dB (two-slope-anchored-at-64, same math as
+                      valToAmpVol but without its To-Amp-specific MUTE
+                      override at v127=0)
+               Return -12..+12 dB, identical shape to Send
+               Mix    0-100% linear (v127=0 -> 0%, v127=127 -> 100%)
+             All three share the SAME wire encoding: standard
+             (v127+64)%128, confirmed against Tech Ref Sec 23's existing
+             "Encoding: standard (v127+64)%128" note for this exact model
+             (TFX 0F/11/49, CMD 0x20 mid 0x2D-0x33, params send/rtrn/wetp).
+             Endpoint sentinel (R1) confirmed needed and implemented:
+             sendFxLoopParamWrite copies sendVolParamWrite's three-branch
+             tail (v127>=127 -> "3F 7F 7F 7F 0F", v127<=0 -> "40 00 00 00
+             00", else raw v0 + flat tail) verbatim.
+EVIDENCE:    FX_Loop_Capture.pcapng (Charlie, 2026-08-02) — Windows USBPcap
+             capture (linktype 249), endpoint 0x82 IN only (live broadcast
+             readback, not the OUT writes — same evidence class as prior
+             FX1 model captures). Hand-decoded in Claude Code (no tshark):
+             custom Python pcapng block parser + USBPcap header parser +
+             USB-MIDI CIN reassembly (CIN 0x4/0x5/0x6/0x7) -> 704 clean
+             SysEx frames, F0 13 0B 0F 02 11 22 [paramLo] [v0 4 bytes] F7,
+             split cleanly into 3 paramLo groups (0x02: 241 frames, 0x03:
+             258, 0x04: 205) matching the capture's stated sweep order
+             (Send -> Return -> Mix, each 0dB/0%-start -> max -> min).
+             All three groups show the identical raw shape: v0 starts at
+             0x40, climbs through 0x7F, wraps 0x00-0x3F, hits sentinel
+             "3F 7F 7F 7F" three times, descends back to 0x40 — i.e. every
+             knob's v127 (inverse of the wire transform) sweeps a full
+             0->127 in one continuous pass, hitting the sentinel exactly at
+             the true top.
+             Mix's display anchor (0% at the sweep's start, not the 0dB
+             centre reading Send/Return get) was NOT inferable from the
+             wire bytes alone — asked Charlie directly what the Avid
+             editor's Mix readout showed at the start of the capture;
+             answer: 0%. This is the ONLY reason Mix isn't wrongly using
+             the same two-slope dB-centred display as Send/Return despite
+             sharing byte-for-byte identical wire behaviour — flagging this
+             explicitly since it's exactly the class of scale mistake the
+             Primer warns about (a guess here would have been silent and
+             wrong, not caught by any build/compile step).
+             paramHi (handle) in the capture is 0x22 — NOT hardcoded
+             anywhere in the shipped code (Sec 4 rule); the panel resolves
+             the real handle from currentChain via SLOT_LOOP every time,
+             same as every other panel.
+CONFLICTS:   none — Sec 23's existing FX LOOP row (0F/11/49, mid 0x2D-33,
+             "send, rtrn, wetp") already anticipated this exact param set;
+             this entry supplies the paramLo numbers (0x02/0x03/0x04) and
+             display formulas that row didn't yet have.
+NEXT:        Charlie builds the EXE and tests live: open FX LOOP's panel,
+             confirm Send/Return read correct dB anchors (0.0 at centre,
+             +12.0/-12.0 at the true ends, no "9.9 bug" one-tick-short
+             endpoint), confirm Mix reads 0%/100% at its true ends, confirm
+             values track live broadcasts with the panel open, confirm
+             R7/R8 (drag-queue safety, double-click-to-baseline) behave.
+             Only a clean live pass promotes this to WORKING/TESTED LIVE in
+             the Primer and folds the confirmed paramLo map into Tech Ref
+             Sec 23's FX LOOP row. DELAY is still the other open slot per
+             the Primer's NEXT SESSION note.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-08-01 (same session, immediately following FX1
              re-verification)
 STATUS:      [FOLDED IN: Primer Status line/WORKING + Tech Ref Sec 23/24] —

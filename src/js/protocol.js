@@ -1440,6 +1440,39 @@ VOL_MODELS.forEach(function(m) {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// FX LOOP MODELS — Tech Ref Sec 23: TFX 0F/11/49, CMD 0x20 mid range
+// 0x2D-0x33 (7 routing variants — internal keys LMMM/LMSS/LYMM/LYMS/LSMM/
+// LSMS/LSSS = mono/stereo send+return combinations, firmware-picked by
+// chain context; not user-selectable, so no model dropdown). One shared
+// parameter set for all seven: send, rtrn, wetp.
+// paramLos confirmed by Wireshark capture (2026-08-02, FX_Loop_Capture.pcapng,
+// 704 CMD 0x11 broadcasts, Send->Return->Mix sweep order):
+//   0x02 = Send  -12..+12 dB, anchors v127 0=-12.0, 64=0.0, 127=+12.0
+//   0x03 = Return -12..+12 dB, same anchors as Send
+//   0x04 = Mix   0-100%, anchors v127 0=0%, 127=100% (Charlie confirmed
+//          the capture's starting readout was 0%, not the Send/Return
+//          knobs' 0 dB centre — so Mix is a plain linear scale, not the
+//          two-slope dB shape, despite sharing the identical wire pattern)
+// Encoding: standard (v127+64)%128, same as every other knob — the
+// sentinel tail (send side, fx-transport.js) needed for the true 127
+// endpoint is what every sweep showed hitting at the top (Sec 20A R1).
+// ════════════════════════════════════════════════════════════════════
+const FXLOOP_MODELS = [
+  { mid: 0x2D, mids: [0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33], name: 'FX Loop',
+    paramLos: [0x02, 0x03, 0x04],
+    rows: [
+      [ {label:'Send',   lo:0x02, display:'loopDb'},
+        {label:'Return', lo:0x03, display:'loopDb'},
+        {label:'Mix',    lo:0x04, display:'loopPct'} ]
+    ]
+  },
+];
+const FXLOOP_MODEL_BY_MID = {};
+FXLOOP_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { FXLOOP_MODEL_BY_MID[mid] = m; });
+});
+
+// ════════════════════════════════════════════════════════════════════
 // FX1 MODELS — FX1 is a GENERIC HOST SLOT (Tech Ref chain-map section):
 // it can carry models from several other effect families, identified only
 // by slot ID (0x08), never by mid range. FX2 (slot 0x09) hosts the same

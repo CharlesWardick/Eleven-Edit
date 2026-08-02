@@ -767,6 +767,165 @@ function refreshVolPanelAfterChainMap() {
 })();
 
 // ════════════════════════════════════════════════════════════════════
+// FX LOOP EFFECT PANEL
+// Single user-facing model (Send/Return/Mix); firmware picks one of 7
+// routing-variant mids from chain context. No model dropdown.
+// ════════════════════════════════════════════════════════════════════
+
+function openFxLoopPanel() {
+  fxLoopPanelOpen = true;
+  const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+  if (!loopBlk) {
+    document.getElementById('fxloop-knob-row').innerHTML =
+      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
+    appLog('openFxLoopPanel: no FX LOOP block in chain map yet');
+    return;
+  }
+  renderFxLoopKnobs(loopBlk.modelId);
+  requestFxLoopParams();
+  appLog('openFxLoopPanel: mid=0x' + loopBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + loopBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+function closeFxLoopPanel() {
+  fxLoopPanelOpen = false;
+}
+
+function renderFxLoopKnobs(mid) {
+  const container = document.getElementById('fxloop-knob-row');
+  if (!container) return;
+  const model = FXLOOP_MODEL_BY_MID[mid];
+  if (!model) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
+    return;
+  }
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
+    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+
+  model.rows.forEach(function(rowCells) {
+    const rowDiv = document.createElement('div');
+    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+
+    rowCells.forEach(function(cell) {
+      if (!cell) {
+        const sp = document.createElement('div');
+        sp.style.cssText = 'width:80px;flex-shrink:0;';
+        rowDiv.appendChild(sp);
+        return;
+      }
+      const loHex = cell.lo.toString(16).padStart(2,'0');
+      const knobDiv = document.createElement('div');
+      knobDiv.className = 'ctrl-knob';
+      knobDiv.innerHTML =
+        '<label>' + cell.label + '</label>'
+        + '<div class="knob-wrap" id="fxloop-w-' + loHex + '" data-value="64" data-base="fx" data-fxloop-lo="' + loHex + '">'
+        + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
+        + '<span class="knob-val" id="fxloop-v-' + loHex + '">--</span>';
+      rowDiv.appendChild(knobDiv);
+      drawKnob(knobDiv.querySelector('canvas'), 64);
+    });
+
+    wrapper.appendChild(rowDiv);
+  });
+
+  container.appendChild(wrapper);
+}
+
+// Display string for a FX LOOP knob value — Send/Return are -12..+12 dB
+// (same two-slope-anchored-at-64 shape as valToAmpVol, without the To
+// Amp-specific "MUTE" override at 0), Mix is a plain 0-100% linear scale.
+// Both anchor exactly at both true endpoints (Sec 20A R1/R5) — confirmed
+// by the Wireshark sweep capture 2026-08-02 (Charlie confirmed Mix's
+// capture-start readout was 0%, pinning it to the linear reading rather
+// than the dB centre-anchored one, despite sharing the identical wire
+// pattern with Send/Return).
+function fxLoopKnobDisplay(paramLo, val) {
+  const model = FXLOOP_MODELS[0];
+  for (let r = 0; r < model.rows.length; r++) {
+    const row = model.rows[r];
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (!cell || cell.lo !== paramLo) continue;
+      if (cell.display === 'loopDb') {
+        const db = (val < 64) ? (val - 64) * (12 / 64) : (val - 64) * (12 / 63);
+        const t = db.toFixed(1);
+        return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
+      }
+      if (cell.display === 'loopPct') {
+        return (val / 127 * 100).toFixed(0) + '%';
+      }
+    }
+  }
+  return valDisplay(val);
+}
+
+function updateFxLoopKnob(paramLo, val) {
+  const loHex = paramLo.toString(16).padStart(2,'0');
+  const wrap  = document.getElementById('fxloop-w-' + loHex);
+  const valEl = document.getElementById('fxloop-v-' + loHex);
+  if (wrap) {
+    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_LOOP, loHex, val);
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) valEl.textContent = fxLoopKnobDisplay(paramLo, val);
+}
+
+function refreshFxLoopPanelAfterChainMap() {
+  if (!fxLoopPanelOpen) return;
+  const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+  if (!loopBlk) return;
+  setTimeout(requestFxLoopParams, 150);
+  appLog('refreshFxLoopPanelAfterChainMap: mid=0x' + loopBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + loopBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+// ── FX LOOP knob drag — delegated, keyed on data-fxloop-lo ──
+(function() {
+  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+
+  document.addEventListener('mousedown', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-fxloop-lo]');
+    if (!wrap) return;
+    activeParamLo = parseInt(wrap.dataset.fxloopLo, 16);
+    if (isNaN(activeParamLo)) return;
+    activeWrap = wrap;
+    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    startY = e.clientY;
+    dragging = true;
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging || !activeWrap) return;
+    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
+    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    updateFxLoopKnob(activeParamLo, val);
+    // Snapshot before queuing — R6, drag-queue race (Sec 20A).
+    var lo = activeParamLo;
+    if (bridgeMidiReady) queueKnobSend('fxloop:' + lo, function(v) { sendFxLoopParamWrite(lo, v); }, val);
+  });
+
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+
+  document.addEventListener('dblclick', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-fxloop-lo]');
+    if (!wrap) return;
+    var paramLo = parseInt(wrap.dataset.fxloopLo, 16);
+    if (isNaN(paramLo)) return;
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    updateFxLoopKnob(paramLo, val);
+    if (bridgeMidiReady) queueKnobSend('fxloop:' + paramLo, function(v) { sendFxLoopParamWrite(paramLo, v); }, val);
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════
 // FX-HOST EFFECT PANEL — shared engine, parameterized by slot id
 // (2026-08-01 refactor; see Primer Status line + Session Log 2026-08-01
 // "REFACTOR FIRST"). FX1 was the first GENERIC HOST SLOT built (the model
