@@ -40,7 +40,8 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      provisional (code written, NOT TESTED LIVE)
+STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-02). Pending wrap to
+             fold into Primer WORKING / Tech Ref Sec 23 FX LOOP row.
 AREA:        FX LOOP effect panel (new panel, Phase 16 start) — Sec 4 slot
              0x01, CMD 0x11 paramLo map, protocol.js/state.js/fx-transport.js/
              fx-panels.js/sysex-handler.js/ui.js/index.html
@@ -95,16 +96,13 @@ CONFLICTS:   none — Sec 23's existing FX LOOP row (0F/11/49, mid 0x2D-33,
              "send, rtrn, wetp") already anticipated this exact param set;
              this entry supplies the paramLo numbers (0x02/0x03/0x04) and
              display formulas that row didn't yet have.
-NEXT:        Charlie builds the EXE and tests live: open FX LOOP's panel,
-             confirm Send/Return read correct dB anchors (0.0 at centre,
-             +12.0/-12.0 at the true ends, no "9.9 bug" one-tick-short
-             endpoint), confirm Mix reads 0%/100% at its true ends, confirm
-             values track live broadcasts with the panel open, confirm
-             R7/R8 (drag-queue safety, double-click-to-baseline) behave.
-             Only a clean live pass promotes this to WORKING/TESTED LIVE in
-             the Primer and folds the confirmed paramLo map into Tech Ref
-             Sec 23's FX LOOP row. DELAY is still the other open slot per
-             the Primer's NEXT SESSION note.
+NEXT:        DONE — Charlie confirmed live test success 2026-08-02, no
+             regressions reported. Fold into Primer WORKING / Tech Ref Sec 23
+             FX LOOP row at wrap. DELAY is now the only remaining slot per
+             the Primer's NEXT SESSION note — in progress same session,
+             expected to need a denser/sectional layout (Charlie's own call:
+             "look at the multichorus" for the smaller sectional mini-panel
+             look), capture pending from Charlie.
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
