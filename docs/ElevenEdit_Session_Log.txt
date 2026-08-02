@@ -40,10 +40,16 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      provisional (code written, NOT TESTED LIVE)
-AREA:        DELAY effect panel — Dyn Delay model (third and last DELAY
-             family; BBD Delay and now Dyn Delay both done, EP Tape Echo
-             remains a stub)
+STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-02): "All of the
+             controls land in the correct place and operate as intended."
+             Sync-vs-HW confirmed always landing correctly regardless of
+             knob display. Pending wrap to fold into Primer WORKING /
+             Tech Ref Sec 23 Dyn Delay row. Knob sizing/QC pass explicitly
+             DEFERRED to a later dedicated pass across every panel, not
+             chased now — Charlie's own call.
+AREA:        DELAY effect panel — Dyn Delay model (third DELAY family;
+             BBD Delay and Dyn Delay both TESTED LIVE now, EP Tape Echo
+             remains the last stub)
 FINDING:     Dyn Delay (mid 0x20 mono/0x21/0x22, Tech Ref Sec 23 TFX
              50/51/52) has 12 controls across paramLo 0x02-0x0D, laid out
              in Avid's own panel as three grouped/boxed sub-panels
