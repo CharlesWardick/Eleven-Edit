@@ -299,6 +299,122 @@ function sendVolParamWrite(paramLo, v127) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// FX LOOP EFFECT PANEL — CMD 0x11 sends only. One shared parameter set
+// (Send/Return/Mix) across all 7 routing-variant mids (Tech Ref Sec 23);
+// the variant itself is firmware-picked from chain/stereo context, not
+// user-selectable, so there is no model-change function here (unlike
+// VOL/DIST/REVERB, which keep one for pattern consistency).
+// ════════════════════════════════════════════════════════════════════
+function requestFxLoopParams() {
+  if (!bridgeMidiReady) return;
+  const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+  if (!loopBlk) { appLog('requestFxLoopParams: no FX LOOP block in chain'); return; }
+  const model = FXLOOP_MODEL_BY_MID[loopBlk.modelId];
+  if (!model) {
+    appLog('requestFxLoopParams: unknown FX LOOP mid=0x' + loopBlk.modelId.toString(16).padStart(2,'0'));
+    return;
+  }
+  const hh = loopBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  model.paramLos.forEach(function(lo) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
+  });
+  appLog('requestFxLoopParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+}
+
+// THE 9.9 BUG — see sendFxHostParamWrite for the full explanation. Endpoint
+// sentinels so Send/Return/Mix can actually hold their true min/max, same
+// tail logic as sendVolParamWrite, confirmed against the capture's sentinel
+// frames (3F 7F 7F 7F) at every knob's top endpoint.
+function sendFxLoopParamWrite(paramLo, v127) {
+  if (!bridgeMidiReady) return false;
+  const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+  if (!loopBlk) { appLog('sendFxLoopParamWrite: no FX LOOP block'); return false; }
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
+  const hex = 'F0 13 0B 0F 00 11 '
+    + loopBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + tail + ' F7';
+  return sendPatchWrite(hex);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DELAY EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
+// One user-facing model (BBD Delay); firmware picks mono (0x1E) or
+// stereo (0x1F). sendDelayModelChange kept for pattern consistency, same
+// reason as VOL/FX LOOP.
+// ════════════════════════════════════════════════════════════════════
+function sendDelayModelChange(newMid) {
+  if (!bridgeMidiReady) { appLog('sendDelayModelChange: bridge not ready'); return false; }
+  if (!currentChainInput || !currentChain.length) {
+    appLog('sendDelayModelChange: no chain map yet'); return false;
+  }
+  const b = [0xF0,0x13,0x0B,0x0F,0x00,0x21];
+  b.push(SLOT_INPUT, currentChainInput.modelId, currentChainInput.handle);
+  for (let i = 0; i < 10; i++) {
+    const blk      = currentChain[i];
+    const backLink = (i === 0) ? SLOT_INPUT : currentChain[i-1].slotId;
+    const mid      = (blk.slotId === SLOT_DELAY) ? newMid : blk.modelId;
+    const handle   = (blk.slotId === SLOT_DELAY) ? 0x00   : blk.handle;
+    b.push(backLink, mid, handle);
+  }
+  b.push(currentChain[9].slotId, 0xF7);
+  const hex = b.map(x => x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+  appLog('sendDelayModelChange: newMid=0x' + newMid.toString(16).padStart(2,'0').toUpperCase());
+  return sendPatchWrite(hex);
+}
+
+function requestDelayParams() {
+  if (!bridgeMidiReady) return;
+  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+  if (!delayBlk) { appLog('requestDelayParams: no DELAY block in chain'); return; }
+  const model = DELAY_MODEL_BY_MID[delayBlk.modelId];
+  if (!model) {
+    appLog('requestDelayParams: unknown DELAY mid=0x' + delayBlk.modelId.toString(16).padStart(2,'0'));
+    return;
+  }
+  const hh = delayBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  model.paramLos.forEach(function(lo) {
+    sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
+  });
+  appLog('requestDelayParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
+}
+
+// THE 9.9 BUG — endpoint sentinels, same tail logic as sendVolParamWrite/
+// sendFxLoopParamWrite. Covers every DELAY paramLo EXCEPT Sync (0x05),
+// which has its own wide 28-bit encoding and its own send function below —
+// do not route Sync through this one.
+function sendDelayParamWrite(paramLo, v127) {
+  if (!bridgeMidiReady) return false;
+  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+  if (!delayBlk) { appLog('sendDelayParamWrite: no DELAY block'); return false; }
+  let tail;
+  if (v127 >= 127)     { tail = '3F 7F 7F 7F 0F'; }
+  else if (v127 <= 0)  { tail = '40 00 00 00 00'; }
+  else {
+    const v0 = ((v127 + 64) % 128) & 0x7F;
+    tail = v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00';
+  }
+  const hex = 'F0 13 0B 0F 00 11 '
+    + delayBlk.handle.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2,'0').toUpperCase() + ' '
+    + tail + ' F7';
+  return sendPatchWrite(hex);
+}
+
+// DELAY Sync (paramLo 0x05) write — RETRACTED the old sendDelaySyncWrite
+// (a custom "captured checksum tail per zone" table, since deleted). It's
+// the standard mechanism after all: sendDelayParamWrite(0x05,
+// syncV127FromIndex(idx)) — same endpoint-sentinel tail as every other
+// DELAY paramLo. No dedicated function needed; call sites use that
+// directly (see protocol.js's DELAY SYNC comment for the full story).
+
+// ════════════════════════════════════════════════════════════════════
 // FX-HOST EFFECT PANEL — CMD 0x11 sends and CMD 0x21 model change
 // Shared engine (2026-08-01 refactor) for every GENERIC HOST SLOT
 // (FX1/FX2/MOD — see fx-panels.js's FX-HOST EFFECT PANEL header for the

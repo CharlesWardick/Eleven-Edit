@@ -5022,5 +5022,52 @@ Sec 23; kept here for provenance only.
       expect to spend much time on it.
 
 ===================================================================
+  DELAY/FX LOOP BUILD RECIPE (Primer, superseded 2026-08-02 — both slots
+  are done; FX LOOP has Send/Return/Mix, DELAY has all three model
+  families BBD Delay/Dyn Delay/EP Tape Echo, all TESTED LIVE). Kept here
+  for provenance and as a reference for the NEXT genuinely new panel
+  (should one ever be needed), not because DELAY/FX LOOP need revisiting:
+
+  NEXT SESSION — EFFECT PANEL FOR ANOTHER BLOCK (as it read at the time)
+  The remaining chunk is the two non-amp effect panels still on placeholders:
+  DELAY and FX LOOP. (DIST, REVERB, WAH, VOL, FX1, FX2 and MOD are DONE.) The
+  existing panels established the whole pattern; each new slot needs one
+  Wireshark capture for its paramLo numbers, then the same six edits copied
+  across. Read QUERY BUDGET first: fetch a block's parameters when its panel
+  OPENS, not on every nav.
+
+  QUERY BUDGET — READ THIS BEFORE ADDING BLOCK PANELS
+  Measured from Avid (7/23/2026), per patch recall: 11 bypass flags, one per
+  block, PLUS 25 parameters for the AMP BLOCK ONLY. Avid queries NO parameters
+  for MOD, DELAY or any other block on recall — only their bypass flags. It
+  pulls the amp in full because the amp is the panel it shows.
+  So our ~20 queries should NOT grow toward Avid's 47 as blocks are added.
+  Fetch a block's parameters WHEN ITS PANEL OPENS, not on every nav — the
+  distPanelOpen / reverbPanelOpen flags already point this way. Querying every
+  block on every patch change adds permanent cost for values nobody is looking
+  at, and would make us slower than Avid rather than faster. STILL A LIVE
+  RULE for any future panel, even though DELAY/FX LOOP themselves are done.
+
+  WHAT EACH NEW SLOT NEEDED — copy the FX1 panel (built 2026-07-30), NOT
+  DIST/REVERB/WAH/VOL, which were built before two bugs were found and
+  fixed that day (a rack-hanging drag-queue race, and "the 9.9 bug"):
+    1. A Wireshark capture: with our app running, open the effect panel in the
+       Avid editor and sweep each knob in order. One capture per model family
+       (3-knob, 4-knob etc.) is sufficient. Supply the .pcapng file.
+    2. A model table entry (like FX1_MODELS) in protocol.js.
+    3. A panel div and chain-open routing in index.html (copy the FX1 pattern).
+    4. Open/close/refresh functions + scroll-wheel branch + rebaselineOpenFxPanel
+       branch in ui.js/fx-panels.js (copy the FX1 pattern, not DIST's).
+    5. CMD 0x11 routing in sysex-handler.js (copy the FX1 routing block).
+    6. sendModelChange / requestParams / sendParamWrite in fx-transport.js
+       (copy the FX1 functions — sendParamWrite MUST have the endpoint-
+       sentinel tail logic, not a flat 00 00 00 00 tail).
+  Both slots followed this recipe. DELAY additionally needed the grouped/
+  boxed layout ported into its own render functions (Dyn Delay) and a
+  NEW rule, R9 (Sec 20A), found via a live-test failure on BBD Delay's
+  Sync/Rate interlock — see Tech Ref Sec 20A and the 2026-08-02 Session
+  Log for the full story, including a retracted wrong theory about DELAY
+  Sync needing a special 28-bit encoding (it didn't).
+===================================================================
 END OF ARCHIVE
 ===================================================================

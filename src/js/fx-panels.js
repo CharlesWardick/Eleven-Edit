@@ -767,6 +767,537 @@ function refreshVolPanelAfterChainMap() {
 })();
 
 // ════════════════════════════════════════════════════════════════════
+// FX LOOP EFFECT PANEL
+// Single user-facing model (Send/Return/Mix); firmware picks one of 7
+// routing-variant mids from chain context. No model dropdown.
+// ════════════════════════════════════════════════════════════════════
+
+function openFxLoopPanel() {
+  fxLoopPanelOpen = true;
+  const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+  if (!loopBlk) {
+    document.getElementById('fxloop-knob-row').innerHTML =
+      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
+    appLog('openFxLoopPanel: no FX LOOP block in chain map yet');
+    return;
+  }
+  renderFxLoopKnobs(loopBlk.modelId);
+  requestFxLoopParams();
+  appLog('openFxLoopPanel: mid=0x' + loopBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + loopBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+function closeFxLoopPanel() {
+  fxLoopPanelOpen = false;
+}
+
+function renderFxLoopKnobs(mid) {
+  const container = document.getElementById('fxloop-knob-row');
+  if (!container) return;
+  const model = FXLOOP_MODEL_BY_MID[mid];
+  if (!model) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
+    return;
+  }
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:inline-flex;flex-direction:column;gap:14px;'
+    + 'padding:12px 14px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+
+  model.rows.forEach(function(rowCells) {
+    const rowDiv = document.createElement('div');
+    rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+
+    rowCells.forEach(function(cell) {
+      if (!cell) {
+        const sp = document.createElement('div');
+        sp.style.cssText = 'width:80px;flex-shrink:0;';
+        rowDiv.appendChild(sp);
+        return;
+      }
+      const loHex = cell.lo.toString(16).padStart(2,'0');
+      const knobDiv = document.createElement('div');
+      knobDiv.className = 'ctrl-knob';
+      knobDiv.innerHTML =
+        '<label>' + cell.label + '</label>'
+        + '<div class="knob-wrap" id="fxloop-w-' + loHex + '" data-value="64" data-base="fx" data-fxloop-lo="' + loHex + '">'
+        + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
+        + '<span class="knob-val" id="fxloop-v-' + loHex + '">--</span>';
+      rowDiv.appendChild(knobDiv);
+      drawKnob(knobDiv.querySelector('canvas'), 64);
+    });
+
+    wrapper.appendChild(rowDiv);
+  });
+
+  container.appendChild(wrapper);
+}
+
+// Display string for a FX LOOP knob value — Send/Return are -12..+12 dB
+// (same two-slope-anchored-at-64 shape as valToAmpVol, without the To
+// Amp-specific "MUTE" override at 0), Mix is a plain 0-100% linear scale.
+// Both anchor exactly at both true endpoints (Sec 20A R1/R5) — confirmed
+// by the Wireshark sweep capture 2026-08-02 (Charlie confirmed Mix's
+// capture-start readout was 0%, pinning it to the linear reading rather
+// than the dB centre-anchored one, despite sharing the identical wire
+// pattern with Send/Return).
+function fxLoopKnobDisplay(paramLo, val) {
+  const model = FXLOOP_MODELS[0];
+  for (let r = 0; r < model.rows.length; r++) {
+    const row = model.rows[r];
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (!cell || cell.lo !== paramLo) continue;
+      if (cell.display === 'loopDb') {
+        const db = (val < 64) ? (val - 64) * (12 / 64) : (val - 64) * (12 / 63);
+        const t = db.toFixed(1);
+        return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
+      }
+      if (cell.display === 'loopPct') {
+        return (val / 127 * 100).toFixed(0) + '%';
+      }
+    }
+  }
+  return valDisplay(val);
+}
+
+function updateFxLoopKnob(paramLo, val) {
+  const loHex = paramLo.toString(16).padStart(2,'0');
+  const wrap  = document.getElementById('fxloop-w-' + loHex);
+  const valEl = document.getElementById('fxloop-v-' + loHex);
+  if (wrap) {
+    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_LOOP, loHex, val);
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) valEl.textContent = fxLoopKnobDisplay(paramLo, val);
+}
+
+function refreshFxLoopPanelAfterChainMap() {
+  if (!fxLoopPanelOpen) return;
+  const loopBlk = currentChain.find(b => b.slotId === SLOT_LOOP);
+  if (!loopBlk) return;
+  setTimeout(requestFxLoopParams, 150);
+  appLog('refreshFxLoopPanelAfterChainMap: mid=0x' + loopBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + loopBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+// ── FX LOOP knob drag — delegated, keyed on data-fxloop-lo ──
+(function() {
+  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+
+  document.addEventListener('mousedown', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-fxloop-lo]');
+    if (!wrap) return;
+    activeParamLo = parseInt(wrap.dataset.fxloopLo, 16);
+    if (isNaN(activeParamLo)) return;
+    activeWrap = wrap;
+    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    startY = e.clientY;
+    dragging = true;
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging || !activeWrap) return;
+    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
+    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    updateFxLoopKnob(activeParamLo, val);
+    // Snapshot before queuing — R6, drag-queue race (Sec 20A).
+    var lo = activeParamLo;
+    if (bridgeMidiReady) queueKnobSend('fxloop:' + lo, function(v) { sendFxLoopParamWrite(lo, v); }, val);
+  });
+
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+
+  document.addEventListener('dblclick', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-fxloop-lo]');
+    if (!wrap) return;
+    var paramLo = parseInt(wrap.dataset.fxloopLo, 16);
+    if (isNaN(paramLo)) return;
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    updateFxLoopKnob(paramLo, val);
+    if (bridgeMidiReady) queueKnobSend('fxloop:' + paramLo, function(v) { sendFxLoopParamWrite(paramLo, v); }, val);
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════
+// DELAY EFFECT PANEL
+// Single user-facing model (BBD Delay); firmware picks mono/stereo.
+// No model dropdown. Denser than the other panels (9 controls: 5 knobs,
+// 3 toggles, 1 wide-encoded Sync selector) — laid out as two rows rather
+// than one flat knob row, same general idea (not the literal shape) as
+// MultiChorus's grouped/boxed layout referenced when planning this panel.
+// ════════════════════════════════════════════════════════════════════
+
+function openDelayPanel() {
+  delayPanelOpen = true;
+  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+  if (!delayBlk) {
+    document.getElementById('delay-knob-row').innerHTML =
+      '<div style="color:var(--muted);padding:8px;">Chain map not yet received — navigate to a patch first.</div>';
+    appLog('openDelayPanel: no DELAY block in chain map yet');
+    return;
+  }
+  const model = DELAY_MODEL_BY_MID[delayBlk.modelId];
+  const sel = document.getElementById('delay-model-select');
+  if (sel && model) sel.value = String(model.mid);   // base mid identifies the model
+  renderDelayKnobs(delayBlk.modelId);
+  requestDelayParams();
+  appLog('openDelayPanel: mid=0x' + delayBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + delayBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+function closeDelayPanel() {
+  delayPanelOpen = false;
+}
+
+// Flatten a DELAY model's rows into a plain cell list, walking both box
+// entries ({group?, rows:[[cells],...]}) and plain top-level flat rows —
+// same shape/purpose as fxHostAllCells above, ported here because DELAY
+// keeps its own render/update functions rather than sharing the FX-host
+// engine (Primer: DELAY/FX LOOP are distinct model families, not generic
+// host slots). Added for Dyn Delay's grouped/boxed layout (2026-08-02);
+// BBD Delay's flat-only rows still work unchanged (entry.rows is just
+// absent, falls through to the `[entry]` branch).
+function delayAllCells(model) {
+  const cells = [];
+  model.rows.forEach(function(entry) {
+    const rows = entry.rows ? entry.rows : [entry];
+    rows.forEach(function(row) { row.forEach(function(c) { if (c) cells.push(c); }); });
+  });
+  return cells;
+}
+
+// Render one DELAY cell (knob/toggle/delaySync/select/spacer) into rowDiv.
+// Extracted so both a flat row and a group box's sub-rows share one path.
+function renderDelayCell(cell, rowDiv) {
+  if (!cell) {
+    const sp = document.createElement('div');
+    sp.style.cssText = 'width:80px;flex-shrink:0;';
+    rowDiv.appendChild(sp);
+    return;
+  }
+  if (cell.toggle) {
+    const loHex = cell.lo.toString(16).padStart(2,'0');
+    const tglDiv = document.createElement('div');
+    tglDiv.className = 'ctrl-knob';
+    tglDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+    const lbl = document.createElement('label');
+    lbl.textContent = cell.label;
+    const btn = document.createElement('button');
+    btn.id = 'delay-tgl-' + loHex;
+    btn.dataset.value = '0';
+    btn.dataset.base = 'fx';
+    btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
+      + 'border:1px solid #666;border-radius:4px;color:var(--fg);cursor:pointer;font-size:12px;';
+    btn.textContent = cell.options[0];
+    btn.addEventListener('mouseover', function() { this.style.borderColor = '#aaa'; });
+    btn.addEventListener('mouseout',  function() { this.style.borderColor = '#666'; });
+    btn.addEventListener('click', function() {
+      var cur = parseInt(btn.dataset.value) || 0;
+      var newVal = (cur === 0) ? 127 : 0;
+      updateDelayKnob(cell.lo, newVal);
+      if (typeof sendDelayParamWrite === 'function') sendDelayParamWrite(cell.lo, newVal);
+    });
+    tglDiv.appendChild(lbl);
+    tglDiv.appendChild(btn);
+    rowDiv.appendChild(tglDiv);
+  } else if (cell.delaySync) {
+    // Sync — plain named-position dropdown, no paired knob. Standard
+    // v127 Sync mechanism (SYNC_DIVISIONS / syncIndexFromV127 /
+    // syncV127FromIndex), same as amp Tremolo and FX1 C1 Chorus —
+    // NOT a special encoding (retracted 2026-08-02, see protocol.js).
+    const syDiv = document.createElement('div');
+    syDiv.className = 'ctrl-knob';
+    syDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+    const lbl = document.createElement('label');
+    lbl.textContent = cell.label;
+    let opts = '';
+    SYNC_DIVISIONS.forEach(function(z, i) { opts += '<option value="' + i + '">' + z.text + '</option>'; });
+    syDiv.appendChild(lbl);
+    const sel = document.createElement('select');
+    sel.id = 'delay-sync-select';
+    sel.style.cssText = 'width:112px;background:#1a1a1a;color:var(--text);'
+      + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
+    sel.innerHTML = opts;
+    sel.addEventListener('change', function() {
+      const idx = parseInt(this.value, 10);
+      if (isNaN(idx)) return;
+      const v127 = syncV127FromIndex(idx);
+      updateDelaySync(v127);
+      if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(0x05, v127);
+    });
+    syDiv.appendChild(sel);
+    rowDiv.appendChild(syDiv);
+  } else if (cell.select) {
+    // Generic named-position dropdown (Dyn Delay's Feedback Mode —
+    // 4-way, no tempo relationship, so cell.select not cell.delaySync).
+    // Nearest-match on readback, same as FX-host's cell.select.
+    const loHex = cell.lo.toString(16).padStart(2,'0');
+    const selDiv = document.createElement('div');
+    selDiv.className = 'ctrl-knob';
+    selDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+    const lbl = document.createElement('label');
+    lbl.textContent = cell.label;
+    const sel = document.createElement('select');
+    sel.id = 'delay-sel-' + loHex;
+    sel.style.cssText = 'width:112px;background:#1a1a1a;color:var(--text);'
+      + 'border:1px solid var(--border-dim);border-radius:4px;padding:4px 6px;font-size:12px;';
+    cell.options.forEach(function(opt, i) {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = opt.label;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function() {
+      const idx = parseInt(this.value, 10);
+      if (isNaN(idx) || !cell.options[idx]) return;
+      const v127 = cell.options[idx].v127;
+      updateDelayKnob(cell.lo, v127);
+      if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(cell.lo, v127);
+    });
+    selDiv.appendChild(lbl);
+    selDiv.appendChild(sel);
+    rowDiv.appendChild(selDiv);
+  } else {
+    const loHex = cell.lo.toString(16).padStart(2,'0');
+    const knobDiv = document.createElement('div');
+    knobDiv.className = 'ctrl-knob';
+    knobDiv.innerHTML =
+      '<label>' + cell.label + '</label>'
+      + '<div class="knob-wrap" id="delay-w-' + loHex + '" data-value="64" data-base="fx" data-delay-lo="' + loHex + '">'
+      + '<canvas class="knob-canvas" width="80" height="80"></canvas></div>'
+      + '<span class="knob-val" id="delay-v-' + loHex + '">--</span>';
+    rowDiv.appendChild(knobDiv);
+    drawKnob(knobDiv.querySelector('canvas'), 64);
+  }
+}
+
+function renderDelayRow(rowCells, parentEl) {
+  const rowDiv = document.createElement('div');
+  rowDiv.style.cssText = 'display:flex;gap:18px;align-items:flex-start;';
+  rowCells.forEach(function(cell) { renderDelayCell(cell, rowDiv); });
+  parentEl.appendChild(rowDiv);
+}
+
+function renderDelayKnobs(mid) {
+  const container = document.getElementById('delay-knob-row');
+  if (!container) return;
+  const model = DELAY_MODEL_BY_MID[mid];
+  if (!model) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">Unknown model</div>';
+    return;
+  }
+  if (!model.captured) {
+    container.innerHTML = '<div style="color:var(--muted);padding:8px;">'
+      + model.name + ' — paramLo layout not yet captured.</div>';
+    return;
+  }
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;gap:18px;align-items:flex-start;'
+    + 'padding:12px 20px;background:#1e1e1e;border-radius:6px;border:1px solid #555;';
+
+  // Each entry is either a flat row (array of cells) or a box object
+  // {group:'LABEL'?, rows:[[cells...],...]} — same GROUPED LAYOUT shape as
+  // MultiChorus/FX-host (fx-panels.js FX-HOST section), ported here for
+  // Dyn Delay's DELAY/EQ/ENV MOD boxes. Charlie's own framing: reuse
+  // MultiChorus as a REFERENCE for the mechanism, not a literal copy —
+  // this is that reuse.
+  model.rows.forEach(function(entry) {
+    if (entry && entry.rows) {
+      const box = document.createElement('div');
+      box.style.cssText = 'display:flex;flex-direction:column;gap:10px;'
+        + 'padding:10px 12px;background:#242424;border-radius:5px;border:1px solid #444;';
+      if (entry.group) {
+        const hdr = document.createElement('div');
+        hdr.textContent = entry.group;
+        hdr.style.cssText = 'font-size:11px;color:var(--label);text-transform:uppercase;'
+          + 'letter-spacing:0.5px;font-weight:bold;';
+        box.appendChild(hdr);
+      }
+      entry.rows.forEach(function(rowCells) { renderDelayRow(rowCells, box); });
+      wrapper.appendChild(box);
+    } else {
+      const col = document.createElement('div');
+      col.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+      renderDelayRow(entry, col);
+      wrapper.appendChild(col);
+    }
+  });
+
+  container.appendChild(wrapper);
+}
+
+// Display string for a DELAY knob value. cell.display can be a function
+// (Dyn Delay — one per knob, its own real formula) or one of BBD Delay's
+// legacy string flags ('delayTen'/'delayMs', kept for backward compat
+// rather than rewritten to functions for no reason).
+function delayKnobDisplay(paramLo, val) {
+  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+  const model = delayBlk ? DELAY_MODEL_BY_MID[delayBlk.modelId] : null;
+  if (!model || !model.rows) return valDisplay(val);
+  const cells = delayAllCells(model);
+  for (let i = 0; i < cells.length; i++) {
+    const cell = cells[i];
+    if (cell.lo !== paramLo) continue;
+    if (typeof cell.display === 'function') return cell.display(val);
+    if (cell.display === 'delayTen') return (val / 127 * 10).toFixed(1);
+    if (cell.display === 'delayMs')  return (32 + val / 127 * (400 - 32)).toFixed(0) + ' ms';
+  }
+  return valDisplay(val);
+}
+
+function updateDelayKnob(paramLo, val) {
+  const loHex = paramLo.toString(16).padStart(2,'0');
+  const model = DELAY_MODEL_BY_MID[(currentChain.find(function(b) { return b.slotId === SLOT_DELAY; }) || {}).modelId];
+  let cell = null;
+  if (model && model.rows) {
+    delayAllCells(model).forEach(function(c) { if (c.lo === paramLo) cell = c; });
+  }
+  if (cell && cell.toggle) {
+    const btn = document.getElementById('delay-tgl-' + loHex);
+    if (btn) {
+      const toggleOptions = cell.options || ['Off','On'];
+      btn.dataset.orig  = fxBaselineSetIfUnset(SLOT_DELAY, loHex, val);
+      btn.dataset.value = val;
+      btn.textContent   = (val === 0) ? toggleOptions[0] : toggleOptions[1];
+    }
+    return;
+  }
+  if (cell && cell.select) {
+    // Nearest-match, same as FX-host's cell.select — an unexpected raw
+    // value still lands on the closest labeled option.
+    const sel = document.getElementById('delay-sel-' + loHex);
+    if (sel) {
+      let bestIdx = 0, bestDist = Infinity;
+      cell.options.forEach(function(opt, i) {
+        const d = Math.abs(opt.v127 - val);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      });
+      sel.value = String(bestIdx);
+    }
+    return;
+  }
+  const wrap  = document.getElementById('delay-w-' + loHex);
+  const valEl = document.getElementById('delay-v-' + loHex);
+  if (wrap) {
+    wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_DELAY, loHex, val);
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) valEl.textContent = delayKnobDisplay(paramLo, val);
+}
+
+// Sync isn't a knob — just move the dropdown. No baseline/red-state
+// tracking (R3) for it: it's a discrete selector, not a continuous value
+// that can drift from a loaded patch by a small amount.
+// Takes a v127 value (0-127), same as every other Sync readout in the
+// app (ui.js's updateSyncReadout) — NOT a zone index. Quantises locally
+// via the standard syncIndexFromV127. No baseline/red-state tracking
+// (R3): it's a discrete selector, not a continuous value that can drift
+// from a loaded patch by a small amount.
+function updateDelaySync(val) {
+  const sel = document.getElementById('delay-sync-select');
+  if (!sel) return;
+  const idx = syncIndexFromV127(val);
+  sel.value = String(idx);
+}
+
+function refreshDelayPanelAfterChainMap() {
+  if (!delayPanelOpen) return;
+  const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
+  if (!delayBlk) return;
+  const model = DELAY_MODEL_BY_MID[delayBlk.modelId];
+  const sel = document.getElementById('delay-model-select');
+  if (sel && model && parseInt(sel.value) !== model.mid) {
+    sel.value = String(model.mid);
+    renderDelayKnobs(delayBlk.modelId);   // model actually changed — rebuild controls
+    clearFxBaselineForSlot(SLOT_DELAY);   // new model = new reference point
+  }
+  setTimeout(requestDelayParams, 150);
+  appLog('refreshDelayPanelAfterChainMap: mid=0x' + delayBlk.modelId.toString(16).padStart(2,'0')
+    + ' handle=0x' + delayBlk.handle.toString(16).padStart(2,'0').toUpperCase());
+}
+
+// ── DELAY knob drag — delegated, keyed on data-delay-lo ──
+// R7 — Delay (lo 0x04) is Sync-driven, same family as amp Tremolo Speed
+// and DELAY's own Sync (paramLo 0x05) overwriting it. CORRECTED
+// 2026-08-02 (live test): a local-only UI clear is NOT enough — same as
+// Speed, the rack refuses a Delay write while Sync is on a division
+// unless we EXPLICITLY send the Sync-off write first (sendDelayParamWrite
+// (0x05, 0)), then the knob's own value. The earlier build only mirrored
+// OFF in the dropdown without sending anything, which is why the knob
+// looked cleared but the hardware never actually moved ("knob not free").
+(function() {
+  var dragging = false, startY = 0, startVal = 0, activeWrap = null, activeParamLo = -1;
+  var delaySyncClearedThisDrag = false;
+
+  function clearDelaySyncIfNeeded() {
+    if (delaySyncClearedThisDrag) return;
+    delaySyncClearedThisDrag = true;
+    var sel = document.getElementById('delay-sync-select');
+    if (sel && sel.value !== '0') {
+      if (typeof updateDelaySync === 'function') updateDelaySync(0);
+      if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') {
+        sendDelayParamWrite(0x05, 0);
+        appLog('Delay moved while Sync was engaged — clearing Sync to OFF first (the rack refuses the write otherwise)');
+      }
+    }
+  }
+
+  document.addEventListener('mousedown', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-delay-lo]');
+    if (!wrap) return;
+    activeParamLo = parseInt(wrap.dataset.delayLo, 16);
+    if (isNaN(activeParamLo)) return;
+    activeWrap = wrap;
+    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    startY = e.clientY;
+    dragging = true;
+    delaySyncClearedThisDrag = false;   // one Sync clear per drag, not per mousemove
+    delayDragLo = activeParamLo;        // guard — see state.js; skip broadcast repaints of this paramLo until mouseup
+    if (activeParamLo === 0x04) clearDelaySyncIfNeeded();
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging || !activeWrap) return;
+    if (e.buttons === 0) { dragging = false; activeWrap = null; delayDragLo = -1; return; }
+    var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    updateDelayKnob(activeParamLo, val);
+    // Snapshot before queuing — R6, drag-queue race (Sec 20A).
+    var lo = activeParamLo;
+    if (bridgeMidiReady) queueKnobSend('delay:' + lo, function(v) { sendDelayParamWrite(lo, v); }, val);
+  });
+
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; delayDragLo = -1; });
+  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; delayDragLo = -1; });
+
+  document.addEventListener('dblclick', function(e) {
+    var wrap = e.target.closest('.knob-wrap[data-delay-lo]');
+    if (!wrap) return;
+    var paramLo = parseInt(wrap.dataset.delayLo, 16);
+    if (isNaN(paramLo)) return;
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    var val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    updateDelayKnob(paramLo, val);
+    if (paramLo === 0x04) {
+      delaySyncClearedThisDrag = false;
+      clearDelaySyncIfNeeded();
+    }
+    if (bridgeMidiReady) queueKnobSend('delay:' + paramLo, function(v) { sendDelayParamWrite(paramLo, v); }, val);
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════
 // FX-HOST EFFECT PANEL — shared engine, parameterized by slot id
 // (2026-08-01 refactor; see Primer Status line + Session Log 2026-08-01
 // "REFACTOR FIRST"). FX1 was the first GENERIC HOST SLOT built (the model

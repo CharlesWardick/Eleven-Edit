@@ -307,6 +307,8 @@ function rebaselineOpenFxPanel() {
   else if (openFxHostSlot !== null)                                 { slotId = openFxHostSlot; sel = '#fxhost-knob-row .knob-wrap'; }
   else if (typeof wahPanelOpen !== 'undefined' && wahPanelOpen)     { slotId = SLOT_WAH;    sel = '#wah-knob-row .knob-wrap'; }
   else if (typeof volPanelOpen !== 'undefined' && volPanelOpen)     { slotId = SLOT_VOL;    sel = '#vol-knob-row .knob-wrap'; }
+  else if (typeof fxLoopPanelOpen !== 'undefined' && fxLoopPanelOpen) { slotId = SLOT_LOOP; sel = '#fxloop-knob-row .knob-wrap'; }
+  else if (typeof delayPanelOpen !== 'undefined' && delayPanelOpen) { slotId = SLOT_DELAY; sel = '#delay-knob-row .knob-wrap'; }
   if (slotId < 0) return;
   // FX-host cell lookup for the non-round kinds (slider) — added 2026-07-31
   // after this function's blanket drawKnob() call corrupted Graphic EQ's
@@ -315,7 +317,7 @@ function rebaselineOpenFxPanel() {
   // knobs, so cell stays null there and drawKnob is always right.
   var fxHostModel = (openFxHostSlot !== null && typeof currentFxHostModel === 'function') ? currentFxHostModel(openFxHostSlot) : null;
   document.querySelectorAll(sel).forEach(function(w) {
-    var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fxhostLo || w.dataset.wahLo || w.dataset.volLo;
+    var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fxhostLo || w.dataset.wahLo || w.dataset.volLo || w.dataset.fxloopLo || w.dataset.delayLo;
     if (loHex === undefined || w.dataset.value === undefined || w.dataset.value === '') return;
     var v = parseInt(w.dataset.value);
     if (!fxBaseline[slotId]) fxBaseline[slotId] = {};
@@ -2234,6 +2236,41 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
       var vEl = document.getElementById('vol-v-' + vw.dataset.volLo);
       if (vEl) vEl.textContent = valDisplay(vv);
       if (bridgeMidiReady) queueKnobSend('vol:' + vlo, function(val){ sendVolParamWrite(vlo, val); }, vv);
+      return;
+    }
+    // FX LOOP knobs (keyed by data-fxloop-lo)
+    var flw = e.target.closest('.knob-wrap[data-fxloop-lo]');
+    if (flw) {
+      var fllo = parseInt(flw.dataset.fxloopLo, 16);
+      if (isNaN(fllo)) return;
+      e.preventDefault();
+      var flv = step(flw, e);
+      var flEl = document.getElementById('fxloop-v-' + flw.dataset.fxloopLo);
+      if (flEl) flEl.textContent = (typeof fxLoopKnobDisplay === 'function') ? fxLoopKnobDisplay(fllo, flv) : valDisplay(flv);
+      if (bridgeMidiReady) queueKnobSend('fxloop:' + fllo, function(val){ sendFxLoopParamWrite(fllo, val); }, flv);
+      return;
+    }
+    // DELAY knobs (keyed by data-delay-lo; toggles are <button>s and the
+    // Sync selector is a <select>, neither matches this selector)
+    var dw = e.target.closest('.knob-wrap[data-delay-lo]');
+    if (dw) {
+      var dlo = parseInt(dw.dataset.delayLo, 16);
+      if (isNaN(dlo)) return;
+      e.preventDefault();
+      var dv = step(dw, e);
+      var dEl = document.getElementById('delay-v-' + dw.dataset.delayLo);
+      if (dEl) dEl.textContent = (typeof delayKnobDisplay === 'function') ? delayKnobDisplay(dlo, dv) : valDisplay(dv);
+      // R7 — Delay is Sync-driven; the rack refuses the write unless we
+      // explicitly clear Sync first (same as amp Tremolo Speed) — a
+      // local-only UI clear is not enough (2026-08-02 live-test fix).
+      if (dlo === 0x04) {
+        var dsel = document.getElementById('delay-sync-select');
+        if (dsel && dsel.value !== '0') {
+          if (typeof updateDelaySync === 'function') updateDelaySync(0);
+          if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(0x05, 0);
+        }
+      }
+      if (bridgeMidiReady) queueKnobSend('delay:' + dlo, function(val){ sendDelayParamWrite(dlo, val); }, dv);
       return;
     }
   }, { passive: false });

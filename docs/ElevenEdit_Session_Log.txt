@@ -39,6 +39,631 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref DELAY SLOT section, Primer WORKING/Status
+             line, Change Log 2026-08-02] — TESTED LIVE, chart accurate,
+             confirmed by Charlie same day.
+AREA:        DELAY effect panel — EP Tape Echo model (THIRD AND LAST
+             DELAY family — DELAY panel now has all three models built:
+             EP Tape Echo, BBD Delay, Dyn Delay)
+FINDING:     EP Tape Echo (mid 0x1C/0x1D, Tech Ref Sec 23 TFX 1C, 9
+             params) needed ZERO new rendering code — every cell kind it
+             uses (toggle, delaySync, plain knob) already existed from
+             BBD Delay/Dyn Delay, so this was a pure protocol.js data
+             addition. paramLo map:
+               0x02 Mix (1.0-9.0) · 0x03 Feedback (1.0-9.0) · 0x04 Delay
+               (70-600 ms) · 0x05 Sync (standard) · 0x06 Rec Level
+               (0.0-10.0) · 0x07 Wow/Flutter (0%-2%) · 0x08 Head Tilt
+               (0-10) · 0x09 Expanded Delay (toggle) · 0x0A Tape Hiss
+               (toggle).
+             SYNC CHECKED AGAINST THE STANDARD MECHANISM FIRST — third
+             time this session — confirmed byte-for-byte identical to
+             BBD Delay's and Dyn Delay's own Sync tables before writing
+             any code. This is now a settled, load-bearing fact for the
+             whole DELAY panel: every Sync control found so far (amp
+             Tremolo, FX1 C1 Chorus, all three DELAY families) uses the
+             exact same mechanism, zero exceptions.
+             DELAY RANGE (70-600 ms) CONFIRMED to unusual precision: all
+             13 Sync-derived raw values cross-checked against Charlie's
+             corrected sync-ms chart, landing within 1 ms of every stated
+             value (several exact, e.g. 1/16 triplet = 83 ms on the nose)
+             using plain linear ms = 70 + v127/127*530. Charlie's own
+             test-notes line "Sync OFF first move is 1/1 = 70 ms"
+             contradicts this (wire data puts 1/1 at ~500 ms, matching
+             the chart) — treated as a note slip, the 13-point
+             cross-check being much stronger evidence than one written
+             line; flagged in protocol.js in case live testing proves the
+             note right instead.
+             TWO TOGGLES confirmed by wire shape alone (clean binary
+             alternation) before cross-referencing the test notes, same
+             tell used for every other toggle/dropdown found this
+             session.
+             FEEDBACK/MIX's stated 1.0-9.0 range (not 0-10) taken
+             literally — Charlie explicitly said this was "double and
+             triple checked," not a typo, so no attempt was made to round
+             it to a cleaner-looking range.
+             LAYOUT — Claude Code's own best-effort read of Avid's panel
+             screenshot, NOT pixel-confirmed the way Dyn Delay's was:
+             Charlie explicitly said "do your best on layout since we
+             didn't discuss specifics." A small mini-panel box (both
+             toggles + Head Tilt/Wow-Flutter as knobs, per Charlie's own
+             note that sliders can render as knobs in this app), a
+             Delay+Sync stack, and the three main knobs in their own row.
+             Flag for rearrangement if Charlie's live test wants it
+             closer to Avid's actual grouping.
+EVIDENCE:    Tape_Echo_Capture.pcapng (Charlie, 2026-08-02), handle 0x45,
+             525 CMD 0x11 frames (271 IN + 254 OUT). paramLo identities
+             confirmed against Charlie's Tape_Echo_Test.txt sweep order
+             (Expanded Delay, Tape Hiss, Head Tilt, Wow/Flutter, Delay,
+             Sync, Feedback, Rec Level, Mix), matched against the
+             capture's own temporal paramLo run order with no ambiguity.
+CONFLICTS:   none — DELAY_MODELS' EP Tape Echo entry was a captured:false
+             stub before this; replaced in place. All three DELAY models
+             are now captured — DELAY_MODELS has no remaining stubs.
+NEXT:        Charlie builds and tests live: all 9 controls read/write
+             correctly, Sync's R7/R9 interlock behaves the same as the
+             other two families (same code path), the 70-600 ms Delay
+             range reads sensibly across the full travel (not just the
+             13 Sync-derived checkpoints), Feedback/Mix's 1.0-9.0 range
+             holds at both true endpoints, and the layout is usable even
+             if not pixel-matched to Avid. A clean live pass completes
+             the DELAY panel entirely (all three models TESTED LIVE) and
+             folds the full paramLo map into Tech Ref Sec 23's EP Tape
+             Echo row.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref DELAY SLOT section, Primer WORKING/Status
+             line, Change Log 2026-08-02] — TESTED LIVE (Charlie,
+             2026-08-02): "All of the
+             controls land in the correct place and operate as intended."
+             Sync-vs-HW confirmed always landing correctly regardless of
+             knob display. Pending wrap to fold into Primer WORKING /
+             Tech Ref Sec 23 Dyn Delay row. Knob sizing/QC pass explicitly
+             DEFERRED to a later dedicated pass across every panel, not
+             chased now — Charlie's own call.
+AREA:        DELAY effect panel — Dyn Delay model (third DELAY family;
+             BBD Delay and Dyn Delay both TESTED LIVE now, EP Tape Echo
+             remains the last stub)
+FINDING:     Dyn Delay (mid 0x20 mono/0x21/0x22, Tech Ref Sec 23 TFX
+             50/51/52) has 12 controls across paramLo 0x02-0x0D, laid out
+             in Avid's own panel as three grouped/boxed sub-panels
+             (DELAY, EQ, ENV MOD) plus flat left/right columns — Charlie's
+             own call to use MultiChorus's existing grouped-layout
+             mechanism as a REFERENCE (not a literal copy):
+               0x02 Mix (main, 0-100%) · 0x03 Feedback (0-100%) ·
+               0x04 Delay (1-4000 ms) · 0x05 Sync (14-zone, standard
+               mechanism, confirmed identical wire values to BBD Delay's
+               own Sync) · 0x06 Feedback Mode (4-way select: Mono/Stereo/
+               Cross/Pong) · 0x07 L/R Ratio (bipolar, displayed as "L:R"
+               text) · 0x08 Stereo Width (0-100%) · 0x09 High Cut
+               (1 kHz-20 kHz, log) · 0x0A Low Cut (20 Hz-1 kHz, log) ·
+               0x0B Rate/env (10 ms-1.0 s, log) · 0x0C FBK/env (bipolar
+               -100%..+100%) · 0x0D Mix/env (bipolar, ASSUMED same shape
+               as FBK — Charlie's own written spec had "100% to +100%"
+               for this one, almost certainly a dropped minus sign next
+               to FBK's correctly-written "-100% to +100%"; NOT
+               independently confirmed, flagged in protocol.js).
+             SYNC CHECKED AGAINST THE STANDARD MECHANISM FIRST THIS TIME
+             (explicit lesson from BBD Delay's Sync saga earlier the same
+             session) — confirmed byte-for-byte identical to BBD's own
+             13 confirmed Sync raw values before writing any code, so no
+             repeat of the wide-28-bit-misread mistake.
+             FEEDBACK MODE CONFIRMED AS A DROPDOWN, NOT A KNOB, from the
+             wire shape alone: its raw sequence is four long HELD
+             PLATEAUS (0x40/0x6A/0x15/0x3F, decoding to v127 0/42/85/127 —
+             an even 4-way spread) instead of every other paramLo's
+             continuous climb-wrap-descend shape — same tell already used
+             to identify DIST/REVERB/WAH toggle vs knob shapes.
+             CODE INFRASTRUCTURE ADDED: DELAY's panel only supported flat
+             rows before (built for BBD Delay's simpler layout) — ported
+             the FX-host engine's grouped/boxed rendering (box entries
+             {group?, rows:[[cells],...]} mixed with flat rows) and
+             cell.select (generic dropdown) into DELAY's OWN render
+             functions (delayAllCells/renderDelayCell/renderDelayRow,
+             fx-panels.js), matching the Primer's explicit call for DELAY/
+             FX LOOP to keep their own per-block panel code rather than
+             hook into the shared FX-host engine — this is a PORT of the
+             mechanism, not a shared dependency on FX-HOST's functions.
+             delayKnobDisplay/updateDelayKnob were updated to walk the new
+             box-aware cell list (delayAllCells) instead of assuming
+             model.rows is flat — BBD Delay's existing flat-row model
+             still works unchanged through the same functions (no
+             regression risk, verified the fallback path: entry.rows
+             absent -> treated as a single flat row, same as before).
+EVIDENCE:    Dynamic_Delay_Capture.pcapng (Charlie, 2026-08-02; a same-
+             named-file mixup first sent a duplicate of the FX Loop
+             capture — caught via MD5 comparison before any code was
+             written, re-sent correctly). 1098 CMD 0x11 frames (706 IN +
+             392 OUT), handle 0x2A. paramLo identities confirmed via
+             Charlie's own described sweep order (Delay+Sync, Feedback,
+             then top-down through DELAY/EQ/ENV MOD boxes, then Feedback
+             Mode + Mix) matched directly against the capture's temporal
+             paramLo run order (4,5 interleaved, then 3,7,8,10,9,11,12,
+             13,6,2) — exact 1:1 correspondence, no ambiguity this round.
+             Layout independently cross-checked against a screenshot of
+             Avid's actual Dyn Delay panel (not just Charlie's verbal
+             description) — the 3-box center layout and left/right column
+             split are pixel-confirmed, not inferred.
+CONFLICTS:   none — DELAY_MODELS' Dyn Delay entry was a captured:false
+             stub before this; replaced in place.
+NEXT:        Charlie builds and tests live: all 12 controls read/write
+             correctly, the boxed layout renders sensibly (scale knobs
+             down if the panel feels cramped — Charlie's pre-approved that
+             tradeoff), Sync's R7/R9 interlock behaves the same as BBD
+             Delay's (same code path, same paramLo 0x04/0x05 pair), Mix
+             (env)'s assumed bipolar shape reads sensibly (flag if it's
+             actually unipolar 0-100%), and the three log-scaled controls
+             (Low Cut/High Cut/Rate) don't read backwards. Only a clean
+             live pass promotes Dyn Delay to WORKING/TESTED LIVE and folds
+             the paramLo map into Tech Ref Sec 23. EP Tape Echo remains
+             the one uncaptured DELAY family (stub, captured:false).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref Sec 20A R9, Primer's DELAY/FX LOOP recipe]
+AREA:        Knob/Control Contract — new rule, named per Charlie's request
+FINDING:     The "guard DELAY knob drag against broadcast repaint races" fix
+             (previous entry) is now a NAMED, permanent rule in the Sec 20A
+             checklist — Charlie asked for a codename so he can reference it
+             when deploying the same fix to other Sync-driven controls,
+             since he's certain the same gap exists elsewhere (any other R7
+             control built before today only got the WRITE half of R7, not
+             the READ-side guard). Named R9 — SYNC OFF KNOB JUMP (aka the
+             SYNC-CLEAR REPAINT RACE). Full rule text now lives in Tech Ref
+             Sec 20A, not restated here — key point: R9 must be deployed as
+             a PAIR with R7 on every Sync-interlocked control, not R7 alone,
+             since an R7-only implementation looks completely correct until
+             a live drag exposes the missing R9 half (exactly what happened
+             today — shipped, passed review, failed on the very next live
+             test). No other controls audited against R9 yet this session —
+             DELAY's Rate/Sync is the only one confirmed to have R9 applied;
+             amp Tremolo Speed (the original R7 precedent) was NOT
+             specifically re-checked for R9 this session and should be
+             audited before assuming it's clean.
+NEXT:        When Charlie says "deploy R9" (or "Sync Off Knob Jump fix") to
+             a control, that means: add a per-control dragging/active-target
+             flag (state.js) and a guard in that control's CMD 0x11 readback
+             path that skips repainting while the flag is set for that
+             paramLo, mirroring DELAY's delayDragLo (state.js) and its
+             sysex-handler.js guard. Check amp Tremolo Speed specifically —
+             it's the oldest R7 implementation and predates R9 being named,
+             so it's the most likely place for the same gap to exist
+             unnoticed.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref Sec 20A R9] — superseded by the next
+             entry below (this fix was UI-only and insufficient; the real
+             fix also had to send a hardware write). Charlie
+             stepped away to cool down after a frustrating round; asked
+             for a diagnosis, not necessarily an immediate re-test)
+AREA:        DELAY effect panel — Rate/Delay knob (paramLo 0x04) drag vs
+             an incoming CMD 0x11 broadcast racing it
+FINDING:     Charlie asked, from memory of an old solved bug (a knob at
+             the bottom of its range jumping to the midpoint then back on
+             grab — the classic falsy-zero `parseInt(x) || 64` trap,
+             fixed project-wide long ago), whether grabbing the Delay
+             knob while Sync had it set to some value might show the same
+             jump-then-settle symptom NOW, given today's Sync work.
+             Checked the actual code rather than guess: the DELAY drag
+             handler already uses the CORRECT guarded startVal read
+             (`!== undefined && !== ''`, not `|| 64`), so the classic
+             falsy-zero bug itself is NOT present here. But a DIFFERENT,
+             real bug in the same failure family was found: the R7 fix
+             two entries back (send sendDelayParamWrite(0x05, 0) to
+             clear Sync the instant the Delay knob is grabbed) sends a
+             real hardware write mid-gesture, and the rack's near-
+             immediate broadcast reply for paramLo 0x04 (Delay itself)
+             was being painted onto the knob UNCONDITIONALLY — with
+             nothing to stop it landing while the user's own drag was
+             still moving the knob. That collision (an incoming
+             broadcast repainting the SAME control an active drag is
+             updating) is EXACTLY the visible shape Charlie described
+             (jump to some other value, then back to where the drag
+             left it), just a new trigger for an old-sounding symptom,
+             not a recurrence of the old bug itself.
+             This app already has a proven, shipped fix for this exact
+             class of problem: To Amp 1/2 (ui.js, toAmp1Dragging/
+             toAmp2Dragging) — "readback handler checks these and skips
+             display update while the user is actively dragging,
+             preventing HW broadcasts from fighting the drag in
+             progress." DELAY never got the equivalent guard. Added one
+             (delayDragLo, state.js — which paramLo is the active drag
+             target, -1 if none) and wired sysex-handler.js's DELAY
+             paramLo 0x02-0x0A branch to skip repainting whichever
+             paramLo is currently delayDragLo, same shape as the To Amp
+             precedent. Scroll-wheel and double-click paths were left
+             unguarded — they're single-shot, not a sustained drag loop,
+             so the race window is much smaller and the described
+             symptom is specifically about dragging.
+EVIDENCE:    Code inspection only — Charlie's question was diagnostic
+             (had not yet reproduced this specific symptom live), and the
+             fix follows an EXISTING, already-live-tested pattern in this
+             exact codebase (To Amp 1/2 drag guard) rather than a new
+             invention.
+CONFLICTS:   none.
+NEXT:        Charlie re-tests when he's back: grab the Delay knob while a
+             Sync division is active and confirm there's no visible
+             jump/flicker during the drag (on top of the two already-
+             fixed issues this session — Sync dropdown accuracy and the
+             hardware actually receiving the write). If a jump still
+             happens, this specific theory is wrong and needs fresh
+             evidence (ideally a screen recording or a described exact
+             sequence), not another guess.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref Sec 20A R9] — confirmed fix, later
+             live-tested clean (Charlie: "the Delay/Sync linked issue with
+             touching delay and jumping is gone and it correctly sets sync
+             to off").
+AREA:        DELAY effect panel — Rate/Delay knob (paramLo 0x04) vs Sync
+             (paramLo 0x05) interlock, the WRITE half
+FINDING:     4th live-test round: Sync mechanism itself now decodes
+             correctly (previous entry), but turning the Delay/Rate knob
+             while Sync was engaged set the Sync dropdown to OFF locally
+             yet did NOT change the hardware, and the knob itself felt
+             "not free" (rack ignoring the write). ROOT CAUSE: the R7 fix
+             two entries back only updated the UI locally
+             (updateDelaySync(0)) and never actually SENT a Sync-off write
+             to the hardware. The code comment at the time claimed
+             "Charlie confirmed the rack itself already clears Sync on
+             touch, no explicit clear write needed" — that claim was
+             never actually re-confirmed for the SOFTWARE-write path
+             specifically (only inferred from an earlier, more general
+             statement), and it was wrong: this is the SAME rule as amp
+             Tremolo Speed (ui.js, already correctly implemented there) —
+             the rack refuses a knob write while Sync is on a division
+             UNLESS the software explicitly sends the Sync-clear write
+             first. Applying the ALREADY-SOLVED Tremolo Speed pattern
+             (send sendDelayParamWrite(0x05, 0) once per drag before the
+             first Delay value send) fixes it — same as its own dedicated
+             comment already described but didn't implement.
+             STILL OPEN: Charlie again reported the ms readout "off by
+             .1", unspecified which control. NOT touched this pass —
+             deliberately asked him to confirm scope (0-10 knob vs the ms
+             number) rather than guess a third area wrong in the same
+             session; see NEXT.
+EVIDENCE:    Charlie's live-test report; direct code comparison against
+             ui.js's already-working Tremolo Speed vs Sync interlock
+             (mousedown/mousemove handler, "SPEED (0x11) — the rack
+             refuses a Speed write while Sync is on a division..."),
+             which DOES send sendParamWrite(0x12, 0) explicitly — the
+             DELAY version never had the equivalent send, only the UI
+             mirror.
+CONFLICTS:   corrects the "R7 interlock" entry earlier this session, which
+             wrongly asserted no explicit clear write was needed.
+NEXT:        Charlie re-tests: turning the Delay knob while a Sync
+             division is active should now actually move the hardware
+             (not just the dropdown), and separately confirm exactly
+             which readout is off by ~0.1 (a 0-10 knob's decimal, or the
+             ms number) so that can be looked at precisely instead of
+             guessed.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref DELAY SLOT section's RETRACTED note,
+             Change Log 2026-08-02] — RETRACTION — corrects BOTH prior DELAY Sync entries below
+AREA:        DELAY effect panel — Sync (paramLo 0x05), full mechanism
+FINDING:     Charlie's third live test still failed (dropdown stuck on
+              "1/4 triplet" for every selection, including patch load
+              with Sync off) — the OFF-value fix wasn't the real bug, it
+              was a smaller instance of a much bigger mistake in the same
+              area. ROOT CAUSE, fully re-derived from scratch this pass:
+              paramLo 0x05 is NOT a special 28-bit-encoded parameter.
+              It uses the EXACT SAME plain single-byte v127 Sync encoding
+              as every other Sync control in the app (amp Tremolo paramLo
+              0x12, FX1/FX-host C1 Chorus) — SYNC_DIVISIONS +
+              syncIndexFromV127 + syncV127FromIndex, unmodified, no new
+              code needed at all. The two earlier entries this session
+              (the original "wide 28-bit lookup table" build, and the
+              "OFF value fix" that patched one entry in that same wrong
+              table) were built on a misread: bytes 1-3 of the broadcast
+              were treated as meaningful 28-bit precision, when they are
+              actually incidental live-precision noise — the SAME noise
+              pattern already correctly identified and ignored on the
+              Delay knob itself (paramLo 0x04) in the very first DELAY
+              entry below. Applying that already-known lesson to paramLo
+              0x05 too, instead of building new machinery for it, would
+              have avoided three live-test failures.
+              PROOF (byte0 of the ORIGINAL sweep capture, through the
+              pre-existing, already-proven syncIndexFromV127 — no new
+              table, no fuzzy matching): v0=0x49(1/1)->val9->zone1,
+              0x53->val19->zone2, 0x5D->val29->zone3, 0x67->val39->zone4,
+              0x71->val49->zone5, 0x7B->val59->zone6, 0x04->val68->zone7,
+              0x0E->val78->zone8, 0x18->val88->zone9, 0x22->val98->zone10,
+              0x2C->val108->zone11, 0x36->val118->zone12,
+              0x3F->val127->zone13, and separately 0x40->val0->zone0
+              (OFF, confirmed by the diagnostic capture) — every one
+              matches SYNC_DIVISIONS exactly.
+              FIX: deleted DELAY_SYNC_RAW, DELAY_SYNC_TAIL_HEX,
+              delaySyncIndexFromRaw, delaySyncRawFromIndex,
+              sendDelaySyncWrite entirely (~100 lines, protocol.js +
+              fx-transport.js). sysex-handler.js's DELAY routing now calls
+              updateDelaySync(val) using the SAME `val` every other
+              paramLo in the CMD 0x11 handler already decodes — no
+              special-case byte extraction. updateDelaySync (fx-panels.js)
+              now takes a v127 (matching ui.js's updateSyncReadout for
+              Tremolo) and quantises locally via syncIndexFromV127. The
+              dropdown's change handler now calls sendDelayParamWrite(0x05,
+              syncV127FromIndex(idx)) — the SAME endpoint-sentinel tail
+              every other DELAY paramLo already uses, no custom checksum
+              table. R7 local-clear call sites (updateDelaySync(0) on
+              Delay-knob touch) needed NO changes — v127=0 already meant
+              zone 0/OFF under both the old and new signature, coincidence
+              that masked how wrong the rest of the mechanism was.
+              LESSON (Charlie's own framing, direct quote worth keeping):
+              "What is different about this sync list that all the others
+              aren't... Added probably 8 sync lists doing the FX1 block, no
+              issues." Answer: nothing is actually different — FX1's Sync
+              controls were built by reusing the standard mechanism
+              directly, DELAY's Sync was NOT, for no real reason (the wire
+              evidence never actually required it — the 28-bit theory was
+              read into noisy bytes that a moment's comparison against the
+              already-solved Delay-knob noise pattern would have caught).
+              TWO FAILED FIXES = STOP AND RE-DERIVE (Primer, "How to work
+              with Charlie") applied in hindsight, one live-test-round
+              late — worth internalizing for any future "this control
+              looks unusually complicated" moment before building new
+              machinery instead of checking whether the standard one
+              already fits.
+EVIDENCE:    Re-analysis only, no new capture — every value cited above is
+             from the ALREADY-CAPTURED original sweep + diagnostic
+             capture, just decoded correctly this time.
+CONFLICTS:   RETRACTS the "DELAY SYNC — 28-bit big-endian" design entirely
+             (both the original entry's DELAY_SYNC_RAW/TAIL_HEX tables and
+             the "fix DELAY Sync OFF" entry's addition to the same wrong
+             table) — protocol.js's DELAY SYNC section now carries the
+             retraction note in place of the deleted code, not a dated
+             copy.
+NEXT:        Charlie re-tests live: patch load with Sync off should show
+             OFF (not 1/4 triplet), every dropdown pick should show the
+             right name and hold it, and the Delay-knob-clears-Sync
+             interlock (R7, already wired, untouched by this fix) should
+             now be visibly meaningful since the dropdown will actually
+             reflect real state. Only a clean pass promotes DELAY to
+             WORKING/TESTED LIVE.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: superseded by the RETRACTION entry above — this
+             fix was correct as far as it went (OFF's raw value) but the
+             underlying 28-bit theory was itself wrong] — confirmed — fixes DELAY EFFECT PANEL entry below (Sync OFF)
+AREA:        DELAY effect panel — Sync (paramLo 0x05) OFF value
+FINDING:     Charlie's live test reported the Sync dropdown always
+             reading OFF no matter what he picked, and that touching the
+             Delay/Rate knob while Sync was engaged didn't visibly clear
+             it. Root cause confirmed: OFF (zone 0) was entirely absent
+             from DELAY_SYNC_RAW/DELAY_SYNC_TAIL_HEX (the original sweep
+             never captured it — its first broadcast was already the move
+             INTO 1/1), and the decode fallback for "no match found" was
+             ALSO index 0 (OFF) — so every unmatched broadcast, including
+             OFF's own real broadcast, silently produced the same visible
+             symptom either way, masking whether real divisions were even
+             being decoded correctly.
+             Fixed with a targeted diagnostic capture, same 240 BPM tempo
+             as the original sweep (ruling out tempo-dependence as an
+             alternate theory floated earlier this session): OFF raw =
+             0x40000000 (the exact midpoint of the 28-bit space), write
+             tail = "40 00 00 00 00" (the same flat MIN-endpoint
+             convention every other knob already uses, Sec 20A R1) — not
+             a special case after all. 1/1's raw reproduced byte-for-byte
+             identical to the original sweep's capture, confirming the
+             table's other 13 values are solid and tempo was never the
+             issue.
+             delaySyncIndexFromRaw now includes index 0 as a real
+             candidate (previously the loop started at i=1, structurally
+             unable to ever return a genuine OFF match) and its
+             now-unnecessary "too far, fall back to 0" branch was removed
+             — every raw value nearest-matches to one of the 14 real
+             confirmed zones now, no silent default.
+             SEPARATE — also fixed same session, independent of the above:
+             R7 interlock (dragging/scrolling the Delay knob now clears
+             the Sync dropdown locally, mirroring rack behaviour Charlie
+             confirmed already happens on hardware) — this was a real gap
+             in the first DELAY build, not just a symptom of the OFF bug.
+             STILL OPEN, minor: Charlie reported the Delay-ms readout
+             being "off by perhaps .1" after a Sync pick. Not investigated
+             this pass — likely the plain-linear 32-400ms display formula
+             not exactly matching the rack's real (possibly Sec 21-style
+             cosmetic-nonlinear) conversion from sync-locked time to the
+             pedal's raw v127 range. Low priority; flag if it recurs or
+             gets worse once the OFF fix is retested.
+EVIDENCE:    BBDDElay_Sync_Diag_1_Capture.pcapng (Charlie, 2026-08-02),
+             240 BPM confirmed, targeted 3-step capture (OFF -> 1/1 ->
+             OFF): 6 clean SysEx frames (2 OUT sends, 4 IN broadcasts).
+             OUT: "F0 13 0B 0F 00 11 65 05 49 6C 27 31 04 F7" (-> 1/1),
+             "F0 13 0B 0F 00 11 65 05 40 00 00 00 00 F7" (-> OFF).
+CONFLICTS:   supersedes the FIRST DELAY entry's "OFF UNCONFIRMED,
+             provisional 0x00000000" note — that placeholder is gone,
+             replaced with this confirmed value, in protocol.js directly
+             (DELAY_SYNC_RAW[0], DELAY_SYNC_TAIL_HEX[0]).
+NEXT:        Charlie re-tests live: select each Sync division and confirm
+             the dropdown now shows the right name (not just OFF), select
+             OFF explicitly and confirm it reads back correctly, and
+             re-check that touching Delay/Rate while a division is active
+             now visibly flips the dropdown to OFF. A clean pass on all of
+             that (plus the original 8 controls already reported working)
+             promotes the whole DELAY panel to WORKING/TESTED LIVE.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref DELAY SLOT section (BBD Delay), Primer
+             WORKING/Status line] — TESTED LIVE, final confirmed state; the
+             Sync mechanism this entry originally used was later retracted
+             and rebuilt correctly (see the RETRACTION entry above) — the
+             8 non-Sync controls listed here were correct from the start.
+             ONE CONTROL
+             (Sync OFF) explicitly UNCONFIRMED even pending live test
+AREA:        DELAY effect panel (new panel, Phase 16 continued) — DELAY
+             slot 0x06, CMD 0x11 paramLo map, protocol.js/state.js/
+             fx-transport.js/fx-panels.js/sysex-handler.js/ui.js/index.html
+FINDING:     BBD Delay (mid 0x1E mono / 0x1F stereo, Tech Ref Sec 23 TFX
+             1B/30) has 9 controls across paramLo 0x02-0x0A. Charlie
+             confirmed the sweep order and control identities directly
+             (the wire shape alone could not distinguish them):
+               0x02 Mix        0-10 linear
+               0x03 Feedback   0-10 linear
+               0x04 Delay      32-400 ms linear
+               0x05 Sync       14-zone (OFF + 13 divisions, reuses
+                                SYNC_DIVISIONS), WIDE 28-bit encoding
+               0x06 Input      0-10 linear
+               0x07 Depth      0-10 linear
+               0x08 Chorus/Vibrato toggle
+               0x09 Expanded Delay toggle
+               0x0A Noise toggle
+             TWO GENUINELY NEW WIRE BEHAVIOURS not seen on any panel built
+             so far (FX1/FX2/MOD/DIST/REVERB/WAH/VOL/FX LOOP all use the
+             single-byte (v127+64)%128 shape throughout):
+             (1) Delay (0x04) reports live sub-step precision in bytes
+                 1-3 while dragging (values near 7F 7F 7X approaching an
+                 endpoint) instead of sitting flat at 00 00 00 like every
+                 other knob's byte0-only encoding. Treated as harmless
+                 readback noise — only byte0 is read (same formula as
+                 everywhere else), matching the confirmed endpoint
+                 sentinel "3F 7F 7F 7F" appearing at the true top exactly
+                 like every other knob.
+             (2) Sync (0x05) is NOT a v127 parameter at all — it's a
+                 28-bit big-endian value (byte0<<21|byte1<<14|byte2<<7|
+                 byte3) with what looks like a real SysEx checksum as a
+                 5th trailing byte on writes (varies per zone: 04, 07,
+                 0B, 0E, 02, 06, 09, 0D, 01, 04, 08, 0B, 0F — not the
+                 flat endpoint-sentinel convention). Rather than reverse
+                 the checksum algorithm, the WRITE side (DELAY_SYNC_TAIL_HEX,
+                 protocol.js) uses the EXACT captured 5-byte tail per zone
+                 verbatim — the safest option since we have all 13 real
+                 sends. The READ side (DELAY_SYNC_RAW) does nearest-match
+                 against the 4 leading value bytes only. Interlock with
+                 Delay (0x04) confirmed: every Sync broadcast in the
+                 capture paired with a Delay re-broadcast, matching the
+                 Tremolo/C1 Chorus Sync-overwrites-value family (R7).
+             UNCONFIRMED: Sync zone 0 (OFF) — its raw/tail bytes were
+             never captured (the sweep's first broadcast was already the
+             move INTO 1/1, so OFF's own send/broadcast never appeared).
+             Provisional all-zero tail in DELAY_SYNC_TAIL_HEX/DELAY_SYNC_RAW.
+             This is a genuine gap, not a guess dressed up as confirmed —
+             flagged in both the code comments and here.
+EVIDENCE:    BBDDelay_Capture.pcapng (Charlie, 2026-08-02) — same decode
+             pipeline as the FX LOOP capture (hand-written Python pcapng
+             + USBPcap header parser + USB-MIDI CIN reassembly), this time
+             capturing BOTH directions (endpoint 0x82 IN broadcasts AND
+             endpoint 0x02 OUT sends — the OUT sends are what supplied the
+             13 confirmed Sync write tails). 1364 IN + 21 OUT = 1385 clean
+             SysEx frames. Knob sweep order confirmed by Charlie: "Delay,
+             Feedback, Mix, Input, Depth" (matches the capture's own
+             temporal paramLo run order 4,3,2,6,7 exactly). Toggle order
+             confirmed: "Noise, Expanded, Chorus/vib" (matches temporal
+             run order 10,9,8 exactly). Sync order confirmed: "starting
+             from off and going down the list" (matches the 13 captured
+             raw values mapping 1:1 in order onto SYNC_DIVISIONS indices
+             1-13, with the final value landing exactly on the same
+             "3F 7F 7F 7F" sentinel every other knob's true-max uses).
+CONFLICTS:   none — no prior DELAY documentation existed beyond the TFX
+             param-name row already in Tech Ref Sec 23.
+NEXT:        Charlie builds the EXE and tests live: confirm all 5 knobs
+             read correct anchors (0.0/10.0 for the four 0-10 knobs,
+             32/400 ms for Delay), confirm all 3 toggles, confirm Sync
+             selects each of the 13 known divisions correctly AND that it
+             overwrites the Delay knob's displayed ms value on selection
+             (R7-style interlock) — and SPECIFICALLY test selecting Sync
+             OFF, since that write uses an unconfirmed placeholder tail
+             and may not work correctly on the real hardware; report back
+             exactly what OFF does (or doesn't do) so the real tail can be
+             captured if the placeholder is wrong. Only a clean live pass
+             (OFF included) promotes this to WORKING/TESTED LIVE in the
+             Primer and folds the paramLo map into Tech Ref Sec 23's BBD
+             Delay row.
+             CORRECTED MID-BUILD: DELAY is a multi-model slot like DIST/
+             REVERB (Tech Ref Sec 23 lists three families — EP Tape Echo
+             0x1C/0x1D, BBD Delay 0x1E/0x1F, Dyn Delay 0x20/0x21/0x22),
+             not a single fixed model like VOL/FX LOOP. First draft built
+             DELAY_MODELS with only the one captured entry and no dropdown
+             — fixed before finishing: DELAY_MODELS now has all three,
+             EP Tape Echo and Dyn Delay as captured:false stubs (same
+             convention as FX1_MODELS' uncaptured entries), with a real
+             model dropdown (#delay-model-select) so the panel is honest
+             about what's available. EP Tape Echo and Dyn Delay remain OUT
+             OF SCOPE for this pass — BBD Delay only, per Charlie's own
+             "that is the first one we are going to do."
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
+STATUS:      [FOLDED IN: Tech Ref FX LOOP SLOT section, Primer WORKING/
+             Status line, Change Log 2026-08-02] — TESTED LIVE (Charlie, 2026-08-02). Pending wrap to
+             fold into Primer WORKING / Tech Ref Sec 23 FX LOOP row.
+AREA:        FX LOOP effect panel (new panel, Phase 16 start) — Sec 4 slot
+             0x01, CMD 0x11 paramLo map, protocol.js/state.js/fx-transport.js/
+             fx-panels.js/sysex-handler.js/ui.js/index.html
+FINDING:     FX LOOP panel built following the VOL pattern (single fixed
+             model, no dropdown — the block's 7 routing-variant mids
+             0x2D-0x33 are firmware-picked from chain/stereo context, not
+             user-selectable). Three knobs, paramLo 0x02/0x03/0x04:
+               Send   -12..+12 dB (two-slope-anchored-at-64, same math as
+                      valToAmpVol but without its To-Amp-specific MUTE
+                      override at v127=0)
+               Return -12..+12 dB, identical shape to Send
+               Mix    0-100% linear (v127=0 -> 0%, v127=127 -> 100%)
+             All three share the SAME wire encoding: standard
+             (v127+64)%128, confirmed against Tech Ref Sec 23's existing
+             "Encoding: standard (v127+64)%128" note for this exact model
+             (TFX 0F/11/49, CMD 0x20 mid 0x2D-0x33, params send/rtrn/wetp).
+             Endpoint sentinel (R1) confirmed needed and implemented:
+             sendFxLoopParamWrite copies sendVolParamWrite's three-branch
+             tail (v127>=127 -> "3F 7F 7F 7F 0F", v127<=0 -> "40 00 00 00
+             00", else raw v0 + flat tail) verbatim.
+EVIDENCE:    FX_Loop_Capture.pcapng (Charlie, 2026-08-02) — Windows USBPcap
+             capture (linktype 249), endpoint 0x82 IN only (live broadcast
+             readback, not the OUT writes — same evidence class as prior
+             FX1 model captures). Hand-decoded in Claude Code (no tshark):
+             custom Python pcapng block parser + USBPcap header parser +
+             USB-MIDI CIN reassembly (CIN 0x4/0x5/0x6/0x7) -> 704 clean
+             SysEx frames, F0 13 0B 0F 02 11 22 [paramLo] [v0 4 bytes] F7,
+             split cleanly into 3 paramLo groups (0x02: 241 frames, 0x03:
+             258, 0x04: 205) matching the capture's stated sweep order
+             (Send -> Return -> Mix, each 0dB/0%-start -> max -> min).
+             All three groups show the identical raw shape: v0 starts at
+             0x40, climbs through 0x7F, wraps 0x00-0x3F, hits sentinel
+             "3F 7F 7F 7F" three times, descends back to 0x40 — i.e. every
+             knob's v127 (inverse of the wire transform) sweeps a full
+             0->127 in one continuous pass, hitting the sentinel exactly at
+             the true top.
+             Mix's display anchor (0% at the sweep's start, not the 0dB
+             centre reading Send/Return get) was NOT inferable from the
+             wire bytes alone — asked Charlie directly what the Avid
+             editor's Mix readout showed at the start of the capture;
+             answer: 0%. This is the ONLY reason Mix isn't wrongly using
+             the same two-slope dB-centred display as Send/Return despite
+             sharing byte-for-byte identical wire behaviour — flagging this
+             explicitly since it's exactly the class of scale mistake the
+             Primer warns about (a guess here would have been silent and
+             wrong, not caught by any build/compile step).
+             paramHi (handle) in the capture is 0x22 — NOT hardcoded
+             anywhere in the shipped code (Sec 4 rule); the panel resolves
+             the real handle from currentChain via SLOT_LOOP every time,
+             same as every other panel.
+CONFLICTS:   none — Sec 23's existing FX LOOP row (0F/11/49, mid 0x2D-33,
+             "send, rtrn, wetp") already anticipated this exact param set;
+             this entry supplies the paramLo numbers (0x02/0x03/0x04) and
+             display formulas that row didn't yet have.
+NEXT:        DONE — Charlie confirmed live test success 2026-08-02, no
+             regressions reported. Fold into Primer WORKING / Tech Ref Sec 23
+             FX LOOP row at wrap. DELAY is now the only remaining slot per
+             the Primer's NEXT SESSION note — in progress same session,
+             expected to need a denser/sectional layout (Charlie's own call:
+             "look at the multichorus" for the smaller sectional mini-panel
+             look), capture pending from Charlie.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-08-01 (same session, immediately following FX1
              re-verification)
 STATUS:      [FOLDED IN: Primer Status line/WORKING + Tech Ref Sec 23/24] —

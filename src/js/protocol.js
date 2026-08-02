@@ -1440,6 +1440,312 @@ VOL_MODELS.forEach(function(m) {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// BBD DELAY MODEL — DELAY slot (Sec 4 0x06). Tech Ref Sec 23: TFX 1B/30,
+// CMD 0x20 mid 0x1E (mono) / 0x1F (stereo). 9 params confirmed by
+// Wireshark capture (2026-08-02, BBDDelay_Capture.pcapng, 1364 broadcasts
+// + 21 sends, all 9 paramLos present). Sweep order and control identities
+// confirmed directly by Charlie (session log), not inferred from bytes
+// alone — the wire shape alone could not distinguish which paramLo was
+// which named knob/toggle:
+//   0x02 Mix       0-10, plain linear (v127 0->0.0, 127->10.0)
+//   0x03 Feedback  0-10, plain linear, same shape as Mix
+//   0x04 Delay     32-400 ms, plain linear (v127 0->32ms, 127->400ms).
+//        WIDER WIRE ENCODING than every other knob in the app: byte0 is
+//        the normal (v127+64)%128 value, but bytes 1-3 carry live
+//        sub-step precision while dragging (near 7F 7F 7X approaching an
+//        endpoint) instead of sitting flat at 00 00 00 — read only byte0,
+//        same as every other knob; the extra bytes are readback noise/
+//        precision we don't need. Endpoint sentinel (R1) still applies.
+//   0x05 Sync      14-zone (OFF + 13 divisions), reuses SYNC_DIVISIONS
+//        AND the standard 7-bit wire encoding (syncIndexFromV127 /
+//        syncV127FromIndex) — the SAME mechanism as amp Tremolo and FX1
+//        C1 Chorus, no special handling at all (an earlier pass this
+//        session wrongly built a from-scratch 28-bit scheme; see the
+//        DELAY SYNC comment below for the retraction and the byte-by-byte
+//        proof it was unnecessary). Engaging Sync overwrites the live
+//        Delay (0x04) value — confirmed by every Sync broadcast in the
+//        capture being paired with a Delay re-broadcast, same interlock
+//        family as Tremolo/C1 Chorus Sync (R7).
+//   0x06 Input     0-10, plain linear, same shape as Mix
+//   0x07 Depth     0-10, plain linear, same shape as Mix
+//   0x08 Chorus/Vibrato toggle — v0=0x40 -> Chorus, v0=0x3F -> Vibrato
+//   0x09 Expanded Delay toggle — v0=0x40 -> Off, v0=0x3F -> On
+//   0x0A Noise toggle          — v0=0x40 -> Off, v0=0x3F -> On
+// ════════════════════════════════════════════════════════════════════
+// DELAY SYNC — RETRACTED 2026-08-02. This used to be a from-scratch
+// 28-bit wide-encoding scheme (DELAY_SYNC_RAW / DELAY_SYNC_TAIL_HEX /
+// delaySyncIndexFromRaw / delaySyncRawFromIndex, ~90 lines, all deleted).
+// It was WRONG — a misread, not a different encoding. paramLo 0x05 is
+// the SAME plain single-byte v127 Sync encoding every other Sync control
+// in this app already uses (amp Tremolo paramLo 0x12, FX1/FX-host C1
+// Chorus) — reuse syncIndexFromV127 / syncV127FromIndex directly, exactly
+// like Tremolo's sync-select does (ui.js). Bytes 1-3 of the broadcast are
+// incidental live-precision noise, the same pattern already seen (and
+// already correctly ignored) on the Delay knob itself (paramLo 0x04) —
+// treating them as meaningful 28-bit data was the original mistake.
+// PROOF (re-derived from the original capture, byte0 only, through the
+// EXISTING syncIndexFromV127 function, zero new code):
+//   v0=0x49(1/1)->val9->zone1   v0=0x71(1/4 dotted)->val49->zone5
+//   v0=0x53(1/2 dot)->val19->zone2  v0=0x7B(1/4)->val59->zone6
+//   v0=0x5D(1/2)->val29->zone3  v0=0x04(1/4 trip)->val68->zone7
+//   v0=0x67(1/2 trip)->val39->zone4  ... every remaining zone through
+//   v0=0x3F(1/16 triplet)->val127->zone13, and v0=0x40(OFF)->val0->zone0,
+//   all match SYNC_DIVISIONS exactly, no exceptions, no fuzzy matching.
+// WRITE side: also just the standard mechanism — sendDelayParamWrite(0x05,
+// syncV127FromIndex(idx)), the SAME endpoint-sentinel tail every other
+// DELAY paramLo already uses (fx-transport.js). The "checksum" theory for
+// the trailing tail byte was also wrong: it's the ordinary endpoint-
+// sentinel tail (transport.js sendParamWrite, same rule), not a checksum —
+// OFF's write ("40 00 00 00 00") is just the standard MIN-endpoint tail,
+// and every other captured tail is the standard mid-range "v0 + flat
+// 00 00 00 00" tail for whatever exact v127 Charlie's live drag landed on
+// within that zone (not the zone's nominal centre — real-world variance,
+// which syncIndexFromV127's 10-wide zone quantisation already tolerates).
+// ════════════════════════════════════════════════════════════════════
+
+// DELAY is a multi-model slot like DIST/REVERB (Tech Ref Sec 23), not a
+// single fixed model like VOL/FX LOOP — three distinct effect families can
+// load into it: EP Tape Echo (mid 0x1C/0x1D), BBD Delay (0x1E/0x1F), Dyn
+// Delay (0x20/0x21/0x22). Only BBD Delay is captured so far (Charlie's own
+// call, 2026-08-02: "that is the first one we are going to do") — the
+// other two are STUBS (name/mids only, captured:false), same convention
+// as FX1_MODELS' uncaptured entries, so the model dropdown is honest about
+// what's really available without blocking on the other two captures.
+const DELAY_MODELS = [
+  // ── EP TAPE ECHO — captured 2026-08-02 (Wireshark, Tape_Echo_Capture.
+  // pcapng, handle 0x45, 525 CMD 0x11 frames). Layout is Claude Code's own
+  // best-effort read of Avid's panel screenshot — Charlie explicitly did
+  // not spec exact box grouping this time ("do your best on layout since
+  // we didn't discuss specifics"), unlike Dyn Delay's pixel-confirmed
+  // layout. Structure: a small mini-panel box (Expanded Delay/Tape Hiss
+  // toggles, Head Tilt/Wow-Flutter — Avid draws these as sliders, but
+  // Charlie's own test note says "Gui can show a knob", so they're plain
+  // knobs here, not a new slider widget), a Delay+Sync stack, and the
+  // three main knobs (Feedback/Rec Level/Mix) in their own row — not a
+  // pixel-verified match to Avid's real panel, flag if Charlie's live
+  // test wants it rearranged.
+  // paramLo assignment confirmed by isolated sweeps in the exact order
+  // Charlie's test notes describe (Expanded Delay, Tape Hiss, Head Tilt,
+  // Wow/Flutter, Delay, Sync, Feedback, Rec Level, Mix):
+  //   0x02 Mix · 0x03 Feedback · 0x04 Delay · 0x05 Sync · 0x06 Rec Level ·
+  //   0x07 Wow/Flutter · 0x08 Head Tilt · 0x09 Expanded Delay ·
+  //   0x0A Tape Hiss.
+  // TWO TOGGLES (0x09/0x0A) confirmed by wire shape alone before even
+  // checking the test notes: clean 0x3F/0x40 binary alternation (4
+  // transitions each, matching "off, on, off, on, off"), unlike every
+  // other paramLo's continuous climb-wrap-descend sweep — same tell
+  // already used for Dyn Delay's Feedback Mode dropdown and DIST/REVERB/
+  // WAH's toggles.
+  // SYNC (0x05) — checked against the standard mechanism FIRST, same as
+  // Dyn Delay: byte-for-byte IDENTICAL raw values to BBD Delay's and Dyn
+  // Delay's own confirmed Sync tables (SYNC_DIVISIONS/syncIndexFromV127/
+  // syncV127FromIndex, no special encoding). Third confirmation this
+  // session that Sync is ALWAYS the standard mechanism.
+  // DELAY (0x04) — 70-600 ms, plain linear, CONFIRMED to unusual precision
+  // by cross-checking all 13 Sync-derived raw values against Charlie's
+  // corrected sync-ms chart (2026-08-02): every zone lands within 1 ms of
+  // the chart's stated value using ms = 70 + v127/127*(600-70) (several
+  // land EXACTLY — e.g. 1/16 triplet = 83 ms on the nose). Charlie's own
+  // test-notes line "Sync OFF first move is 1/1 = 70 ms" does NOT match
+  // this (the wire data puts 1/1 at ~500 ms, matching the chart) — treated
+  // as a note slip, not evidence of a different range; the 13-point
+  // cross-check is much stronger evidence than a single written line.
+  // FEEDBACK (1.0-9.0) / MIX (1.0-9.0) — Charlie's stated odd range,
+  // double/triple-checked by him ("wtf on the scales") — taken as
+  // literal, NOT stretched to a rounder 0-10. Plain linear.
+  // REC LEVEL (0.0-10.0) / HEAD TILT (0-10) / WOW-FLUTTER (0%-2%) — plain
+  // linear, no capture ambiguity at this resolution (Sec 20A R5).
+  { mid: 0x1C, mids: [0x1C, 0x1D], name: 'EP Tape Echo', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A],
+    rows: [
+      { rows: [
+          [ {label:'Expanded Delay', lo:0x09, toggle:true, options:['Off','On']},
+            {label:'Tape Hiss',      lo:0x0A, toggle:true, options:['Off','On']} ],
+          [ {label:'Head Tilt', lo:0x08,
+              display: function(v) { return (v / 127 * 10).toFixed(1); }},
+            {label:'Wow/Flutter', lo:0x07,
+              display: function(v) { return (v / 127 * 2).toFixed(2) + '%'; }} ]
+        ]
+      },
+      { rows: [
+          [ {label:'Delay', lo:0x04,
+              display: function(v) { return Math.round(70 + (v / 127) * (600 - 70)) + ' ms'; }} ],
+          [ {label:'Sync', lo:0x05, delaySync:true} ]
+        ]
+      },
+      { rows: [
+          [ {label:'Feedback', lo:0x03,
+              display: function(v) { return (1 + (v / 127) * 8).toFixed(1); }},
+            {label:'Rec Level', lo:0x06,
+              display: function(v) { return (v / 127 * 10).toFixed(1); }},
+            {label:'Mix', lo:0x02,
+              display: function(v) { return (1 + (v / 127) * 8).toFixed(1); }} ]
+        ]
+      }
+    ]
+  },
+  { mid: 0x1E, mids: [0x1E, 0x1F], name: 'BBD Delay', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A],
+    rows: [
+      [ {label:'Input',    lo:0x06, display:'delayTen'},
+        {label:'Delay',    lo:0x04, display:'delayMs'},
+        {label:'Feedback', lo:0x03, display:'delayTen'},
+        {label:'Depth',    lo:0x07, display:'delayTen'},
+        {label:'Mix',      lo:0x02, display:'delayTen'} ],
+      [ {label:'Chorus/Vibrato', lo:0x08, toggle:true, options:['Chorus','Vibrato']},
+        {label:'Expanded Delay', lo:0x09, toggle:true, options:['Off','On']},
+        {label:'Noise',          lo:0x0A, toggle:true, options:['Off','On']},
+        {label:'Sync',           lo:0x05, delaySync:true} ]
+    ]
+  },
+  // ── DYN DELAY — captured 2026-08-02 (Wireshark, Dynamic_Delay_Capture.
+  // pcapng, handle 0x2A, 1098 CMD 0x11 frames). Layout confirmed against
+  // Avid's own panel screenshot (three center boxes — DELAY/EQ/ENV MOD —
+  // same grouped/boxed shape as MultiChorus, per Charlie's own call to use
+  // that as reference; not a literal copy, just the same nested-box
+  // mechanism). paramLo assignment confirmed by isolated sweeps in the
+  // exact order Charlie described (Delay+Sync, Feedback, then top-down
+  // through the three center boxes, then Feedback Mode + Mix on the
+  // right) — each control's own ~76-message climb-wrap-descend sweep is a
+  // near-identical byte pattern to every OTHER control's sweep (same
+  // repeatable drag gesture performed once per control, not evidence they
+  // share a parameter):
+  //   0x02 Mix (main) · 0x03 Feedback · 0x04 Delay · 0x05 Sync ·
+  //   0x06 Feedback Mode · 0x07 L/R Ratio · 0x08 Stereo Width ·
+  //   0x09 High Cut · 0x0A Low Cut · 0x0B Rate (env) · 0x0C FBK (env) ·
+  //   0x0D Mix (env).
+  // SYNC (0x05) — CONFIRMED to reuse the exact standard mechanism
+  // (SYNC_DIVISIONS/syncIndexFromV127/syncV127FromIndex), same as BBD
+  // Delay's Sync and every other Sync control in the app: this capture's
+  // 13 raw values are BYTE-FOR-BYTE IDENTICAL to BBD Delay's own confirmed
+  // Sync table. No special encoding, no R9-style investigation needed —
+  // checked against the standard mechanism FIRST this time (lesson from
+  // BBD Delay's Sync saga, same session).
+  // FEEDBACK MODE (0x06) — 4-position dropdown, NOT a knob (confirmed by
+  // its raw sequence: four held plateaus 0x40/0x6A/0x15/0x3F, unlike every
+  // other paramLo's continuous climb-wrap-descend shape). Decodes to
+  // v127 0, 42, 85, 127 — an even 4-way spread, same shape as MultiChorus's
+  // Voices dropdown. Patch-loaded state was Mono; sweep order confirmed by
+  // Charlie: Mono -> Stereo -> Cross -> Pong.
+  // DELAY (0x04) — 1-4000 ms, plain linear. WIDER RANGE than BBD Delay's
+  // 32-400 ms, same wire shape otherwise (byte0 standard v127, bytes 1-3
+  // live sub-step precision noise, read-only-byte0 same as BBD).
+  // L/R RATIO (0x07), FBK (0x0C), MIX ENV (0x0D) — bipolar, centred at
+  // v127=64 (same two-slope-anchored-at-64 shape as valToAmpVol, just a
+  // different unit). L/R Ratio displays as "L:R" text per Charlie's
+  // description (50:100 at bottom, 100:100 centre, 100:50 at top) rather
+  // than a plain +/- number. Charlie's own written spec for Mix (env) read
+  // "100% to (0.0 midpoint) +100%", almost certainly a dropped minus sign
+  // matching FBK's adjacent "-100% to +100%" line — treated as the same
+  // bipolar shape as FBK here; FLAG FOR CONFIRMATION on first live test if
+  // Mix (env) turns out to actually be unipolar 0-100%.
+  // LOW CUT (20 Hz-1 kHz) / HIGH CUT (1 kHz-20 kHz) / RATE (10 ms-1.0 s) —
+  // log-scaled, same exponential shape as MultiChorus's Low Cut/Rate
+  // (single confirmed shape reused across every log-scaled control found
+  // so far in this app) — INFERRED direction (low raw = low end of range),
+  // not independently multi-point-confirmed the way Rate was for
+  // MultiChorus. Flag if a live test shows any of the three reading
+  // backwards or obviously wrong partway through its travel.
+  { mid: 0x20, mids: [0x20, 0x21, 0x22], name: 'Dyn Delay', captured: true,
+    paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D],
+    rows: [
+      { rows: [
+          [ {label:'Delay', lo:0x04,
+              display: function(v) { return Math.round(1 + (v / 127) * (4000 - 1)) + ' ms'; }} ],
+          [ {label:'Sync', lo:0x05, delaySync:true} ],
+          [ {label:'Feedback', lo:0x03,
+              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+        ]
+      },
+      { group:'DELAY', rows: [
+          [ {label:'L/R Ratio', lo:0x07,
+              display: function(v) {
+                var l = (v < 64) ? Math.round(50 + (v / 64) * 50) : 100;
+                var r = (v < 64) ? 100 : Math.round(100 - ((v - 64) / 63) * 50);
+                return l + ':' + r;
+              }},
+            {label:'Stereo Width', lo:0x08,
+              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+        ]
+      },
+      { group:'EQ', rows: [
+          [ {label:'Low Cut', lo:0x0A,
+              display: function(v) { return (20 * Math.pow(1000 / 20, v / 127)).toFixed(1) + ' Hz'; }},
+            {label:'High Cut', lo:0x09,
+              display: function(v) {
+                var hz = 1000 * Math.pow(20000 / 1000, v / 127);
+                return (hz >= 1000) ? (hz / 1000).toFixed(1) + ' kHz' : hz.toFixed(0) + ' Hz';
+              }} ]
+        ]
+      },
+      { group:'ENV MOD', rows: [
+          [ {label:'Rate', lo:0x0B,
+              display: function(v) {
+                var ms = 10 * Math.pow(100, v / 127);
+                return (ms >= 1000) ? (ms / 1000).toFixed(2) + ' s' : ms.toFixed(1) + ' ms';
+              }},
+            {label:'FBK', lo:0x0C,
+              display: function(v) {
+                var pct = (v < 64) ? (v - 64) * (100 / 64) : (v - 64) * (100 / 63);
+                return (pct > 0 ? '+' : '') + pct.toFixed(0) + '%';
+              }},
+            {label:'Mix', lo:0x0D,
+              display: function(v) {
+                var pct = (v < 64) ? (v - 64) * (100 / 64) : (v - 64) * (100 / 63);
+                return (pct > 0 ? '+' : '') + pct.toFixed(0) + '%';
+              }} ]
+        ]
+      },
+      { rows: [
+          [ {label:'Feedback Mode', lo:0x06, select:true, options: [
+              {label:'Mono', v127:0}, {label:'Stereo', v127:42},
+              {label:'Cross', v127:85}, {label:'Pong', v127:127} ] } ],
+          [ {label:'Mix', lo:0x02,
+              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+        ]
+      }
+    ]
+  },
+];
+const DELAY_MODEL_BY_MID = {};
+DELAY_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { DELAY_MODEL_BY_MID[mid] = m; });
+});
+
+// ════════════════════════════════════════════════════════════════════
+// FX LOOP MODELS — Tech Ref Sec 23: TFX 0F/11/49, CMD 0x20 mid range
+// 0x2D-0x33 (7 routing variants — internal keys LMMM/LMSS/LYMM/LYMS/LSMM/
+// LSMS/LSSS = mono/stereo send+return combinations, firmware-picked by
+// chain context; not user-selectable, so no model dropdown). One shared
+// parameter set for all seven: send, rtrn, wetp.
+// paramLos confirmed by Wireshark capture (2026-08-02, FX_Loop_Capture.pcapng,
+// 704 CMD 0x11 broadcasts, Send->Return->Mix sweep order):
+//   0x02 = Send  -12..+12 dB, anchors v127 0=-12.0, 64=0.0, 127=+12.0
+//   0x03 = Return -12..+12 dB, same anchors as Send
+//   0x04 = Mix   0-100%, anchors v127 0=0%, 127=100% (Charlie confirmed
+//          the capture's starting readout was 0%, not the Send/Return
+//          knobs' 0 dB centre — so Mix is a plain linear scale, not the
+//          two-slope dB shape, despite sharing the identical wire pattern)
+// Encoding: standard (v127+64)%128, same as every other knob — the
+// sentinel tail (send side, fx-transport.js) needed for the true 127
+// endpoint is what every sweep showed hitting at the top (Sec 20A R1).
+// ════════════════════════════════════════════════════════════════════
+const FXLOOP_MODELS = [
+  { mid: 0x2D, mids: [0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33], name: 'FX Loop',
+    paramLos: [0x02, 0x03, 0x04],
+    rows: [
+      [ {label:'Send',   lo:0x02, display:'loopDb'},
+        {label:'Return', lo:0x03, display:'loopDb'},
+        {label:'Mix',    lo:0x04, display:'loopPct'} ]
+    ]
+  },
+];
+const FXLOOP_MODEL_BY_MID = {};
+FXLOOP_MODELS.forEach(function(m) {
+  m.mids.forEach(function(mid) { FXLOOP_MODEL_BY_MID[mid] = m; });
+});
+
+// ════════════════════════════════════════════════════════════════════
 // FX1 MODELS — FX1 is a GENERIC HOST SLOT (Tech Ref chain-map section):
 // it can carry models from several other effect families, identified only
 // by slot ID (0x08), never by mid range. FX2 (slot 0x09) hosts the same
