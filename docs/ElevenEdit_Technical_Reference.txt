@@ -2895,6 +2895,51 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   points each) rather than assumed from stated endpoints alone — EP Tape
   Echo's 70-600 ms anchors matched to within 1 ms on every zone.
 
+2026-08-02 (STARTUP GATE + SPLASH SCREEN, new session) — Closed the
+  Primer's last remaining NOT YET IMPLEMENTED item: a startup-only
+  "can't find hardware" gate, like Avid's own editor. TESTED LIVE by
+  Charlie same day, both the gate path (rack absent) and the normal
+  path (rack present, splash reveals a fully-populated main window).
+  DESIGN, settled by discussion before any code (per Charlie's own
+  process rule) then built once agreed:
+    Main window is now created HIDDEN (main.js, show:false) instead of
+    showing immediately with dead/unpopulated controls. A new small
+    splash window (src/splash.html, frameless, always-on-top) shows an
+    "ELEVEN EDIT" text logo (no real logo asset exists — a styled text
+    lockup was used instead) + a left-to-right progress bar + status
+    line, updated as real stages land: bridge process starting -> WS
+    connected -> rack found -> reading patch.
+    The main window is revealed (electronAPI.appReady() IPC, main.js)
+    only once BOTH the chain map and the post-nav param pull have
+    completed their first round-trip after connect (initialChainMapDone/
+    initialNavPullDone flags, state.js; checkInitialPopulateReady(),
+    transport.js, hooked from handleChainMap in sysex-handler.js and
+    requestPatchStateAfterNav's finish()) — "requested and replies
+    received once" was the deliberately chosen bar, not literally every
+    slower per-block/effect-panel readback.
+    If the rack isn't found within a few seconds' grace
+    (STARTUP_GATE_TIMEOUT_MS, state.js; armStartupGate/
+    checkInitialPopulateReady, transport.js), the splash swaps to a
+    Try Again / Quit box matching Avid's own wording ("Unable to locate
+    Eleven Rack..."). Try Again restarts the actual Java bridge process
+    (existing restart-bridge IPC, main.js/preload.js) and reconnects;
+    Quit calls a new quit-app IPC (app.quit()). Startup only — a
+    mid-session drop is unchanged, still the status-bar indicator +
+    retry button's job, not this gate's.
+  BSOD INVESTIGATED, NOT REPRODUCED, LIKELY UNRELATED: Charlie hit a
+  one-off BSOD on his primary PC while testing (USB3 port, a few Try
+  Again cycles, then a printscreen mid-load) and had to System-Restore,
+  losing any crash dump (minidumps were off). Deliberate retest on both
+  USB2 and USB3 on the same PC did not reproduce it. Nothing in this
+  feature touches the USB/driver layer directly — Try Again only kills/
+  relaunches the Java process and reopens the app's own WebSocket, the
+  same restart-bridge path that already existed before this session.
+  Working theory is Avid's own Eleven Rack driver (officially USB2-only)
+  under hot-plug/re-enumeration stress on a USB3 controller, not this
+  code — but genuinely unconfirmed, no dump was captured. Noted here so
+  it isn't lost, not treated as a live bug to chase further absent a
+  repro or a dump.
+
 2026-08-01 (FX-host engine refactor + FX2/MOD wire-up, new session) — Built
   the "REFACTOR FIRST" decision from the prior session's wrap (below): FX1's
   panel code (open/render/update/drag/query/send — fx-panels.js,
