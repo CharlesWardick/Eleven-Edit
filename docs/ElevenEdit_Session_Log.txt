@@ -637,6 +637,28 @@ NEXT:        Charlie to build and test live: click each block's thumbnail and
              confirm its panel opens/closes exactly like the ▼ caret does,
              with no interference with drag-to-reorder.
 -------------------------------------------------------------------
+DATE:        2026-08-02 (same day, 2nd change)
+STATUS:      BUILT — NOT TESTED LIVE
+AREA:        Chain row — click the AMP-CAB thumbnail to return to amp controls
+FINDING:     Charlie: clicking the AMP/CAB block should do the same job as
+             clicking ✕ on an open effect panel or clicking the ▼ caret again
+             — close whatever panel is open and show the amp controls.
+             AMP-CAB has no .chain-open caret of its own (Sec above, "no ▼"),
+             so the new thumb-click handler (previous entry) needed a second
+             branch for it specifically.
+             Charlie also flagged, mid-request: work ahead of him expressing
+             a full idea earlier this session was premature — noted for next
+             time; confirmed the approach in chat before writing this one.
+IMPLEMENTATION: index.html, same '.chain-thumb' click listener from the
+             previous entry. When a thumb has no sibling .chain-open (i.e.
+             AMP-CAB), it now looks for whichever '.chain-open.panel-open' is
+             currently open anywhere in the row and calls .click() on it —
+             reuses that button's own existing close branch rather than a
+             third copy of the close-panel logic. No-op if nothing is open.
+NEXT:        Charlie to build and test live: with an effect panel open, click
+             the AMP-CAB thumbnail and confirm it closes the panel and shows
+             amp controls, same as ✕ or the caret.
+-------------------------------------------------------------------
 
 
 

@@ -1615,8 +1615,15 @@ document.querySelectorAll('.chain-thumb').forEach(function(thumb) {
     var slot = thumb.closest('.chain-slot, .chain-slot-stack');
     if (!slot) return;
     var opener = slot.querySelector('.chain-open[data-panel]');
-    if (!opener) return;
-    opener.click();
+    if (opener) { opener.click(); return; }
+    // No .chain-open here — this is the AMP-CAB thumb (its only real
+    // controls live in the main amp panel, not a chain ▼ panel). 8/2/2026:
+    // clicking it now does the same job as ✕ / clicking an open ▼ again —
+    // close whatever effect panel is open and show the amp controls.
+    // Reuses the existing open .chain-open's own close branch instead of
+    // duplicating that logic; no-ops if nothing is open (amp already showing).
+    var openBtn = document.querySelector('.chain-open.panel-open');
+    if (openBtn) openBtn.click();
   });
 });
 
