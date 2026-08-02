@@ -40,6 +40,66 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
+STATUS:      provisional fix (code written, NOT YET LIVE-TESTED — Charlie
+             stepped away to cool down after a frustrating round; asked
+             for a diagnosis, not necessarily an immediate re-test)
+AREA:        DELAY effect panel — Rate/Delay knob (paramLo 0x04) drag vs
+             an incoming CMD 0x11 broadcast racing it
+FINDING:     Charlie asked, from memory of an old solved bug (a knob at
+             the bottom of its range jumping to the midpoint then back on
+             grab — the classic falsy-zero `parseInt(x) || 64` trap,
+             fixed project-wide long ago), whether grabbing the Delay
+             knob while Sync had it set to some value might show the same
+             jump-then-settle symptom NOW, given today's Sync work.
+             Checked the actual code rather than guess: the DELAY drag
+             handler already uses the CORRECT guarded startVal read
+             (`!== undefined && !== ''`, not `|| 64`), so the classic
+             falsy-zero bug itself is NOT present here. But a DIFFERENT,
+             real bug in the same failure family was found: the R7 fix
+             two entries back (send sendDelayParamWrite(0x05, 0) to
+             clear Sync the instant the Delay knob is grabbed) sends a
+             real hardware write mid-gesture, and the rack's near-
+             immediate broadcast reply for paramLo 0x04 (Delay itself)
+             was being painted onto the knob UNCONDITIONALLY — with
+             nothing to stop it landing while the user's own drag was
+             still moving the knob. That collision (an incoming
+             broadcast repainting the SAME control an active drag is
+             updating) is EXACTLY the visible shape Charlie described
+             (jump to some other value, then back to where the drag
+             left it), just a new trigger for an old-sounding symptom,
+             not a recurrence of the old bug itself.
+             This app already has a proven, shipped fix for this exact
+             class of problem: To Amp 1/2 (ui.js, toAmp1Dragging/
+             toAmp2Dragging) — "readback handler checks these and skips
+             display update while the user is actively dragging,
+             preventing HW broadcasts from fighting the drag in
+             progress." DELAY never got the equivalent guard. Added one
+             (delayDragLo, state.js — which paramLo is the active drag
+             target, -1 if none) and wired sysex-handler.js's DELAY
+             paramLo 0x02-0x0A branch to skip repainting whichever
+             paramLo is currently delayDragLo, same shape as the To Amp
+             precedent. Scroll-wheel and double-click paths were left
+             unguarded — they're single-shot, not a sustained drag loop,
+             so the race window is much smaller and the described
+             symptom is specifically about dragging.
+EVIDENCE:    Code inspection only — Charlie's question was diagnostic
+             (had not yet reproduced this specific symptom live), and the
+             fix follows an EXISTING, already-live-tested pattern in this
+             exact codebase (To Amp 1/2 drag guard) rather than a new
+             invention.
+CONFLICTS:   none.
+NEXT:        Charlie re-tests when he's back: grab the Delay knob while a
+             Sync division is active and confirm there's no visible
+             jump/flicker during the drag (on top of the two already-
+             fixed issues this session — Sync dropdown accuracy and the
+             hardware actually receiving the write). If a jump still
+             happens, this specific theory is wrong and needs fresh
+             evidence (ideally a screen recording or a described exact
+             sequence), not another guess.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-02
 STATUS:      confirmed fix (code written, NOT YET RE-TESTED LIVE)
 AREA:        DELAY effect panel — Rate/Delay knob (paramLo 0x04) vs Sync
              (paramLo 0x05) interlock, the WRITE half

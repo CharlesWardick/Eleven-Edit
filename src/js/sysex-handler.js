@@ -681,6 +681,16 @@ function handleParamReadback(data) {
         return;
       }
       if (paramLo >= 0x02 && paramLo <= 0x0A) {
+        // Drag guard (state.js delayDragLo) — same pattern as To Amp 1/2
+        // (ui.js toAmp1Dragging/toAmp2Dragging): skip repainting THIS
+        // paramLo while it's the user's active drag target, so a
+        // broadcast racing the drag (e.g. the Sync-clear write on Delay
+        // knob touch, R7) can't visually stomp on it mid-drag.
+        if (paramLo === delayDragLo) {
+          appLog('CMD 0x11 DELAY paramLo=0x' + paramLo.toString(16).padStart(2,'0')
+            + ' val=' + val + ' — skipped, actively dragging');
+          return;
+        }
         if (typeof updateDelayKnob === 'function') updateDelayKnob(paramLo, val);
         appLog('CMD 0x11 DELAY paramLo=0x' + paramLo.toString(16).padStart(2,'0') + ' val=' + val);
         return;

@@ -1179,13 +1179,14 @@ function refreshDelayPanelAfterChainMap() {
     startY = e.clientY;
     dragging = true;
     delaySyncClearedThisDrag = false;   // one Sync clear per drag, not per mousemove
+    delayDragLo = activeParamLo;        // guard — see state.js; skip broadcast repaints of this paramLo until mouseup
     if (activeParamLo === 0x04) clearDelaySyncIfNeeded();
     e.preventDefault();
   });
 
   window.addEventListener('mousemove', function(e) {
     if (!dragging || !activeWrap) return;
-    if (e.buttons === 0) { dragging = false; activeWrap = null; return; }
+    if (e.buttons === 0) { dragging = false; activeWrap = null; delayDragLo = -1; return; }
     var val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
     updateDelayKnob(activeParamLo, val);
     // Snapshot before queuing — R6, drag-queue race (Sec 20A).
@@ -1193,8 +1194,8 @@ function refreshDelayPanelAfterChainMap() {
     if (bridgeMidiReady) queueKnobSend('delay:' + lo, function(v) { sendDelayParamWrite(lo, v); }, val);
   });
 
-  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
-  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; });
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeParamLo = -1; delayDragLo = -1; });
+  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeParamLo = -1; delayDragLo = -1; });
 
   document.addEventListener('dblclick', function(e) {
     var wrap = e.target.closest('.knob-wrap[data-delay-lo]');

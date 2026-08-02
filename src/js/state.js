@@ -160,6 +160,17 @@ let fxLoopPanelOpen = false;
 // DELAY panel open flag — same role as distPanelOpen, for the DELAY slot.
 let delayPanelOpen = false;
 
+// DELAY knob currently being dragged (paramLo, -1 if none) — same role as
+// toAmp1Dragging/toAmp2Dragging (ui.js): the CMD 0x11 readback handler
+// skips repainting THIS paramLo while it's the active drag target, so a
+// broadcast racing the drag can't visually stomp on it. Added specifically
+// because clearing Sync (paramLo 0x05) on Delay-knob touch (R7) sends a
+// real hardware write mid-drag, which can trigger a near-immediate
+// broadcast — without this guard that broadcast could repaint the knob to
+// a transitional value while the user's own drag is still moving it
+// (2026-08-02, diagnosed but not yet live-tested).
+let delayDragLo = -1;
+
 // FX-HOST panel open state — replaces a separate fx1PanelOpen/fx2PanelOpen/
 // modPanelOpen trio (2026-08-01 refactor). FX1/FX2/MOD share one engine and
 // one physical panel (fx-panels.js, index.html #panel-fxhost), so only one
