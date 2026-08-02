@@ -40,7 +40,9 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      provisional (code written, NOT TESTED LIVE)
+STATUS:      [FOLDED IN: Tech Ref DELAY SLOT section, Primer WORKING/Status
+             line, Change Log 2026-08-02] — TESTED LIVE, chart accurate,
+             confirmed by Charlie same day.
 AREA:        DELAY effect panel — EP Tape Echo model (THIRD AND LAST
              DELAY family — DELAY panel now has all three models built:
              EP Tape Echo, BBD Delay, Dyn Delay)
@@ -112,7 +114,9 @@ NEXT:        Charlie builds and tests live: all 9 controls read/write
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-02): "All of the
+STATUS:      [FOLDED IN: Tech Ref DELAY SLOT section, Primer WORKING/Status
+             line, Change Log 2026-08-02] — TESTED LIVE (Charlie,
+             2026-08-02): "All of the
              controls land in the correct place and operate as intended."
              Sync-vs-HW confirmed always landing correctly regardless of
              knob display. Pending wrap to fold into Primer WORKING /
@@ -232,7 +236,9 @@ NEXT:        When Charlie says "deploy R9" (or "Sync Off Knob Jump fix") to
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      provisional fix (code written, NOT YET LIVE-TESTED — Charlie
+STATUS:      [FOLDED IN: Tech Ref Sec 20A R9] — superseded by the next
+             entry below (this fix was UI-only and insufficient; the real
+             fix also had to send a hardware write). Charlie
              stepped away to cool down after a frustrating round; asked
              for a diagnosis, not necessarily an immediate re-test)
 AREA:        DELAY effect panel — Rate/Delay knob (paramLo 0x04) drag vs
@@ -292,7 +298,10 @@ NEXT:        Charlie re-tests when he's back: grab the Delay knob while a
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      confirmed fix (code written, NOT YET RE-TESTED LIVE)
+STATUS:      [FOLDED IN: Tech Ref Sec 20A R9] — confirmed fix, later
+             live-tested clean (Charlie: "the Delay/Sync linked issue with
+             touching delay and jumping is gone and it correctly sets sync
+             to off").
 AREA:        DELAY effect panel — Rate/Delay knob (paramLo 0x04) vs Sync
              (paramLo 0x05) interlock, the WRITE half
 FINDING:     4th live-test round: Sync mechanism itself now decodes
@@ -339,7 +348,8 @@ NEXT:        Charlie re-tests: turning the Delay knob while a Sync
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      RETRACTION — corrects BOTH prior DELAY Sync entries below
+STATUS:      [FOLDED IN: Tech Ref DELAY SLOT section's RETRACTED note,
+             Change Log 2026-08-02] — RETRACTION — corrects BOTH prior DELAY Sync entries below
 AREA:        DELAY effect panel — Sync (paramLo 0x05), full mechanism
 FINDING:     Charlie's third live test still failed (dropdown stuck on
               "1/4 triplet" for every selection, including patch load
@@ -423,7 +433,9 @@ NEXT:        Charlie re-tests live: patch load with Sync off should show
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      confirmed — fixes DELAY EFFECT PANEL entry below (Sync OFF)
+STATUS:      [FOLDED IN: superseded by the RETRACTION entry above — this
+             fix was correct as far as it went (OFF's raw value) but the
+             underlying 28-bit theory was itself wrong] — confirmed — fixes DELAY EFFECT PANEL entry below (Sync OFF)
 AREA:        DELAY effect panel — Sync (paramLo 0x05) OFF value
 FINDING:     Charlie's live test reported the Sync dropdown always
              reading OFF no matter what he picked, and that touching the
@@ -484,7 +496,12 @@ NEXT:        Charlie re-tests live: select each Sync division and confirm
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      provisional (code written, NOT TESTED LIVE) — ONE CONTROL
+STATUS:      [FOLDED IN: Tech Ref DELAY SLOT section (BBD Delay), Primer
+             WORKING/Status line] — TESTED LIVE, final confirmed state; the
+             Sync mechanism this entry originally used was later retracted
+             and rebuilt correctly (see the RETRACTION entry above) — the
+             8 non-Sync controls listed here were correct from the start.
+             ONE CONTROL
              (Sync OFF) explicitly UNCONFIRMED even pending live test
 AREA:        DELAY effect panel (new panel, Phase 16 continued) — DELAY
              slot 0x06, CMD 0x11 paramLo map, protocol.js/state.js/
@@ -580,7 +597,8 @@ NEXT:        Charlie builds the EXE and tests live: confirm all 5 knobs
 
 -------------------------------------------------------------------
 DATE:        2026-08-02
-STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-02). Pending wrap to
+STATUS:      [FOLDED IN: Tech Ref FX LOOP SLOT section, Primer WORKING/
+             Status line, Change Log 2026-08-02] — TESTED LIVE (Charlie, 2026-08-02). Pending wrap to
              fold into Primer WORKING / Tech Ref Sec 23 FX LOOP row.
 AREA:        FX LOOP effect panel (new panel, Phase 16 start) — Sec 4 slot
              0x01, CMD 0x11 paramLo map, protocol.js/state.js/fx-transport.js/

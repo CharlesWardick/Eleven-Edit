@@ -2,8 +2,50 @@ ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
 Updated: 2026-08-02
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — CHAIN ROW, AVID-STYLE CLICK-TO-OPEN (2026-08-02,
-TESTED LIVE): clicking a block's pedal thumbnail now opens/closes its effect
+Status: Active development — FX LOOP + DELAY EFFECT PANELS COMPLETE
+(2026-08-02, ALL TESTED LIVE). Phase 16 COMPLETE: the two remaining
+non-amp effect blocks now have working panels, closing out the last item
+in NOT YET IMPLEMENTED's effect-panel list — every one of the 10 chain
+blocks (AMP-CAB, DIST, REVERB, WAH, VOL, FX1, FX2, MOD, FX LOOP, DELAY)
+now has a working panel. FX LOOP got Send/Return/Mix (-12..+12 dB /
+-12..+12 dB / 0-100%, endpoint-sentinel-correct). DELAY got all THREE of
+its model families in one session — BBD Delay (9 controls, incl. a
+Sync-driven Delay knob), Dyn Delay (12 controls, grouped/boxed layout
+referencing MultiChorus's existing box mechanism), and EP Tape Echo (9
+controls) — DELAY_MODELS now has zero remaining stubs. Sync on every one
+of these reuses the SAME standard mechanism (SYNC_DIVISIONS/
+syncIndexFromV127/syncV127FromIndex) already used by amp Tremolo and FX1
+C1 Chorus — confirmed byte-for-byte identical wire values across all
+three DELAY families and FX LOOP has none, so this is now a fully settled,
+zero-exception fact, not a per-panel judgment call.
+  A NEW PERMANENT RULE was added to the Sec 20A Knob/Control Contract
+  during this work: R9 — SYNC OFF KNOB JUMP (aka the sync-clear repaint
+  race). R7 (existing) makes a Sync-interlocked knob's write actually land
+  on hardware by sending Sync=OFF first; R9 is the read-side half — the
+  hardware's near-immediate broadcast reply to that clear-write can repaint
+  the knob mid-drag if nothing guards against it, producing the same visible
+  "jump to some value then snap back" symptom as the old R2 falsy-zero bug,
+  but from a genuinely different cause. Deploy R9 as a PAIR with R7 on every
+  Sync-interlocked control going forward — an R7-only build looks completely
+  correct until a live drag exposes the gap (exactly what happened on BBD
+  Delay's Rate knob this session). amp Tremolo Speed (the original R7
+  control, predates R9) has NOT been audited against R9 yet — flagged as
+  the most likely place to find the same gap, next time that area is
+  touched.
+  ALSO RETRACTED THIS SESSION, worth remembering: an early, wrong theory
+  that DELAY's Sync (paramLo 0x05) used a special 28-bit wire encoding.
+  It doesn't — it's the same plain single-byte mechanism as everywhere
+  else; bytes 1-3 of the broadcast are incidental live-precision noise
+  (same noise pattern already correctly ignored on the Delay knob itself).
+  Cost three live-test rounds to catch. Lesson for any future "this
+  control looks unusually complicated" moment: check the standard
+  mechanism FIRST, before building new machinery — which is exactly what
+  happened successfully on Dyn Delay and EP Tape Echo's Sync afterward
+  (checked first, confirmed identical, zero rework both times).
+  Full detail: Session Log 2026-08-02 (multiple entries) and Tech Ref
+  Sec 20A/23.
+Previously: CHAIN ROW, AVID-STYLE CLICK-TO-OPEN (2026-08-02, TESTED LIVE):
+clicking a block's pedal thumbnail now opens/closes its effect
 panel exactly like its ▼ caret (additive — the caret stays, per Charlie's
 call); clicking the AMP-CAB thumbnail closes whatever panel is open and
 returns to the amp controls, same job as ✕ or the caret. Full detail: Session
@@ -707,41 +749,63 @@ WORKING:
     dropdown and live testing. Charlie's own framing: "Time will tell and
     normal program use" — treated as done, not pending a repeated-pass
     confirmation like an intermittent bug would need.
+  FX LOOP effect panel — its own panel (Sec 4 slot 0x01), not a hook into
+    the FX-host engine (FX LOOP is a fixed single-model block, not a
+    generic host slot). Three knobs: Send/Return (-12..+12 dB, same shape
+    as valToAmpVol without its To-Amp-specific MUTE override at 0), Mix
+    (0-100% linear). All three share the standard (v127+64)%128 wire
+    encoding with the endpoint-sentinel tail (Sec 20A R1). No model
+    dropdown — the block's 7 routing-variant mids (Sec 23) are firmware-
+    picked from chain/stereo context, not user-selectable. TESTED LIVE
+    (Charlie, 2026-08-02).
+  DELAY effect panel — its own panel (Sec 4 slot 0x06), same reasoning as
+    FX LOOP (distinct model families, not a generic host slot), but
+    MULTI-MODEL like DIST/REVERB: a model dropdown over THREE captured
+    families, all TESTED LIVE (Charlie, 2026-08-02), DELAY_MODELS has zero
+    remaining stubs:
+      BBD DELAY (mid 0x1E/0x1F, 9 controls) — Input/Feedback/Depth/Mix
+      (0-10 linear), Delay (32-400 ms), Chorus/Vibrato + Expanded Delay +
+      Noise toggles, Sync (standard mechanism, 14-zone).
+      DYN DELAY (mid 0x20/0x21/0x22, 12 controls) — the first DELAY model
+      needing the grouped/boxed layout (DELAY-EQ-ENV MOD boxes + flat
+      left/right columns), referencing MultiChorus's existing box
+      mechanism as a pattern, not a literal copy; ported the box-rendering
+      + cell.select dropdown capability into DELAY's own render functions
+      (delayAllCells/renderDelayCell/renderDelayRow, fx-panels.js) rather
+      than sharing the FX-host engine. Mix/Feedback/Stereo Width (0-100%),
+      Delay (1-4000 ms), Sync, Feedback Mode (4-way select: Mono/Stereo/
+      Cross/Pong), L/R Ratio (bipolar, "L:R" text display), Low/High Cut
+      (log-scaled Hz), and an ENV MOD box (Rate log-scaled ms/s, FBK and
+      Mix bipolar +/-100%).
+      EP TAPE ECHO (mid 0x1C/0x1D, 9 controls) — Mix/Feedback (1.0-9.0, a
+      real non-0-10 range, confirmed not a typo), Delay (70-600 ms, cross-
+      checked to within 1 ms against Charlie's Sync-division chart across
+      all 13 zones), Sync, Rec Level (0-10), Wow/Flutter (0-2%), Head Tilt
+      (0-10), Expanded Delay + Tape Hiss toggles. Layout is Claude Code's
+      own best-effort read of Avid's panel screenshot (Charlie didn't spec
+      exact box grouping for this one) — not pixel-verified like Dyn
+      Delay's.
+    SYNC ON EVERY DELAY MODEL uses the exact same mechanism as amp
+    Tremolo/FX1 C1 Chorus (SYNC_DIVISIONS/syncIndexFromV127/
+    syncV127FromIndex) — confirmed byte-for-byte identical wire values
+    across all three families before any Sync-specific code was written
+    for Dyn Delay and EP Tape Echo (an earlier, wrong "28-bit special
+    encoding" theory for BBD Delay's Sync was built, live-tested, found
+    broken, and fully retracted THE SAME SESSION — see Sec 20A R9 and the
+    Session Log for the full saga). R7 (Sync interlock on the linked
+    Delay/Rate knob) and R9 (the matching read-side drag guard, new this
+    session) both apply to every DELAY model's Delay knob.
   GUI: Amp Out + Rig Vol are a horizontal "Volumes" box (Gate / To Amp style),
     moved off the old right-hand column for tighter window scaling (7/22).
 
 NOT YET IMPLEMENTED (largest first):
-  Effect panels for the two remaining non-amp effect blocks (DELAY, FX LOOP)
-    — clicking the chain row's arrow still shows a "coming soon" placeholder.
-    (DIST, REVERB, WAH, VOL, FX1, FX2 and MOD all open the shared FX-host
-    panel now, all TESTED LIVE — see WORKING above.)
-    *** HISTORY, for context on why FX1/FX2/MOD share one engine instead of
-    three copies: DIST/REVERB/WAH/VOL/FX1 were each built as their own
-    copy-pasted panel (paramLo capture, rows-based layout, render/update/
-    drag helpers, CMD 0x21 model change, a handle-scoped CMD 0x11 routing
-    block) — fine for genuinely distinct model families, but FX2 was
-    expected to host the IDENTICAL family as FX1 and MOD 6 of the same 10
-    models, so building those as further copies would have tripled any
-    future bug fix. AGREED 2026-08-01 (Session Log, "REFACTOR FIRST"):
-    refactor FX1's panel code into one shared engine parameterized by slot
-    FIRST, re-verify FX1 behaves identically through it, THEN build FX2/MOD
-    as callers of that engine, not new copies. Both steps are now DONE
-    (refactor built + FX1 re-verified live, then FX2/MOD wired up as the
-    two-hook change the refactor was designed to reduce this to — a
-    FX_HOST_ALLOWED_MIDS entry per slot in protocol.js, no new panel code)
-    — full detail in Session Log 2026-08-01's three entries. A second,
-    related idea from that same decision — FX-model-switch value memory and
-    sane per-model defaults — stayed OUT of scope per Charlie's explicit
-    call, not yet designed or built, possibly deferred indefinitely. ***
-    The existing DIST/REVERB/WAH/VOL/FX-host build established the full
-    pattern DELAY/FX LOOP should follow: paramLo capture, rows-based layout
-    in a MODELS table, render/update/drag helpers, CMD 0x21 model change,
-    and a handle-scoped CMD 0x11 routing block — DELAY/FX LOOP are their
-    own, different model families (not generic host slots), so they get
-    their own panel per the original DIST pattern, not a hook into the
-    FX-host engine. paramLo numbers still needed for both. REVERB also
-    proved out two extras worth reusing: a selector rendered as a linked
-    dropdown+knob, and a per-knob unit/scale (ms) on the value readout.
+  *** ALL 10 CHAIN BLOCKS NOW HAVE WORKING EFFECT PANELS as of 2026-08-02
+  (FX LOOP + DELAY's three model families closed out the last gap) — see
+  WORKING above for the full list. A second, related idea from the
+  2026-08-01 FX-host refactor decision — FX-model-switch value memory and
+  sane per-model defaults instead of trusting the firmware's "garbage
+  defaults" on a model change — stayed explicitly OUT of scope (Charlie's
+  call), not yet designed or built, possibly deferred indefinitely. ***
   To Amp source dropdowns — code present, GUI removed. SW sends don't move the
     HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
     defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
@@ -803,7 +867,7 @@ covered under CONFIRMED ARCHITECTURE above.
                    patch dirty only for PER_PATCH_CCS = [17] (Rig Vol); input and
                    tuner CCs do not.
   fx-transport.js  Per-effect-block SEND/query functions (DIST, REVERB, WAH,
-                   VOL, and DELAY/FX LOOP when built), split out so
+                   VOL, DELAY, FX LOOP), split out so
                    transport.js does not grow per panel. FX1/FX2/MOD share
                    ONE slot-parameterized set instead (sendFxHostModelChange/
                    requestFxHostParams/sendFxHostParamWrite, all taking a
@@ -816,9 +880,14 @@ covered under CONFIRMED ARCHITECTURE above.
                    input (0x3D), and drives the matching UI updates.
   ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
                    handlers, chain-row render, knob-colour (dirty) tracking.
-  fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, and DELAY/FX
-                   LOOP when built), split out of ui.js for the same reason
-                   as fx-transport.js. FX1/FX2/MOD share ONE slot-
+  fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, DELAY, FX
+                   LOOP), split out of ui.js for the same reason
+                   as fx-transport.js. DELAY additionally has its own
+                   box/group-layout + cell.select rendering (delayAllCells/
+                   renderDelayCell/renderDelayRow), ported from the FX-HOST
+                   engine's mechanism for Dyn Delay's grouped layout rather
+                   than sharing that engine (DELAY is not a generic host
+                   slot). FX1/FX2/MOD share ONE slot-
                    parameterized FX-HOST engine instead (openFxHostPanel/
                    renderFxHostKnobs/updateFxHostKnob/etc., all taking or
                    deriving a slot id via openFxHostSlot, state.js — one
@@ -846,8 +915,12 @@ KEY STATE VARIABLES (state.js):
   hasReceivedAmpOutValue  guard against premature Amp Out send
   currentMonoState        null / true / false (Stereo/Mono indicator)
   distPanelOpen           true when DIST panel is visible; gates CMD 0x11 DIST routing
-  reverbPanelOpen / wahPanelOpen / volPanelOpen
-                          same role as distPanelOpen, one per effect panel
+  reverbPanelOpen / wahPanelOpen / volPanelOpen / fxLoopPanelOpen /
+  delayPanelOpen          same role as distPanelOpen, one per effect panel
+  delayDragLo             DELAY paramLo currently being dragged, -1 if none
+                          (Sec 20A R9) — CMD 0x11 readback skips repainting
+                          this paramLo while set, same pattern as ui.js's
+                          toAmp1Dragging/toAmp2Dragging
   openFxHostSlot          null, or SLOT_FX1/FX2/MOD — which GENERIC HOST
                           SLOT's shared panel is open (2026-08-01 refactor;
                           replaces the old fx1PanelOpen boolean), gates CMD
@@ -994,83 +1067,19 @@ GRAPHICS — DESIGN DECISIONS (7/19, agreed but not yet implemented)
   filenames. Bypassed blocks dim via a CSS filter, no second image set.
 
 
-NEXT SESSION — EFFECT PANEL FOR ANOTHER BLOCK
+EFFECT PANELS — STATUS
 -------------------------------------------------------------------
-  The remaining chunk is the two non-amp effect panels still on placeholders:
-  DELAY and FX LOOP. (DIST, REVERB, WAH, VOL, FX1, FX2 and MOD are DONE.) The
-  existing panels established the whole pattern; each new slot needs one
-  Wireshark capture for its paramLo numbers, then the same six edits copied
-  across. Full recipe and recommended order are in the LATER — EFFECT PANELS
-  section below.
-  Read QUERY BUDGET first: fetch a block's parameters when its panel OPENS,
-  not on every nav.
-
-QUERY BUDGET — READ THIS BEFORE ADDING BLOCK PANELS
--------------------------------------------------------------------
-  Measured from Avid (7/23/2026), per patch recall: 11 bypass flags, one per
-  block, PLUS 25 parameters for the AMP BLOCK ONLY. Avid queries NO parameters
-  for MOD, DELAY or any other block on recall — only their bypass flags. It
-  pulls the amp in full because the amp is the panel it shows.
-  So our ~20 queries should NOT grow toward Avid's 47 as blocks are added.
-  Fetch a block's parameters WHEN ITS PANEL OPENS, not on every nav — the
-  distPanelOpen / reverbPanelOpen flags already point this way. Querying every
-  block on every patch change adds permanent cost for values nobody is looking
-  at, and would make us slower than Avid rather than faster.
-
-LATER — EFFECT PANELS FOR REMAINING TWO SLOTS (DELAY, FX LOOP)
--------------------------------------------------------------------
-  *** SCOPE: DELAY and FX LOOP ONLY. *** FX1/FX2/MOD are DONE — they share the
-  2026-08-01 FX-host engine, not this per-slot recipe; WAH/VOLUME/REVERB also
-  shipped. Steps 1-6 below remain the right recipe for DELAY and FX LOOP,
-  which are genuinely distinct model families (not generic host slots), so
-  each gets its own panel per the original DIST pattern rather than a hook
-  into the FX-host engine. (Any "FX1 is missing R7" line further below is OLD
-  — R7/R8 were retrofitted 2026-07-31, R9 added 2026-08-02; build every knob
-  against all of R1-R9, Sec 20A, regardless.)
-  The DIST panel established the full pattern. Two
-  non-amp slots remain: DELAY, LOOP.
-
-  WHAT IS ALREADY DONE:
-    - DIST_MODELS rows-based layout in protocol.js (label, lo, 2D position)
-    - renderDistKnobs / updateDistKnob / drag handler in ui.js (keyed on
-      data-dist-lo, no index arithmetic)
-    - CMD 0x21 model-change send in transport.js (sendDistModelChange pattern)
-    - Panel open/close, chain-open handler routing, ✕ close button in index.html
-
-  *** BUILD EVERY KNOB AGAINST THE KNOB/CONTROL CONTRACT — Tech Ref Sec 20A. ***
-  It is the single authoritative checklist (R1 endpoint sentinels, R2 zero-value
-  safe, R3 red-on-change, R4 scroll-wheel, R5 scale anchoring, R6 drag-queue
-  safety, R7 Sync interlock, R8 double-click-to-baseline, R9 Sync Off Knob
-  Jump / sync-clear repaint race — added 2026-08-02, deploy it as a PAIR with
-  R7 any time R7 applies, not R7 alone; see Sec 20A for why). Copying an
-  existing panel is NOT sufficient on its own — panels predate rules, so check
-  the copy against all of R1-R9. (FX1's R7/R8 gaps were retrofitted 7/31;
-  DELAY's R9 gap was found and fixed 8/2, the amp + effect panels now carry
-  all of them. The Sec 20A one-time CODE AUDIT — runtime vs R1-R9, plus
-  comment-vs-code — still stands, run in Claude Code.)
-
-  WHAT EACH NEW SLOT NEEDS — copy the FX1 panel (built 2026-07-30), NOT
-  DIST/REVERB/WAH/VOL, which were built before two bugs were found and
-  fixed that day (a rack-hanging drag-queue race, and "the 9.9 bug" —
-  see fx-panels.js / fx-transport.js file headers and the Session Log for
-  both):
-    1. A Wireshark capture: with our app running, open the effect panel in the
-       Avid editor and sweep each knob in order. One capture per model family
-       (3-knob, 4-knob etc.) is sufficient. Supply the .pcapng file.
-    2. A model table entry (like FX1_MODELS) in protocol.js.
-    3. A panel div and chain-open routing in index.html (copy the FX1 pattern).
-    4. Open/close/refresh functions + scroll-wheel branch + rebaselineOpenFxPanel
-       branch in ui.js/fx-panels.js (copy the FX1 pattern, not DIST's).
-    5. CMD 0x11 routing in sysex-handler.js (copy the FX1 routing block).
-    6. sendModelChange / requestParams / sendParamWrite in fx-transport.js
-       (copy the FX1 functions — sendParamWrite MUST have the endpoint-
-       sentinel tail logic, not a flat 00 00 00 00 tail).
-
-  RECOMMENDED ORDER (by capture simplicity):
-    DELAY — multi-model family, needs one capture per layout.
-    LOOP — minimal controls; protocol known from TFX work.
-
-  FX1 / FX2 / MOD OVERLAP — SUPERSEDED, moved to Archive 2026-08-01: all
-  three are built and TESTED LIVE via the shared FX-host engine (Phase 15).
-  Live facts (FX2 = identical model family, MOD 6-of-10, Gray Compressor
-  mono-only exception) live in Tech Ref Sec 23.
+  ALL 10 CHAIN BLOCKS NOW HAVE WORKING PANELS (2026-08-02) — DIST, REVERB,
+  WAH, VOL, FX1, FX2, MOD, FX LOOP, and all three DELAY model families
+  (BBD Delay, Dyn Delay, EP Tape Echo). See WORKING above for details.
+  The build recipe that was used for each new slot (Wireshark capture ->
+  model table entry -> panel markup -> render/update/drag -> CMD 0x11
+  routing -> send functions), the QUERY BUDGET rule (fetch a block's
+  params when its panel OPENS, not every nav — still live for anything
+  that reads hardware state), and the Sec 20A Knob/Control Contract
+  (R1-R9, every new control must satisfy all of them) are the durable
+  parts of this and apply to any future control work, not just the two
+  slots that used them last. The specific step-by-step recipe text has
+  moved to the Archive (superseded, DELAY/FX LOOP are done) — see Tech
+  Ref Sec 20A for the actual rule list, which is what to read next time a
+  knob is being added anywhere in the app.
