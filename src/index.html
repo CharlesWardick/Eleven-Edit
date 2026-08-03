@@ -31,6 +31,13 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Belt-and-suspenders for the splash->main white-flash fix (main.js,
+     2026-08-03): the BrowserWindow's own backgroundColor already covers
+     the window itself before content paints, but html has no background
+     of its own by default (only body did) — covering it too closes any
+     gap between the window's background and body's first paint. */
+  html { background: var(--bg); }
+
   body {
     background: var(--bg); color: var(--text);
     font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px;
@@ -659,21 +666,28 @@
     display: none; position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
     background: #1a1a1a; border: 1px solid var(--accent-dim); border-radius: 6px;
     padding: 14px; z-index: 300; box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-    min-width: 480px; max-height: 70vh; overflow-y: auto;
+    min-width: 480px; max-width: 92vw; max-height: 70vh; overflow-y: auto;
   }
   #slot-matrix.open { display: block; }
-  .matrix-title { color: var(--accent); font-size: 12px; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; }
+  .matrix-title { color: var(--accent); font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; }
   /* Bank label + slot id were #777 on a #222 background — Charlie found
      both hard to read (2026-08-03). Bumped to legible, still-secondary
      colours: muted grey for the bank header, warm accent-dim for the
      per-slot id so it reads as "label", not competing with the name. */
-  .matrix-bank-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
-  .matrix-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 10px; }
-  .matrix-slot { background: #222; border: 1px solid #555; border-radius: 3px; padding: 4px 6px; cursor: pointer; }
+  .matrix-bank-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  /* FIXED column width (2026-08-03, Charlie's follow-up) — was
+     repeat(4, 1fr), which lets each BANK's own grid size its columns off
+     THAT bank's own longest name, so box width visibly varied bank to
+     bank (a 16-char name's bank was noticeably wider than a short-name
+     bank's). 148px comfortably fits the max 16-char patch name at the
+     bumped 13px font; every bank's grid — and so every .matrix-slot box —
+     is now the same size regardless of what any patch happens to be named. */
+  .matrix-grid { display: grid; grid-template-columns: repeat(4, 148px); gap: 4px; margin-bottom: 10px; }
+  .matrix-slot { background: #222; border: 1px solid #555; border-radius: 3px; padding: 4px 6px; cursor: pointer; height: 40px; box-sizing: border-box; }
   .matrix-slot:hover { border-color: var(--accent); }
   .matrix-slot.current { background: #2d2200; border-color: var(--accent); }
-  .matrix-slot .slot-id   { color: var(--accent-dim); font-size: 10px; font-weight: bold; display: block; font-family: 'Consolas', monospace; }
-  .matrix-slot .slot-name { color: var(--text); font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .matrix-slot .slot-id   { color: var(--accent-dim); font-size: 11px; font-weight: bold; display: block; font-family: 'Consolas', monospace; }
+  .matrix-slot .slot-name { color: var(--text); font-size: 13px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .matrix-slot.current .slot-name { color: var(--accent); }
   .matrix-close { margin-top: 8px; text-align: right; }
   .matrix-close button { background: #222; border: 1px solid #555; color: #999; border-radius: 3px; padding: 3px 10px; font-size: 11px; cursor: pointer; }

@@ -38,6 +38,51 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Jump List sizing/font + splash->main white flash
+FINDING:     Second round of Charlie's Jump List feedback (by-name view
+  confirmed working for A-G banks by this point):
+    1. Font size in both list views too small — bumped matrix-title 12->14px,
+       .slot-id 10->11px, .slot-name 11->13px (index.html). Both views share
+       the same .matrix-slot markup/CSS, so one change covers both.
+    2. Box sizes varied bank to bank — .matrix-grid used
+       grid-template-columns: repeat(4, 1fr), so each BANK's own grid sized
+       its 4 columns off THAT bank's own longest name, making a bank with a
+       16-char name visibly wider than a bank with a short one. Fixed to a
+       constant repeat(4, 148px) (comfortably fits the max 16-char patch
+       name at the new font) plus a fixed .matrix-slot height (40px) — every
+       bank's grid, and so every box, is now the same size regardless of
+       content. Added max-width:92vw to #slot-matrix so fewer banks now
+       fit per row within a normal window (was previously unbounded and
+       could try to lay out all 26 banks in one very wide row) — the
+       overlay was already vertically scrollable, so this just means more
+       rows instead of overflowing sideways.
+    3. Massive white flash at the exact splash-window -> main-window swap —
+       Charlie: "the exact reason I avoid Chromium browsers." mainWindow
+       already had backgroundColor set (rules out the other common cause,
+       an unpainted white frame), so this is most likely a Windows DWM
+       compositor artifact from destroying a topmost frameless window
+       (splash) in the SAME tick a hidden window is first shown. FIX
+       (main.js, 'app-ready' handler): show() the main window, then wait
+       120ms before closing the splash, giving the compositor one paint
+       cycle to actually get the main window on screen before the splash
+       frame disappears, instead of both changes landing simultaneously.
+       Also added html{background} (index.html) as a belt-and-suspenders
+       safety net alongside the existing body background.
+EVIDENCE:    code written and read back; node --check clean on main.js,
+  every inline <script> in index.html parsed clean via `new Function(...)`.
+  NOT yet tested live — items 1-2 are low-risk CSS-only changes, item 3
+  (window-swap timing) is the one genuinely uncertain fix since it targets
+  an OS-level compositor artifact Claude Code cannot reproduce or observe
+  directly (per the Primer's own rule — this needs Charlie's real build).
+CONFLICTS:   none — additive/cosmetic only.
+NEXT:        Charlie's live test: confirm font/box sizing reads better and
+  is now consistent across every bank; confirm whether the white flash is
+  gone, reduced, or unchanged — if unchanged, the 120ms delay isn't the
+  actual cause and the real trigger needs more investigation (possibly
+  GPU/driver-specific, outside what a code change alone can fix).
+-------------------------------------------------------------------
 DATE:        2026-08-03 (UPDATE — addressing bug found + fixed same day)
 STATUS:      provisional — fix written, NOT yet re-tested live
 AREA:        Jump List by-name scan — wrong CMD 0x04 addressing (B1-B4

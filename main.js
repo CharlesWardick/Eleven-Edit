@@ -653,8 +653,22 @@ ipcMain.on('startup-retry-click', function() {
   if (mainWindow) mainWindow.webContents.send('startup-retry-click');
 });
 ipcMain.on('app-ready', function() {
+  // Charlie reported a "massive white flash" at exactly this swap
+  // (2026-08-03) — a classic Electron/Windows DWM compositor artifact when
+  // a topmost frameless window (splash) is destroyed in the SAME tick a
+  // hidden window is first shown: the window manager can flicker through
+  // the desktop/white background while it composites both changes at once.
+  // mainWindow already has backgroundColor set (avoids the OTHER common
+  // cause, an unpainted white frame), so this fix targets the swap timing
+  // specifically: show the main window, give the compositor one paint
+  // cycle to actually put it on screen, THEN close the splash — instead of
+  // both happening back-to-back with no gap for Windows to catch up.
   if (mainWindow) mainWindow.show();
-  if (splashWindow) { splashWindow.close(); splashWindow = null; }
+  if (splashWindow) {
+    const s = splashWindow;
+    setTimeout(function() { s.close(); }, 120);
+    splashWindow = null;
+  }
 });
 
 function createWindow() {
