@@ -102,6 +102,31 @@ NEXT:        Charlie's live test: drag-reorder several amps (incl. one with
   app restart and a patch nav, confirm lock/reset behave, confirm no value
   flash/jump on amp change. If confirmed clean, fold into Primer
   WORKING/NOT YET IMPLEMENTED and Tech Ref Change Log at wrap.
+  [UPDATE 2026-08-03, same day, after first live test] Charlie found a real
+  bug: during a reorder drag, knobs that slid into a new slot (not the
+  dragged one) turned red and their value/readout dropped toward 64/"--",
+  even though no send happened and the watchdog never tripped (correctly
+  read by Charlie as "display-only, not a HW issue"). ROOT CAUSE, two
+  compounding bugs in repaintToneRowPreview (ui.js):
+    (1) knobColor/drawKnob decide red-vs-amber by comparing live value
+    against wrap.dataset.orig (baseline) — a property of the FIXED slot
+    DOM node, not of the knob's content. The preview repaint moved VALUES
+    between slots on reorder but left each slot's dataset.orig behind, so
+    a knob landing in a new slot got compared against the PREVIOUS
+    occupant's baseline (false red almost every time).
+    (2) The dragged knob's own slot content was deliberately skipped each
+    preview step (excludeLo) so its position could be driven by a separate
+    continuous cursor-follow transform — but that left stale leftover
+    value/text in that slot, and since the next step's snapshot trusted
+    lo-bookkeeping over what was actually painted, that staleness could get
+    attributed to the wrong knob and compound over a multi-slot drag,
+    eventually surfacing as a knob showing 64/"--" though nothing was ever
+    reset. FIX: repaintToneRowPreview now snapshots+carries dataset.orig
+    alongside value/text on every slot swap, and no longer skips the
+    dragged knob's own content (safe — its value isn't changing while its
+    LABEL is what's being dragged; only repaintToneRowAnimated's FLIP
+    transform still skips it, for position only, not content).
+  STATUS: fix written, NOT yet re-tested live — needs Charlie's next build.
 -------------------------------------------------------------------
 DATE:        2026-07-30 -> 2026-08-01  (FX1 Phase 14 — condensed 2026-08-01)
 STATUS:      TESTED LIVE — FX1 EFFECT PANEL COMPLETE, 10 of 10 models. (In this

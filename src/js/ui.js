@@ -1989,18 +1989,27 @@ function moveLoInOrder(order, lo, targetLo, after) {
   return cur;
 }
 
-// Live-drag repaint: carries each knob's CURRENT value/readout forward into
-// its new slot instead of resetting to a placeholder (nothing has actually
-// changed on the amp/hardware — only where it's displayed). excludeLo (the
-// dragged knob itself) is skipped — its slot is driven continuously by the
-// cursor-follow transform in the mousemove handler below, not by this swap.
-function repaintToneRowPreview(ampKey, loOrder, excludeLo) {
+// Live-drag repaint: carries each knob's CURRENT value/baseline/readout
+// forward into its new slot instead of resetting to a placeholder (nothing
+// has actually changed on the amp/hardware — only where it's displayed).
+// Updates EVERY slot's content, including the dragged knob's own — its
+// value isn't changing while its LABEL is what's being dragged, so
+// repainting it is harmless, and skipping it (an earlier version of this
+// function did) left stale leftover content in that fixed slot, which then
+// got mis-captured as a DIFFERENT knob's state on the next drag step.
+// dataset.orig (the red/amber "changed" baseline — knobColor, drawKnob
+// above) is content-identity state exactly like value/text and MUST travel
+// with it: it lives on the fixed tone-w<i> node, so a pure content swap
+// that only moved `value` left `orig` behind on the OLD occupant's
+// baseline, reading every slot that received new content as "changed" even
+// when it hadn't (the red-flash bug Charlie found 2026-08-03).
+function repaintToneRowPreview(ampKey, loOrder) {
   const oldOrder = toneRowRenderedLoOrder;
   const stateByLo = {};
   oldOrder.forEach((lo, i) => {
     const wEl = document.getElementById('tone-w' + i);
     const vEl = document.getElementById('tone-v' + i);
-    if (wEl) stateByLo[lo] = { value: wEl.dataset.value, text: vEl ? vEl.textContent : '--' };
+    if (wEl) stateByLo[lo] = { value: wEl.dataset.value, orig: wEl.dataset.orig, text: vEl ? vEl.textContent : '--' };
   });
   const defs = toneKnobDefsForLoOrder(ampKey, loOrder);
   for (let i = 0; i < 8; i++) {
@@ -2020,13 +2029,16 @@ function repaintToneRowPreview(ampKey, loOrder, excludeLo) {
           + 'It follows the Sync division, and writing it fights the hardware.'
         : '';
       if (lEl) lEl.textContent = def.label;
-      if (def.lo !== excludeLo) {
-        const prior = stateByLo[def.lo];
-        const val = prior && prior.value !== undefined && prior.value !== ''
-                    ? parseInt(prior.value) : 64;
-        if (wEl) { wEl.dataset.value = val; drawKnob(wEl.querySelector('canvas'), val); }
-        if (vEl) vEl.textContent = prior ? prior.text : '--';
+      const prior = stateByLo[def.lo];
+      const val = prior && prior.value !== undefined && prior.value !== ''
+                  ? parseInt(prior.value) : 64;
+      if (wEl) {
+        wEl.dataset.value = val;
+        if (prior && prior.orig !== undefined && prior.orig !== '') wEl.dataset.orig = prior.orig;
+        else delete wEl.dataset.orig;
+        drawKnob(wEl.querySelector('canvas'), val);
       }
+      if (vEl) vEl.textContent = prior ? prior.text : '--';
     } else {
       kEl.style.display = 'none';
     }
@@ -2037,7 +2049,11 @@ function repaintToneRowPreview(ampKey, loOrder, excludeLo) {
 // FLIP-animates repaintToneRowPreview's content swap so the OTHER knobs
 // visibly slide to their new slot instead of snapping — same technique as
 // the chain row's applyChainOrderAnimated, keyed by paramLo (content
-// identity) since the DOM nodes themselves never move here.
+// identity) since the DOM nodes themselves never move here. excludeLo (the
+// dragged knob) is skipped HERE ONLY — its slot's POSITION is already being
+// driven every frame by the continuous-follow transform in the mousemove
+// handler below, and this FLIP transform would fight that. Its CONTENT is
+// still fully repainted by repaintToneRowPreview above like everyone else.
 function repaintToneRowAnimated(ampKey, loOrder, excludeLo) {
   const oldOrder = toneRowRenderedLoOrder;
   const oldRects = {};
@@ -2047,7 +2063,7 @@ function repaintToneRowAnimated(ampKey, loOrder, excludeLo) {
     if (cont) oldRects[lo] = cont.getBoundingClientRect();
   });
 
-  repaintToneRowPreview(ampKey, loOrder, excludeLo);
+  repaintToneRowPreview(ampKey, loOrder);
 
   loOrder.forEach((lo, i) => {
     if (lo === excludeLo) return;
@@ -2184,7 +2200,7 @@ function wireToneKnobDrag() {
     // (carries live values forward), not a fresh placeholder paint: nothing
     // on the amp/hardware changed just because the on-screen order did.
     const finalOrder = getOrderedToneKnobs(currentAmpKey).map(k => k.lo);
-    repaintToneRowPreview(currentAmpKey, finalOrder, null);
+    repaintToneRowPreview(currentAmpKey, finalOrder);
     toneDragLo = null;
     toneDragCont = null;
     toneDragPending = false;
