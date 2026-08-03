@@ -7,7 +7,18 @@ const { exec, spawn } = require('child_process');
 // SINGLE INSTANCE LOCK
 // ════════════════════════════════════════════════════════════════════
 const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) { app.quit(); }
+// app.quit() alone only SCHEDULES a quit — it does not stop the rest of this
+// script from running synchronously. Without the return, a second launch
+// still reached app.whenReady() -> launchBridge() -> killOrphanedBridgeProcesses(),
+// which force-kills ANY ElevenRackBridge.jar process (by design, to clean up
+// a stale one from a crashed prior session) — including the FIRST, already-
+// running instance's bridge, right before the second instance itself quit.
+// That's what caused the "brief splash flash, then the running instance's
+// bridge connection dies" symptom Charlie found 2026-08-03, introduced (or
+// exposed — the lock existed before) around the same time as the startup
+// gate. Bailing out here means the second instance's window/bridge/splash
+// code never runs at all.
+if (!gotLock) { app.quit(); return; }
 
 app.on('second-instance', function() {
   if (mainWindow) {

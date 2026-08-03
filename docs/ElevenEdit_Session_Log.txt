@@ -40,6 +40,40 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Startup — second launch kills the running instance's bridge
+FINDING:     Charlie noticed (may have existed before, only surfaced/noticed
+  since the startup gate splash landed 2026-08-02): launching the EXE while
+  it's already running shows a brief, barely-visible splash flash, then
+  the ALREADY-RUNNING instance's Java bridge connection dies (Restart JB
+  in the running instance fixes it, but shouldn't be needed — the second
+  launch should just no-op / focus the existing window).
+  ROOT CAUSE (main.js): the single-instance lock
+  (app.requestSingleInstanceLock()) already existed, but the `if (!gotLock)`
+  branch only called app.quit() — which merely SCHEDULES a quit, it does not
+  stop the rest of the script executing synchronously. So a second launch
+  still reached app.whenReady() -> launchBridge() ->
+  killOrphanedBridgeProcesses() (a PowerShell sweep that force-kills any
+  ElevenRackBridge.jar process — by design, to clean up a stale one left
+  over from a crashed prior session) before the second instance's own
+  app.quit() actually took effect — killing the FIRST, legitimately running
+  instance's bridge in the process.
+  FIX: added `return;` right after app.quit() in that branch, so a second
+  launch bails out of the rest of main.js entirely — never reaches
+  whenReady/launchBridge/window creation at all.
+EVIDENCE:    code read and root-caused directly (killOrphanedBridgeProcesses'
+  blanket kill-by-jar-name behavior is unambiguous); one-line fix, node
+  --check clean. NOT yet re-tested live by Charlie (double-launch scenario).
+CONFLICTS:   none — killOrphanedBridgeProcesses itself is intentional/correct
+  behavior for its actual purpose (cleaning up a truly orphaned bridge from
+  a crashed session); the bug was only that a second instance could reach it
+  at all.
+NEXT:        Charlie's live test: launch the EXE, then launch it again while
+  the first is running and connected — confirm the second launch does
+  nothing observable (no splash flash) and the first instance's bridge
+  connection is undisturbed.
+-------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Amp Controls — tone-knob drag/drop reorder + remember (UI)
 FINDING:     New feature, agreed with Charlie before coding: the tone-stack
   knobs (up to 8 per amp, AMP_TONE_PARAMS) can be dragged into a user-
