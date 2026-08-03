@@ -586,6 +586,11 @@ ipcMain.handle('get-saved-ports', function()        { return storeGet('ports', {
 ipcMain.handle('save-ports',      function(e, ports){ storeSet('ports', ports); return true; });
 ipcMain.handle('get-bank-cache',  function()        { return storeGet('bankCache', {}); });
 ipcMain.handle('save-bank-cache', function(e, cache){ storeSet('bankCache', cache); return true; });
+// Amp Controls tone-knob reorder (2026-08-03) — per-amp-key array of paramLo,
+// the order the user dragged that amp's knobs into. Empty/missing entry =
+// that amp still uses AMP_TONE_PARAMS' table order.
+ipcMain.handle('get-tone-knob-order',  function()        { return storeGet('toneKnobOrder', {}); });
+ipcMain.handle('save-tone-knob-order', function(e, order){ storeSet('toneKnobOrder', order); return true; });
 ipcMain.handle('get-zoom',        function()        { return storeGet('zoomFactor', 1.0); });
 ipcMain.handle('set-zoom',        function(e, factor) {
   storeSet('zoomFactor', factor);

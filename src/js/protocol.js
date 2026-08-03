@@ -777,6 +777,64 @@ function ampHasTremolo(key) {
   return !!(ap && ap.knobs && ap.knobs.some(k => k.lo === 0x12));
 }
 
+// ── Amp Controls tone-knob reorder (2026-08-03) ──
+// Returns this amp's tone knobs (type 'knob' only, toggles excluded same as
+// updateToneKnobs) in DISPLAY order: the user's saved order (toneKnobOrderPrefs,
+// state.js) if one exists for this amp, else AMP_TONE_PARAMS' own table order.
+// This is the SINGLE place that decides "knob at screen slot i is which
+// control" — every consumer (paint, drag/dblclick/wheel handlers, the live
+// CMD 0x11 readback router) goes through this so they can never disagree
+// with each other about what slot i means.
+function getOrderedToneKnobs(ampKey) {
+  const ap = ampKey ? AMP_TONE_PARAMS[ampKey] : null;
+  const defaultKnobs = (ap && ap.knobs) ? ap.knobs.filter(k => k.type === 'knob') : [];
+  const savedLos = ampKey ? toneKnobOrderPrefs[ampKey] : null;
+  if (!savedLos || !savedLos.length) return defaultKnobs;
+  const byLo = {};
+  defaultKnobs.forEach(k => { byLo[k.lo] = k; });
+  const ordered = [];
+  savedLos.forEach(lo => {
+    if (byLo[lo]) { ordered.push(byLo[lo]); delete byLo[lo]; }
+  });
+  // Anything the saved order doesn't mention (e.g. a control captured after
+  // the order was saved) is appended in default order, never dropped.
+  defaultKnobs.forEach(k => { if (byLo[k.lo]) ordered.push(k); });
+  return ordered;
+}
+
+// Screen slot index (0-based) a given paramLo currently occupies for this
+// amp, or -1. Used by the live CMD 0x11 readback router and by
+// updateToneReadouts (TFX initial readback) to find the right tone-w<i>/
+// tone-v<i> element regardless of any saved reorder.
+function toneSlotIndexForLo(ampKey, lo) {
+  const ordered = getOrderedToneKnobs(ampKey);
+  for (let i = 0; i < ordered.length; i++) if (ordered[i].lo === lo) return i;
+  return -1;
+}
+
+// Persists a new screen order (array of paramLo) for one amp — called on
+// drop by wireToneKnobDrag (ui.js). In-memory immediately; disk write is
+// fire-and-forget (same pattern as bank cache/zoom — a lost write here just
+// means the amp reverts to default order next launch, not a correctness bug).
+function setToneKnobOrder(ampKey, loOrder) {
+  if (!ampKey) return;
+  toneKnobOrderPrefs[ampKey] = loOrder.slice();
+  if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.saveToneKnobOrder) {
+    window.electronAPI.saveToneKnobOrder(toneKnobOrderPrefs).catch(function(){});
+  }
+}
+
+// Reset one amp back to AMP_TONE_PARAMS' table order. Returns true if there
+// was a saved order to clear.
+function resetToneKnobOrder(ampKey) {
+  if (!ampKey || !(ampKey in toneKnobOrderPrefs)) return false;
+  delete toneKnobOrderPrefs[ampKey];
+  if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.saveToneKnobOrder) {
+    window.electronAPI.saveToneKnobOrder(toneKnobOrderPrefs).catch(function(){});
+  }
+  return true;
+}
+
 // ── Amp model integer → AMP key ──
 const AMP_ID_TO_KEY = {
   0:          'tweed_lux',

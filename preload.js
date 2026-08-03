@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   savePorts:      (ports)         => ipcRenderer.invoke('save-ports', ports),
   getBankCache:   ()              => ipcRenderer.invoke('get-bank-cache'),
   saveBankCache:  (cache)         => ipcRenderer.invoke('save-bank-cache', cache),
+  getToneKnobOrder:  ()           => ipcRenderer.invoke('get-tone-knob-order'),
+  saveToneKnobOrder: (order)      => ipcRenderer.invoke('save-tone-knob-order', order),
   getZoom:        ()              => ipcRenderer.invoke('get-zoom'),
   setZoom:        (factor)        => ipcRenderer.invoke('set-zoom', factor),
   getStartupMode: ()              => ipcRenderer.invoke('get-startup-mode'),

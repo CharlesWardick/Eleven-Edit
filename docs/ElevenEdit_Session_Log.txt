@@ -38,6 +38,71 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Amp Controls — tone-knob drag/drop reorder + remember (UI)
+FINDING:     New feature, agreed with Charlie before coding: the tone-stack
+  knobs (up to 8 per amp, AMP_TONE_PARAMS) can be dragged into a user-
+  preferred order, per amp, persisted across restarts. Design:
+    - Drag handle is the knob's LABEL only (not the knob itself), reusing
+      the chain row's mousedown/mousemove/mouseup + FLIP-slide technique
+      (wireChainDrag) as the agreed reference implementation — adapted, not
+      copied verbatim (see MECHANISM below for why).
+    - Locked by default every launch (toneRowLocked, state.js — NOT
+      persisted, a deliberate extra guard Charlie asked for on top of the
+      label-only handle) — a small lock icon must be clicked to arm
+      dragging. A reset icon clears just the current amp's saved order.
+      Both docked to the right of the tone-knob row behind a divider
+      (Charlie's call, after seeing a mock), no grip glyph on the labels
+      (Charlie's call — undocumented detail, shifted label text off-center).
+    - Order is loaded from settings.json (toneKnobOrder, keyed by ampKey ->
+      array of paramLo) at app-init, BEFORE the first tone knob ever paints
+      this session (same timing slot as the existing bank-cache load) — so
+      a saved custom order is what's drawn on the very first render, never
+      a default-order paint that then jumps to the preferred one. This was
+      Charlie's explicit ask ("don't want to see them jump around").
+  MECHANISM (why this isn't a literal chain-row copy): the chain row
+  physically relocates real DOM nodes on reorder. The tone row's 8 slots
+  (tone-k0..tone-k7) are fixed DOM elements that every OTHER tone-knob code
+  path (drag/dblclick/wheel handlers, the live CMD 0x11 readback router in
+  sysex-handler.js, updateToneReadouts) already addresses by fixed slot id,
+  derived from a single new ordering function, getOrderedToneKnobs(ampKey)
+  (protocol.js) — physically moving those divs would break every one of
+  those id-based lookups. So a reorder here swaps CONTENT between fixed
+  slots (paintToneSlots / repaintToneRowPreview, ui.js) instead of moving
+  nodes, and the smooth "slide into place" feel is recreated on top of that
+  with a FLIP animation keyed by paramLo (content identity) rather than by
+  which DOM node moved (repaintToneRowAnimated) — same First/Last/Invert/
+  Play idea as the chain row's applyChainOrderAnimated, different unit of
+  identity. All existing tone-knob consumers were updated to route through
+  getOrderedToneKnobs/toneSlotIndexForLo instead of the raw table filter,
+  so drag/dblclick/wheel/live-readback/TFX-initial-readback can never
+  disagree with each other or with what's painted on screen about which
+  slot is which control.
+  Files touched: state.js (toneKnobOrderPrefs, toneRowLocked), protocol.js
+  (getOrderedToneKnobs, toneSlotIndexForLo, setToneKnobOrder,
+  resetToneKnobOrder), ui.js (updateToneKnobs rewritten + ~340 new lines:
+  paintToneSlots/repaintToneRowPreview/repaintToneRowAnimated/
+  wireToneKnobDrag/lock+reset button wiring; updateToneReadouts and the
+  tone knob drag/dblclick/wheel handlers updated to route by slot), sysex-
+  handler.js (live CMD 0x11 tone router updated to route by slot, and
+  skips repainting while a reorder drag preview is on screen — same
+  "don't fight the live preview" guard the chain row uses), app-init.js
+  (loads toneKnobOrder before initMIDI), main.js + preload.js (get/save-
+  tone-knob-order IPC, same storeGet/storeSet pattern as bank cache/zoom).
+EVIDENCE:    code written and read back this session; node --check clean on
+  every touched .js file. NOT run against real hardware — per project rule,
+  nothing here is "working" until Charlie builds the EXE and drags real
+  knobs on a connected rack.
+CONFLICTS:   none — additive. Does not touch AMP_TONE_PARAMS itself, the
+  wire protocol, or any send/query mechanism.
+NEXT:        Charlie's live test: drag-reorder several amps (incl. one with
+  a toggle like Bright, one with Tremolo/Sync, one 3-knob and one 8-knob
+  amp to exercise the flex-wrap case), confirm the saved order survives an
+  app restart and a patch nav, confirm lock/reset behave, confirm no value
+  flash/jump on amp change. If confirmed clean, fold into Primer
+  WORKING/NOT YET IMPLEMENTED and Tech Ref Change Log at wrap.
+-------------------------------------------------------------------
 DATE:        2026-07-30 -> 2026-08-01  (FX1 Phase 14 — condensed 2026-08-01)
 STATUS:      TESTED LIVE — FX1 EFFECT PANEL COMPLETE, 10 of 10 models. (In this
              project "code applied" always means Charlie pulled, built and

@@ -917,10 +917,14 @@ function routeAmpBlockParam(paramLo, v0, val) {
   if (paramLo === 0x12) { updateSyncReadout(val); return; }
   if (paramLo === 0x13) { updateTremReadout(val); return; }
 
-  // Tone knobs — route by paramLo against current amp's AMP_TONE_PARAMS
-  const ap = currentAmpKey ? AMP_TONE_PARAMS[currentAmpKey] : null;
-  if (ap && ap.knobs) {
-    const knobs = ap.knobs.filter(k => k.type === 'knob');
+  // Tone knobs — route by paramLo against current amp's AMP_TONE_PARAMS,
+  // in the amp's current SCREEN order (getOrderedToneKnobs, protocol.js —
+  // respects a saved reorder, defaults to table order otherwise).
+  // A live tone-row reorder drag has its own speculative preview on screen
+  // right now (wireToneKnobDrag, ui.js) — a hardware broadcast racing that
+  // must not fight it; the drag's own end-of-drag repaint re-syncs for real.
+  if (currentAmpKey && !toneDragActive) {
+    const knobs = getOrderedToneKnobs(currentAmpKey);
     for (let i = 0; i < knobs.length; i++) {
       if (paramLo === knobs[i].lo) {
         const wrap = document.getElementById('tone-w' + i);

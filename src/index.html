@@ -536,6 +536,25 @@
   }
   .vdiv { width: 1px; height: 80px; background: var(--border-dim); align-self: center; margin: 0 6px; }
 
+  /* Tone-knob reorder lock/reset dock (Amp Controls drag/drop reorder,
+     2026-08-03) — deliberately small and off to the side (docked past a
+     divider, not among the knobs) per Charlie's call, and with no drag-grip
+     glyph on the knob labels themselves (also his call — undocumented UI
+     detail he didn't want, and it shifted the label text off-center). */
+  .tone-dock { display: flex; flex-direction: column; gap: 6px; align-self: flex-start; margin-top: 2px; }
+  .dock-btn {
+    width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--border-dim);
+    background: #1a1a1a; color: var(--muted); font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .dock-btn:hover { border-color: var(--accent-dim); color: var(--text); }
+  .dock-btn.locked { color: var(--accent); border-color: var(--accent-dim); }
+
+  /* The dragged tone knob (label-drag reorder) gets the same dim-while-
+     carried treatment as a dragged chain-row thumb. */
+  .ctrl-knob.dragging { opacity: 0.35; }
+  #tone-knobs-row:not(.tone-row-locked) .ctrl-knob label { cursor: grab; }
+
   /* CAB controls */
   .sctrl        { display: flex; flex-direction: column; gap: 4px; }
   .sctrl label  { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1122,8 +1141,10 @@
           <!-- ROW 2 — tone stack knobs plus the Bright / Trem / Sync stack -->
           <div class="amp-row">
 
-          <!-- Tone stack knobs -->
-          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+          <!-- Tone stack knobs — id'd container so the reorder-drag wiring
+               (wireToneKnobDrag, ui.js) can scope its listeners and hit-tests
+               to just this row, not the whole document. -->
+          <div id="tone-knobs-row" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
             <div class="ctrl-knob knob-disabled" id="tone-k0">
               <label id="tone-l0">Gain</label>
               <div class="knob-wrap" id="tone-w0" data-value="64" data-tone-idx="0"><canvas class="knob-canvas" width="80" height="80"></canvas></div>
@@ -1164,6 +1185,18 @@
               <div class="knob-wrap" id="tone-w7" data-value="64" data-tone-idx="7"><canvas class="knob-canvas" width="80" height="80"></canvas></div>
               <span class="knob-val" id="tone-v7">--</span>
             </div>
+          </div>
+
+          <!-- Tone-knob reorder lock/reset dock (Amp Controls drag/drop
+               reorder, 2026-08-03) — docked off to the side, away from the
+               knobs themselves, so it isn't mistaken for a control. Locked
+               by default every launch; unlock to drag a knob NAME (not the
+               knob itself) to reorder, matching the chain row's smooth
+               slide feel. Reset clears this amp's saved order only. -->
+          <div class="vdiv"></div>
+          <div class="tone-dock">
+            <button id="tone-lock-btn" class="dock-btn" title="Tone knob order is locked — click to unlock, then drag a knob name to reorder">🔒</button>
+            <button id="tone-reset-btn" class="dock-btn" title="Reset this amp's knob order to default">⟲</button>
           </div>
 
           <!-- Bright / Tremolo / Sync — vertical stack, right of the tone

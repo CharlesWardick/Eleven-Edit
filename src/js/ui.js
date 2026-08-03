@@ -692,16 +692,24 @@ document.addEventListener('DOMContentLoaded', function() {
 function updateToneReadouts(values, ampKey) {
   if (!values || !values.length) return;
   const ap = ampKey ? AMP_TONE_PARAMS[ampKey] : null;
+  // Parallel to decodeToneKnobValues' return (protocol.js) — TABLE order,
+  // knob+toggle. Each knob-type entry is then routed to its actual SCREEN
+  // slot via toneSlotIndexForLo (protocol.js), which respects a saved
+  // reorder — table order and screen order are not the same thing once an
+  // amp has a custom order.
   const knobs = ap && ap.knobs ? ap.knobs.filter(k => k.type === 'knob' || k.type === 'toggle') : [];
   for (let i = 0; i < values.length; i++) {
     if (values[i] == null) continue;
     const knob = knobs[i];
-    if (knob && knob.type === 'toggle') {
+    if (!knob) continue;
+    if (knob.type === 'toggle') {
       updateBrightReadout(values[i]);
       continue;
     }
-    const wrap = document.getElementById('tone-w' + i);
-    const valEl = document.getElementById('tone-v' + i);
+    const slot = toneSlotIndexForLo(ampKey, knob.lo);
+    if (slot < 0) continue;
+    const wrap = document.getElementById('tone-w' + slot);
+    const valEl = document.getElementById('tone-v' + slot);
     if (wrap) {
       wrap.dataset.value = values[i];
       drawKnob(wrap.querySelector('canvas'), values[i]);
@@ -1854,17 +1862,49 @@ function setCurrentAmp(key) {
   appLog('Amp identified: ' + (currentAmpName || 'unknown') + ' key=' + key);
 }
 
-// ── Show/hide/relabel tone knob slots based on AMP_TONE_PARAMS ──
+// ── Show/hide/relabel tone knob slots based on AMP_TONE_PARAMS, in this
+// amp's current SCREEN order (getOrderedToneKnobs, protocol.js — a saved
+// per-amp reorder if one exists, else table order). Called on every amp
+// identification (setCurrentAmp), so the order is resolved and painted in
+// one synchronous pass BEFORE anything is drawn — there is no default-order
+// paint that a preferred order then jumps to. ──
 function updateToneKnobs(key) {
-  const ap = key ? AMP_TONE_PARAMS[key] : null;
-  const knobs = (ap && ap.knobs) ? ap.knobs.filter(k => k.type === 'knob') : []; // toggles excluded — rendered as buttons
+  const orderedLo = getOrderedToneKnobs(key).map(k => k.lo);
+  paintToneSlots(key, orderedLo);
+  wireToneKnobDrag();
+  appLog('Tone knobs updated for ' + (key || 'none') + ': ' + orderedLo.length + ' knob(s)');
+}
+
+// Resolves loOrder (array of paramLo) against this amp's table to get the
+// actual knob defs, in that order — the one place both the real (amp-change)
+// paint and the live drag preview turn an order into content.
+function toneKnobDefsForLoOrder(ampKey, loOrder) {
+  const ordered = getOrderedToneKnobs(ampKey);
+  const byLo = {};
+  ordered.forEach(k => { byLo[k.lo] = k; });
+  return loOrder.map(lo => byLo[lo]).filter(Boolean);
+}
+
+// What's currently painted into tone-k0..tone-k7, as an array of paramLo —
+// kept in step by both paintToneSlots (amp change) and repaintToneRowPreview
+// (live reorder drag), so either one always knows what the OTHER last left
+// on screen.
+let toneRowRenderedLoOrder = [];
+
+// Full repaint from scratch — values reset to the "--"/64 placeholder,
+// same as always, because this only runs on an actual amp identification
+// (new patch/model), where a real readback follows shortly. NEVER call this
+// mid-reorder-drag — see repaintToneRowPreview below for that case, which
+// carries live values forward instead of blanking them.
+function paintToneSlots(ampKey, loOrder) {
+  const defs = toneKnobDefsForLoOrder(ampKey, loOrder);
   for (let i = 0; i < 8; i++) {
     const kEl = document.getElementById('tone-k' + i);
     const lEl = document.getElementById('tone-l' + i);
     const wEl = document.getElementById('tone-w' + i);
     const vEl = document.getElementById('tone-v' + i);
     if (!kEl) continue;
-    if (i < knobs.length) {
+    if (i < defs.length) {
       kEl.style.display = '';
       kEl.classList.remove('knob-disabled');
       // Controls the app is not allowed to WRITE (currently Speed, pending the
@@ -1872,21 +1912,312 @@ function updateToneKnobs(key) {
       // display every hardware broadcast; they just cannot be dragged out of
       // step with the rack.
       const blocked = (typeof READ_ONLY_PARAM_LOS !== 'undefined')
-                      && READ_ONLY_PARAM_LOS.indexOf(knobs[i].lo) !== -1;
+                      && READ_ONLY_PARAM_LOS.indexOf(defs[i].lo) !== -1;
       kEl.classList.toggle('knob-readonly', blocked);
       kEl.title = blocked
-        ? knobs[i].label + ' is read-only for now — set it on the rack. '
+        ? defs[i].label + ' is read-only for now — set it on the rack. '
           + 'It follows the Sync division, and writing it fights the hardware.'
         : '';
-      if (lEl) lEl.textContent = knobs[i].label;
+      if (lEl) lEl.textContent = defs[i].label;
       if (vEl) vEl.textContent = '--';
       if (wEl) { wEl.dataset.value = 64; drawKnob(wEl.querySelector('canvas'), 64); }
     } else {
       kEl.style.display = 'none';
     }
   }
-  appLog('Tone knobs updated for ' + (key || 'none') + ': ' + knobs.length + ' knob(s)');
+  toneRowRenderedLoOrder = loOrder.slice();
 }
+
+// ════════════════════════════════════════════════════════════════════
+// AMP CONTROLS TONE-KNOB REORDER (2026-08-03) — drag a knob's LABEL (only
+// when unlocked) to reorder the tone stack; the chosen order is remembered
+// per amp (toneKnobOrderPrefs, state.js/protocol.js).
+//
+// Unlike the chain row, the fixed tone-k0..tone-k7 DOM elements NEVER
+// physically move — every other tone-knob code path (drag/dblclick/wheel
+// handlers above, the live CMD 0x11 router in sysex-handler.js,
+// updateToneReadouts) addresses a control by its FIXED slot id (tone-w<i>),
+// derived from getOrderedToneKnobs(currentAmpKey). Physically relocating the
+// tone-k<i> divs would leave those ids pointing at the wrong screen position.
+// So instead, a reorder swaps CONTENT between fixed slots (paintToneSlots/
+// repaintToneRowPreview), and the chain row's smooth "slide into place" feel
+// is recreated on top of that with a content-identity FLIP (keyed by
+// paramLo, not by which DOM node moved) — same First/Last/Invert/Play idea
+// as applyChainOrderAnimated, just adapted to content swapping instead of
+// node relocation.
+// ════════════════════════════════════════════════════════════════════
+let toneDragPending     = false;
+let toneDragActive      = false;
+let toneDragLo          = null;   // paramLo of the knob being dragged, null if none
+let toneDragCont        = null;   // the .ctrl-knob element CURRENTLY showing toneDragLo
+let toneDragStartX      = 0;
+let toneDragStartY      = 0;
+let toneDragOffsetX     = 0;      // cursor position within the grabbed slot
+let toneDragOffsetY     = 0;
+let toneDragStartOrder  = null;   // array of lo, screen order at mousedown
+let tonePreviewOrder    = null;   // array of lo, current speculative order
+const TONE_DRAG_THRESHOLD = 4;    // px before a click counts as a drag
+
+function updateToneLockButton() {
+  const btn = document.getElementById('tone-lock-btn');
+  const row = document.getElementById('tone-knobs-row');
+  if (row) row.classList.toggle('tone-row-locked', toneRowLocked);
+  if (!btn) return;
+  btn.textContent = toneRowLocked ? '🔒' : '🔓';
+  btn.classList.toggle('locked', toneRowLocked);
+  btn.title = toneRowLocked
+    ? 'Tone knob order is locked — click to unlock, then drag a knob name to reorder'
+    : 'Unlocked — drag a knob name to reorder. Click to lock again.';
+}
+
+function sameLoOrder(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+// Removes lo from order and reinserts it just before/after targetLo.
+function moveLoInOrder(order, lo, targetLo, after) {
+  const cur = order.slice();
+  const from = cur.indexOf(lo);
+  if (from < 0) return null;
+  cur.splice(from, 1);
+  let to = cur.indexOf(targetLo);
+  if (to < 0) return null;
+  if (after) to += 1;
+  cur.splice(to, 0, lo);
+  return cur;
+}
+
+// Live-drag repaint: carries each knob's CURRENT value/readout forward into
+// its new slot instead of resetting to a placeholder (nothing has actually
+// changed on the amp/hardware — only where it's displayed). excludeLo (the
+// dragged knob itself) is skipped — its slot is driven continuously by the
+// cursor-follow transform in the mousemove handler below, not by this swap.
+function repaintToneRowPreview(ampKey, loOrder, excludeLo) {
+  const oldOrder = toneRowRenderedLoOrder;
+  const stateByLo = {};
+  oldOrder.forEach((lo, i) => {
+    const wEl = document.getElementById('tone-w' + i);
+    const vEl = document.getElementById('tone-v' + i);
+    if (wEl) stateByLo[lo] = { value: wEl.dataset.value, text: vEl ? vEl.textContent : '--' };
+  });
+  const defs = toneKnobDefsForLoOrder(ampKey, loOrder);
+  for (let i = 0; i < 8; i++) {
+    const kEl = document.getElementById('tone-k' + i);
+    const lEl = document.getElementById('tone-l' + i);
+    const wEl = document.getElementById('tone-w' + i);
+    const vEl = document.getElementById('tone-v' + i);
+    if (!kEl) continue;
+    if (i < defs.length) {
+      const def = defs[i];
+      kEl.style.display = '';
+      const blocked = (typeof READ_ONLY_PARAM_LOS !== 'undefined')
+                      && READ_ONLY_PARAM_LOS.indexOf(def.lo) !== -1;
+      kEl.classList.toggle('knob-readonly', blocked);
+      kEl.title = blocked
+        ? def.label + ' is read-only for now — set it on the rack. '
+          + 'It follows the Sync division, and writing it fights the hardware.'
+        : '';
+      if (lEl) lEl.textContent = def.label;
+      if (def.lo !== excludeLo) {
+        const prior = stateByLo[def.lo];
+        const val = prior && prior.value !== undefined && prior.value !== ''
+                    ? parseInt(prior.value) : 64;
+        if (wEl) { wEl.dataset.value = val; drawKnob(wEl.querySelector('canvas'), val); }
+        if (vEl) vEl.textContent = prior ? prior.text : '--';
+      }
+    } else {
+      kEl.style.display = 'none';
+    }
+  }
+  toneRowRenderedLoOrder = loOrder.slice();
+}
+
+// FLIP-animates repaintToneRowPreview's content swap so the OTHER knobs
+// visibly slide to their new slot instead of snapping — same technique as
+// the chain row's applyChainOrderAnimated, keyed by paramLo (content
+// identity) since the DOM nodes themselves never move here.
+function repaintToneRowAnimated(ampKey, loOrder, excludeLo) {
+  const oldOrder = toneRowRenderedLoOrder;
+  const oldRects = {};
+  oldOrder.forEach((lo, i) => {
+    if (lo === excludeLo) return;
+    const cont = document.getElementById('tone-k' + i);
+    if (cont) oldRects[lo] = cont.getBoundingClientRect();
+  });
+
+  repaintToneRowPreview(ampKey, loOrder, excludeLo);
+
+  loOrder.forEach((lo, i) => {
+    if (lo === excludeLo) return;
+    const old = oldRects[lo];
+    const cont = document.getElementById('tone-k' + i);
+    if (!old || !cont) return;
+    const now = cont.getBoundingClientRect();
+    const dx = old.left - now.left, dy = old.top - now.top;
+    if (!dx && !dy) return;
+    cont.style.transition = 'none';
+    cont.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    requestAnimationFrame(() => {
+      cont.style.transition = 'transform 160ms ease';
+      cont.style.transform = '';
+    });
+  });
+}
+
+function wireToneKnobDrag() {
+  const row = document.getElementById('tone-knobs-row');
+  if (!row || row.dataset.dragWired) return;
+  row.dataset.dragWired = '1';
+
+  row.addEventListener('mousedown', function(ev) {
+    if (ev.button !== 0 || toneRowLocked) return;
+    const label = ev.target.closest('label');
+    if (!label || !row.contains(label)) return;
+    const cont = label.closest('.ctrl-knob');
+    if (!cont || cont.style.display === 'none') return;
+    const wrap = cont.querySelector('.knob-wrap[data-tone-idx]');
+    if (!wrap) return;
+    const idx = parseInt(wrap.dataset.toneIdx);
+    const ordered = getOrderedToneKnobs(currentAmpKey);
+    if (isNaN(idx) || idx < 0 || idx >= ordered.length) return;
+    toneDragLo = ordered[idx].lo;
+    toneDragCont = cont;
+    toneDragPending = true;
+    toneDragStartX = ev.clientX;
+    toneDragStartY = ev.clientY;
+    const r = cont.getBoundingClientRect();
+    toneDragOffsetX = ev.clientX - r.left;
+    toneDragOffsetY = ev.clientY - r.top;
+    toneDragStartOrder = ordered.map(k => k.lo);
+    tonePreviewOrder = toneDragStartOrder.slice();
+    ev.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(ev) {
+    if (toneDragLo === null) return;
+    if (ev.buttons === 0) { endToneDrag(false); return; }
+
+    if (toneDragPending) {
+      const dx0 = ev.clientX - toneDragStartX, dy0 = ev.clientY - toneDragStartY;
+      if (Math.hypot(dx0, dy0) < TONE_DRAG_THRESHOLD) return;
+      toneDragPending = false;
+      toneDragActive = true;
+      toneDragCont.classList.add('dragging');
+      toneDragCont.style.transition = 'none';
+      document.body.style.cursor = 'grabbing';
+    }
+
+    const cx = ev.clientX - toneDragOffsetX + toneDragCont.offsetWidth / 2;
+    const cy = ev.clientY - toneDragOffsetY + toneDragCont.offsetHeight / 2;
+
+    toneDragCont.style.pointerEvents = 'none';
+    const el = document.elementFromPoint(cx, cy);
+    toneDragCont.style.pointerEvents = '';
+    const targetCont = el ? el.closest('#tone-knobs-row .ctrl-knob') : null;
+    if (targetCont && targetCont !== toneDragCont && targetCont.style.display !== 'none') {
+      const targetWrap = targetCont.querySelector('.knob-wrap[data-tone-idx]');
+      const targetIdx = targetWrap ? parseInt(targetWrap.dataset.toneIdx) : NaN;
+      const ordered = getOrderedToneKnobs(currentAmpKey);
+      const targetLo = (!isNaN(targetIdx) && ordered[targetIdx]) ? ordered[targetIdx].lo : null;
+      if (targetLo !== null && targetLo !== toneDragLo) {
+        const r = targetCont.getBoundingClientRect();
+        const after = cx > r.left + r.width / 2;
+        const next = moveLoInOrder(tonePreviewOrder, toneDragLo, targetLo, after);
+        if (next && !sameLoOrder(next, tonePreviewOrder)) {
+          tonePreviewOrder = next;
+          repaintToneRowAnimated(currentAmpKey, tonePreviewOrder, toneDragLo);
+          // The dragged knob's content may have moved to a different fixed
+          // slot as part of that repaint — re-anchor the follow/dragging
+          // state onto whichever tone-k<i> now shows it.
+          const newIdx = tonePreviewOrder.indexOf(toneDragLo);
+          const newCont = document.getElementById('tone-k' + newIdx);
+          if (newCont && newCont !== toneDragCont) {
+            toneDragCont.classList.remove('dragging');
+            toneDragCont.style.transform = '';
+            toneDragCont.style.transition = '';
+            toneDragCont = newCont;
+            toneDragCont.classList.add('dragging');
+            toneDragCont.style.transition = 'none';
+          }
+        }
+      }
+    }
+
+    // Continuous follow — pin the dragged knob's visual center to the
+    // cursor, wherever its content currently lives.
+    toneDragCont.style.transform = 'none';
+    const natural = toneDragCont.getBoundingClientRect();
+    const followDx = cx - (natural.left + natural.width / 2);
+    const followDy = cy - (natural.top + natural.height / 2);
+    toneDragCont.style.transform = 'translate(' + followDx + 'px,' + followDy + 'px)';
+  });
+
+  window.addEventListener('mouseup', function() {
+    if (toneDragLo === null) return;
+    endToneDrag(true);
+  });
+  window.addEventListener('blur', function() {
+    if (toneDragLo === null) return;
+    endToneDrag(false);
+  });
+
+  function endToneDrag(allowCommit) {
+    const wasReallyDragging = toneDragActive;
+    if (toneDragCont) {
+      toneDragCont.classList.remove('dragging');
+      toneDragCont.style.transform = '';
+      toneDragCont.style.transition = '';
+      toneDragCont.style.pointerEvents = '';
+    }
+    document.body.style.cursor = '';
+    if (allowCommit && wasReallyDragging && tonePreviewOrder
+        && !sameLoOrder(tonePreviewOrder, toneDragStartOrder)) {
+      setToneKnobOrder(currentAmpKey, tonePreviewOrder);
+      appLog('Tone knob order changed for ' + currentAmpKey + ': '
+             + tonePreviewOrder.map(lo => '0x' + lo.toString(16).padStart(2,'0')).join(','));
+    }
+    // Final authoritative repaint, either way (committed, cancelled, or
+    // never passed the click threshold) — guarantees the fixed slots end
+    // up exactly matching getOrderedToneKnobs. Uses the PREVIEW repaint
+    // (carries live values forward), not a fresh placeholder paint: nothing
+    // on the amp/hardware changed just because the on-screen order did.
+    const finalOrder = getOrderedToneKnobs(currentAmpKey).map(k => k.lo);
+    repaintToneRowPreview(currentAmpKey, finalOrder, null);
+    toneDragLo = null;
+    toneDragCont = null;
+    toneDragPending = false;
+    toneDragActive = false;
+    toneDragStartOrder = null;
+    tonePreviewOrder = null;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const lockBtn = document.getElementById('tone-lock-btn');
+  if (lockBtn) {
+    lockBtn.addEventListener('click', function() {
+      toneRowLocked = !toneRowLocked;
+      updateToneLockButton();
+    });
+    updateToneLockButton();
+  }
+  const resetBtn = document.getElementById('tone-reset-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      if (!currentAmpKey) return;
+      if (resetToneKnobOrder(currentAmpKey)) {
+        // Carries live values forward into their default-order slots, same
+        // reasoning as the end of a reorder drag — resetting the ORDER
+        // preference doesn't mean the hardware values need re-querying.
+        const defaultOrder = getOrderedToneKnobs(currentAmpKey).map(k => k.lo);
+        repaintToneRowAnimated(currentAmpKey, defaultOrder, null);
+        appLog('Tone knob order reset to default for ' + currentAmpKey);
+      }
+    });
+  }
+});
 
 // ── Volume knobs (Rig Vol / Amp Out) — plain CC sends, no amp-model
 // dependency, so these only need the bridge connected ──
@@ -2104,9 +2435,8 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
     drawKnob(activeWrap.querySelector('canvas'), val);
     const vEl = document.getElementById('tone-v' + activeIdx);
     if (vEl) vEl.textContent = valDisplay(val);
-    const ap = currentAmpKey ? AMP_TONE_PARAMS[currentAmpKey] : null;
-    if (ap && currentParamHi >= 0) {
-      const knobs = ap.knobs.filter(k => k.type === 'knob');
+    if (currentAmpKey && currentParamHi >= 0) {
+      const knobs = getOrderedToneKnobs(currentAmpKey);
       if (activeIdx < knobs.length) {
         const lo = knobs[activeIdx].lo;
         // SPEED (0x11) — the rack refuses a Speed write while Sync is on a
@@ -2142,9 +2472,8 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
     drawKnob(wrap.querySelector('canvas'), val);
     const vEl = document.getElementById('tone-v' + idx);
     if (vEl) vEl.textContent = valDisplay(val);
-    const ap = currentAmpKey ? AMP_TONE_PARAMS[currentAmpKey] : null;
-    if (ap && currentParamHi >= 0) {
-      const knobs = ap.knobs.filter(k => k.type === 'knob');
+    if (currentAmpKey && currentParamHi >= 0) {
+      const knobs = getOrderedToneKnobs(currentAmpKey);
       if (idx < knobs.length) {
         const lo = knobs[idx].lo;
         // R7 — Speed is Sync-driven; a double-click restore must clear Sync
@@ -2189,9 +2518,8 @@ document.getElementById('btn-restart-bridge').addEventListener('click', async fu
       var tv = step(tw, e);
       var tEl = document.getElementById('tone-v' + idx);
       if (tEl) tEl.textContent = valDisplay(tv);
-      var ap = currentAmpKey ? AMP_TONE_PARAMS[currentAmpKey] : null;
-      if (ap && currentParamHi >= 0) {
-        var knobs = ap.knobs.filter(function(k){ return k.type === 'knob'; });
+      if (currentAmpKey && currentParamHi >= 0) {
+        var knobs = getOrderedToneKnobs(currentAmpKey);
         if (idx < knobs.length) {
           var lo = knobs[idx].lo;
           // Speed (0x11): the rack ignores a Speed write while Sync is on a

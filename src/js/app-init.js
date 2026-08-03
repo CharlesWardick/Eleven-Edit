@@ -24,6 +24,18 @@ async function init() {
     }
   } catch(e) {}
 
+  // Load persisted tone-knob reorder prefs, if any — MUST happen before any
+  // amp identifies and the tone row paints for the first time (initMIDI, a
+  // few lines down), so a saved custom order is what's drawn on the very
+  // first render rather than default-then-jump (Amp Controls reorder, 2026-08-03).
+  try {
+    const savedOrder = await window.electronAPI.getToneKnobOrder();
+    if (savedOrder && typeof savedOrder === 'object') {
+      toneKnobOrderPrefs = savedOrder;
+      appLog('Tone knob order prefs loaded — ' + Object.keys(toneKnobOrderPrefs).length + ' amp(s) customized');
+    }
+  } catch(e) {}
+
   // Check /LOGS flag — show/hide log UI elements accordingly
   try {
     logsEnabled = await window.electronAPI.getLogsEnabled();

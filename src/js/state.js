@@ -89,6 +89,19 @@ let currentParamHi = -1;  // amp block's handle, derived from currentChain (slot
 let currentAmpKey  = null;
 let currentAmpName = null;
 
+// ── Amp Controls tone-knob reorder (2026-08-03) ──
+// Per-amp custom knob display order, keyed by ampKey -> array of paramLo in
+// the order the user dragged them to. Loaded from settings.json at app-init
+// (before the first tone-knob paint of the session — see app-init.js) so a
+// saved order is what's drawn on the very first render, never a default
+// order that then jumps to the preferred one. Amps with no entry here just
+// use AMP_TONE_PARAMS' own table order (see getOrderedToneKnobs, protocol.js).
+let toneKnobOrderPrefs = {};
+// Re-arms LOCKED on every launch (not persisted) — a deliberate extra guard
+// against an accidental drag during ordinary knob use, on top of the label
+// being the only drag handle (the knob itself still just turns).
+let toneRowLocked = true;
+
 // Save sequence detection
 let saveSequenceDetected = false;
 let saveSequenceSlot     = -1;
