@@ -40,6 +40,32 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Jump List — restored the compact "by slot" box size
+FINDING:     Charlie's follow-up on the two-view design: now that names
+  are always available, a plain id-only view felt pointless UNLESS it kept
+  its own genuinely distinct purpose — the old, much more compact box size
+  (fewer pixels per box, more banks per row, far less scrolling) for
+  quickly jumping to a slot you already know by number. Explicitly chose
+  to KEEP two views rather than merge into one ("when have we ever done
+  simpler? Option 2 please.").
+  FIX (index.html): #matrix-scroll now gets a mode-name or mode-slot class
+  (refreshMatrixCells, same function that already swapped the title text
+  and cell content) driving two separate .matrix-grid/.matrix-slot size
+  rules — "by name" keeps the current 148px columns (needs the width for a
+  16-char name); "by slot" goes back to small 58px columns, centered text,
+  no name text ever shown (just the id + a centered dash) — the size
+  Charlie remembered from before the name view existed.
+EVIDENCE:    code written and read back; every inline <script> block in
+  index.html parsed clean via `new Function(...)`. NOT yet tested live.
+CONFLICTS:   none — additive CSS/class toggle, no change to click routing,
+  scan mechanism, or the name cache itself.
+NEXT:        Charlie's live test: confirm "by slot" packs noticeably more
+  banks per row / needs less scrolling, "by name" is unchanged, and
+  switching between the two (left/right click while already open) resizes
+  correctly both ways.
+-------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Global dark scrollbar (Jump List's default OS scrollbar was
   jarring, and nowhere in the app had ever styled one)
 FINDING:     Charlie liked the fixed-header/independent-scroll change and

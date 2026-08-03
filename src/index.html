@@ -729,18 +729,27 @@
      colours: muted grey for the bank header, warm accent-dim for the
      per-slot id so it reads as "label", not competing with the name. */
   .matrix-bank-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-  /* FIXED column width (2026-08-03, Charlie's follow-up) — was
-     repeat(4, 1fr), which lets each BANK's own grid size its columns off
-     THAT bank's own longest name, so box width visibly varied bank to
-     bank (a 16-char name's bank was noticeably wider than a short-name
-     bank's). 148px comfortably fits the max 16-char patch name at the
-     bumped 13px font; every bank's grid — and so every .matrix-slot box —
-     is now the same size regardless of what any patch happens to be named. */
   .matrix-grid { display: grid; grid-template-columns: repeat(4, 148px); gap: 4px; margin-bottom: 10px; }
   .matrix-slot { background: #222; border: 1px solid #555; border-radius: 3px; padding: 4px 6px; cursor: pointer; height: 40px; box-sizing: border-box; }
   .matrix-slot:hover { border-color: var(--accent); }
   .matrix-slot.current { background: #2d2200; border-color: var(--accent); }
   .matrix-slot .slot-id   { color: var(--accent-dim); font-size: 11px; font-weight: bold; display: block; font-family: 'Consolas', monospace; }
+  /* TWO DISTINCT box sizes depending on which Jump List view is showing
+     (2026-08-03, Charlie's call — kept as two views on purpose rather than
+     merging into one, since they're genuinely different use cases): "by
+     name" needs real width for up to a 16-char name without an awkward
+     truncation (148px, set on #matrix-scroll.mode-name so every bank's
+     grid — and so every box — is the same size regardless of what any
+     patch happens to be named, replacing the old repeat(4,1fr) that sized
+     each bank off its own longest name). "by slot" is a compact, fast-jump
+     grid — id + a centered dash only, no name ever shown — so it goes back
+     to the small size Charlie remembered from before the name view existed:
+     far more banks fit per row, far less scrolling to reach a slot you
+     already know by number. */
+  #matrix-scroll.mode-name .matrix-grid { grid-template-columns: repeat(4, 148px); }
+  #matrix-scroll.mode-name .matrix-slot { height: 40px; }
+  #matrix-scroll.mode-slot .matrix-grid { grid-template-columns: repeat(4, 58px); }
+  #matrix-scroll.mode-slot .matrix-slot { height: 34px; text-align: center; }
   .matrix-slot .slot-name { color: var(--text); font-size: 13px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .matrix-slot.current .slot-name { color: var(--accent); }
 
@@ -2024,6 +2033,13 @@ function refreshMatrixCells() {
     title.textContent = (matrixMode === 'name')
       ? 'PATCH NAMES — click to jump'
       : 'PATCH SLOTS — click to jump';
+  }
+  // Drives the two distinct box sizes (index.html CSS: #matrix-scroll.mode-name
+  // vs .mode-slot) — kept as two views on purpose, see the CSS comment there.
+  var scroll = document.getElementById('matrix-scroll');
+  if (scroll) {
+    scroll.classList.toggle('mode-name', matrixMode === 'name');
+    scroll.classList.toggle('mode-slot', matrixMode !== 'name');
   }
   document.querySelectorAll('.matrix-slot').forEach(function(c) {
     var nameEl = c.querySelector('.slot-name');
