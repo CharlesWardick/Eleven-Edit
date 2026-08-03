@@ -1141,6 +1141,19 @@
           <!-- ROW 2 — tone stack knobs plus the Bright / Trem / Sync stack -->
           <div class="amp-row">
 
+          <!-- Tone-knob reorder lock/reset dock (Amp Controls drag/drop
+               reorder, 2026-08-03) — docked to the LEFT of the tone knobs
+               (Charlie's call after seeing it on the right — reads less
+               awkward drawn first). Locked by default every launch; unlock
+               to drag a knob NAME (not the knob itself) to reorder,
+               matching the chain row's smooth slide feel. Reset clears
+               this amp's saved order only. -->
+          <div class="tone-dock">
+            <button id="tone-lock-btn" class="dock-btn" title="Tone knob order is locked — click to unlock, then drag a knob name to reorder">🔒</button>
+            <button id="tone-reset-btn" class="dock-btn" title="Reset this amp's knob order to default">⟲</button>
+          </div>
+          <div class="vdiv"></div>
+
           <!-- Tone stack knobs — id'd container so the reorder-drag wiring
                (wireToneKnobDrag, ui.js) can scope its listeners and hit-tests
                to just this row, not the whole document. -->
@@ -1185,18 +1198,6 @@
               <div class="knob-wrap" id="tone-w7" data-value="64" data-tone-idx="7"><canvas class="knob-canvas" width="80" height="80"></canvas></div>
               <span class="knob-val" id="tone-v7">--</span>
             </div>
-          </div>
-
-          <!-- Tone-knob reorder lock/reset dock (Amp Controls drag/drop
-               reorder, 2026-08-03) — docked off to the side, away from the
-               knobs themselves, so it isn't mistaken for a control. Locked
-               by default every launch; unlock to drag a knob NAME (not the
-               knob itself) to reorder, matching the chain row's smooth
-               slide feel. Reset clears this amp's saved order only. -->
-          <div class="vdiv"></div>
-          <div class="tone-dock">
-            <button id="tone-lock-btn" class="dock-btn" title="Tone knob order is locked — click to unlock, then drag a knob name to reorder">🔒</button>
-            <button id="tone-reset-btn" class="dock-btn" title="Reset this amp's knob order to default">⟲</button>
           </div>
 
           <!-- Bright / Tremolo / Sync — vertical stack, right of the tone
