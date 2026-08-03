@@ -40,6 +40,31 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Global dark scrollbar (Jump List's default OS scrollbar was
+  jarring, and nowhere in the app had ever styled one)
+FINDING:     Charlie liked the fixed-header/independent-scroll change and
+  that scroll position is preserved across close/reopen, but found the
+  scrollbar itself (bright default light-grey) jarring against the dark
+  theme, and asked for it app-wide since any other scrollable panel would
+  have the same unstyled default.
+  FIX (index.html): one global ::-webkit-scrollbar rule set, added near
+  the top of the stylesheet so it applies to every scrollable element,
+  not just #matrix-scroll. Track is transparent (blends into whatever
+  panel it's in); thumb is var(--border-dim) with a padding-box clip
+  trick (border:2px solid transparent + background-clip:padding-box) so
+  it renders slimmer than the full scrollbar width — a restrained, muted
+  bar consistent with how every other secondary UI element in this theme
+  looks, that still lightens on hover for affordance.
+EVIDENCE:    code written and read back; every inline <script> block in
+  index.html parsed clean via `new Function(...)` (pure CSS change, no JS
+  touched). NOT yet tested live.
+CONFLICTS:   none.
+NEXT:        Charlie's live test — confirm the Jump List's scrollbar reads
+  better, and spot-check any other scrollable panel (Monitor, etc.) picks
+  up the same styling automatically.
+-------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Jump List — fixed header (title + Close), independent scroll
 FINDING:     Charlie's ask: the Close button sat at the very bottom of the
   overlay, below all 26 banks, so it scrolled out of reach and had to be
