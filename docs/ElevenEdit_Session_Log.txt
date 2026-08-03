@@ -39,7 +39,8 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING, 2026-08-03] — Charlie confirmed
+  TESTED LIVE, no flash with /NOGPU on the VM shortcut.
 AREA:        /NOGPU startup flag — opt-in software rendering for VM
   shortcuts (white-flash mitigation)
 FINDING:     Follow-up to the VM-only white-flash finding above. Charlie

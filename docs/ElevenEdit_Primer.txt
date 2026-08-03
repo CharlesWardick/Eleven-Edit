@@ -910,7 +910,16 @@ covered under CONFIRMED ARCHITECTURE above.
                    killOrphanedBridgeProcesses kill the FIRST instance's
                    bridge). get/save-tone-knob-order IPC (Amp Controls
                    reorder, 2026-08-03), same storeGet/storeSet pattern as
-                   bank cache/zoom.
+                   bank cache/zoom. /NOGPU startup flag (2026-08-03, same
+                   pattern as /LOGS) — calls app.disableHardwareAcceleration()
+                   before app.whenReady() when present. TESTED LIVE: fixes a
+                   white flash at the splash->main reveal that turned out to
+                   be VM-only (virtualized/software GPU rendering triggering
+                   a known, long-standing, unfixed Chromium/Electron
+                   compositor bug — confirmed absent on real hardware).
+                   Opt-in per shortcut, not a global default — add /NOGPU
+                   only to VM shortcuts, since forcing software rendering
+                   has some performance cost.
   preload.js       Electron preload; exposes electronAPI to the renderer, incl.
                    the splash* wrappers and quitApp/appReady used by the startup
                    gate (both windows load the same preload.js), and
