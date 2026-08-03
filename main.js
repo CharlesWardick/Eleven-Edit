@@ -4,6 +4,24 @@ const fs   = require('fs');
 const { exec, spawn } = require('child_process');
 
 // ════════════════════════════════════════════════════════════════════
+// /NOGPU — optional startup flag, same pattern as /LOGS below.
+// Forces Chromium to render in software instead of via the GPU. Added
+// 2026-08-03 for Charlie's VM shortcuts: a white flash at the splash->main
+// reveal turned out to be a known, years-old, unfixed Chromium/Electron
+// compositor bug specific to virtualized/software GPU rendering — never
+// happens on real hardware, only VMs. disableHardwareAcceleration() takes
+// the whole rendering pipeline off the GPU compositor path that has the
+// bug, so it shouldn't apply the same way. MUST be called before
+// app.whenReady() (before any window/GPU-process work starts). App-wide —
+// only add /NOGPU to shortcuts that actually need it (VM shortcuts), not
+// the real-hardware one, since forcing software rendering has some
+// performance cost even though it's likely small for this simple 2D UI.
+// ════════════════════════════════════════════════════════════════════
+if (process.argv.some(a => a.toLowerCase() === '/nogpu')) {
+  app.disableHardwareAcceleration();
+}
+
+// ════════════════════════════════════════════════════════════════════
 // SINGLE INSTANCE LOCK
 // ════════════════════════════════════════════════════════════════════
 const gotLock = app.requestSingleInstanceLock();

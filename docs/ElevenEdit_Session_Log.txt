@@ -38,6 +38,28 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        /NOGPU startup flag — opt-in software rendering for VM
+  shortcuts (white-flash mitigation)
+FINDING:     Follow-up to the VM-only white-flash finding above. Charlie
+  asked for a command-line flag (his suggestion: something like /NoGpu) he
+  can add to VM-only shortcuts, rather than a global always-on change —
+  same pattern the app already uses for /LOGS (process.argv check in
+  main.js). /NOGPU calls app.disableHardwareAcceleration() before
+  app.whenReady(), which takes Chromium off the GPU-compositor code path
+  that has the flash bug, forcing software rendering instead. App-wide when
+  present — only meant for shortcuts aimed at VMs, not the real-hardware
+  install, since forcing software rendering carries some performance cost
+  (likely small for this app's simple 2D UI, but untested).
+EVIDENCE:    code written and read back; node --check clean on main.js.
+  NOT yet tested live — needs Charlie to add /NOGPU to a VM shortcut's
+  target and confirm both (a) the flash is gone/reduced, and (b) the app
+  still feels responsive running in software-rendering mode.
+CONFLICTS:   none — opt-in, no effect at all unless the flag is present.
+NEXT:        Charlie: add /NOGPU to the Target field of a VM shortcut
+  (after the .exe path, e.g. "...\Eleven Edit.exe" /NOGPU) and test.
+-------------------------------------------------------------------
 DATE:        2026-08-03 (RESOLVED — confirmed VM-only, not this app)
 STATUS:      [FOLDED IN: see below] — non-issue, timing reverted
 AREA:        Splash->main white flash — ROOT CAUSE FOUND: VM-only, not
