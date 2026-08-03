@@ -38,6 +38,35 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-03 (RESOLVED — confirmed VM-only, not this app)
+STATUS:      [FOLDED IN: see below] — non-issue, timing reverted
+AREA:        Splash->main white flash — ROOT CAUSE FOUND: VM-only, not
+  caused by Eleven Edit at all
+FINDING:     Charlie tested on his primary (real) PC: no flash. Only
+  reproduces on VMs — a virtualized/software GPU rendering artifact,
+  matching a long-standing, unfixed Chromium/Electron compositor bug on
+  virtualized graphics that has nothing to do with this app's code. The
+  flash was very likely always latent on VMs; the Jump List work's timing
+  just happened to shift the reveal moment enough to make it visible for
+  the first time, not introduce a new bug.
+  REVERTED both timing changes from the two chase attempts above, since
+  neither fix addressed a real cause and both made real features
+  noticeably slower for no benefit:
+    - Jump List name scan (transport.js 'connected' handler): 5s -> back
+      to 2s; NAME_SCAN_GAP_MS (capture-scan.js) 30 -> back to 20.
+    - Avid graphics auto-scan (app-init.js): 3s delay removed, fires
+      immediately again (as it did right after the original chain-graphics
+      race fix, earlier this same session).
+  The 120ms splash-close delay (main.js 'app-ready' handler, the FIRST
+  flash-chase attempt) was left in place — harmless/imperceptible, doesn't
+  affect either scan's speed, and is a reasonable defensive practice on its
+  own merits even though it wasn't the actual cause here.
+EVIDENCE:    Charlie's direct A/B test (VM vs. real PC). node --check clean
+  on every reverted file.
+CONFLICTS:   none.
+NEXT:        none — closed. No further action expected; flagging only if a
+  future VM-specific rendering complaint comes up, this is the known reason.
+-------------------------------------------------------------------
 DATE:        2026-08-03 (UPDATE — first flash fix did not work, re-derived)
 STATUS:      provisional — second fix written, NOT yet tested live
 AREA:        Splash->main white flash — STILL PRESENT after the window-

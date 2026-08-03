@@ -142,12 +142,7 @@ function cancelBankScan() {
 // handlePatchNameEnumReply (sysex-handler.js) as each reply arrives — this
 // function just paces out the 104 requests, it doesn't wait for or match
 // individual replies the way scanSlot (above) has to for the heavy scan.
-const NAME_SCAN_GAP_MS = 30;   // ms between queries — read-only, can be brisk;
-                                // bumped from 20 (2026-08-03) as part of
-                                // spacing this scan's main-thread work further
-                                // from the startup reveal window — see the
-                                // 2s->5s delay note where this is triggered
-                                // (transport.js 'connected' handler)
+const NAME_SCAN_GAP_MS = 20;   // ms between queries — read-only, can be brisk
 async function scanPatchNames() {
   if (patchNameScanInProgress || !bridgeMidiReady) return;
   patchNameScanInProgress = true;
