@@ -540,16 +540,13 @@ FINDING:     Long-standing intermittent bug (predates the 2026-08-02 startup
   was never exposed to this race).
 EVIDENCE:    root-caused directly from script tag order in index.html + the
   promise-based scan flow (unambiguous once traced to which script block
-  the auto-scan actually lived in). node --check clean. NOT yet re-tested
-  live — this is exactly the kind of intermittent bug that needs several
-  cold-start runs to confirm gone, per the Primer's own "intermittent bugs
-  need more than one clean pass" rule, not just one green run.
+  the auto-scan actually lived in). node --check clean. CONFIRMED LIVE 2026-08-03: dozens of cold starts
+  since, across both real PC and VMs, with no recurrence — well past the
+  several-cold-starts bar an intermittent bug needs.
 CONFLICTS:   none — additive/relocation only, no protocol or manifest-format
   change.
-NEXT:        Charlie: several cold-start launches (not just one) with a
-  graphics folder already configured, confirming the chain row shows real
-  Avid art every time, before this is treated as fixed rather than just
-  "less likely."
+NEXT:        Done — confirmed fixed across dozens of real-PC and VM cold
+  starts with no recurrence. Closed.
 -------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      [FOLDED IN: Primer Status line + Tech Ref Sec 24 Change Log,
@@ -576,7 +573,7 @@ FINDING:     Charlie noticed (may have existed before, only surfaced/noticed
   whenReady/launchBridge/window creation at all.
 EVIDENCE:    code read and root-caused directly (killOrphanedBridgeProcesses'
   blanket kill-by-jar-name behavior is unambiguous); one-line fix, node
-  --check clean. NOT yet re-tested live by Charlie (double-launch scenario).
+  --check clean. CONFIRMED TESTED LIVE by Charlie 2026-08-03 (double-launch scenario).
 CONFLICTS:   none — killOrphanedBridgeProcesses itself is intentional/correct
   behavior for its actual purpose (cleaning up a truly orphaned bridge from
   a crashed session); the bug was only that a second instance could reach it
@@ -676,7 +673,7 @@ NEXT:        Charlie's live test: drag-reorder several amps (incl. one with
     dragged knob's own content (safe — its value isn't changing while its
     LABEL is what's being dragged; only repaintToneRowAnimated's FLIP
     transform still skips it, for position only, not content).
-  STATUS: fix written, NOT yet re-tested live — needs Charlie's next build.
+  STATUS: fix written; CONFIRMED TESTED LIVE 2026-08-03 (see entry STATUS above).
 -------------------------------------------------------------------
 DATE:        2026-07-30 -> 2026-08-01  (FX1 Phase 14 — condensed 2026-08-01)
 STATUS:      TESTED LIVE — FX1 EFFECT PANEL COMPLETE, 10 of 10 models. (In this
@@ -720,11 +717,11 @@ DECISIONS (kept live as their own entries above): (a) refactor FX1's panel CODE
              defaults" on switch; design TBD.
 -------------------------------------------------------------------
 DATE:        2026-07-31
-STATUS:      UNCONFIRMED — fix applied and works when it runs, but Charlie has
-             NOT yet confirmed it always populates at launch (focus was
-             elsewhere). The one genuinely open item from this session. This is
-             an intermittent symptom: a single clean launch does NOT confirm it
-             — needs to survive repeated cold starts before it counts as fixed.
+STATUS:      RESOLVED 2026-08-03 — root cause found (graphics auto-scan racing
+             its own script-tag load order at HTML parse time); fix TESTED LIVE,
+             clean across dozens of real-PC and VM cold starts. See the
+             2026-08-03 startup-graphics entry above and Primer / Tech Ref Sec 24.
+             Original provisional text kept below for history.
 AREA:        Chain row — intermittent missing graphics on program load
 FINDING:     Charlie: on some launches the chain row shows only dashed
              placeholder boxes, no real Avid pedal thumbnails — intermittent,
