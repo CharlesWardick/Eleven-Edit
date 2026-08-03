@@ -218,12 +218,20 @@ function clearBreakupBaseline() {
   if (slider) delete slider.dataset.orig;
   updateBreakupColor();
 }
+// Drives BOTH the thumb and the filled portion of the groove via the two
+// CSS custom properties the fully-custom track styling (index.html) reads
+// — --track-color (amber/red, same values as KNOB_COLORS) and --fill-pct
+// (the value as a percent). Called on every value OR baseline change so
+// the slider always repaints fully in sync, same as drawKnob does for the
+// round knobs.
 function updateBreakupColor() {
   const slider = document.getElementById('breakup-slider');
   if (!slider) return;
   const changed = slider.dataset.orig !== undefined && slider.dataset.orig !== ''
                   && parseInt(slider.dataset.orig) !== parseInt(slider.value);
   slider.classList.toggle('changed', changed);
+  slider.style.setProperty('--track-color', changed ? KNOB_COLORS.red : KNOB_COLORS.amber);
+  slider.style.setProperty('--fill-pct', (parseInt(slider.value) / 127 * 100) + '%');
 }
 
 function valDisplay(v127) { return (v127/127*10).toFixed(1); }

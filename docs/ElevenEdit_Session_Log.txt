@@ -39,6 +39,38 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Speaker Breakup slider — hover/drag shading + white groove
+  (follow-up to the earlier baseline/colour fix, same day)
+FINDING:     Charlie's earlier ask got the amber/red "changed" state
+  working, but found the slider still didn't match the round knobs
+  visually: hovering brightened it, dragging dimmed it, and the groove
+  (the unfilled track) was white instead of dark — none of which any round
+  knob does (they only ever change via the amber/red colour, no hover/
+  focus/press shading at all). ROOT CAUSE: the earlier fix used CSS
+  accent-color, which only recolours Chrome's BUILT-IN slider theme — it
+  doesn't replace it, so the browser's own hover/active/focus shading and
+  default groove colour were still there underneath, just tinted.
+  FIX: switched to a fully custom-styled track/thumb (index.html) —
+  -webkit-appearance:none hands rendering entirely to our CSS instead of
+  the browser theme, so there's no built-in state left to leak through.
+  Two CSS custom properties, --track-color and --fill-pct, drive both the
+  thumb and the filled portion of the groove identically (always in sync
+  since one JS function sets both); the unfilled portion is a fixed dark
+  #1a1a1a. updateBreakupColor (ui.js) now sets both properties — using
+  KNOB_COLORS.amber/red directly, the exact same values the round knobs
+  use — instead of toggling a CSS class that only worked via accent-color.
+EVIDENCE:    code written and read back; node --check clean on ui.js,
+  inline <script> blocks in index.html parsed clean via `new Function(...)`.
+  NOT yet tested live.
+CONFLICTS:   none — value/baseline logic (dataset.orig, capture/clear hooks
+  into captureKnobBaselines/clearMainKnobBaselines) is unchanged, only how
+  the colour/fill gets PAINTED changed.
+NEXT:        Charlie's live test: confirm no hover/press shading remains,
+  groove is dark, amber/red still switches correctly on value change and
+  double-click restore.
+-------------------------------------------------------------------
+DATE:        2026-08-03
 STATUS:      [FOLDED IN: Primer NOT YET IMPLEMENTED note below] — Charlie
   tested; NO CHANGE to the dark flash. Hypothesis (Windows ghost-window
   launch feedback) not confirmed. Line LEFT IN regardless — harmless, and

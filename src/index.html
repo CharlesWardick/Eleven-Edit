@@ -566,12 +566,31 @@
   .sctrl        { display: flex; flex-direction: column; gap: 4px; }
   .sctrl label  { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
   .sctrl-row    { display: flex; align-items: center; gap: 8px; }
-  .sctrl input[type=range] { width: 160px; accent-color: var(--accent); }
-  /* Speaker Breakup "changed since load" state (2026-08-03) — same red the
-     round knobs use (KNOB_COLORS.red, ui.js), applied via accent-color since
-     this control is a native <input type=range>, not a canvas knob. Toggled
-     by updateBreakupColor (ui.js). */
-  .sctrl input[type=range].changed { accent-color: #e83828; }
+  /* Speaker Breakup slider — fully custom track/thumb (2026-08-03 rework).
+     The earlier accent-color version let Chrome's BUILT-IN slider theme
+     show through underneath — brighter on hover, dimmer while dragging, a
+     white groove — none of which the round knobs do (they only ever
+     change via the amber/red "changed" colour, no hover/focus/press
+     shading at all). -webkit-appearance:none hands the whole control's
+     rendering to us instead of the browser theme, so there is no built-in
+     state left to leak through. --track-color and --fill-pct are set by
+     JS (updateBreakupColor, ui.js) on every value/baseline change — same
+     amber/red values as KNOB_COLORS, ui.js — and drive both the thumb and
+     the filled portion of the groove identically, so they always agree. */
+  .sctrl input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 160px; height: 6px; border-radius: 3px; outline: none; cursor: pointer;
+    --track-color: #e0a020;   /* JS default matches KNOB_COLORS.amber */
+    --fill-pct: 50%;
+    background: linear-gradient(to right,
+      var(--track-color) 0%, var(--track-color) var(--fill-pct),
+      #1a1a1a var(--fill-pct), #1a1a1a 100%);
+  }
+  .sctrl input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--track-color); border: none; cursor: pointer;
+  }
   .sctrl-val    { font-size: 12px; color: var(--accent); font-weight: bold; min-width: 32px; font-family: 'Consolas', monospace; }
   .tog-btn { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--muted); border-radius: 4px; padding: 4px 13px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center; }
   .tog-btn.on { background: #1a3a1a; border-color: var(--green); color: var(--green); }
