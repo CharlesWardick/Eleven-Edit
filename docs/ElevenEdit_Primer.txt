@@ -2,21 +2,48 @@ ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
 Updated: 2026-08-03
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — AMP CONTROLS TONE-KNOB REORDER COMPLETE
-(2026-08-03, TESTED LIVE), plus two confirmed fixes the same day. Phase 18
-COMPLETE: tone-stack knobs can now be dragged by their label into a
-user-preferred per-amp order, remembered across restarts, resolved before
-the first paint each session (no default-then-jump). Locked by default;
-lock/reset icons dock to the left of the knob row. Also fixed same day,
-both confirmed by Charlie: (1) launching the EXE a second time while it was
-already running would briefly flash the splash and then kill the FIRST
-instance's Java bridge connection — the single-instance lock existed but
-didn't stop the rest of main.js running before the losing instance's quit
-took effect; (2) the chain row's pedal-graphic thumbnails were
-intermittently blank on load — root-caused to the graphics auto-scan racing
-its own script tag's load order at HTML parse time, not a flaky retry
-target; both fixed structurally, not patched around. Full detail: Tech Ref
-Sec 24 Change Log (2026-08-03 entry).
+Status: Active development — JUMP LIST (patch-name overlay) COMPLETE
+(2026-08-03, TESTED LIVE), plus AMP CONTROLS TONE-KNOB REORDER and four
+other confirmed fixes, all the same day — a long single session that
+started as one focused feature and kept finding adjacent bugs worth
+fixing along the way. Full detail: Tech Ref Sec 24 Change Log (2026-08-03
+entries).
+  JUMP LIST (Phase 19 COMPLETE): the patch-name box's click-to-open
+  overlay is now two purpose-built views instead of one undiscoverable
+  click target — LEFT half opens a compact "by slot" grid (id + dash only,
+  small boxes, many banks per row, fast jump to a slot you already know by
+  number); RIGHT half opens "by name" (148px boxes, real patch names, one
+  bank's box size no longer varies with that bank's longest name). Names
+  come from a lightweight, session-only CMD 0x04 sweep (never persisted to
+  disk — a stale name from a closed session would be worse than none) that
+  runs once per connect and stays live afterward via our own saves and a
+  CMD 0x04 broadcast listener, the same "adopt any broadcast" pattern the
+  rest of the app already uses. Fixed-header title/Close bar that doesn't
+  scroll away, global dark scrollbar styling, legible bank/slot colours.
+  AMP CONTROLS TONE-KNOB REORDER (Phase 18 COMPLETE): tone-stack knobs can
+  be dragged by their label into a user-preferred per-amp order, remembered
+  across restarts, resolved before the first paint each session (no
+  default-then-jump). Locked by default; lock/reset icons dock to the left
+  of the knob row.
+  ALSO FIXED, all confirmed by Charlie: (1) a second launch while the app
+  was already running briefly flashed the splash then killed the FIRST
+  instance's Java bridge — the single-instance lock existed but didn't stop
+  the rest of main.js running before the losing instance's quit took
+  effect; (2) chain-row pedal thumbnails intermittently blank on load —
+  root-caused to the graphics auto-scan racing its own script tag's load
+  order at HTML parse time; (3) the Speaker Breakup slider now follows the
+  exact same amber/red-on-change + double-click-restore contract every
+  round knob does, including no browser-default hover/press shading and a
+  dark (not white) groove — it's a native <input type=range>, not a canvas
+  knob, so it needed its own wiring into that contract and its own fully
+  custom track/thumb styling; (4) a reported white flash at the splash->
+  main reveal turned out to be VM-only (a known, years-old, unfixed
+  Chromium/Electron compositor bug on virtualized GPU rendering, confirmed
+  absent on real hardware) — fixed via an opt-in /NOGPU startup flag for VM
+  shortcuts rather than a global change. A SEPARATE, unrelated dark flash
+  on real-PC cold starts only was investigated but NOT resolved (best-guess
+  Windows shell "ghost window" launch feedback, not fixable at the
+  app-code level — see Primer DO NOT RETRY list).
 Previously: STARTUP GATE + SPLASH SCREEN COMPLETE
 (2026-08-02, TESTED LIVE). Phase 17 COMPLETE: a long-standing
 NOT YET IMPLEMENTED item — a startup-only "can't find
@@ -576,6 +603,31 @@ Build: electron-builder --win --x64 -> EXE.
     Breakup slider (joining Gate/To Amp/Rig Vol/Amp Out). One notch = 1 unit.
 
 WORKING:
+  JUMP LIST (2026-08-03, TESTED LIVE) — click either side of the patch-name
+    box to open a slot-picker overlay, in one of two views:
+      BY SLOT (left half) — compact grid, id + a centered dash only, small
+        fixed-width boxes so many banks fit per row with far less
+        scrolling — for jumping to a slot you already know by number.
+      BY NAME (right half) — same grid, wider fixed-width boxes (148px,
+        fits a full 16-char name without an awkward truncation), showing
+        each slot's real patch name.
+    Names come from patchNameCache (state.js) — a lightweight, SESSION-ONLY
+    sweep of all 104 user slots via CMD 0x04's REQU form (sendPatchNameQuery/
+    scanPatchNames, transport.js/capture-scan.js), fired once per bridge
+    connect. Deliberately never persisted to disk: a stale name from a
+    session where the app wasn't running to see a rename or a whole-bank
+    swap would be worse than showing nothing. Kept live afterward without
+    ever rescanning: our own saves (saveCurrentPatchToSlot) write the new
+    name into the cache directly, and a CMD 0x04 broadcast listener
+    (handlePatchNameEnumReply, sysex-handler.js) catches renames/loads from
+    the front panel or Avid editor the same "adopt any broadcast" pattern
+    every other live-tracked feature in this app already uses. Factory
+    patches (a1-z4, a separate address space from user A1-Z4 on this same
+    command) are deliberately not shown — Charlie's call, user slots only.
+    Overlay has a fixed header (title + Close) that never scrolls away, and
+    remembers scroll position across close/reopen (native browser
+    behaviour, not special-cased). Global dark scrollbar styling applies
+    here and to any other scrollable panel in the app.
   Patch navigation — SW controls and HW front panel (both update all displays)
   Current patch display: slot, name, amp model, effect-chain graphic
   Amp identification from TFX body ('6dls' marker scan)
@@ -634,7 +686,15 @@ WORKING:
   To Amp 1/2 volume knobs — SW send + TFX readback + live HW readback
   Cab Type / Mic Type dropdowns — SW send + TFX + live HW readback
   Mic Axis toggle — SW send + TFX + live HW readback
-  Speaker Breakup slider — SW send + TFX + live HW readback
+  Speaker Breakup slider — SW send + TFX + live HW readback. Follows the
+    same Sec 20A knob contract every round knob does (amber/red-on-change,
+    R8 double-click-to-baseline) — added 2026-08-03, since being a native
+    <input type=range> (not a .knob-wrap canvas) meant it fell outside the
+    generic captureKnobBaselines/clearMainKnobBaselines sweep entirely and
+    had none of that. Fully custom-styled track/thumb (not accent-color,
+    which only tints the browser's built-in theme and left its hover/press
+    shading and white groove showing through) so it's visually static like
+    every knob, colour-only signalling.
   Stereo/Mono — clickable badge: SW send + TFX readback + live HW broadcast
     (Phase 7a-1; send echo is unreliable and deliberately suppressed)
   Chain map — full chain stored on every CMD 0x21 (order, block identity,
@@ -889,6 +949,14 @@ DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
   Deriving paramLo from sldX letters, or tfxKey from paramLo, above 9
   ElevenHack's encode7bit — use the protocol.js version
   Standard (v+64)%128 for cab/mic type — use the lookup tables
+  Reusing the SAVE protocol's CMD 0x04 bank=floor(slot/4)/num=slot%4
+    addressing for the GET/enumerate form (2026-08-03) — they are NOT the
+    same scheme. GET's data[6] is a user(0x00)/factory(0x01) SPACE
+    selector, not a bank number, and data[7] is the FULL raw slot 0-103,
+    not slot%4. Confirmed live (Jump List name-scan bug: B1-B4 showed
+    factory a1-a4's names under the wrong scheme). See
+    sendPatchNameQuery/handlePatchNameEnumReply (transport.js/
+    sysex-handler.js) and Tech Ref Sec 24 for the full trace.
   Chasing the real-PC cold-start dark flash further (2026-08-03) —
     app.setAppUserModelId (main.js) was tried and made NO observable
     difference; left in anyway (harmless, standard Electron practice on
@@ -935,6 +1003,16 @@ covered under CONFIRMED ARCHITECTURE above.
                    getToneKnobOrder/saveToneKnobOrder (2026-08-03).
   index.html       Full UI — HTML + CSS + script tags. All panels (amp, cab/mic,
                    DIST, REVERB), the SAVE dropdown, settings panel, chain row.
+                   Jump List overlay (#slot-matrix, 2026-08-03) — buildMatrix
+                   (IIFE, builds the 26x4 grid once at parse time),
+                   refreshMatrixCells/refreshNamedMatrixSlot (repaint for
+                   whichever of the two views — by-slot compact vs by-name
+                   148px — matrixMode is currently showing), the split
+                   left/right click handler on #patch-name-box. Global dark
+                   ::-webkit-scrollbar styling (applies app-wide, not just
+                   here). Speaker Breakup slider's fully custom track/thumb
+                   CSS (--track-color/--fill-pct, set by updateBreakupColor,
+                   ui.js).
   src/splash.html  Splash window shown while the bridge/rack connect and the
                    first patch state loads (STARTUP GATE, 2026-08-02) — text
                    logo, progress bar/status line, and the Try Again/Quit gate
@@ -964,7 +1042,12 @@ covered under CONFIRMED ARCHITECTURE above.
                    patch dirty only for PER_PATCH_CCS = [17] (Rig Vol); input and
                    tuner CCs do not. Also armStartupGate/checkInitialPopulateReady
                    and the splash progress messages sent at each connect stage
-                   (STARTUP GATE, 2026-08-02).
+                   (STARTUP GATE, 2026-08-02). sendPatchNameQuery (Jump List,
+                   2026-08-03) — CMD 0x04 REQU form; space=0x00 user/0x01
+                   factory, raw slot 0-103 (NOT the SAVE protocol's bank/num
+                   split, a real bug found and fixed the same day — see Tech
+                   Ref Sec 24). Fired from the 'connected' handler, 2s after
+                   connect.
   fx-transport.js  Per-effect-block SEND/query functions (DIST, REVERB, WAH,
                    VOL, DELAY, FX LOOP), split out so
                    transport.js does not grow per panel. FX1/FX2/MOD share
@@ -978,7 +1061,10 @@ covered under CONFIRMED ARCHITECTURE above.
                    0x11, chain map (CMD 0x21), tuner (0x40), stereo/mono (0x0D),
                    input (0x3D), and drives the matching UI updates. handleChainMap
                    also flips initialChainMapDone and checks splash readiness
-                   (STARTUP GATE, 2026-08-02).
+                   (STARTUP GATE, 2026-08-02). CMD 0x04 dispatch split into
+                   handleSaveArm (existing, the save-sequence arm broadcast)
+                   vs handlePatchNameEnumReply (Jump List name-scan reply,
+                   2026-08-03), distinguished by message length.
   ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
                    handlers, chain-row render, knob-colour (dirty) tracking.
                    showStartupGate/hideStartupGate/splashSetProgress drive the
@@ -1016,7 +1102,10 @@ covered under CONFIRMED ARCHITECTURE above.
                    calls; init() only runs after every script has loaded).
   patch-nav.js     Patch navigation logic and the post-nav state pull.
   capture-scan.js  TFX capture to disk, bank scan, load/save (Save-to-Rack and
-                   Save-to-Disk, rename).
+                   Save-to-Disk, rename). scanPatchNames (Jump List, 2026-08-03)
+                   paces the 104 read-only name queries; saveCurrentPatchToSlot
+                   also writes the new name into patchNameCache directly on our
+                   own saves, no round-trip wait needed.
   tfx-inspect.js   CLI: decode a TFX file.
   tfx-diff.js      CLI: diff two TFX files.
 
@@ -1045,6 +1134,11 @@ KEY STATE VARIABLES (state.js):
   ampSelectRxSeq          bumped when an Amp Select (0x0F) reply is handled
   chainMapRxSeq           bumped when a chain map (0x21) has been applied
   navSeqId                post-nav pull generation; guards against stale replies
+  patchNameCache          Jump List "by name" view, 2026-08-03 — slotNum ->
+                          name, SESSION-ONLY, never persisted to disk
+  toneKnobOrderPrefs      Amp Controls reorder, 2026-08-03 — ampKey -> saved
+                          knob display order (array of paramLo), persisted
+  toneRowLocked           Amp Controls reorder — re-arms locked every launch
 
 
 ENVIRONMENT

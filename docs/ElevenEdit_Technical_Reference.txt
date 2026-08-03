@@ -2858,6 +2858,144 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
 
+2026-08-03 (Jump List feature + follow-on fixes, continuation of the same
+  session as the entry below) — NEW FEATURE, TESTED LIVE: the patch-name
+  box's click-to-open overlay is now two purpose-built views instead of one
+  undiscoverable click target (previously: a hand cursor with no other
+  visible affordance, one view, names always "—"). LEFT half opens "by
+  slot" — compact grid, id + a centered dash only, small fixed-width boxes,
+  many banks per row, minimal scrolling, for jumping to a slot already
+  known by number. RIGHT half opens "by name" — same grid, wider
+  fixed-width boxes (148px, fits the max 16-char patch name without an
+  awkward truncation), real patch names. Both views share one overlay/grid
+  (#slot-matrix) and one CSS class toggle (mode-name/mode-slot on
+  #matrix-scroll) rather than two near-duplicate overlays.
+  NAME SOURCE — CMD 0x04, confirmed live this session (previously only a
+  Tech Ref "ALSO CAPTURED, not yet used" note, ambiguously transcribed):
+      Query:  F0 13 0B 0F 01 04 [space] [slot] F7
+      Reply:  F0 13 0B 0F 12 04 [space] [slot] [name] 00 F7
+    space = 0x00 user patches, 0x01 factory patches (only two valid values
+    — NOT a bank number). slot = the FULL raw slot 0-103 within that space
+    (NOT slot%4). This is a DIFFERENT addressing scheme from the SAVE
+    protocol's CMD 0x04 write form (bank=floor(slot/4), num=slot%4, Sec
+    15) — the first version of this feature wrongly reused that scheme,
+    which happened to look correct for A1-A4 only (both schemes agree for
+    slot 0-3) then broke immediately after: slot 4 (B1) under the wrong
+    scheme sent bytes (1,0), read by the hardware as [space=1 FACTORY,
+    slot=0] = factory a1, and bank 2+ isn't a valid space value at all
+    (no reply, matching the blank C1-onward Charlie originally saw). The
+    name DECODE itself (offset 8 to the null terminator) was correct from
+    the start. Factory patches (a1-z4) are deliberately never shown —
+    Charlie's call, this app only tracks user A1-Z4.
+  LIVE TRACKING, no rescan ever needed on open: patchNameCache (state.js)
+  is SESSION-ONLY, never persisted to settings.json — a stale name from a
+  session where the app wasn't running to see a rename or a whole-bank
+  swap would be worse than showing none. Populated by one lightweight
+  sweep (scanPatchNames, capture-scan.js — 104 read-only queries, no patch
+  recall/navigation, unlike the existing hidden "Scan Bank" feature) fired
+  once per bridge connect (transport.js 'connected' handler, 2s delay).
+  Kept current afterward two ways: our own saves write the new name
+  directly into the cache the instant they happen (saveCurrentPatchToSlot,
+  capture-scan.js — no round-trip wait), and a live CMD 0x04 broadcast
+  listener (handlePatchNameEnumReply, sysex-handler.js) catches any OTHER
+  save (front panel, Avid editor) the same "adopt any broadcast on the
+  wire" pattern every other live-tracked feature in this app already uses.
+  CMD 0x04's dispatch (sysex-handler.js) had to be split — it already
+  carried the save-sequence "arm" broadcast (handleSaveArm, existing,
+  confirmed behaviour: short message, data[7]=raw armed slot, no embedded
+  name) — distinguished from the new name-query reply by message length
+  (the name reply always carries an embedded ASCII name + null terminator
+  past data[7]).
+  ALSO IN THIS FEATURE: fixed a real hidden-Scan-Bank discovery Charlie
+  made mid-session — that button (index.html, display:none, wired but
+  unreachable in the UI) already implements most of what a future EHB
+  bank-backup/export feature (Sec 17) would need (walk every slot, pull
+  the bulk body) — flagged as real prior art for later, not built this
+  session. Corrected a stale, never-implemented `name` field in bankCache's
+  own comment (state.js) while investigating — Charlie's memory of an
+  early "kludge" turned out to be a leftover comment, not real disabled
+  persistence code.
+  UI polish, same feature, TESTED LIVE: fixed-header title+Close bar
+  (#matrix-header) that never scrolls away — previously the whole overlay
+  was one scrolling block, so Close (at the very bottom) scrolled out of
+  reach after 26 banks. Legible bank/slot colours (were #777 on #222,
+  bumped to var(--muted)/var(--accent-dim)). Bumped font sizes across both
+  views. Fixed per-view box sizing (was repeat(4,1fr), which let each
+  BANK's own grid size its columns off that bank's own longest name/id, so
+  box size visibly varied bank to bank — now a constant per-mode column
+  width, see above). Global dark ::-webkit-scrollbar styling, app-wide
+  (Chromium/Windows default is a bright light-grey that clashed with the
+  theme; nothing in the app had ever styled one before this).
+  SPEAKER BREAKUP SLIDER, TESTED LIVE (found not to follow the Sec 20A
+  knob contract at all while working on the Jump List's colour scheme,
+  fixed the same session): the slider is a native <input type=range>, not
+  a .knob-wrap canvas, so it fell outside captureKnobBaselines/
+  clearMainKnobBaselines (the two hooks every OTHER main-panel knob's
+  amber/red-on-change baseline goes through) entirely — no baseline, no
+  colour change, no double-click-to-baseline restore. Fixed in two passes:
+  (1) hooked into those same two functions (captureBreakupBaseline/
+  clearBreakupBaseline/updateBreakupColor, ui.js) so it rides the exact
+  same trigger points as every other knob, plus added the missing dblclick
+  handler (R8 pattern). (2) accent-color (the first pass's colour
+  mechanism) turned out to only TINT Chrome's built-in slider theme, not
+  replace it — the browser's own hover/active/focus shading and default
+  white groove were still there underneath. Switched to a fully
+  custom-styled track/thumb (-webkit-appearance:none hands rendering
+  entirely to our CSS) driven by two CSS custom properties, --track-color
+  and --fill-pct, both set together by updateBreakupColor using the exact
+  same KNOB_COLORS values the round knobs use — no browser-default state
+  left to leak through, matching the knobs' static-except-for-colour look.
+  STARTUP: two more fixes, both TESTED LIVE and both found by Charlie
+  testing the Jump List build. (1) Launching the EXE a second time while
+  already running briefly flashed the splash then killed the FIRST
+  instance's Java bridge — the single-instance lock
+  (requestSingleInstanceLock, main.js) existed but its losing branch only
+  called app.quit(), which SCHEDULES a quit rather than halting the rest
+  of the script; a second launch still reached
+  whenReady->launchBridge->killOrphanedBridgeProcesses (a PowerShell sweep
+  that force-kills ANY ElevenRackBridge.jar process by design, to clean up
+  a crashed session's orphan) before its own quit took effect, catching the
+  FIRST instance's bridge in that net. Fixed with a `return;` right after
+  app.quit(). (2) Chain-row pedal-graphic thumbnails intermittently blank
+  on load, a long-standing bug the 2026-07-31 retry+logging pass masked
+  sometimes but never actually fixed — root-caused to the Avid-graphics
+  auto-scan living in index.html's big INLINE <script>, which runs at HTML
+  PARSE TIME, before the <script src="js/chain-graphics.js">/js/ui.js tags
+  further down the SAME file even load; the scan's async IPC round-trip
+  raced those files finishing load, and if it resolved first,
+  setAvidGraphicsManifest/renderChainRow didn't exist yet and the existing
+  typeof guards silently no-op'd. Fixed by exposing the scan as
+  window.startAvidGraphicsAutoScan and triggering it from app-init.js's
+  init() instead, which only ever runs after every script has loaded —
+  removes the race structurally rather than retrying the same one.
+  WHITE FLASH INVESTIGATION (two distinct, unrelated symptoms found this
+  session, only one resolved):
+    (1) VM-ONLY white flash at the splash->main reveal — RESOLVED. Two
+    timing-based fixes were tried first (a 120ms gap between showing main
+    and closing splash, main.js; then pushing both background scans this
+    session added further from the reveal window) and neither removed it.
+    Charlie's own A/B test (VM vs. his real PC: no flash) revealed the real
+    cause — a known, years-old, unfixed Chromium/Electron compositor bug
+    specific to virtualized/software GPU rendering, confirmed unrelated to
+    this app (his OTHER two Electron-based Eleven Rack utilities show the
+    same flash). Both timing changes were reverted (they only made real
+    features slower for no benefit). Fixed properly with an opt-in /NOGPU
+    startup flag (main.js, same process.argv pattern as /LOGS) — calls
+    app.disableHardwareAcceleration() before app.whenReady() when present,
+    taking Chromium off the GPU-compositor path that has the bug. App-wide
+    when present, so only added to VM shortcuts, not the real-hardware one.
+    (2) A SEPARATE dark flash, sized like the MAIN window (not the splash),
+    on real-PC COLD STARTS ONLY (never on an immediate relaunch) — NOT
+    RESOLVED. Best-guess cause (unverified): Windows' own "ghost window"
+    launch feedback — Explorer/DWM showing a placeholder sized like the
+    app's last window when a launch takes a moment, which would explain
+    both the main-window sizing and the cold/warm timing. Tried
+    app.setAppUserModelId (main.js, one line, harmless either way) —
+    confirmed by Charlie to make NO observable difference. Left in anyway
+    (standard Electron practice on its own merits); not worth further
+    code-level chasing given this is very likely genuine Windows-shell
+    behaviour outside app control. See Primer DO NOT RETRY list.
+
 2026-08-03 (Amp Controls tone-knob reorder + three fixes, new session) —
   NEW FEATURE, TESTED LIVE: tone-stack knobs (AMP_TONE_PARAMS, up to 8 per
   amp) can now be dragged by their LABEL (not the knob itself) into a

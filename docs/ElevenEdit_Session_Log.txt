@@ -39,7 +39,8 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING (Jump List) + Tech Ref Sec 24,
+  2026-08-03] — Charlie confirmed TESTED LIVE ("Great work. Tick done.").
 AREA:        Jump List — restored the compact "by slot" box size
 FINDING:     Charlie's follow-up on the two-view design: now that names
   are always available, a plain id-only view felt pointless UNLESS it kept
@@ -90,7 +91,10 @@ NEXT:        Charlie's live test — confirm the Jump List's scrollbar reads
   up the same styling automatically.
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING (Jump List) + Tech Ref Sec 24,
+  2026-08-03] — Charlie confirmed TESTED LIVE via screenshot ("You did
+  exactly what was needed... I have always liked how it doesn't reset to
+  the top").
 AREA:        Jump List — fixed header (title + Close), independent scroll
 FINDING:     Charlie's ask: the Close button sat at the very bottom of the
   overlay, below all 26 banks, so it scrolled out of reach and had to be
@@ -110,7 +114,9 @@ NEXT:        Charlie's live test: confirm the header stays put while
   scrolling through banks, and Close is reachable without scrolling.
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING (Speaker Breakup) + Tech Ref
+  Sec 24, 2026-08-03] — Charlie confirmed TESTED LIVE ("Another one for
+  the quick win column. Good.").
 AREA:        Speaker Breakup slider — hover/drag shading + white groove
   (follow-up to the earlier baseline/colour fix, same day)
 FINDING:     Charlie's earlier ask got the amber/red "changed" state
@@ -239,7 +245,10 @@ NEXT:        none — closed. No further action expected; flagging only if a
   future VM-specific rendering complaint comes up, this is the known reason.
 -------------------------------------------------------------------
 DATE:        2026-08-03 (UPDATE — first flash fix did not work, re-derived)
-STATUS:      provisional — second fix written, NOT yet tested live
+STATUS:      SUPERSEDED — this second attempt (delaying both background
+  scans) also made no difference; see the 2026-08-03 (RESOLVED) entry above
+  for the actual cause (VM-only Chromium bug) and the revert of both
+  attempts' timing changes.
 AREA:        Splash->main white flash — STILL PRESENT after the window-
   swap timing fix; re-derived a different hypothesis
 FINDING:     Charlie confirmed the 120ms splash-close delay (main.js) did
@@ -294,7 +303,11 @@ NEXT:        Charlie's live test. If the flash is STILL present after this,
   themselves rather than any timing question.
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      SPLIT OUTCOME — sizing/font [FOLDED IN: Primer WORKING (Jump
+  List), 2026-08-03], Charlie confirmed TESTED LIVE ("fonts, sizes... are
+  good"). The white-flash mitigation attempt (item 3) did NOT work — see
+  the RESOLVED entry above for the real (VM-only) cause; that part of this
+  entry is superseded, not folded in.
 AREA:        Jump List sizing/font + splash->main white flash
 FINDING:     Second round of Charlie's Jump List feedback (by-name view
   confirmed working for A-G banks by this point):
@@ -339,7 +352,9 @@ NEXT:        Charlie's live test: confirm font/box sizing reads better and
   GPU/driver-specific, outside what a code change alone can fix).
 -------------------------------------------------------------------
 DATE:        2026-08-03 (UPDATE — addressing bug found + fixed same day)
-STATUS:      provisional — fix written, NOT yet re-tested live
+STATUS:      [FOLDED IN: Primer DO NOT RETRY + WORKING (Jump List) + Tech
+  Ref Sec 24, 2026-08-03] — Charlie confirmed TESTED LIVE, A-G banks all
+  correct.
 AREA:        Jump List by-name scan — wrong CMD 0x04 addressing (B1-B4
   showed factory a1-a4's names, C1 onward blank)
 FINDING:     Charlie's first live test (session log attached,
@@ -387,7 +402,11 @@ NEXT:        Charlie's re-test: confirm A1-Z4 all populate with correct
   names (not just A1-A4), confirm no factory names leak into the user list.
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING (Jump List) + Tech Ref Sec 24,
+  2026-08-03] — the split-views mechanism itself confirmed working, but
+  this initial build shipped with a real addressing bug (see the
+  "addressing bug found + fixed" entry below) — fixed same day before
+  Charlie's first full confirmation.
 AREA:        Jump List — split by-slot/by-name views + colour fix
 FINDING:     Charlie's ask: the patch-name box's click-to-jump overlay
   (previously one undiscoverable click target, no visible affordance beyond
@@ -454,7 +473,10 @@ NEXT:        Charlie's live test, Monitor open: confirm the by-name view
   in handlePatchNameEnumReply first (bank/num order, name start offset).
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING (Speaker Breakup) + Tech Ref
+  Sec 24, 2026-08-03] — Charlie confirmed via screenshot (red-on-change
+  working correctly); the remaining hover/drag/groove issue this same
+  screenshot flagged was fixed in the follow-up entry above.
 AREA:        Speaker Breakup slider — missing amber/red baseline + dblclick
 FINDING:     Charlie noticed the Speaker Breakup slider doesn't follow the
   Sec 20A knob contract every round knob does (R3 baseline / red-on-change /
