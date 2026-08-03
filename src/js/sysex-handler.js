@@ -39,7 +39,7 @@ async function parseSysEx(data) {
   switch (cmd) {
     case 0x00:
     case 0x01: return handleBulkTfxData(data, cmd);
-    case 0x04: return handleSaveArm(data);
+    case 0x04: return handleCmd04(data);
     case 0x02: return handleSlotConfirm(data);
     case 0x03: return handleSaveRigResponse(data);
     case 0x05: return handlePatchName(data);
@@ -238,6 +238,40 @@ async function handleBulkTfxData(data, cmd) {
 // ════════════════════════════════════════════════════════════════════
 // CMD 0x04 — Save slot/name confirmation
 // ════════════════════════════════════════════════════════════════════
+// CMD 0x04 carries TWO different things depending on what triggered it:
+//   - the save-sequence "arm" broadcast (short — data[7]=raw armed slot,
+//     no embedded name) — existing, confirmed behaviour, handleSaveArm.
+//   - a patch-name query reply (Jump List "by name" scan, 2026-08-03 —
+//     [bank][num][name][00], so it always carries at least one ASCII byte
+//     plus a null terminator past data[7]) — new, handlePatchNameEnumReply.
+// Distinguished by length rather than dir, since the save-arm broadcast's
+// dir byte was never confirmed distinct from a query reply's — length is
+// the one difference both formats are documented to actually have.
+function handleCmd04(data) {
+  if (data.length > 10) return handlePatchNameEnumReply(data);
+  return handleSaveArm(data);
+}
+
+// Jump List "by name" scan reply (2026-08-03) — see sendPatchNameQuery
+// (transport.js) for the request side and Tech Ref Sec 24 for the caveat
+// that this reply shape is transcribed from an earlier capture, not
+// re-verified this session; re-check against the Monitor on first live
+// test — if names come back wrong/garbled, the bank/num byte order or the
+// name's start offset (assumed data[8]) is the first thing to recheck.
+function handlePatchNameEnumReply(data) {
+  try {
+    const bank = data[6], num = data[7];
+    const slot = bank * 4 + num;
+    if (slot < 0 || slot > 103) return;
+    let end = 8;
+    while (end < data.length && data[end] !== 0x00) end++;
+    const name = Array.from(data.slice(8, end)).map(b => String.fromCharCode(b)).join('').trim();
+    patchNameCache[slot] = name;
+    appLog('Patch name scan: ' + slotLabel(slot) + ' = "' + name + '"');
+    if (typeof refreshNamedMatrixSlot === 'function') refreshNamedMatrixSlot(slot);
+  } catch(e) { appLog('handlePatchNameEnumReply error: ' + e.message); }
+}
+
 function handleSaveArm(data) {
   if (data.length < 8) return;
   const armed_slot = data[7];

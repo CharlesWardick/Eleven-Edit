@@ -40,6 +40,73 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Jump List — split by-slot/by-name views + colour fix
+FINDING:     Charlie's ask: the patch-name box's click-to-jump overlay
+  (previously one undiscoverable click target, no visible affordance beyond
+  a hand cursor) had two problems — the bank/slot-id text was too dark to
+  read (#777 on #222), and there was only one view (slot ids, names always
+  "—" since nothing populated them). Wanted: LEFT half of the patch name =
+  existing "by slot" list with better contrast; RIGHT half = the same list
+  but showing real patch names, via the lightweight CMD 0x04 names-only scan
+  already documented in Tech Ref (Sec 24, "ALSO CAPTURED, not yet used") —
+  distinct from the existing (currently hidden, `display:none`) full "Scan
+  Bank" button/feature, which Charlie separately flagged as real prior art
+  for a future full bank-backup/export feature (Tech Ref Sec 17, EHB format)
+  — out of scope for today, noted for later.
+  DESIGN (agreed with Charlie before coding): the name cache is SESSION-ONLY,
+  never persisted to settings.json — if the app isn't running when a rename
+  or a whole-bank swap happens, there's no way to know, so a stale name from
+  a prior session would be worse than no name. Populated by one lightweight
+  sweep per bridge connect (104 read-only queries, no patch recall/nav —
+  cheap, unlike the heavy Scan Bank), then kept live thereafter: our own
+  saves update the cache directly (we already know the new name), and a
+  CMD 0x04 broadcast listener catches renames/loads from the front panel or
+  Avid editor the same way every other live-tracked feature in this app
+  works. Opening the "by name" list never triggers a rescan — it just reads
+  current in-memory state.
+  IMPLEMENTATION: state.js (patchNameCache, patchNameScanInProgress — also
+  dropped a stale, never-implemented `name` field from bankCache's own
+  comment while in there, per Charlie's memory of an early kludge that
+  turned out to just be a leftover comment, not real disabled code).
+  transport.js (sendPatchNameQuery — reuses the SAME bank=floor(slot/4)/
+  num=slot%4 addressing already proven correct by the SAVE protocol's CMD
+  0x04 write form; fires 2s after 'connected', separate from and much
+  cheaper than the old reverted full auto-scan-on-connect attempt noted in
+  the same handler). capture-scan.js (scanPatchNames — paces the 104
+  queries; saveCurrentPatchToSlot updates patchNameCache directly on our
+  own saves). sysex-handler.js (CMD 0x04 dispatch split into
+  handleCmd04 -> handleSaveArm [existing, confirmed] vs
+  handlePatchNameEnumReply [new], distinguished by message length since the
+  name reply carries an embedded ASCII name past data[7] and the save-arm
+  broadcast doesn't). index.html (.matrix-slot .slot-id / .matrix-bank-label
+  colour fix; patch-name-box click handler split into left/right by cursor
+  x-position within the box, switching a shared matrixMode instead of
+  building a second near-duplicate overlay; refreshMatrixCells/
+  refreshNamedMatrixSlot).
+  ONE GENUINE UNKNOWN, flagged in code comments at both ends
+  (sendPatchNameQuery/handlePatchNameEnumReply): the query's own addressing
+  (bank/num) is high-confidence (directly reused from the confirmed SAVE
+  protocol), but the REPLY's exact byte layout past [bank][num] is only as
+  good as the Tech Ref's "ALSO CAPTURED, not yet used" transcription — it
+  was not re-verified against a fresh capture this session. Read-only/safe
+  either way (nothing like the CMD 0x37 danger class) — worst case on a
+  wrong assumption is wrong/garbled names or no replies, not a hardware
+  risk. Charlie should have the MIDI Monitor open on first test of this
+  specifically.
+EVIDENCE:    code written and read back; node --check clean on every
+  touched .js file, and every inline <script> block in index.html parsed
+  clean via `new Function(...)`. NOT yet tested live.
+CONFLICTS:   none — additive. Existing "by slot" behaviour (id-only,
+  goToSlot on click) is unchanged when that side is clicked.
+NEXT:        Charlie's live test, Monitor open: confirm the by-name view
+  populates with real names within a couple seconds of connect, confirm a
+  Save to Rack updates that slot's name in the list immediately, confirm
+  left/right click zones behave (open/close/switch), confirm colour
+  legibility. If names come back wrong/garbled, recheck the reply decode
+  in handlePatchNameEnumReply first (bank/num order, name start offset).
+-------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Speaker Breakup slider — missing amber/red baseline + dblclick
 FINDING:     Charlie noticed the Speaker Breakup slider doesn't follow the
   Sec 20A knob contract every round knob does (R3 baseline / red-on-change /

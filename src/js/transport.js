@@ -137,6 +137,17 @@ function handleBridgeMsg(msg) {
       // delay on every launch. The scan itself is still available via
       // the "Scan Bank" button whenever it's worth trying again (e.g.
       // once the real reactive-pull issue is found via Wireshark/MIDI-OX).
+      //
+      // The Jump List "by name" scan (2026-08-03) is NOT that reverted
+      // scan — it's 104 tiny read-only name queries (no per-slot patch
+      // recall/navigation at all), so it doesn't carry the same 3-minute
+      // cost. Delayed 2s so it doesn't compete with the startup-gate-
+      // critical chain-map/nav pull above; fire-and-forget, replies land
+      // asynchronously via handlePatchNameEnumReply (sysex-handler.js)
+      // whenever they arrive.
+      setTimeout(function() {
+        if (typeof scanPatchNames === 'function') scanPatchNames();
+      }, 2000);
       break;
     case 'disconnected':
       bridgeMidiReady = false;
@@ -284,6 +295,22 @@ function sendHex(hex) {
   }
   bridgeWs.send(JSON.stringify({ cmd: 'send', hex: hex }));
   return true;
+}
+
+// ── Patch name query (CMD 0x04, REQU form) — Jump List "by name" view,
+// 2026-08-03. Read-only, cheap: no patch recall, no navigation, unlike the
+// existing (hidden) Scan Bank feature. Reuses the SAME bank/num addressing
+// already proven correct by the SAVE protocol's CMD 0x04 write form
+// (saveCurrentPatchToSlot, capture-scan.js — bank=floor(slot/4),
+// num=slot%4). The reply's exact byte layout past [bank][num] is per Tech
+// Ref's "ALSO CAPTURED, not yet used" note (Sec 24) — decoded in
+// handlePatchNameEnumReply, sysex-handler.js; re-verify against the Monitor
+// on first live test since that note was transcribed, not re-confirmed,
+// this session.
+function sendPatchNameQuery(bank, num) {
+  const bankHex = bank.toString(16).padStart(2,'0').toUpperCase();
+  const numHex  = num.toString(16).padStart(2,'0').toUpperCase();
+  sendHex('F0 13 0B 0F 01 04 ' + bankHex + ' ' + numHex + ' F7');
 }
 
 // ── CMD 0x11 SysEx parameter write — the real control mechanism the

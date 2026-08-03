@@ -133,6 +133,29 @@ function cancelBankScan() {
   scanCancelRequested = true;
 }
 
+// ── Jump List "by name" scan (2026-08-03) ──
+// Lightweight, read-only sweep of all 104 slots' NAMES ONLY via CMD 0x04's
+// REQU form (sendPatchNameQuery, transport.js) — no patch recall, no
+// navigation, unlike the (currently hidden) Scan Bank feature above. Fires
+// once per bridge connect (transport.js handleBridgeMsg 'connected' case);
+// results land asynchronously in patchNameCache (state.js) via
+// handlePatchNameEnumReply (sysex-handler.js) as each reply arrives — this
+// function just paces out the 104 requests, it doesn't wait for or match
+// individual replies the way scanSlot (above) has to for the heavy scan.
+const NAME_SCAN_GAP_MS = 20;   // ms between queries — read-only, can be brisk
+async function scanPatchNames() {
+  if (patchNameScanInProgress || !bridgeMidiReady) return;
+  patchNameScanInProgress = true;
+  appLog('Patch name scan (Jump List) started — 104 slots, read-only');
+  for (let slot = 0; slot <= 103; slot++) {
+    if (!bridgeMidiReady) break;   // dropped mid-scan — stop, don't flood a dead socket
+    sendPatchNameQuery(Math.floor(slot / 4), slot % 4);
+    await new Promise(r => setTimeout(r, NAME_SCAN_GAP_MS));
+  }
+  patchNameScanInProgress = false;
+  appLog('Patch name scan: all 104 requests sent (replies arrive asynchronously)');
+}
+
 // Called immediately on a confirmed slot change, before the REQU responses
 // above come back — the old amp/gate/rig-vol readouts are for the
 // previous patch, so show "unknown" rather than a confidently wrong number.
@@ -240,6 +263,13 @@ async function saveCurrentPatchToSlot(nameOverride) {
   currentPatchName = name;
   const nameEl = document.getElementById('patch-name');
   if (nameEl) { nameEl.textContent = name; nameEl.classList.add('live'); }
+
+  // Jump List "by name" view (2026-08-03) — we already know the new name at
+  // the moment WE save it, so update the cache directly rather than waiting
+  // for the CMD 0x04 echo (handlePatchNameEnumReply, sysex-handler.js) to
+  // round-trip back. Session-only cache (state.js) — never written to disk.
+  patchNameCache[slot] = name;
+  if (typeof refreshNamedMatrixSlot === 'function') refreshNamedMatrixSlot(slot);
 
   appLog('Saving current patch to ' + slotLabel(slot) + ' as "' + name + '"');
   setStatus('Saving to ' + slotLabel(slot) + '...');

@@ -663,12 +663,16 @@
   }
   #slot-matrix.open { display: block; }
   .matrix-title { color: var(--accent); font-size: 12px; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; }
-  .matrix-bank-label { font-size: 10px; color: #777; margin-bottom: 4px; }
+  /* Bank label + slot id were #777 on a #222 background — Charlie found
+     both hard to read (2026-08-03). Bumped to legible, still-secondary
+     colours: muted grey for the bank header, warm accent-dim for the
+     per-slot id so it reads as "label", not competing with the name. */
+  .matrix-bank-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
   .matrix-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 10px; }
   .matrix-slot { background: #222; border: 1px solid #555; border-radius: 3px; padding: 4px 6px; cursor: pointer; }
   .matrix-slot:hover { border-color: var(--accent); }
   .matrix-slot.current { background: #2d2200; border-color: var(--accent); }
-  .matrix-slot .slot-id   { color: #777; font-size: 10px; display: block; font-family: 'Consolas', monospace; }
+  .matrix-slot .slot-id   { color: var(--accent-dim); font-size: 10px; font-weight: bold; display: block; font-family: 'Consolas', monospace; }
   .matrix-slot .slot-name { color: var(--text); font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .matrix-slot.current .slot-name { color: var(--accent); }
   .matrix-close { margin-top: 8px; text-align: right; }
@@ -799,10 +803,13 @@
     </div>
   </div>
 
-  <!-- Patch name — click to open slot matrix -->
+  <!-- Patch name — click LEFT half for the slot-id Jump List, RIGHT half
+       for the same list by patch NAME (2026-08-03; split added since this
+       was previously one undiscoverable click target with no visible
+       affordance beyond the hand cursor). -->
   <div id="patch-name-box">
     <span id="patch-name">—</span>
-    <span class="hint">click to jump to slot</span>
+    <span class="hint">◀ jump by slot · jump by name ▶</span>
   </div>
   <!-- Hidden elements kept for JS compatibility -->
   <span id="slot-display" style="display:none;">A1</span>
@@ -1821,9 +1828,23 @@ document.getElementById('btn-fxhost-close').addEventListener('click', function()
   if (typeof closeFxHostPanel === 'function') closeFxHostPanel();
 });
 
-// Patch name box click = open slot matrix
-document.getElementById('patch-name-box').addEventListener('click', function() {
-  document.getElementById('slot-matrix').classList.toggle('open');
+// Patch name box click = open the Jump List — LEFT half opens/closes the
+// "by slot" view, RIGHT half the "by name" view (2026-08-03). Clicking the
+// side that's already showing closes the overlay (original toggle
+// behaviour); clicking the OTHER side while it's open switches the view in
+// place instead of closing it.
+document.getElementById('patch-name-box').addEventListener('click', function(e) {
+  var r = this.getBoundingClientRect();
+  var wantMode = (e.clientX - r.left < r.width / 2) ? 'slot' : 'name';
+  var m = document.getElementById('slot-matrix');
+  var isOpen = m.classList.contains('open');
+  if (isOpen && matrixMode === wantMode) {
+    m.classList.remove('open');
+    return;
+  }
+  matrixMode = wantMode;
+  refreshMatrixCells();
+  m.classList.add('open');
 });
 
 // Close matrix on outside click
@@ -1914,6 +1935,50 @@ function updateMatrixHighlight(slot) {
   document.querySelectorAll('.matrix-slot').forEach(function(c) {
     c.classList.toggle('current', parseInt(c.dataset.slot) === slot);
   });
+}
+
+// ── Jump List "by name" view (2026-08-03) ──
+// One shared overlay/grid (#slot-matrix) now serves BOTH views — "by slot"
+// (id only, the original behaviour) and "by name" (patchNameCache,
+// state.js) — rather than building a second near-duplicate overlay.
+// matrixMode is which one is currently showing; refreshMatrixCells()
+// repaints every cell's .slot-name text for that mode, and
+// refreshNamedMatrixSlot (called live as name-scan replies/saves land,
+// capture-scan.js/sysex-handler.js) only touches a cell if the name view
+// is the one actually on screen right now.
+var matrixMode = 'slot';   // 'slot' | 'name'
+
+function refreshMatrixCells() {
+  var title = document.querySelector('.matrix-title');
+  if (title) {
+    title.textContent = (matrixMode === 'name')
+      ? 'PATCH NAMES — click to jump'
+      : 'PATCH SLOTS — click to jump';
+  }
+  document.querySelectorAll('.matrix-slot').forEach(function(c) {
+    var nameEl = c.querySelector('.slot-name');
+    if (!nameEl) return;
+    if (matrixMode === 'name') {
+      var slot = parseInt(c.dataset.slot);
+      var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
+      nameEl.textContent = (nm && nm.length) ? nm : '—';
+    } else {
+      nameEl.textContent = '—';
+    }
+  });
+}
+
+// Called live as individual name replies/saves land (handlePatchNameEnumReply,
+// sysex-handler.js; saveCurrentPatchToSlot, capture-scan.js) — a no-op
+// unless the name view is the one currently open, same reasoning as
+// renderChainRow skipping a repaint mid-drag elsewhere in this app.
+function refreshNamedMatrixSlot(slot) {
+  if (matrixMode !== 'name') return;
+  var cell = document.querySelector('.matrix-slot[data-slot="' + slot + '"]');
+  if (!cell) return;
+  var nameEl = cell.querySelector('.slot-name');
+  var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
+  if (nameEl) nameEl.textContent = (nm && nm.length) ? nm : '—';
 }
 
 // ════════════════════════════════════════════════════════════════════

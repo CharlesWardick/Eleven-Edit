@@ -16,13 +16,28 @@ let zoomFactor   = 1.0;
 // ── Bank scan — walk every slot on our own terms, build a local
 // reference (amp/gate/name per slot), instead of relying on a live pull
 // landing correctly in the moment. See README for the reasoning. ──
-let bankCache            = {};   // slotNum -> {name, ampKey, threshV, releaseV, signature, scannedAt}
+let bankCache            = {};   // slotNum -> {ampKey, threshV, releaseV, signature, scannedAt}
 let scanInProgress       = false;
 let scanCancelRequested  = false;
 let pendingScanSlot      = null;
 let pendingScanResolve   = null;
 const SCAN_SETTLE_MS           = 400;  // wait after navigating, before requesting patch data — TUNE THIS if slots keep timing out
 const SCAN_RESPONSE_TIMEOUT_MS = 1200; // how long to wait for a response before giving up on a slot and moving on
+
+// ── Jump List "by name" view (2026-08-03) — patch-name cache keyed by slot.
+// Deliberately SESSION-ONLY, never written to settings.json: if the app
+// isn't running while a patch gets renamed or a whole bank gets swapped in,
+// there is no way to know that happened, so a name persisted from a PRIOR
+// session could show something that no longer matches the rack — worse
+// than showing nothing. Populated fresh by a lightweight CMD 0x04 sweep
+// once per bridge connect (scanPatchNames, capture-scan.js), then kept
+// live: any save from ANY source (this app, the front panel, or Avid)
+// broadcasts a CMD 0x04 echo we already listen for elsewhere
+// (handlePatchNameEnumReply, sysex-handler.js), and our OWN saves
+// (saveCurrentPatchToSlot, capture-scan.js) update it directly since we
+// already know the new name at that moment, no round-trip needed.
+let patchNameCache          = {};   // slotNum -> name string
+let patchNameScanInProgress = false;
 
 let autoTimer     = null;
 let autoRafId     = null;
