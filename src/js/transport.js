@@ -141,13 +141,30 @@ function handleBridgeMsg(msg) {
       // The Jump List "by name" scan (2026-08-03) is NOT that reverted
       // scan — it's 104 tiny read-only name queries (no per-slot patch
       // recall/navigation at all), so it doesn't carry the same 3-minute
-      // cost. Delayed 2s so it doesn't compete with the startup-gate-
-      // critical chain-map/nav pull above; fire-and-forget, replies land
-      // asynchronously via handlePatchNameEnumReply (sysex-handler.js)
-      // whenever they arrive.
+      // cost. Delayed well clear of the startup-gate reveal window (see
+      // below) — fire-and-forget, replies land asynchronously via
+      // handlePatchNameEnumReply (sysex-handler.js) whenever they arrive.
+      //
+      // DELAY BUMPED 2s -> 5s (2026-08-03, same day): Charlie reported a
+      // white flash exactly at the splash->main reveal that did not exist
+      // before the Jump List work, and a first fix targeting the window-
+      // manager handoff (main.js 'app-ready' handler) did not remove it.
+      // Re-derived rather than re-guessing the same layer: this scan is the
+      // ONE thing the Jump List feature added that runs unconditionally on
+      // EVERY launch, regardless of whether the list is ever opened — 104
+      // rapid sends + log lines is real main-thread work, and if it happens
+      // to overlap the moment Chromium is trying to composite the
+      // just-shown main window, the renderer being busy could delay that
+      // paint and show a blank/stale frame instead of a smooth reveal. The
+      // chain-map+nav pull that gates the reveal usually finishes fast (the
+      // one real capture on hand shows well under a second), so the old 2s
+      // delay could plausibly still land close enough to be a factor on a
+      // real launch's actual timing. Pushed out further, and paced gentler
+      // (NAME_SCAN_GAP_MS 20->30, capture-scan.js) so there's no realistic
+      // overlap left to test against.
       setTimeout(function() {
         if (typeof scanPatchNames === 'function') scanPatchNames();
-      }, 2000);
+      }, 5000);
       break;
     case 'disconnected':
       bridgeMidiReady = false;

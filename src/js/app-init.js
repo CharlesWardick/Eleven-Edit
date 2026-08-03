@@ -45,7 +45,22 @@ async function init() {
   // ever runs after every script has fully loaded, so every dependency this
   // needs is guaranteed to exist by now. Fire-and-forget — it repaints the
   // chain row itself once the scan lands; nothing here needs to await it.
-  if (typeof startAvidGraphicsAutoScan === 'function') startAvidGraphicsAutoScan();
+  //
+  // DELAYED 3s (2026-08-03, same day as the fix above): this call used to
+  // fire immediately here, which — compared to its OLD parse-time trigger —
+  // actually landed it CLOSER in time to initMIDI()/bridge-connect below
+  // (only a handful of quick awaited IPC calls separate them), not further
+  // away. Charlie reported a white flash at the splash->main reveal that
+  // started with the Jump List work this same session; that scan's own
+  // disk-walk + IPC round-trip + a real chain-row repaint (renderChainRow)
+  // is genuine main-thread work that could plausibly land during the
+  // reveal transition depending on real launch timing. Pushed out
+  // explicitly, same reasoning as the Jump List name scan's delay
+  // (transport.js 'connected' handler) — both are the background work this
+  // session added that runs unconditionally on every launch.
+  setTimeout(function() {
+    if (typeof startAvidGraphicsAutoScan === 'function') startAvidGraphicsAutoScan();
+  }, 3000);
 
   // Check /LOGS flag — show/hide log UI elements accordingly
   try {

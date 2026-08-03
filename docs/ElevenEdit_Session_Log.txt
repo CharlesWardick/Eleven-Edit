@@ -38,6 +38,61 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-03 (UPDATE — first flash fix did not work, re-derived)
+STATUS:      provisional — second fix written, NOT yet tested live
+AREA:        Splash->main white flash — STILL PRESENT after the window-
+  swap timing fix; re-derived a different hypothesis
+FINDING:     Charlie confirmed the 120ms splash-close delay (main.js) did
+  NOT remove the flash, and restated clearly: it did not exist before the
+  Jump List work specifically. Per the Primer's own "two failed fixes = stop
+  and re-derive" rule, did not just retry a variant of the same window-
+  manager-timing guess. Re-derived by asking: what does the Jump List
+  feature add that runs UNCONDITIONALLY on every single launch, regardless
+  of whether the list is ever opened? Everything else it added (click
+  handler, grid rebuild, colour/size CSS) only executes if the user actually
+  opens the overlay — it can't explain a flash on a launch where they never
+  touch it. The one exception: the by-name scan (scanPatchNames), which
+  fires unconditionally 2s after every 'connected' event — 104 rapid MIDI
+  sends + log lines, real main-thread work. Theory: if that burst happens to
+  overlap the renderer being busy right as Chromium tries to composite the
+  just-shown main window, the paint could be delayed and show a blank/stale
+  frame — a renderer-side stall, not the window-manager-handoff race the
+  first fix targeted, which is exactly why that fix had no effect regardless
+  of whether the theory is right.
+  ALSO RECONSIDERED, same pass: the EARLIER same-session chain-graphics-race
+  fix (moving the Avid graphics auto-scan from index.html's inline <script>
+  into app-init.js's init()) has a side effect not accounted for at the
+  time — its OLD trigger point (raw HTML parse time) fired well BEFORE
+  initMIDI()/bridge-connect even starts (several script loads + init()'s own
+  earlier steps stood between them). Its NEW trigger point (early in init(),
+  a handful of quick awaited IPC calls before initMIDI()) is actually CLOSER
+  in time to the connect/reveal sequence than before, not further away —
+  the opposite of what "move it later, after scripts load" sounds like it
+  should mean. That scan involves a disk walk + IPC round-trip + a real
+  renderChainRow() repaint — also genuine main-thread work landing near the
+  reveal window on a real launch's timing.
+  FIX: both background scans — the Jump List name scan (transport.js) and
+  the graphics auto-scan (app-init.js) — pushed further out (2s->5s and
+  immediate->3s respectively) so neither can realistically land during the
+  reveal transition regardless of how fast or slow a given launch's
+  connect/nav-pull sequence is. Name scan's own pacing also gentled
+  (NAME_SCAN_GAP_MS 20->30ms, capture-scan.js). The earlier 120ms
+  splash-close delay (main.js) is left in place — harmless, and a
+  legitimate general practice, just not what's actually causing this.
+EVIDENCE:    node --check clean on every touched file. Reasoning only —
+  Claude Code cannot reproduce a Chromium/Electron paint-timing artifact
+  directly; this is the best re-derived hypothesis from what's structurally
+  different about Jump-List-era launches vs. before, not a confirmed root
+  cause. Flagged honestly as still provisional.
+CONFLICTS:   none — timing-only changes, no behaviour change to what either
+  scan actually does once it fires.
+NEXT:        Charlie's live test. If the flash is STILL present after this,
+  the "background scan overlapping reveal" theory is likely wrong too, and
+  the next re-derivation should look at something structural rather than
+  timing — e.g. whether the flash reproduces with the Jump List's new CSS
+  temporarily reverted, to confirm or rule out the DOM/CSS changes
+  themselves rather than any timing question.
+-------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Jump List sizing/font + splash->main white flash
