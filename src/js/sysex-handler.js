@@ -252,16 +252,18 @@ function handleCmd04(data) {
   return handleSaveArm(data);
 }
 
-// Jump List "by name" scan reply (2026-08-03) — see sendPatchNameQuery
-// (transport.js) for the request side and Tech Ref Sec 24 for the caveat
-// that this reply shape is transcribed from an earlier capture, not
-// re-verified this session; re-check against the Monitor on first live
-// test — if names come back wrong/garbled, the bank/num byte order or the
-// name's start offset (assumed data[8]) is the first thing to recheck.
+// Jump List "by name" scan reply (2026-08-03) — CONFIRMED LIVE same day
+// (Charlie's first test + session log). data[6] is the SPACE (0x00=user,
+// 0x01=factory — NOT a bank number), data[7] is the FULL raw slot 0-103
+// within that space (NOT slot%4) — see sendPatchNameQuery, transport.js,
+// for the full story of the first (wrong) version of this addressing.
+// The name decode itself (offset 8 to the null terminator) was correct
+// from the start — real capture text matched perfectly, only the
+// space/slot math was wrong.
 function handlePatchNameEnumReply(data) {
   try {
-    const bank = data[6], num = data[7];
-    const slot = bank * 4 + num;
+    const space = data[6], slot = data[7];
+    if (space !== 0x00) return;   // factory patch — this app only tracks user A1-Z4 (Charlie's call)
     if (slot < 0 || slot > 103) return;
     let end = 8;
     while (end < data.length && data[end] !== 0x00) end++;

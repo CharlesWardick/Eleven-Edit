@@ -299,18 +299,30 @@ function sendHex(hex) {
 
 // ── Patch name query (CMD 0x04, REQU form) — Jump List "by name" view,
 // 2026-08-03. Read-only, cheap: no patch recall, no navigation, unlike the
-// existing (hidden) Scan Bank feature. Reuses the SAME bank/num addressing
-// already proven correct by the SAVE protocol's CMD 0x04 write form
-// (saveCurrentPatchToSlot, capture-scan.js — bank=floor(slot/4),
-// num=slot%4). The reply's exact byte layout past [bank][num] is per Tech
-// Ref's "ALSO CAPTURED, not yet used" note (Sec 24) — decoded in
-// handlePatchNameEnumReply, sysex-handler.js; re-verify against the Monitor
-// on first live test since that note was transcribed, not re-confirmed,
-// this session.
-function sendPatchNameQuery(bank, num) {
-  const bankHex = bank.toString(16).padStart(2,'0').toUpperCase();
-  const numHex  = num.toString(16).padStart(2,'0').toUpperCase();
-  sendHex('F0 13 0B 0F 01 04 ' + bankHex + ' ' + numHex + ' F7');
+// existing (hidden) Scan Bank feature.
+// ADDRESSING — CONFIRMED LIVE 2026-08-03 (Charlie's first test + session
+// log F0 13 0B 0F 01 04 [space] [slot] F7 request/reply pairs), NOT the
+// same scheme as the SAVE protocol's CMD 0x04 write form:
+//   [space] = 0x00 USER patches, 0x01 FACTORY patches. Only two valid
+//             values — this is NOT bank=floor(slot/4) the way the SAVE
+//             form's first byte is.
+//   [slot]  = the FULL raw slot index (0-103 / 0x00-0x67) within that
+//             space — NOT num=slot%4.
+// The first (wrong) version of this function reused the SAVE form's
+// bank/num split, which only ever asked slot%4 (0-3) of either space —
+// coincidentally correct for A1-A4 (space=0 IS user, and floor(slot/4)=0
+// happens to equal 0 same as the real space byte there), then silently
+// wrong from slot 4 (B1) onward: bank=1,num=0 under the old scheme reads
+// as [space=1(FACTORY), slot=0] = factory a1, not user B1 — exactly the
+// "B1-B4 show a1-a4" bug Charlie caught. Bank 2+ under the old scheme
+// isn't a valid [space] value at all, which is why nothing past B4 ever
+// got a reply (matches the blank C1 onward Charlie saw).
+// spaceIdx defaults to 0 (user) — this app only ever browses user patches
+// (Charlie's call, 2026-08-03); factory a1-z4 stays unused for now.
+function sendPatchNameQuery(slot, spaceIdx) {
+  const spaceHex = (spaceIdx || 0).toString(16).padStart(2,'0').toUpperCase();
+  const slotHex  = slot.toString(16).padStart(2,'0').toUpperCase();
+  sendHex('F0 13 0B 0F 01 04 ' + spaceHex + ' ' + slotHex + ' F7');
 }
 
 // ── CMD 0x11 SysEx parameter write — the real control mechanism the

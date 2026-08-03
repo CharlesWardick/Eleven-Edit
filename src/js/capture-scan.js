@@ -149,7 +149,7 @@ async function scanPatchNames() {
   appLog('Patch name scan (Jump List) started — 104 slots, read-only');
   for (let slot = 0; slot <= 103; slot++) {
     if (!bridgeMidiReady) break;   // dropped mid-scan — stop, don't flood a dead socket
-    sendPatchNameQuery(Math.floor(slot / 4), slot % 4);
+    sendPatchNameQuery(slot);   // spaceIdx defaults to 0 (user) — see sendPatchNameQuery, transport.js
     await new Promise(r => setTimeout(r, NAME_SCAN_GAP_MS));
   }
   patchNameScanInProgress = false;

@@ -38,6 +38,54 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-03 (UPDATE — addressing bug found + fixed same day)
+STATUS:      provisional — fix written, NOT yet re-tested live
+AREA:        Jump List by-name scan — wrong CMD 0x04 addressing (B1-B4
+  showed factory a1-a4's names, C1 onward blank)
+FINDING:     Charlie's first live test (session log attached,
+  session20260803101536.log) surfaced a real bug immediately: A1-A4 named
+  correctly, but B1-B4 showed factory a1-a4's names instead, and C1 onward
+  came back blank. Root cause, CONFIRMED directly from the attached
+  capture: CMD 0x04's GET-form addressing is NOT the SAVE protocol's
+  bank=floor(slot/4)/num=slot%4 split this feature originally (wrongly)
+  reused. The real addressing is data[6]=SPACE (0x00=user patches,
+  0x01=factory patches — only two valid values, confirmed: bank 2+ got no
+  reply at all in the capture, matching the blank C1-onward Charlie saw),
+  data[7]=the FULL raw slot 0-103 within that space (not slot%4). Under the
+  old wrong scheme, slot 4 (B1) sent bytes (1,0), which the real hardware
+  reads as [space=1 FACTORY, slot=0] = factory a1 — exactly the bug.
+  Slots 0-3 (A1-A4) happened to look correct by coincidence only
+  (floor(slot/4)=0 for those four regardless of which scheme is used).
+  The NAME DECODE ITSELF (offset 8 to null terminator) was correct from the
+  start — the capture's raw ASCII bytes matched the displayed names exactly
+  every time; only the space/slot math was wrong.
+  FIX: sendPatchNameQuery (transport.js) now takes (slot, spaceIdx) with
+  spaceIdx defaulting to 0 (user) — this app only tracks user A1-Z4 by
+  design (Charlie's call, factory a1-z4 explicitly out of scope for now,
+  though he flagged it as maybe worth reconsidering some day). scanPatchNames
+  (capture-scan.js) sends the raw slot directly, no more /4 math.
+  handlePatchNameEnumReply (sysex-handler.js) reads data[6] as space (ignores
+  the reply entirely if it's factory, 0x01) and data[7] as the raw slot.
+  ALSO NOTED, not acted on: Charlie mentioned the MIDI Monitor panel has
+  been hidden/disabled for a while (since full file logging was added) —
+  he used the attached session log instead, which turned out to have every
+  byte needed anyway (appLog captures the same hex the Monitor would have
+  shown). No change made here; flagging in case Charlie wants the Monitor
+  panel itself revisited separately.
+  ALSO RAISED, explicitly deferred: Charlie noticed the hidden "Scan Bank"
+  button/feature (capture-scan.js/index.html) is real prior art toward a
+  future full bank export/import (EHB format, Tech Ref Sec 17) — agreed
+  as a separate future topic, not part of this session.
+EVIDENCE:    session20260803101536.log (Charlie's attachment) — direct
+  request/reply hex pairs for all 8 replies that came back, cross-checked
+  byte-for-byte against the fix. node --check clean on every touched file.
+CONFLICTS:   corrects the previous entry's (now-superseded) description of
+  this addressing as reused-with-medium-confidence from the SAVE protocol —
+  that assumption is now known WRONG, replaced with the confirmed scheme
+  above.
+NEXT:        Charlie's re-test: confirm A1-Z4 all populate with correct
+  names (not just A1-A4), confirm no factory names leak into the user list.
+-------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Jump List — split by-slot/by-name views + colour fix
