@@ -681,14 +681,32 @@
   #btn-stop:hover:not(:disabled) { background:#2a0a0a; border-color:var(--red); }
 
   /* ══ SLOT MATRIX ══ */
+  /* #slot-matrix is now a column: a fixed header (title + Close, never
+     scrolls) on top, #matrix-scroll (the actual bank grid) below it,
+     scrolling independently — 2026-08-03, Charlie's follow-up: previously
+     the whole overlay (title, banks, Close button at the very bottom) was
+     ONE scrolling block, so Close scrolled out of reach and had to be
+     chased down after scrolling through 26 banks. */
   #slot-matrix {
-    display: none; position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
+    display: none; flex-direction: column; position: fixed; top: 62px; left: 50%;
+    transform: translateX(-50%);
     background: #1a1a1a; border: 1px solid var(--accent-dim); border-radius: 6px;
-    padding: 14px; z-index: 300; box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-    min-width: 480px; max-width: 92vw; max-height: 70vh; overflow-y: auto;
+    z-index: 300; box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+    min-width: 480px; max-width: 92vw; max-height: 70vh;
   }
-  #slot-matrix.open { display: block; }
-  .matrix-title { color: var(--accent); font-size: 14px; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; }
+  #slot-matrix.open { display: flex; }
+  .matrix-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-dim);
+    flex-shrink: 0;   /* stays put — #matrix-scroll below is what scrolls */
+  }
+  .matrix-title { color: var(--accent); font-size: 14px; font-weight: bold; letter-spacing: 1px; }
+  .matrix-close-btn {
+    background: #222; border: 1px solid #555; color: #999; border-radius: 3px;
+    padding: 3px 10px; font-size: 11px; cursor: pointer; flex-shrink: 0;
+  }
+  .matrix-close-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #matrix-scroll { overflow-y: auto; padding: 14px; }
   /* Bank label + slot id were #777 on a #222 background — Charlie found
      both hard to read (2026-08-03). Bumped to legible, still-secondary
      colours: muted grey for the bank header, warm accent-dim for the
@@ -708,8 +726,6 @@
   .matrix-slot .slot-id   { color: var(--accent-dim); font-size: 11px; font-weight: bold; display: block; font-family: 'Consolas', monospace; }
   .matrix-slot .slot-name { color: var(--text); font-size: 13px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .matrix-slot.current .slot-name { color: var(--accent); }
-  .matrix-close { margin-top: 8px; text-align: right; }
-  .matrix-close button { background: #222; border: 1px solid #555; color: #999; border-radius: 3px; padding: 3px 10px; font-size: 11px; cursor: pointer; }
 
   /* ══ MODALS ══ */
   #watchdog-overlay, #scan-overlay, #about-overlay {
@@ -1547,10 +1563,14 @@
 
 <!-- ══ SLOT MATRIX ══ -->
 <div id="slot-matrix">
-  <div class="matrix-title">PATCH SLOTS — click to jump</div>
-  <div id="matrix-banks"></div>
-  <div style="font-size:10px;color:#666;font-style:italic;">User patches A1–Z4 (104 slots)</div>
-  <div class="matrix-close"><button onclick="document.getElementById('slot-matrix').classList.remove('open')">CLOSE</button></div>
+  <div class="matrix-header">
+    <div class="matrix-title">PATCH SLOTS — click to jump</div>
+    <button class="matrix-close-btn" onclick="document.getElementById('slot-matrix').classList.remove('open')">CLOSE</button>
+  </div>
+  <div id="matrix-scroll">
+    <div id="matrix-banks"></div>
+    <div style="font-size:10px;color:#666;font-style:italic;">User patches A1–Z4 (104 slots)</div>
+  </div>
 </div>
 
 <!-- ══ WATCHDOG ══ -->

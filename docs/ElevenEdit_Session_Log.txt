@@ -40,6 +40,26 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Jump List — fixed header (title + Close), independent scroll
+FINDING:     Charlie's ask: the Close button sat at the very bottom of the
+  overlay, below all 26 banks, so it scrolled out of reach and had to be
+  chased down after scrolling through the whole list. Wanted the title row
+  to become a fixed header that never scrolls, with Close moved up next to
+  it (right side) instead of at the bottom.
+  FIX (index.html): #slot-matrix restructured from one scrolling block into
+  a column — a new .matrix-header (title + a moved Close button,
+  flex-shrink:0, never scrolls) on top, #matrix-scroll (the bank grid +
+  footnote, overflow-y:auto) below it, scrolling independently. No JS
+  changes needed — refreshMatrixCells's `.matrix-title` lookup still finds
+  it fine inside the new wrapper.
+EVIDENCE:    code written and read back; every inline <script> block in
+  index.html parsed clean via `new Function(...)`. NOT yet tested live.
+CONFLICTS:   none — purely a markup/CSS restructure, same content.
+NEXT:        Charlie's live test: confirm the header stays put while
+  scrolling through banks, and Close is reachable without scrolling.
+-------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Speaker Breakup slider — hover/drag shading + white groove
   (follow-up to the earlier baseline/colour fix, same day)
 FINDING:     Charlie's earlier ask got the amber/red "changed" state
