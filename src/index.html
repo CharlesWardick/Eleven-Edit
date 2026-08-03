@@ -560,6 +560,11 @@
   .sctrl label  { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
   .sctrl-row    { display: flex; align-items: center; gap: 8px; }
   .sctrl input[type=range] { width: 160px; accent-color: var(--accent); }
+  /* Speaker Breakup "changed since load" state (2026-08-03) — same red the
+     round knobs use (KNOB_COLORS.red, ui.js), applied via accent-color since
+     this control is a native <input type=range>, not a canvas knob. Toggled
+     by updateBreakupColor (ui.js). */
+  .sctrl input[type=range].changed { accent-color: #e83828; }
   .sctrl-val    { font-size: 12px; color: var(--accent); font-weight: bold; min-width: 32px; font-family: 'Consolas', monospace; }
   .tog-btn { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--muted); border-radius: 4px; padding: 4px 13px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center; }
   .tog-btn.on { background: #1a3a1a; border-color: var(--green); color: var(--green); }
@@ -1954,6 +1959,7 @@ document.getElementById('axis-btn').addEventListener('click', function() {
 document.getElementById('breakup-slider').addEventListener('input', function() {
   const v = parseInt(this.value);
   document.getElementById('breakup-val').textContent = (Math.round(v / 127 * 100) / 10).toFixed(1);
+  if (typeof updateBreakupColor === 'function') updateBreakupColor();
 });
 document.getElementById('breakup-slider').addEventListener('change', function() {
   sendCabParamWrite(0x18, parseInt(this.value));
@@ -1965,9 +1971,22 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
   var v = Math.max(0, Math.min(127, parseInt(this.value) - Math.sign(e.deltaY)));
   this.value = v;
   document.getElementById('breakup-val').textContent = (Math.round(v / 127 * 100) / 10).toFixed(1);
+  if (typeof updateBreakupColor === 'function') updateBreakupColor();
   if (typeof queueKnobSend === 'function') queueKnobSend('breakup', function(val){ sendCabParamWrite(0x18, val); }, v);
   else sendCabParamWrite(0x18, v);
 }, { passive: false });
+// Double-click restores the load baseline (R8, Sec 20A — same contract
+// every round knob follows), not a fixed centre value. 2026-08-03: this
+// slider previously had no baseline/colour/restore at all (see
+// captureBreakupBaseline/clearBreakupBaseline/updateBreakupColor, ui.js).
+document.getElementById('breakup-slider').addEventListener('dblclick', function() {
+  const val = (this.dataset.orig !== undefined && this.dataset.orig !== '') ? parseInt(this.dataset.orig) : 64;
+  this.value = val;
+  document.getElementById('breakup-val').textContent = (Math.round(val / 127 * 100) / 10).toFixed(1);
+  if (typeof updateBreakupColor === 'function') updateBreakupColor();
+  if (typeof queueKnobSend === 'function') queueKnobSend('breakup', function(v){ sendCabParamWrite(0x18, v); }, val);
+  else sendCabParamWrite(0x18, val);
+});
 
 // ════════════════════════════════════════════════════════════════════
 // AMP / CAB BYPASS — display only (chain reorder not yet supported)

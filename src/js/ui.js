@@ -180,6 +180,10 @@ function clearMainKnobBaselines() {
     if (c && w.dataset.value !== undefined && w.dataset.value !== '')
       drawKnob(c, parseInt(w.dataset.value) || 0);
   });
+  // Speaker Breakup (2026-08-03) — a native <input type=range>, not a
+  // .knob-wrap, so it needs its own baseline clear alongside the sweep
+  // above rather than being swept up by it.
+  clearBreakupBaseline();
 }
 
 // Snapshot every MAIN-PANEL knob's current value as its baseline. Called once
@@ -196,6 +200,30 @@ function captureKnobBaselines() {
       if (c) drawKnob(c, parseInt(w.dataset.value) || 0);  // reset colour to base
     }
   });
+  captureBreakupBaseline();
+}
+
+// ── Speaker Breakup slider baseline (2026-08-03) — same amber/red-on-change
+// + double-click-to-baseline contract every round knob follows (Sec 20A R3/
+// R8), extended to this one control that's a native <input type=range>
+// instead of a .knob-wrap canvas, so it fell outside the generic sweep
+// above and never got a baseline, a colour change, or a restore at all. ──
+function captureBreakupBaseline() {
+  const slider = document.getElementById('breakup-slider');
+  if (slider) slider.dataset.orig = slider.value;
+  updateBreakupColor();
+}
+function clearBreakupBaseline() {
+  const slider = document.getElementById('breakup-slider');
+  if (slider) delete slider.dataset.orig;
+  updateBreakupColor();
+}
+function updateBreakupColor() {
+  const slider = document.getElementById('breakup-slider');
+  if (!slider) return;
+  const changed = slider.dataset.orig !== undefined && slider.dataset.orig !== ''
+                  && parseInt(slider.dataset.orig) !== parseInt(slider.value);
+  slider.classList.toggle('changed', changed);
 }
 
 function valDisplay(v127) { return (v127/127*10).toFixed(1); }
@@ -753,6 +781,7 @@ function updateBreakupDisplay(v127) {
   const valEl  = document.getElementById('breakup-val');
   if (slider) slider.value = v127;
   if (valEl)  valEl.textContent = (Math.round(v127 / 127 * 100) / 10).toFixed(1);
+  updateBreakupColor();
   appLog('Speaker breakup: v=' + v127);
 }
 

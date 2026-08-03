@@ -39,6 +39,39 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Speaker Breakup slider — missing amber/red baseline + dblclick
+FINDING:     Charlie noticed the Speaker Breakup slider doesn't follow the
+  Sec 20A knob contract every round knob does (R3 baseline / red-on-change /
+  R8 double-click-to-baseline restore) — it's functionally a knob in a
+  different widget shape but was never wired into that system.
+  ROOT CAUSE: the slider is a native <input type=range>, not a .knob-wrap
+  canvas control. captureKnobBaselines()/clearMainKnobBaselines() (ui.js) —
+  the two hooks every main-panel knob's baseline goes through, called at
+  patch-load end / nav start / after a save — sweep `.knob-wrap` elements
+  only, so the slider was structurally invisible to that mechanism: no
+  baseline was ever captured, no colour ever changed, no double-click
+  handler existed at all.
+  FIX: added captureBreakupBaseline/clearBreakupBaseline/updateBreakupColor
+  (ui.js), called from inside captureKnobBaselines/clearMainKnobBaselines
+  respectively so the slider rides the exact same trigger points as every
+  other knob rather than a separate parallel mechanism. Baseline stored as
+  dataset.orig on the slider itself (same attribute name/convention as
+  knob-wrap elements). Colour is accent-color (CSS, since this is a native
+  range input, not a canvas) toggled via a `.changed` class, red hex
+  matching KNOB_COLORS.red exactly. Added a dblclick handler (index.html)
+  restoring to dataset.orig (fallback 64), same R8 pattern as every knob's
+  double-click, sending through queueKnobSend like the drag/wheel handlers
+  already did.
+EVIDENCE:    code written and read back; node --check clean on ui.js. NOT
+  yet tested live — needs Charlie's build: drag the slider away from its
+  loaded value (should redden), double-click (should restore + resend +
+  go back amber), confirm a patch nav/save re-baselines it correctly.
+CONFLICTS:   none — additive, no protocol change (still CMD 0x11 paramLo
+  0x18 via sendCabParamWrite, unchanged).
+NEXT:        Charlie's live test per EVIDENCE above.
+-------------------------------------------------------------------
+DATE:        2026-08-03
 STATUS:      [FOLDED IN: Primer WORKING/intermittent-bug note + Tech Ref
   Sec 24 Change Log, 2026-08-03] — Charlie confirmed clean across repeated
   cold starts.
