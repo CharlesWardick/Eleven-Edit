@@ -2210,7 +2210,25 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
   // MIDI nav pull — that ordering already self-heals on its own once the
   // scan's own renderChainRow() call fires with the manifest in hand — this
   // only covers an outright failed attempt going unretried.
-  if (window.electronAPI) {
+  //
+  // NOT CALLED HERE ANYMORE (2026-08-03) — this whole IIFE is an INLINE
+  // <script>, which runs at HTML PARSE TIME, well before the js/chain-
+  // graphics.js and js/ui.js <script src> tags at the bottom of this file
+  // even load. Calling scanAvidGraphics() here raced its own IPC round-trip
+  // against those files finishing loading: if the scan resolved first,
+  // setAvidGraphicsManifest/renderChainRow didn't exist yet, the typeof
+  // guards above silently no-op'd, and the manifest was simply never
+  // applied — a genuinely timing-dependent, intermittent miss (retrying the
+  // SAME race doesn't fix it; every retry re-runs the same premature-resolve
+  // possibility). This was very likely the real cause of the "chain row
+  // graphics sometimes blank on load" bug Charlie kept finding — root-
+  // caused, not just patched, once traced to which script tag this code
+  // actually lives in. Exposed as a function instead; app-init.js (the LAST
+  // script to load, so every dependency here is guaranteed defined by the
+  // time it runs) calls it once at the same point it already waits for
+  // other startup state to load — see app-init.js's init().
+  window.startAvidGraphicsAutoScan = function() {
+    if (!window.electronAPI) return;
     window.electronAPI.getAvidDir().then(function(d) {
       if (!d) return;
       var attempt = 0;
@@ -2225,7 +2243,7 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
       }
       tryScan();
     }).catch(function(){});
-  }
+  };
 
   // Open Logs Folder
   document.getElementById('settings-btn-open-logs').addEventListener('click', function() {

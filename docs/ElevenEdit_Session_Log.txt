@@ -40,6 +40,47 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Startup — chain row graphics sometimes blank on load
+FINDING:     Long-standing intermittent bug (predates the 2026-08-02 startup
+  gate; a 2026-07-31 pass added retry+logging but Charlie confirmed the
+  symptom still recurs). ROOT CAUSE FOUND: the Avid-graphics auto-scan (and
+  the retry loop around it) lived inside index.html's big INLINE <script>
+  block (starts ~line 1574), which executes at HTML PARSE TIME — i.e.
+  BEFORE the <script src="js/chain-graphics.js"> / js/ui.js tags further
+  down the same file have even loaded. The scan is an async IPC round-trip
+  (main.js walks the folder, replies); its .then() callback is a genuine
+  RACE against those later <script> tags finishing load. If the scan
+  resolved first, setAvidGraphicsManifest/renderChainRow didn't exist yet,
+  the existing typeof guards silently no-op'd, and the manifest was simply
+  never applied that session — timing-dependent, so it took many runs to
+  reproduce, and the 2026-07-31 retry logic couldn't help because every
+  retry re-runs the exact same race, not a different failure mode.
+  FIX: the scan trigger is now exposed as window.startAvidGraphicsAutoScan
+  (defined in the same inline-script closure, so runAvidGraphicsScan/
+  safeAppLog are still reachable) but no longer auto-invoked there. Instead
+  app-init.js's init() calls it — init() only ever runs after EVERY script
+  has fully loaded (it's wired via a setTimeout(init, 150) at the bottom of
+  app-init.js, the last file loaded), so the race is structurally gone, not
+  just less likely. This lines up with Charlie's own suggestion ("scan
+  right at the transition point of the loading screen going away") — init()
+  IS that checkpoint; the manual Settings-panel Scan button is untouched
+  (its handler already only runs after a user click, long after load, so it
+  was never exposed to this race).
+EVIDENCE:    root-caused directly from script tag order in index.html + the
+  promise-based scan flow (unambiguous once traced to which script block
+  the auto-scan actually lived in). node --check clean. NOT yet re-tested
+  live — this is exactly the kind of intermittent bug that needs several
+  cold-start runs to confirm gone, per the Primer's own "intermittent bugs
+  need more than one clean pass" rule, not just one green run.
+CONFLICTS:   none — additive/relocation only, no protocol or manifest-format
+  change.
+NEXT:        Charlie: several cold-start launches (not just one) with a
+  graphics folder already configured, confirming the chain row shows real
+  Avid art every time, before this is treated as fixed rather than just
+  "less likely."
+-------------------------------------------------------------------
+DATE:        2026-08-03
+STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Startup — second launch kills the running instance's bridge
 FINDING:     Charlie noticed (may have existed before, only surfaced/noticed
   since the startup gate splash landed 2026-08-02): launching the EXE while
