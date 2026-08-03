@@ -39,6 +39,48 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-03
+STATUS:      provisional — code written (one line), NOT TESTED LIVE,
+  UNVERIFIED hypothesis (unlike the /NOGPU fix, which was confirmed)
+AREA:        setAppUserModelId — experimental fix for a SEPARATE dark
+  flash on real-PC cold starts only
+FINDING:     Charlie reported a different flash from the VM white-flash
+  saga above: a dark flash, sized like the MAIN window, appearing BEFORE
+  the small splash window — real PC, not a VM. Only happens on a cold
+  start (waited a while since last launch); an immediate relaunch right
+  after closing never shows it.
+  BEST-GUESS CAUSE (unverified — Claude Code cannot reproduce or observe
+  this directly): Windows' own "ghost window" launch feedback — Explorer/
+  DWM shows a placeholder sized like the app's LAST window when a launch
+  takes a moment, dismissed once the real window appears. This would
+  explain both why it's sized like the main window specifically (that's
+  the window Windows remembers, not the splash) and the cold/warm timing
+  (a cold start's slower process spin-up gives Windows enough of a gap to
+  decide to show the placeholder; a fast warm relaunch doesn't). This is a
+  genuinely different mechanism from the VM white-flash (a Chromium GPU-
+  compositor bug) — different color, different size, different trigger
+  condition, likely a Windows-shell-level artifact rather than anything in
+  Eleven Edit's or Chromium's render pipeline.
+  FIX TRIED: app.setAppUserModelId('com.charleswardick.eleveneedit')
+  (main.js, called early, before app.whenReady()) — can help Windows
+  correctly associate the launching process instead of guessing/ghosting.
+  One line, cheap, easy to revert if it makes no difference.
+  ALSO NOTED: Charlie separately confirmed his OTHER two Electron-based
+  Eleven Rack utilities show the classic white flash too — independent
+  confirmation this class of bug is a real, widespread Electron/Chromium
+  issue, not anything specific to how Eleven Edit is built.
+EVIDENCE:    none yet — reasoning only, explicitly flagged as unverified.
+  node --check clean on main.js.
+CONFLICTS:   none — additive, no behaviour change if the hypothesis is
+  wrong (setAppUserModelId is harmless either way).
+NEXT:        Charlie: a few more cold starts to confirm the dark
+  main-window-sized flash is actually gone, not just less frequent (same
+  "more than one clean pass" bar the Primer already sets for intermittent
+  symptoms). If unchanged, this hypothesis is likely wrong and the line can
+  just be left in (harmless) or removed — not worth further chasing given
+  neither Claude Code nor typical app-level fixes can do much about
+  genuine Windows-shell launch-feedback behavior.
+-------------------------------------------------------------------
+DATE:        2026-08-03
 STATUS:      [FOLDED IN: Primer WORKING, 2026-08-03] — Charlie confirmed
   TESTED LIVE, no flash with /NOGPU on the VM shortcut.
 AREA:        /NOGPU startup flag — opt-in software rendering for VM

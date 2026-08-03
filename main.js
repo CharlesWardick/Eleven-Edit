@@ -3,6 +3,20 @@ const path = require('path');
 const fs   = require('fs');
 const { exec, spawn } = require('child_process');
 
+// EXPERIMENTAL, 2026-08-03: Charlie reported a separate dark flash, sized
+// like the main window, appearing BEFORE the splash on a cold start only
+// (never on an immediate relaunch) — real PC, not the VM white-flash issue
+// above. Best-guess cause: Windows' own "ghost window" launch feedback
+// (Explorer/DWM showing a placeholder sized like the app's last window
+// when it takes a moment to launch), not Chromium — that would explain
+// both why it's sized like the MAIN window specifically (that's the
+// window Windows remembers) and the cold/warm timing (a cold start gives
+// Windows enough of a gap to decide to show it). setAppUserModelId can
+// help Windows correctly associate the process instead of guessing/
+// ghosting. Cheap to try, easy to revert if it makes no difference —
+// unlike the /NOGPU fix above, this one is UNVERIFIED, not confirmed.
+app.setAppUserModelId('com.charleswardick.eleveneedit');
+
 // ════════════════════════════════════════════════════════════════════
 // /NOGPU — optional startup flag, same pattern as /LOGS below.
 // Forces Chromium to render in software instead of via the GPU. Added
