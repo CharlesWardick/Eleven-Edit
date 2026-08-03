@@ -39,8 +39,11 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written (one line), NOT TESTED LIVE,
-  UNVERIFIED hypothesis (unlike the /NOGPU fix, which was confirmed)
+STATUS:      [FOLDED IN: Primer NOT YET IMPLEMENTED note below] — Charlie
+  tested; NO CHANGE to the dark flash. Hypothesis (Windows ghost-window
+  launch feedback) not confirmed. Line LEFT IN regardless — harmless, and
+  a standard Electron practice on its own merits (correct taskbar identity/
+  grouping on Windows) independent of whether it affects this flash.
 AREA:        setAppUserModelId — experimental fix for a SEPARATE dark
   flash on real-PC cold starts only
 FINDING:     Charlie reported a different flash from the VM white-flash

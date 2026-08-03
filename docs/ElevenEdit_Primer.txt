@@ -889,6 +889,15 @@ DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
   Deriving paramLo from sldX letters, or tfxKey from paramLo, above 9
   ElevenHack's encode7bit — use the protocol.js version
   Standard (v+64)%128 for cab/mic type — use the lookup tables
+  Chasing the real-PC cold-start dark flash further (2026-08-03) —
+    app.setAppUserModelId (main.js) was tried and made NO observable
+    difference; left in anyway (harmless, standard Electron practice on
+    its own merits). If this comes up again, it's very likely genuine
+    Windows-shell launch-feedback behaviour (a "ghost window" placeholder),
+    not something fixable at the app-code level — see Session Log
+    2026-08-03 for the reasoning trail. The SEPARATE VM-only white flash
+    (unrelated mechanism, different symptom) DOES have a confirmed fix:
+    the /NOGPU startup flag.
 
 
 CODE FILE MAP
