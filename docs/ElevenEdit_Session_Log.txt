@@ -39,7 +39,9 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING/intermittent-bug note + Tech Ref
+  Sec 24 Change Log, 2026-08-03] — Charlie confirmed clean across repeated
+  cold starts.
 AREA:        Startup — chain row graphics sometimes blank on load
 FINDING:     Long-standing intermittent bug (predates the 2026-08-02 startup
   gate; a 2026-07-31 pass added retry+logging but Charlie confirmed the
@@ -80,7 +82,8 @@ NEXT:        Charlie: several cold-start launches (not just one) with a
   "less likely."
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer Status line + Tech Ref Sec 24 Change Log,
+  2026-08-03] — Charlie confirmed resolved.
 AREA:        Startup — second launch kills the running instance's bridge
 FINDING:     Charlie noticed (may have existed before, only surfaced/noticed
   since the startup gate splash landed 2026-08-02): launching the EXE while
@@ -114,7 +117,9 @@ NEXT:        Charlie's live test: launch the EXE, then launch it again while
   connection is undisturbed.
 -------------------------------------------------------------------
 DATE:        2026-08-03
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Primer WORKING + Tech Ref Sec 24 Change Log,
+  2026-08-03] — Charlie confirmed TESTED LIVE, working perfectly after the
+  colour/stale-value fix pass.
 AREA:        Amp Controls — tone-knob drag/drop reorder + remember (UI)
 FINDING:     New feature, agreed with Charlie before coding: the tone-stack
   knobs (up to 8 per amp, AMP_TONE_PARAMS) can be dragged into a user-

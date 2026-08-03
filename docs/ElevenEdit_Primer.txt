@@ -1,8 +1,23 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-08-02
+Updated: 2026-08-03
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — STARTUP GATE + SPLASH SCREEN COMPLETE
+Status: Active development — AMP CONTROLS TONE-KNOB REORDER COMPLETE
+(2026-08-03, TESTED LIVE), plus two confirmed fixes the same day. Phase 18
+COMPLETE: tone-stack knobs can now be dragged by their label into a
+user-preferred per-amp order, remembered across restarts, resolved before
+the first paint each session (no default-then-jump). Locked by default;
+lock/reset icons dock to the left of the knob row. Also fixed same day,
+both confirmed by Charlie: (1) launching the EXE a second time while it was
+already running would briefly flash the splash and then kill the FIRST
+instance's Java bridge connection — the single-instance lock existed but
+didn't stop the rest of main.js running before the losing instance's quit
+took effect; (2) the chain row's pedal-graphic thumbnails were
+intermittently blank on load — root-caused to the graphics auto-scan racing
+its own script tag's load order at HTML parse time, not a flaky retry
+target; both fixed structurally, not patched around. Full detail: Tech Ref
+Sec 24 Change Log (2026-08-03 entry).
+Previously: STARTUP GATE + SPLASH SCREEN COMPLETE
 (2026-08-02, TESTED LIVE). Phase 17 COMPLETE: a long-standing
 NOT YET IMPLEMENTED item — a startup-only "can't find
 hardware" gate, like Avid's own editor — is done. Main window now
@@ -348,8 +363,10 @@ HOW "TESTED" WORKS HERE — READ BEFORE WRITING ANY STATUS
   INTERMITTENT BUGS need MORE THAN ONE clean live pass. A single green run on an
   intermittent or mystery symptom proves the fix CAN work, not that the bug is
   gone. Such fixes are UNCONFIRMED until they survive repeated runs, not TESTED
-  LIVE after one. (Example: the startup chain-graphics bug — fix applied, works
-  when it runs, not yet confirmed across repeated cold starts.)
+  LIVE after one. (Example: the startup chain-graphics bug — RESOLVED
+  2026-08-03: root-caused to the graphics auto-scan racing its own script
+  tag's load order at HTML parse time (Tech Ref Sec 24, 2026-08-03 entry),
+  confirmed clean across repeated cold starts, not just one green run.)
 Build: electron-builder --win --x64 -> EXE.
 
 7/31/2026 — FX1 EFFECT PANEL, SEVEN MORE MODELS (Phase 14 continued) —
@@ -413,7 +430,11 @@ Build: electron-builder --win --x64 -> EXE.
   silently at startup (no log entry either main- or renderer-side) with no
   automatic retry, intermittently leaving the chain row's pedal thumbnails
   as blank placeholders — fixed by logging every failure path and
-  auto-retrying the startup scan up to twice more. (2) rebaselineOpenFxPanel
+  auto-retrying the startup scan up to twice more. SUPERSEDED 2026-08-03:
+  the retry masked the symptom sometimes but did not fix it — the real
+  cause was the scan racing its own script tag's load order at HTML parse
+  time; see Tech Ref Sec 24 (2026-08-03 entry) for the actual fix, TESTED
+  LIVE and confirmed clean across repeated cold starts. (2) rebaselineOpenFxPanel
   (repaints an open FX panel's knobs to base colour after a save)
   unconditionally called the circular-knob paint function on every control
   in the panel — harmless for five panels of plain knobs, but corrupted
@@ -563,6 +584,18 @@ WORKING:
   Rig Volume — CC17 send + CMD 0x07 live readback (in the "Volumes" box)
   Amp Select dropdown — CMD 0x11 send + readback
   Tone stack — all 33 amps: SW drag, TFX initial readback, live HW readback
+  AMP CONTROLS TONE-KNOB REORDER (2026-08-03, TESTED LIVE) — drag a tone
+    knob's LABEL (not the knob itself) to reorder that amp's knob row;
+    remembered per amp (toneKnobOrder, settings.json), resolved before the
+    first paint each session so a saved order never jumps from default.
+    Locked by default every launch (extra accidental-drag guard); lock/reset
+    icons dock to the left of the knob row. Reuses the chain row's smooth
+    drag feel via a content-identity FLIP (paramLo-keyed, not DOM-node-keyed
+    — the fixed tone-k0..7 slots never physically move, since every other
+    tone-knob code path addresses a control by fixed slot). See Tech Ref
+    Sec 24 (2026-08-03 entry) for the two display-only bugs found and fixed
+    the same session (false red colour + stale value on reorder — neither
+    ever touched hardware).
   Bright toggle — SW button, TFX + live HW readback (12 amps). The label comes
     from the amp table, so SL100 Drive correctly reads MOD.
   AMP TREMOLO FEATURE SET — on the 15 amps that have it:
@@ -870,9 +903,18 @@ covered under CONFIRMED ARCHITECTURE above.
                    main window HIDDEN (show:false); relays splash-progress/
                    splash-show-gate/splash-hide-gate/startup-retry-click/app-ready
                    IPC between the two windows (STARTUP GATE, 2026-08-02).
+                   Single-instance lock (requestSingleInstanceLock) returns
+                   immediately on a losing second launch (2026-08-03 fix — a
+                   bare app.quit() there does not stop the rest of the file
+                   running, which used to let a second launch's
+                   killOrphanedBridgeProcesses kill the FIRST instance's
+                   bridge). get/save-tone-knob-order IPC (Amp Controls
+                   reorder, 2026-08-03), same storeGet/storeSet pattern as
+                   bank cache/zoom.
   preload.js       Electron preload; exposes electronAPI to the renderer, incl.
                    the splash* wrappers and quitApp/appReady used by the startup
-                   gate (both windows load the same preload.js).
+                   gate (both windows load the same preload.js), and
+                   getToneKnobOrder/saveToneKnobOrder (2026-08-03).
   index.html       Full UI — HTML + CSS + script tags. All panels (amp, cab/mic,
                    DIST, REVERB), the SAVE dropdown, settings panel, chain row.
   src/splash.html  Splash window shown while the bridge/rack connect and the
@@ -886,10 +928,16 @@ covered under CONFIRMED ARCHITECTURE above.
                    mute flags, panel-open flags, reply-arrival sequence counters).
                    Also startupGateTimer/STARTUP_GATE_TIMEOUT_MS and the splash-
                    reveal readiness flags initialChainMapDone/initialNavPullDone/
-                   appRevealed (STARTUP GATE, 2026-08-02).
+                   appRevealed (STARTUP GATE, 2026-08-02). toneKnobOrderPrefs
+                   (per-amp saved knob order) and toneRowLocked (Amp Controls
+                   reorder, 2026-08-03).
   protocol.js      Constants and decoders: AMP_TONE_PARAMS, cab/mic lookup + type
                    lists, amp/effect model tables, Sync divisions, tempo
                    encode/decode, DIST/REVERB model tables, REQU/command byte defs.
+                   getOrderedToneKnobs/toneSlotIndexForLo/setToneKnobOrder/
+                   resetToneKnobOrder (2026-08-03) — the single place every
+                   tone-knob code path resolves "screen slot i = which
+                   control", respecting a saved per-amp reorder.
   transport.js     Core SEND functions and CAB/MIC v0 lookup tables. Per-patch
                    writes route through sendPatchWrite (lights the SAVE dirty
                    latch); queries and readbacks call sendHex directly. Master
@@ -918,6 +966,13 @@ covered under CONFIRMED ARCHITECTURE above.
                    showStartupGate/hideStartupGate/splashSetProgress drive the
                    splash window via IPC; onStartupRetryClick handles the
                    splash's Try Again button (STARTUP GATE, 2026-08-02).
+                   Amp Controls tone-knob reorder (2026-08-03):
+                   paintToneSlots/repaintToneRowPreview/repaintToneRowAnimated/
+                   wireToneKnobDrag + the lock/reset button wiring — a reorder
+                   swaps CONTENT between the fixed tone-k0..7 slots (never
+                   moves the DOM nodes themselves), carrying both value AND
+                   the red/amber baseline (dataset.orig) with it on every
+                   swap (see Tech Ref Sec 24 for the two bugs this closed).
   fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, DELAY, FX
                    LOOP), split out of ui.js for the same reason
                    as fx-transport.js. DELAY additionally has its own
@@ -934,7 +989,13 @@ covered under CONFIRMED ARCHITECTURE above.
                    local before queuing the hardware write — mandatory for
                    any new block (a shared-variable closure race here could
                    hang the rack, see file header).
-  app-init.js      Startup wiring.
+  app-init.js      Startup wiring. Loads toneKnobOrderPrefs (Amp Controls
+                   reorder) and kicks off startAvidGraphicsAutoScan (moved
+                   here from index.html's inline script 2026-08-03 — that
+                   script runs at HTML parse time, before chain-graphics.js/
+                   ui.js even load, which raced the scan's own promise
+                   resolution against those files defining the functions it
+                   calls; init() only runs after every script has loaded).
   patch-nav.js     Patch navigation logic and the post-nav state pull.
   capture-scan.js  TFX capture to disk, bank scan, load/save (Save-to-Rack and
                    Save-to-Disk, rename).

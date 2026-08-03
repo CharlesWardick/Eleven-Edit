@@ -2858,6 +2858,92 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
 
+2026-08-03 (Amp Controls tone-knob reorder + three fixes, new session) —
+  NEW FEATURE, TESTED LIVE: tone-stack knobs (AMP_TONE_PARAMS, up to 8 per
+  amp) can now be dragged by their LABEL (not the knob itself) into a
+  user-preferred per-amp order, remembered across restarts (toneKnobOrder,
+  settings.json). Locked by default every launch (extra accidental-drag
+  guard); small lock/reset icons dock to the LEFT of the tone-knob row
+  (moved there from the right after Charlie's live look at both). Loaded
+  before the first tone-knob paint of the session (app-init.js), so a saved
+  order is what's drawn on the very first render, never a default-then-jump.
+  MECHANISM: unlike the chain row (which physically relocates real chain-
+  block DOM nodes on reorder), the tone row's fixed tone-k0..tone-k7 slots
+  never move — every tone-knob code path (drag/dblclick/wheel, the live CMD
+  0x11 router, TFX initial readback) already addresses a control by FIXED
+  SLOT, so a reorder here swaps CONTENT between slots instead
+  (getOrderedToneKnobs/toneSlotIndexForLo, protocol.js — the single place
+  every one of those paths now resolves "slot i = which control", so none
+  of them can disagree). The chain row's smooth slide-in feel is recreated
+  with a FLIP animation keyed by paramLo (content identity) instead of by
+  which DOM node moved.
+  TWO BUGS FOUND AND FIXED THE SAME DAY, both display-only (no hardware
+  send, no value ever actually lost — Charlie correctly read this from the
+  watchdog never tripping): (1) the red/amber "changed" colour compares a
+  knob's value against a baseline (dataset.orig) stored on the FIXED slot
+  node — the first version of the reorder repaint moved values between
+  slots but left each slot's baseline behind, so content landing in a new
+  slot was compared against the PREVIOUS occupant's baseline (false red).
+  (2) the dragged knob's own slot content was deliberately skipped each
+  preview repaint (so a separate cursor-follow transform could drive its
+  position) — but that left stale leftover value/text sitting there, and
+  since the next repaint step trusted lo-bookkeeping over what was actually
+  painted, that staleness could get attributed to a different knob and
+  compound over a multi-slot drag, eventually surfacing as a knob showing
+  "--"/64 though nothing was ever reset. FIX: the preview repaint now
+  carries dataset.orig with dataset.value on every slot swap, and no
+  longer skips the dragged knob's own content (safe — its value isn't
+  changing while its LABEL is what's being dragged).
+  Files: state.js (toneKnobOrderPrefs, toneRowLocked), protocol.js
+  (getOrderedToneKnobs/toneSlotIndexForLo/setToneKnobOrder/
+  resetToneKnobOrder), ui.js (paintToneSlots/repaintToneRowPreview/
+  repaintToneRowAnimated/wireToneKnobDrag + lock/reset wiring;
+  updateToneReadouts and the tone drag/dblclick/wheel handlers now route by
+  slot), sysex-handler.js (live CMD 0x11 tone router same), app-init.js
+  (loads toneKnobOrder before first paint), main.js/preload.js (get/save-
+  tone-knob-order IPC, same storeGet/storeSet pattern as bank cache/zoom),
+  index.html (#tone-knobs-row, .tone-dock).
+
+  ALSO FIXED, same session (both TESTED LIVE / confirmed by Charlie):
+  SECOND LAUNCH KILLING THE RUNNING INSTANCE'S BRIDGE — the single-instance
+  lock (app.requestSingleInstanceLock(), main.js) existed already, but the
+  losing branch only called app.quit(), which merely SCHEDULES a quit and
+  does not stop the rest of main.js executing synchronously. A second
+  launch still reached app.whenReady() -> launchBridge() ->
+  killOrphanedBridgeProcesses() — a PowerShell sweep that force-kills ANY
+  ElevenRackBridge.jar process (by design, to clean up a stale one from a
+  crashed prior session) — catching the FIRST, legitimately running
+  instance's bridge in that net before the second instance's own quit took
+  effect. Symptom: brief splash flash on an accidental second launch, then
+  the already-running instance's bridge connection dies. Fixed with a
+  `return;` right after app.quit() so a losing second launch never reaches
+  any window/bridge code at all. Likely present since the single-instance
+  lock was first added; only surfaced/got noticed once the 2026-08-02
+  startup gate's splash made a second launch visually obvious for the
+  instant before it (should have) exited.
+
+  CHAIN ROW GRAPHICS INTERMITTENTLY BLANK ON LOAD — long-standing
+  intermittent bug (the 2026-07-31 retry+logging pass masked it sometimes
+  but did not fix it; Charlie confirmed the symptom still recurred after
+  that pass and again after the 2026-08-02 startup gate landed). ROOT
+  CAUSE: the Avid-graphics auto-scan lived inside index.html's big inline
+  <script> block, which runs at HTML PARSE TIME — before the
+  <script src="js/chain-graphics.js">/js/ui.js tags further down the SAME
+  file have loaded. The scan is an async IPC round-trip (main.js walks the
+  folder, replies); its promise callback raced those later script tags
+  finishing load. If the scan resolved first, setAvidGraphicsManifest/
+  renderChainRow did not exist yet, the existing typeof guards silently
+  no-op'd, and the manifest was never applied that session — genuinely
+  timing-dependent, which is why the 2026-07-31 retry logic didn't help
+  (every retry re-ran the identical race, not a different failure mode).
+  FIX: the scan trigger is exposed as window.startAvidGraphicsAutoScan
+  instead of auto-invoked inline; app-init.js's init() calls it — init()
+  only ever runs after every script has fully loaded, so the race is
+  structurally gone. TESTED LIVE — Charlie confirmed clean across repeated
+  cold starts (2026-08-03), the bar this Primer's own "intermittent bugs
+  need more than one clean pass" rule sets, so treated as resolved rather
+  than merely less likely.
+
 2026-08-02 (FX LOOP + DELAY effect panels, new session) — Closed out the
   last item in the Primer's effect-panel NOT YET IMPLEMENTED list: FX LOOP
   (Send/Return/Mix) and all three DELAY model families (BBD Delay, Dyn
