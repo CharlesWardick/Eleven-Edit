@@ -24,6 +24,16 @@ let pendingScanResolve   = null;
 const SCAN_SETTLE_MS           = 400;  // wait after navigating, before requesting patch data — TUNE THIS if slots keep timing out
 const SCAN_RESPONSE_TIMEOUT_MS = 1200; // how long to wait for a response before giving up on a slot and moving on
 
+// ── Bank export (2026-08-10) — direct by-slot SEND_PATCH query (Avid's own
+// "Save All Rigs" mechanism, no recall — see bank-transfer.js). Same
+// early-exit pattern as the scan vars above, own pending state so an export
+// and a bank scan can never cross-consume each other's replies. ──
+let exportInProgress      = false;
+let exportCancelRequested = false;
+let pendingExportSlot     = null;
+let pendingExportResolve  = null;
+const EXPORT_RESPONSE_TIMEOUT_MS = 1200; // same budget as SCAN_RESPONSE_TIMEOUT_MS
+
 // ── Jump List "by name" view (2026-08-03) — patch-name cache keyed by slot.
 // Deliberately SESSION-ONLY, never written to settings.json: if the app
 // isn't running while a patch gets renamed or a whole bank gets swapped in,

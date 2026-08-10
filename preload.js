@@ -47,6 +47,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLogsDir:     ()              => ipcRenderer.invoke('get-logs-dir'),
   scanAvidGraphics: (rootDir)     => ipcRenderer.invoke('scan-avid-graphics', rootDir),
 
+  // Bank export ("Export All Rigs…", 2026-08-10)
+  chooseExportDir: ()                        => ipcRenderer.invoke('choose-export-dir'),
+  exportBank:      (folder, bankName, entries) => ipcRenderer.invoke('export-bank', folder, bankName, entries),
+
   // Splash window — main window renderer drives progress/gate state; the
   // splash window itself listens for these and relays button clicks back.
   splashProgress:      (data)       => ipcRenderer.send('splash-progress', data),

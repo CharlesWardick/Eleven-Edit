@@ -109,6 +109,20 @@ async function handleBulkTfxData(data, cmd) {
     return;
   }
 
+  // ── Bank export waiting on this exact slot? Same short-circuit as the
+  // scan check above — a reqSendPatchBySlot reply is wire-identical (CMD
+  // 0x00, real slot byte) to a hardware-save/bank-load broadcast, so it
+  // MUST be consumed here rather than falling into isSave/currentSlot
+  // logic below, which would misfire (nothing was actually saved, and
+  // slotNum here is very likely not currentSlot at all). ──
+  if (pendingExportResolve && slotNum === pendingExportSlot) {
+    const resolve = pendingExportResolve;
+    pendingExportResolve = null;
+    pendingExportSlot = null;
+    resolve({ body: body, slotNum: slotNum });
+    return;
+  }
+
   if (isSave) {
     // ── HARDWARE SAVE: capture TFX to disk ──
     saveSequenceDetected = false;

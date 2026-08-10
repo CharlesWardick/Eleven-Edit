@@ -244,6 +244,99 @@ ipcMain.handle('get-captures-dir', function() {
   return getCapturesDir();
 });
 
+// ════════════════════════════════════════════════════════════════════
+// BANK EXPORT — "Export All Rigs…" (2026-08-10). Renderer walks all 104
+// slots via the direct by-slot SEND_PATCH query (protocol.js
+// reqSendPatchBySlot / bank-transfer.js) and hands this ONE call the
+// already-decoded body for every slot plus the disambiguated filename it
+// picked; this handler does the filesystem work only — build each TFX
+// (same header logic as save-tfx above), write the loose files + the XML
+// map into a subfolder, then zip that subfolder (buildZip, zip-writer.js
+// — dependency-free, real DEFLATE via zlib). Per Charlie's call: keep
+// BOTH the loose folder and the .zip, don't clean up after zipping.
+// ════════════════════════════════════════════════════════════════════
+const { buildZip } = require('./src/js/zip-writer.js');
+
+ipcMain.handle('choose-export-dir', async function() {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Choose Folder for Bank Export',
+      defaultPath: getCapturesDir(),
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths.length) {
+      return { ok: false, canceled: true };
+    }
+    return { ok: true, dir: result.filePaths[0] };
+  } catch(e) {
+    logWrite('Choose export dir error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
+function buildTfxBuffer(bodyArray) {
+  const body = Buffer.from(bodyArray);
+  const fileSize = 56 + body.length;
+  const header = Buffer.alloc(56, 0);
+  header[0] = (fileSize >>> 24) & 0xFF;
+  header[1] = (fileSize >>> 16) & 0xFF;
+  header[2] = (fileSize >>> 8)  & 0xFF;
+  header[3] =  fileSize         & 0xFF;
+  const magic = 'DigiElvRELVhRig ';
+  for (let i = 0; i < 16; i++) header[8 + i] = magic.charCodeAt(i);
+  return Buffer.concat([header, body]);
+}
+
+function xmlEscape(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// entries: [{ bank: 'A1', filename: 'Above Symmetry.tfx', bodyArray: [...] }, ...]
+// bodyArray is the ALREADY-DECODED body (protocol.js decode7bit ran in the
+// renderer as part of the export walk — no point decoding twice).
+ipcMain.handle('export-bank', function(e, folder, bankName, entries) {
+  try {
+    const safeBankName = (bankName || 'Bank').replace(/[\\/:*?"<>|]/g, '_').substring(0, 48);
+    const bankDir = path.join(folder, safeBankName);
+    if (!fs.existsSync(bankDir)) fs.mkdirSync(bankDir, { recursive: true });
+
+    const zipEntries = [];
+    const xmlRows = [];
+    for (const entry of entries) {
+      const tfxBuf = buildTfxBuffer(entry.bodyArray);
+      fs.writeFileSync(path.join(bankDir, entry.filename), tfxBuf);
+      zipEntries.push({ name: entry.filename, data: tfxBuf });
+      xmlRows.push(
+        '        <patch>\n' +
+        '            <bank type_="string">"' + xmlEscape(entry.bank) + '"</bank>\n' +
+        '            <file type_="string">"' + xmlEscape(entry.filename) + '"</file>\n' +
+        '        </patch>'
+      );
+    }
+    const xml =
+      '<?xml version="1.0"?>\n' +
+      '<eleven>\n' +
+      '    <hardware type_="string">"Eleven Rack"</hardware>\n' +
+      '    <patch_list>\n' +
+      xmlRows.join('\n') + '\n' +
+      '    </patch_list>\n' +
+      '</eleven>\n';
+    const xmlName = safeBankName + '.xml';
+    fs.writeFileSync(path.join(bankDir, xmlName), xml, 'utf8');
+    zipEntries.push({ name: xmlName, data: Buffer.from(xml, 'utf8') });
+
+    const zipPath = path.join(folder, safeBankName + '.zip');
+    fs.writeFileSync(zipPath, buildZip(zipEntries));
+
+    logWrite('Bank export complete: ' + entries.length + ' slots -> ' + bankDir + ' + ' + zipPath);
+    return { ok: true, dir: bankDir, xmlPath: path.join(bankDir, xmlName), zipPath: zipPath, count: entries.length };
+  } catch(e) {
+    logWrite('Bank export error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('load-tfx-dialog', async function() {
   try {
     const win = BrowserWindow.getAllWindows()[0];

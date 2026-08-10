@@ -54,6 +54,22 @@ const REQU_PATCH_NAME = 'F0 13 0B 0F 01 05 F7';
 const REQU_RIG_VOL    = 'F0 13 0B 0F 01 07 F7';
 const REQU_CURR_RIG   = 'F0 13 0B 0F 01 02 F7';
 
+// ── Direct by-slot SEND_PATCH query (2026-08-10) — Avid Editor's own "Save
+// All Rigs to Computer" mechanism, decoded from a Wireshark capture (see
+// Session Log 2026-08-10). Distinct from REQU_SEND_PATCH above: that one
+// has NO slot argument and always answers for whatever's currently active
+// (dir=0x01 cmd=0x01); this one carries an explicit slot byte (dir=0x01
+// cmd=0x00) and pulls that slot's body WITHOUT recalling it — nothing
+// changes on hardware, unlike CMD 0x03 recall + REQU_SEND_PATCH (the
+// ElevenHack/Scan-Bank method, Tech Ref Sec 17). The reply comes back as
+// CMD 0x00 (dir=0x12) — wire-identical in cmd byte to a normal hardware-
+// save/bank-load broadcast, so callers must consume it via the pending-
+// slot pattern (see handleBulkTfxData's pendingExportResolve check) rather
+// than letting it fall through to the live-broadcast branches.
+function reqSendPatchBySlot(slot) {
+  return 'F0 13 0B 0F 01 00 ' + slot.toString(16).padStart(2,'0').toUpperCase() + ' F7';
+}
+
 // ── DIAGNOSTIC — amp paramLo investigation, 2026-07-22.
 // The Avid editor sends these five queries after every patch recall and we
 // have never decoded any of them. In the Wireshark captures they are short

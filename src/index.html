@@ -831,7 +831,14 @@
     align-items: center; justify-content: center;
   }
   #rack-save-modal.open { display: flex; }
-  #rack-save-box {
+  /* Export All Rigs reuses #rack-save-box / .rack-save-* styling — same overlay shell */
+  #bank-export-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65); z-index: 500;
+    align-items: center; justify-content: center;
+  }
+  #bank-export-modal.open { display: flex; }
+  #rack-save-box, .rack-save-box {
     background: #1e1e1e; border: 1px solid var(--accent-dim);
     border-radius: 8px; padding: 22px 26px; min-width: 320px;
     display: flex; flex-direction: column; gap: 12px;
@@ -841,12 +848,12 @@
   .rack-save-slot-line { font-size: 12px; color: var(--muted); }
   #rack-save-slot-label { color: var(--text); font-weight: bold; }
   .rack-save-label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
-  #rack-save-input {
+  #rack-save-input, #bank-export-input {
     background: #111; color: var(--text); border: 1px solid var(--border);
     border-radius: 4px; padding: 6px 10px; font-size: 14px; font-family: 'Consolas', monospace;
     width: 100%; outline: none;
   }
-  #rack-save-input:focus { border-color: var(--accent); }
+  #rack-save-input:focus, #bank-export-input:focus { border-color: var(--accent); }
   .rack-save-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
   .rack-save-btns button { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--text); border-radius: 4px; padding: 5px 18px; font-size: 13px; cursor: pointer; }
   .rack-save-btns button:hover { border-color: var(--accent); color: var(--accent); }
@@ -1535,6 +1542,7 @@
   <button class="bt-btn" id="btn-open-captures"  title="Open the folder where TFX captures are saved" style="display:none;">Open Captures Folder</button>
   <button class="bt-btn" id="btn-change-captures" title="Change the captures folder location" style="display:none;">Change Folder</button>
   <button class="bt-btn" id="btn-load-tfx"       title="Load a TFX file into hardware memory (does not commit to slot)">Load TFX…</button>
+  <button class="bt-btn" id="btn-export-all-rigs" title="Pull all 104 slots and write TFX + XML + zip to disk">Export All Rigs…</button>
   <button class="bt-btn" id="btn-scan-bank"       title="Walk all 104 slots and cache patch data" style="display:none;">Scan Bank</button>
   <div class="bt-sep"></div>
   <!-- SAVE ▾ consolidated button -->
@@ -1569,6 +1577,19 @@
     <div class="rack-save-btns">
       <button id="rack-save-cancel">Cancel</button>
       <button id="rack-save-ok" class="rack-save-ok-btn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXPORT ALL RIGS — BANK NAME PROMPT MODAL (2026-08-10) ══ -->
+<div id="bank-export-modal">
+  <div class="rack-save-box">
+    <div class="rack-save-title">Export All Rigs</div>
+    <label class="rack-save-label" for="bank-export-input">Bank Name</label>
+    <input type="text" id="bank-export-input" maxlength="48" autocomplete="off" spellcheck="false">
+    <div class="rack-save-btns">
+      <button id="bank-export-cancel">Cancel</button>
+      <button id="bank-export-ok" class="rack-save-ok-btn">Export…</button>
     </div>
   </div>
 </div>
@@ -2447,6 +2468,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/transport.js"></script>
 <script src="js/fx-transport.js"></script>   <!-- per-effect-panel sends, split from transport.js 7/27 -->
 <script src="js/capture-scan.js"></script>
+<script src="js/bank-transfer.js"></script>   <!-- Export All Rigs, 2026-08-10 -->
 <script src="js/sysex-handler.js"></script>
 <script src="js/patch-nav.js"></script>
 <script src="js/app-init.js"></script>
