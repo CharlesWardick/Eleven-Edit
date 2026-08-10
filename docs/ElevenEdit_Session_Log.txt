@@ -39,8 +39,12 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      provisional — symptom CONFIRMED by live byte-level diff, fix
-  UNCONFIRMED (settle delay added same session, not yet re-tested)
+STATUS:      [SUPERSEDED — see the follow-up entry immediately below,
+  same date, for what actually shipped]. Left in place rather than
+  deleted: the byte-level evidence and the ruled-out name-length theory
+  are still the reasoning trail that led to the fix, and Charlie asked
+  this failure be documented clearly for anyone who wants to pick the
+  no-recall approach back up post open-source.
 AREA:        Export All Rigs — cold-slot read produces a stale
   signature/cab-table snapshot Avid's loader rejects
 FINDING:     Live test (Charlie): a bank exported via the new Export All
@@ -109,14 +113,66 @@ CONFLICTS:   none with existing Tech Ref content — Sec 13's "968-byte
   a fixed constant (1032/1088/1096/1192-byte bodies all seen this session
   on real, valid, non-corrupt patches with richer effect chains) — worth
   a Tech Ref wording fix at wrap, not urgent.
-NEXT:        Charlie re-runs Export All Rigs with EXPORT_SETTLE_MS in
-  place and checks specifically whether Glaswerks SODII1 (and the Dumble
-  Drive1/2 pair) now import into Avid cleanly. If the settle delay does
-  NOT fix it, the next lever to try is an actual recall before each
-  by-slot query (sacrificing the "invisible on hardware" property for
-  correctness) rather than a longer guessed delay — don't just keep
-  increasing EXPORT_SETTLE_MS blindly per the Primer's "two failed fixes"
-  rule.
+NEXT:        [DONE — see follow-up entry below]
+-------------------------------------------------------------------
+DATE:        2026-08-10
+STATUS:      confirmed (symptom) — fix NOT YET TESTED LIVE (switched
+  approach entirely, see below; awaiting Charlie's next build/test)
+AREA:        Export All Rigs — switched from the no-recall Avid-style
+  by-slot query to the recall-based method (same mechanism as the
+  existing Scan Bank feature), abandoning the approach in the entry above
+FINDING:     The settle-delay fix (EXPORT_SETTLE_MS, prior entry) did
+  NOT hold up: Charlie re-tested on that exact build and got a NEW
+  corruption on the same underlying bug — a patch genuinely named
+  "Dumble1" (Charlie confirmed: no other "Dumble"-prefixed patch exists
+  in the bank besides the three already known) exported as "Dumble-1.tfx"
+  — i.e. the export decoded this slot's name as truncated to "Dumble"
+  (dropping the "1", the SAME stale-read symptom as the prior entry, now
+  hitting the name field directly) and then the collision-suffix logic
+  correctly, but pointlessly, appended "-1" on top of the already-wrong
+  name. Two consecutive failed fixes on the same "it's a timing problem"
+  theory (60ms settle delay, still broke) — per the Primer's own
+  "TWO FAILED FIXES = STOP AND RE-DERIVE" rule, this means the premise
+  was wrong, not the value: a cold, no-recall read is not reliably
+  self-consistent on this hardware, full stop, no delay fixes that.
+  Charlie's own read, independently arrived at and worth recording:
+  ElevenHack's author was clearly capable of building the faster,
+  invisible by-slot method and most likely tried it — landing on the
+  slower, visible, recall-per-slot walk anyway is best explained by him
+  hitting this exact wall first.
+  DECISION (Charlie): switch Export All Rigs to the recall-based method,
+  matching ElevenHack/Scan Bank, and clearly document the abandoned
+  attempt in code for future contributors (project going open source) in
+  case someone finds the actual reason a cold read goes stale and this
+  becomes viable again.
+  IMPLEMENTED: bank-transfer.js's export loop now calls capture-scan.js's
+  existing scanSlot() (CMD 0x03/0x0C recall -> SCAN_SETTLE_MS ->
+  REQU_SEND_PATCH) directly instead of the abandoned reqSendPatchBySlot
+  path — same proven mechanism as Scan Bank, not a reimplementation.
+  Added mutual-exclusion (exportInProgress / scanInProgress) since both
+  now share pendingScanSlot/pendingScanResolve and would otherwise steal
+  each other's replies if somehow triggered together. Restores the
+  starting slot on completion (goToSlot(startSlot)), matching Scan Bank's
+  own courtesy. Removed the now-dead pendingExportSlot/pendingExportResolve
+  state (state.js) and its early-exit branch (sysex-handler.js) — nothing
+  sets them anymore. reqSendPatchBySlot (protocol.js) is left in place,
+  unused, with a clear "why this was abandoned" comment pointing here.
+  Trade-off accepted: Export All Rigs now visibly walks slots on the
+  front panel again (the "Christmas tree" behaviour Charlie described
+  for ElevenHack) — the invisible-on-hardware advantage is gone, but the
+  data is trustworthy, which matters more.
+EVIDENCE:    Charlie's live test report (this session) of the settle-
+  delay build producing "Dumble-1.tfx" for a patch confirmed to be
+  literally named "Dumble1" with no other same-prefix patch in the bank.
+CONFLICTS:   none — supersedes the "FIX APPLIED" section of the entry
+  above, doesn't change any other confirmed fact.
+NEXT:        Charlie rebuilds and re-runs Export All Rigs. Expect it to
+  visibly step through slots now (same as Scan Bank/ElevenHack) — that's
+  the intended trade, not a regression. Check specifically that Dumble1/
+  2/3 and Glaswerks SODII/SODII1 all come out with correct, untruncated
+  names and import cleanly into Avid, both individually and as a full
+  bank. If this STILL fails on the same patches, the recall theory itself
+  is wrong too and needs fresh evidence, not a third guess.
 -------------------------------------------------------------------
 DATE:        2026-08-10
 STATUS:      provisional — ONE capture, ONE machine, not yet cross-checked

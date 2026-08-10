@@ -61,11 +61,19 @@ const REQU_CURR_RIG   = 'F0 13 0B 0F 01 02 F7';
 // (dir=0x01 cmd=0x01); this one carries an explicit slot byte (dir=0x01
 // cmd=0x00) and pulls that slot's body WITHOUT recalling it — nothing
 // changes on hardware, unlike CMD 0x03 recall + REQU_SEND_PATCH (the
-// ElevenHack/Scan-Bank method, Tech Ref Sec 17). The reply comes back as
-// CMD 0x00 (dir=0x12) — wire-identical in cmd byte to a normal hardware-
-// save/bank-load broadcast, so callers must consume it via the pending-
-// slot pattern (see handleBulkTfxData's pendingExportResolve check) rather
-// than letting it fall through to the live-broadcast branches.
+// ElevenHack/Scan-Bank method, Tech Ref Sec 17).
+//
+// UNUSED IN PRODUCTION CODE (2026-08-10, same day) — tried for bank
+// export, abandoned. Reading a slot cold with no recall can hand back
+// stale bytes (confirmed live: a "signature/headerCode" mismatch, and
+// separately a truncated internal name) that Avid Editor's own loader
+// rejects, and a settle-delay attempt did not fix it — see bank-
+// transfer.js's file header and Session Log 2026-08-10 for the full
+// evidence trail. Bank export now uses the same recall-based scanSlot()
+// as Scan Bank instead. Left here, working and byte-verified against a
+// real capture, in case a future fix (or a future contributor, post
+// open-source) finds the actual reason a cold read goes stale and this
+// becomes usable again.
 function reqSendPatchBySlot(slot) {
   return 'F0 13 0B 0F 01 00 ' + slot.toString(16).padStart(2,'0').toUpperCase() + ' F7';
 }

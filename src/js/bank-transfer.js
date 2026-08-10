@@ -1,38 +1,49 @@
 // ════════════════════════════════════════════════════════════════════
-// BANK-TRANSFER.JS — "Export All Rigs…" (2026-08-10). Walks all 104 slots
-// using Avid Editor's own direct by-slot SEND_PATCH query (protocol.js
-// reqSendPatchBySlot) — no recall, nothing visible on hardware, unlike
-// ElevenHack's method (Sec 17 / the existing Scan Bank feature above in
-// capture-scan.js, which this deliberately does NOT reuse or touch).
-// Filesystem work (TFX/XML/zip writing) lives in main.js — this file only
-// walks the wire and hands it already-decoded slot data.
-// See Session Log 2026-08-10 for the capture this is built from.
+// BANK-TRANSFER.JS — "Export All Rigs…" (2026-08-10, switched to the
+// recall method same day — see ABANDONED note below).
+//
+// ABANDONED APPROACH — Avid's own direct by-slot SEND_PATCH query
+// (protocol.js reqSendPatchBySlot), no recall, invisible on hardware.
+// Decoded from a real Wireshark capture of Avid Editor's own "Save All
+// Rigs to Computer" (Session Log 2026-08-10) and looked like a clean win
+// over ElevenHack's method — half the round trips, nothing visibly
+// changing on the front panel. It was NOT: a live-tested export produced
+// files that decode and inspect as perfectly valid (right size, right
+// name, right structure) but that Avid Editor's own loader intermittently
+// rejects, both individually and as part of a full bank. Root-caused via
+// byte-diff against a known-good single-patch manual capture of the same
+// slot: cold, un-recalled reads of a slot can hand back stale bytes in at
+// least two different places — the "signature/headerCode" field (Tech Ref
+// Sec 13) and, separately, the internal name itself (confirmed live:
+// "Dumble1" read back as "Dumble", triggering our own collision-suffix
+// logic on top of the already-wrong name). Tried inserting a settle delay
+// before every query (EXPORT_SETTLE_MS, 60ms) as the first, cheap fix —
+// STILL produced a corrupted name on the very next live test. Two failed
+// fixes on the same theory (Primer's own rule) means the real cause is
+// that a recall is genuinely required to get self-consistent data, not a
+// timing issue a longer delay would eventually paper over.
+// Charlie's own read, and a plausible one: ElevenHack's author was
+// clearly capable of building the invisible by-slot method and likely
+// tried it — landing on the slower, visible, recall-per-slot walk anyway
+// suggests he hit this exact wall first. reqSendPatchBySlot is left in
+// protocol.js, unused, with its own pointer to this note — in case the
+// real fix (recall-free reads that are ALSO reliable) turns out to exist
+// and someone wants to pick this back up.
+//
+// CURRENT APPROACH — same recall-per-slot mechanism as the existing
+// (hidden) Scan Bank feature above in capture-scan.js: CMD 0x03/0xC0
+// recall -> settle -> REQU_SEND_PATCH. Reuses capture-scan.js's own
+// scanSlot() directly rather than duplicating it — same proven, live-
+// tested mechanism, one implementation. Visibly walks slots on the front
+// panel, same as ElevenHack; the "invisible" property is gone, but the
+// data is trustworthy. Still real gains over full ElevenHack/EHB: no
+// separate name query per slot (the name comes from the SEND_PATCH body,
+// same as before), and the collision-suffix / zip / XML pieces built this
+// session are all format work, independent of which wire method reads
+// the data — none of that needed to change.
 // ════════════════════════════════════════════════════════════════════
 
 let exportChosenDir = null;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function exportSlotBody(slot) {
-  // Settle gap BEFORE the query, not after the reply — see EXPORT_SETTLE_MS
-  // (state.js) for why. Cheap either way at 60ms, but "before" means the
-  // very first slot gets the same gap as every other one, not a free pass.
-  await sleep(EXPORT_SETTLE_MS);
-  return new Promise((resolve) => {
-    pendingExportSlot = slot;
-    pendingExportResolve = resolve;
-    sendHex(reqSendPatchBySlot(slot));
-    setTimeout(() => {
-      if (pendingExportResolve === resolve) {
-        pendingExportResolve = null;
-        pendingExportSlot = null;
-        resolve(null);
-      }
-    }, EXPORT_RESPONSE_TIMEOUT_MS);
-  });
-}
 
 function exportProgressUpdate(slot, status) {
   const el = document.getElementById('scan-progress-text');
@@ -46,9 +57,13 @@ function cancelBankExport() {
 }
 
 async function exportAllRigs(bankName, targetDir) {
-  if (exportInProgress || !bridgeMidiReady) return;
+  // Mutual exclusion with Scan Bank — both now go through scanSlot()'s
+  // shared pendingScanSlot/pendingScanResolve pair, so running both at
+  // once would have one steal the other's replies.
+  if (exportInProgress || scanInProgress || !bridgeMidiReady) return;
   exportInProgress = true;
   exportCancelRequested = false;
+  const startSlot = currentSlot; // return here when done, like Scan Bank does
 
   const overlay = document.getElementById('scan-overlay');
   if (overlay) overlay.classList.add('open');
@@ -67,7 +82,7 @@ async function exportAllRigs(bankName, targetDir) {
     if (exportCancelRequested) { appLog('Bank export cancelled at slot ' + slot); break; }
     exportProgressUpdate(slot, null);
 
-    const result = await exportSlotBody(slot);
+    const result = await scanSlot(slot);
     if (!result) {
       failed++;
       exportProgressUpdate(slot, 'no response');
@@ -86,6 +101,7 @@ async function exportAllRigs(bankName, targetDir) {
 
   if (overlay) overlay.classList.remove('open');
   exportInProgress = false;
+  goToSlot(startSlot); // return to wherever the user actually was, like Scan Bank
 
   if (!entries.length) {
     setStatus('Bank export: nothing captured');

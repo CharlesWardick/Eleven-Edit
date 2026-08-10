@@ -24,24 +24,15 @@ let pendingScanResolve   = null;
 const SCAN_SETTLE_MS           = 400;  // wait after navigating, before requesting patch data — TUNE THIS if slots keep timing out
 const SCAN_RESPONSE_TIMEOUT_MS = 1200; // how long to wait for a response before giving up on a slot and moving on
 
-// ── Bank export (2026-08-10) — direct by-slot SEND_PATCH query (Avid's own
-// "Save All Rigs" mechanism, no recall — see bank-transfer.js). Same
-// early-exit pattern as the scan vars above, own pending state so an export
-// and a bank scan can never cross-consume each other's replies. ──
+// ── Bank export ("Export All Rigs…") — walks all 104 slots via the SAME
+// recall-based mechanism as Scan Bank above (scanSlot(), capture-scan.js),
+// so it shares pendingScanSlot/pendingScanResolve rather than duplicating
+// them. An earlier, no-recall approach (Avid's own direct by-slot query)
+// was tried and abandoned same day — see bank-transfer.js's file header
+// and Session Log 2026-08-10 for why. Only state left to track here is
+// the export-specific progress/cancel flags. ──
 let exportInProgress      = false;
 let exportCancelRequested = false;
-let pendingExportSlot     = null;
-let pendingExportResolve  = null;
-const EXPORT_RESPONSE_TIMEOUT_MS = 1200; // same budget as SCAN_RESPONSE_TIMEOUT_MS
-// Gap before each by-slot query (2026-08-10, live-test finding): a slot read
-// cold, with zero settle time, can hand back a stale signature/cab-table
-// snapshot next to otherwise-current data — Avid's loader appears to
-// validate that and reject the mismatch (session log has the byte-level
-// evidence). No recall happens here (that's the whole point of this
-// method), so this is a bet that pure timing, not a recall, is what the
-// hardware needs to present self-consistent data. UNCONFIRMED until
-// re-tested — see session log 2026-08-10.
-const EXPORT_SETTLE_MS = 60;
 
 // ── Jump List "by name" view (2026-08-03) — patch-name cache keyed by slot.
 // Deliberately SESSION-ONLY, never written to settings.json: if the app
