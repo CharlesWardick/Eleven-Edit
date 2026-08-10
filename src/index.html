@@ -1553,14 +1553,8 @@
 <!-- ══ BOTTOM TOOLBAR ══ -->
 <div id="btoolbar">
   <span class="bt-section-label">TFX / Bank</span>
-  <button class="bt-btn" id="btn-capture-now"    title="Pull current patch from hardware and save TFX file" style="display:none;">Capture Current Patch</button>
-  <button class="bt-btn" id="btn-open-captures"  title="Open the folder where TFX captures are saved" style="display:none;">Open Captures Folder</button>
-  <button class="bt-btn" id="btn-change-captures" title="Change the captures folder location" style="display:none;">Change Folder</button>
-  <button class="bt-btn" id="btn-load-tfx"       title="Load a TFX file into hardware memory (does not commit to slot)">Load TFX…</button>
-  <button class="bt-btn" id="btn-export-all-rigs" title="Pull all 104 slots and write TFX + XML + zip to disk">Export All Rigs…</button>
-  <button class="bt-btn" id="btn-import-rigs"     title="Read a bank XML and write its listed patches directly to their slots">Import Rigs…</button>
-  <button class="bt-btn" id="btn-scan-bank"       title="Walk all 104 slots and cache patch data" style="display:none;">Scan Bank</button>
-  <div class="bt-sep"></div>
+  <!-- Order (2026-08-10, Charlie's request): SAVE first (most used), then
+       Load, Export, Import — single-patch ops before whole-bank ops. -->
   <!-- SAVE ▾ consolidated button -->
   <div style="position:relative;">
     <button class="bt-btn" id="btn-save-menu">SAVE ▾</button>
@@ -1570,6 +1564,14 @@
       <div class="save-dd-item save-dd-disabled">Save to Different Slot… (coming soon)</div>
     </div>
   </div>
+  <button class="bt-btn" id="btn-load-tfx"       title="Load a TFX file into hardware memory (does not commit to slot)">Load TFX…</button>
+  <div class="bt-sep"></div>
+  <button class="bt-btn" id="btn-export-all-rigs" title="Pull all 104 slots and write TFX + XML + zip to disk">Export All Rigs…</button>
+  <button class="bt-btn" id="btn-import-rigs"     title="Read a bank XML and write its listed patches directly to their slots">Import Rigs…</button>
+  <button class="bt-btn" id="btn-capture-now"    title="Pull current patch from hardware and save TFX file" style="display:none;">Capture Current Patch</button>
+  <button class="bt-btn" id="btn-open-captures"  title="Open the folder where TFX captures are saved" style="display:none;">Open Captures Folder</button>
+  <button class="bt-btn" id="btn-change-captures" title="Change the captures folder location" style="display:none;">Change Folder</button>
+  <button class="bt-btn" id="btn-scan-bank"       title="Walk all 104 slots and cache patch data" style="display:none;">Scan Bank</button>
   <!-- Hidden — kept for JS compatibility -->
   <button class="bt-btn green" id="btn-save-slot"    style="display:none;">Save to Current Slot</button>
   <button class="bt-btn"       id="btn-save-slot-as" style="display:none;" disabled>Save to Slot…</button>

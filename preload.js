@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getZoom:        ()              => ipcRenderer.invoke('get-zoom'),
   setZoom:        (factor)        => ipcRenderer.invoke('set-zoom', factor),
   getStartupMode: ()              => ipcRenderer.invoke('get-startup-mode'),
+  getAppVersion:  ()              => ipcRenderer.invoke('get-app-version'),
 
   // Logging
   logWrite:       (line)          => ipcRenderer.invoke('log-write', line),

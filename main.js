@@ -64,6 +64,7 @@ app.on('second-instance', function() {
 // ════════════════════════════════════════════════════════════════════
 const startupMode = 3;
 ipcMain.handle('get-startup-mode', function() { return startupMode; });
+ipcMain.handle('get-app-version', function() { return app.getVersion(); });
 
 // ════════════════════════════════════════════════════════════════════
 // SESSION LOG

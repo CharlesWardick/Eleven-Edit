@@ -13,7 +13,7 @@
   }
   body {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    border: 1px solid #333; height: 100vh;
+    border: 1px solid #333; height: 100vh; position: relative;
   }
   #logo {
     font-size: 34px; font-weight: 800; letter-spacing: 4px; color: var(--accent);
@@ -39,9 +39,14 @@
     border-radius: 6px; cursor: pointer; text-transform: uppercase; flex: 1;
   }
   #btn-startup-retry:hover, #btn-startup-quit:hover { background: #1a1200; border-color: var(--accent); }
+  #version-tag {
+    position: absolute; bottom: 8px; right: 12px;
+    font-size: 10px; color: #555; letter-spacing: 0.5px;
+  }
 </style>
 </head>
 <body>
+  <div id="version-tag"></div>
   <div id="logo">ELEVEN EDIT</div>
   <div id="subtitle">Patch Editor for Avid Eleven Rack</div>
   <div style="height:24px;"></div>
@@ -64,6 +69,11 @@
   const gateView      = document.getElementById('gate-view');
   const progressBar   = document.getElementById('progress-bar');
   const statusText    = document.getElementById('status-text');
+  const versionTag    = document.getElementById('version-tag');
+
+  if (versionTag && window.electronAPI.getAppVersion) {
+    window.electronAPI.getAppVersion().then((v) => { versionTag.textContent = 'v' + v; });
+  }
 
   window.electronAPI.onSplashProgress((data) => {
     if (data.message) statusText.textContent = data.message;
