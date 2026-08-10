@@ -306,6 +306,13 @@ sees; he cannot write or debug code himself and won't fill in gaps.
     on Charlie's PC/VM and REMOTE-CONTROLS the Eleven Rack over MIDI via the
     Java bridge. Get this distinction right when describing the setup.
   - Old eyes: amber-on-dark, readable fonts, generous sizing.
+  - BUMP package.json's version EVERY SESSION that hands Charlie code to
+    build (added 2026-08-10, Charlie's own request). Plain patch increment
+    (1.3.1 -> 1.3.2 -> 1.3.3...) is enough — the point is that it's visibly
+    different in the `npm run build` window each time, so a stale build
+    from an earlier test round is never mistaken for the current one (this
+    caused real confusion during the 2026-08-10 bank-export debugging
+    session — Charlie tested an old build twice without realizing it).
   - THE REPO IS CANONICAL, FULL STOP (updated 7/28/2026 — under Claude Code,
     not the old chat workflow). There is no separate "outputs" snapshot to
     fall out of sync with: every file read is the actual working tree, every
