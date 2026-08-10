@@ -308,12 +308,16 @@ function handleSlotConfirm(data) {
     document.getElementById('slot-num').textContent = 'Slot ' + confirmed;
     if (typeof updateNavDisplay === 'function') updateNavDisplay(confirmed);
     appLog('Slot confirmed: ' + confirmed + ' (' + slotLabel(confirmed) + ')');
-    if (!scanInProgress) {
+    if (!scanInProgress && !exportInProgress) {
       // Fires for ANY slot change — our own PC send or the hardware's
       // own front panel nav — so patch name/amp/rig vol stay in sync
-      // either way. Skipped during a bank scan, which drives its own
-      // navigation and already has an explicit SEND_PATCH in flight
-      // for each slot — this would just race it.
+      // either way. Skipped during a bank scan OR a bank export (2026-
+      // 08-10 — both drive their own navigation via scanSlot and already
+      // have an explicit SEND_PATCH in flight for each slot; this would
+      // just race it AND repaint every knob/panel 104 times in a few
+      // seconds for no reason, which is what made the walk look like it
+      // was "dimming"/flickering the whole main screen, per Charlie's
+      // 2026-08-10 report).
       clearStaleReadoutsOnNav();
       requestPatchStateAfterNav();
     }

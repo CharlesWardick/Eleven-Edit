@@ -134,6 +134,26 @@ async function exportAllRigs(bankName, targetDir) {
 
   btn.addEventListener('click', function() {
     if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
+    // Export walks away from and back to the current slot (recall-based,
+    // 2026-08-10) — it restores the right SLOT NUMBER when done, but a
+    // recall always reloads a slot's last-SAVED content, so any live,
+    // unsaved knob edits on the current patch have nowhere to be restored
+    // from and are gone the moment the walk recalls the next slot. There
+    // is no way around this on real hardware (same true of Scan Bank, or
+    // any recall-based walk) — the best we can do is warn before it
+    // happens instead of surprising Charlie with "the dials changed"
+    // after the fact (his own 2026-08-10 report).
+    const saveBtn = document.getElementById('btn-save-menu');
+    if (saveBtn && saveBtn.classList.contains('green')) {
+      const proceed = window.confirm(
+        'The current patch has unsaved changes.\n\n' +
+        'Export All Rigs walks through every slot and will end up back on ' +
+        'this one, but a recall always reloads the SAVED version — any ' +
+        'unsaved knob edits will be lost, not restored.\n\n' +
+        'Save first, or continue anyway and lose the unsaved changes?'
+      );
+      if (!proceed) return;
+    }
     input.value = '';
     modal.classList.add('open');
     setTimeout(function() { input.focus(); }, 50);
