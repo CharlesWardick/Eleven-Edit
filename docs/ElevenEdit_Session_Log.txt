@@ -39,6 +39,59 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-10
+STATUS:      provisional — root cause identified and fixed in code,
+  NOT TESTED LIVE yet
+AREA:        scanSlot() (capture-scan.js) / handleBulkTfxData
+  (sysex-handler.js) — a genuine race condition in code that predates
+  this session entirely, just never exercised at real scale before
+FINDING:     Charlie's live test: full Export All Rigs runs coming back
+  with roughly HALF the expected 104 files (54, then 55, on separate
+  runs) — one BEFORE the SCAN_SETTLE_MS 400->200 change, one AFTER, so
+  NOT a timing-margin regression from that change specifically.
+  ROOT CAUSE: scanSlot() recalls a slot, then sends a bare
+  REQU_SEND_PATCH (no slot argument — queries whatever's CURRENTLY
+  active). That reply (CMD 0x01) carries no slot number on the wire
+  either, so handleBulkTfxData has always had to GUESS which slot a
+  reply belongs to by reading the app's own `currentSlot` variable —
+  which itself only updates when a SEPARATE broadcast (CMD 0x02, "slot
+  confirmed") happens to have already arrived. Two independent messages,
+  no ordering guarantee between them — if the confirm broadcast is even
+  slightly late, the guess is wrong, the early-exit match
+  (`slotNum === pendingScanSlot`) fails, the reply falls through
+  unclaimed, and that slot's scanSlot() promise just times out and gets
+  skipped. This is not new code from this session — scanSlot() and this
+  matching logic are exactly what Scan Bank has always used, but Scan
+  Bank was a hidden, essentially unused feature (Primer: display:none,
+  no UI entry point), so a race this session is the first time anything
+  has walked all 104 slots through it for real, repeatedly, and actually
+  checked the output count.
+  FIX (sysex-handler.js, handleBulkTfxData): for isReqResp (CMD 0x01)
+  replies specifically, trust pendingScanResolve unconditionally instead
+  of gating on the currentSlot guess — nothing else sends a bare
+  REQU_SEND_PATCH while a scan/export has one in flight, so if
+  pendingScanResolve is set, this IS that reply regardless of whether
+  the confirm broadcast has landed yet. Resolves with pendingScanSlot
+  (the slot actually requested) rather than the possibly-stale guess.
+  CMD 0x00 broadcasts (which DO carry a real slot byte) are unaffected —
+  still require the exact match, no change to that path.
+  NOTE: this is a MATCHING-LOGIC fix, not a delay/timing tweak — the
+  distinction matters per the Primer's "two failed fixes" lesson from
+  earlier this same session (export's cold-read corruption). A wrong
+  guess resolved with more patience is still a wrong guess; this fixes
+  what the guess was based on.
+EVIDENCE:    code read start to finish, race explained mechanically;
+  node --check clean. NOT yet confirmed against a live full walk.
+CONFLICTS:   none — same bug would also explain any historical Scan Bank
+  flakiness nobody investigated, since it was never used enough to
+  notice a pattern.
+NEXT:        Charlie runs a full Export All Rigs and confirms 104 files
+  land every time, across a couple of repeats (per the Primer's own rule
+  that an intermittent/race-class bug needs more than one clean run to
+  trust, not just one). If it's still short, get the exact count and
+  which slots are missing — that would mean there's a second, different
+  cause, not just this race.
+-------------------------------------------------------------------
+DATE:        2026-08-10
 STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Import Rigs (new) + Export All Rigs settle-time reduction
 FINDING:     Two changes, neither yet exercised against real hardware:

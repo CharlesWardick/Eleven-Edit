@@ -98,14 +98,33 @@ async function handleBulkTfxData(data, cmd) {
   const body = decode7bit(new Uint8Array(payload));
   appLog('Bulk body decoded: payload=' + payload.length + 'b body=' + body.length + 'b');
 
-  // ── Bank scan waiting on this exact slot? Hand it the decoded data
-  // directly and stop here — scan mode has its own progress UI and
-  // doesn't want this also thrashing the normal live display. ──
-  if (pendingScanResolve && slotNum === pendingScanSlot) {
+  // ── Bank scan (or Export All Rigs, which reuses the same scanSlot())
+  // waiting on this exact slot? Hand it the decoded data directly and
+  // stop here — scan mode has its own progress UI and doesn't want this
+  // also thrashing the normal live display.
+  // isReqResp (cmd 0x01) replies carry NO slot number on the wire — the
+  // slotNum above is only a GUESS, taken from currentSlot, which itself
+  // only updates when a SEPARATE "slot confirmed" broadcast (CMD 0x02)
+  // happens to have already landed. That's a race between two independent
+  // messages, not a guarantee — found live 2026-08-10 (Charlie: full
+  // exports coming back with ~50 of 104 slots missing, present both
+  // before and after a settle-time change, so not a timing-margin issue,
+  // a genuine race in matching logic that's been here as long as
+  // scanSlot() has, just never exercised at real scale before Export All
+  // Rigs). FIX: for isReqResp specifically, trust pendingScanResolve
+  // unconditionally instead of gating on the currentSlot guess — nothing
+  // else sends a bare REQU_SEND_PATCH while a scan/export has one
+  // in flight, so if pendingScanResolve is set, this IS that reply,
+  // regardless of whether the confirm broadcast has landed yet. Resolve
+  // with pendingScanSlot (the slot we actually asked for), not the
+  // possibly-stale slotNum guess. CMD 0x00 broadcasts DO carry a real
+  // slot byte on the wire, so those keep the exact match. ──
+  if (pendingScanResolve && (isReqResp || slotNum === pendingScanSlot)) {
     const resolve = pendingScanResolve;
+    const matchedSlot = pendingScanSlot;
     pendingScanResolve = null;
     pendingScanSlot = null;
-    resolve({ body: body, slotNum: slotNum });
+    resolve({ body: body, slotNum: matchedSlot });
     return;
   }
 
