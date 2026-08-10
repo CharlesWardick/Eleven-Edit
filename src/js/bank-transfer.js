@@ -41,6 +41,18 @@
 // same as before), and the collision-suffix / zip / XML pieces built this
 // session are all format work, independent of which wire method reads
 // the data — none of that needed to change.
+//
+// "Import Rigs…" (2026-08-10) — the mirror-image write side, deliberately
+// built with Avid's own no-recall by-slot method, NOT the recall-based
+// walk export ended up needing. A write has no "stale cold read" to
+// worry about — you're setting data, not depending on hardware to hand
+// back something fresh — and every one of Charlie's live tests of Avid's
+// OWN Load All Rigs worked cleanly, including correctly refreshing the
+// separate name-index the export saga turned up. If a live test of THIS
+// finds the same kind of corruption export did, treat it exactly the
+// same way: one settle-delay attempt, then switch to the recall-based
+// Load TFX + Save-to-slot sequence (Sec 15/16) per XML entry if that
+// doesn't hold up either — don't just keep raising the delay.
 // ════════════════════════════════════════════════════════════════════
 
 let exportChosenDir = null;
@@ -202,4 +214,119 @@ async function exportAllRigs(bankName, targetDir) {
   // own loop.
   const skipBtn = document.getElementById('btn-scan-skip');
   if (skipBtn) skipBtn.addEventListener('click', cancelBankExport);
+})();
+
+// ════════════════════════════════════════════════════════════════════
+// IMPORT RIGS — see file header above for the approach/rationale.
+// ════════════════════════════════════════════════════════════════════
+
+let importInProgress = false;
+
+function importProgressUpdate(i, total, bank, status) {
+  const el = document.getElementById('scan-progress-text');
+  if (el) el.textContent = 'Importing ' + (i + 1) + ' / ' + total + '  —  ' + bank + (status ? '  (' + status + ')' : '');
+  const bar = document.getElementById('scan-progress-bar');
+  if (bar) bar.style.width = (((i + 1) / total) * 100).toFixed(1) + '%';
+}
+
+async function importSlotEntry(entry) {
+  const slot = slotNumFromLabel(entry.bank);
+  if (slot < 0) { appLog('Import: unrecognized bank label "' + entry.bank + '" — skipped'); return false; }
+
+  const body = new Uint8Array(entry.body);
+  const name = extractNameFromBody(body) || entry.filename.replace(/\.tfx$/i, '');
+  const slotHex = slot.toString(16).padStart(2,'0').toUpperCase();
+
+  // 1. Bulk write directly to this slot (Avid's own mechanism, no recall,
+  // no separate commit step — see file header).
+  const encoded = encode7bit(body);
+  const hexBulk = 'F0 13 0B 0F 00 00 ' + slotHex + ' '
+    + encoded.map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ')
+    + ' F7';
+  sendHex(hexBulk);
+  await sleep(300); // same pacing already proven by the existing Load TFX (capture-scan.js)
+
+  // 2. Name write — separate step, same as Load TFX and confirmed against
+  // the real capture for this exact by-slot mechanism (Session Log
+  // 2026-08-10). Routes through the existing CMD 0x04 handler
+  // (handlePatchNameEnumReply, sysex-handler.js), which harmlessly also
+  // refreshes patchNameCache for the Jump List — a real side benefit,
+  // not something we had to build.
+  sendHex('F0 13 0B 0F 00 04 00 ' + slotHex + ' ' + asciiToHexBytes(name) + ' 00 F7');
+  await sleep(150);
+
+  return true;
+}
+
+async function importRigs(entries) {
+  if (importInProgress || exportInProgress || scanInProgress || !bridgeMidiReady) return;
+  importInProgress = true;
+
+  const overlay = document.getElementById('scan-overlay');
+  if (overlay) overlay.classList.add('open');
+  appLog('Import Rigs started: ' + entries.length + ' entries');
+
+  let done = 0;
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    importProgressUpdate(i, entries.length, entry.bank, null);
+    const ok = await importSlotEntry(entry);
+    if (ok) done++;
+  }
+
+  if (overlay) overlay.classList.remove('open');
+  importInProgress = false;
+  requestPatchStateAfterNav(); // in case currentSlot was one of the ones just overwritten
+
+  appLog('Import Rigs finished: ' + done + ' / ' + entries.length + ' written');
+  setStatus('Import complete — ' + done + ' of ' + entries.length + ' patch(es) written');
+}
+
+// ── Button + confirm modal wiring ──
+(function() {
+  const btn   = document.getElementById('btn-import-rigs');
+  const modal = document.getElementById('import-confirm-modal');
+  const list  = document.getElementById('import-confirm-list');
+  if (!btn) return;
+
+  let pendingEntries = null;
+
+  btn.addEventListener('click', async function() {
+    if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
+    const xmlResult = await window.electronAPI.chooseImportXml();
+    if (!xmlResult || !xmlResult.ok) return; // cancelled
+
+    setStatus('Reading bank XML…');
+    const readResult = await window.electronAPI.readImportBank(xmlResult.path);
+    if (!readResult || !readResult.ok) {
+      setStatus('Import failed: ' + (readResult ? readResult.error : 'unknown'));
+      appLog('Import Rigs: read failed — ' + (readResult ? readResult.error : 'unknown'));
+      return;
+    }
+
+    pendingEntries = readResult.entries;
+    if (modal && list) {
+      list.textContent = pendingEntries.length + ' patch(es): '
+        + pendingEntries.map(e => e.bank).join(', ');
+      modal.classList.add('open');
+    } else {
+      // No confirm modal in this build — go straight through.
+      importRigs(pendingEntries);
+    }
+  });
+
+  if (modal) {
+    document.getElementById('import-confirm-cancel').addEventListener('click', function() {
+      modal.classList.remove('open');
+      pendingEntries = null;
+    });
+    document.getElementById('import-confirm-ok').addEventListener('click', function() {
+      modal.classList.remove('open');
+      if (pendingEntries) importRigs(pendingEntries);
+      pendingEntries = null;
+    });
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) { modal.classList.remove('open'); pendingEntries = null; }
+    });
+  }
 })();

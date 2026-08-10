@@ -21,7 +21,16 @@ let scanInProgress       = false;
 let scanCancelRequested  = false;
 let pendingScanSlot      = null;
 let pendingScanResolve   = null;
-const SCAN_SETTLE_MS           = 400;  // wait after navigating, before requesting patch data — TUNE THIS if slots keep timing out
+const SCAN_SETTLE_MS           = 200;  // wait after navigating, before requesting patch data — was 400 (a
+                                        // guessed "safe" number from when Scan Bank was first built, never
+                                        // revisited), lowered 2026-08-10 at Charlie's request now that Export
+                                        // All Rigs actually exercises this path in production. Still 2x
+                                        // NAV_RECALL_SETTLE (100ms, transport.js — the value ordinary patch
+                                        // nav has proven reliable everywhere else), not equal to it, since
+                                        // this hasn't been live-tested yet at the lower number. NEXT: if a
+                                        // live full-bank walk stays clean at 200, this could plausibly drop
+                                        // toward 100 too — but don't lower it again without a live check
+                                        // (Primer's "two failed fixes" lesson applies to timing changes too).
 const SCAN_RESPONSE_TIMEOUT_MS = 1200; // how long to wait for a response before giving up on a slot and moving on
 
 // ── Bank export ("Export All Rigs…") — walks all 104 slots via the SAME

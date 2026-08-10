@@ -32,6 +32,17 @@ const BANKS    = ['A','B','C','D','E','F','G','H','I','J','K','L','M',
 const MAX_SLOT = 103;
 const CC_TUNER = 69;
 
+// Inverse of slotLabel (ui.js) — "C2" -> 9. Used by Import Rigs (2026-08-10)
+// to turn a bank XML's <bank> label back into a raw slot number. Returns
+// -1 for anything that doesn't parse as [A-Z][1-4].
+function slotNumFromLabel(label) {
+  if (!label || label.length < 2) return -1;
+  const bankIdx = BANKS.indexOf(label[0].toUpperCase());
+  const num = parseInt(label.slice(1), 10);
+  if (bankIdx < 0 || !(num >= 1 && num <= 4)) return -1;
+  return bankIdx * 4 + (num - 1);
+}
+
 // Avid SysEx constants
 const SYSEX_HDR    = [0xF0, 0x13, 0x0B, 0x0F];
 const DIR_SNDSET   = 0x00;

@@ -39,6 +39,53 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-10
+STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Import Rigs (new) + Export All Rigs settle-time reduction
+FINDING:     Two changes, neither yet exercised against real hardware:
+  (1) IMPORT RIGS — new button, deliberately built with Avid's own
+    no-recall by-slot WRITE mechanism (decoded this session — see the
+    earlier 2026-08-10 entry), NOT the recall-based walk Export All Rigs
+    ended up needing. Rationale: the export bug was specifically about
+    READING stale cold data; a write doesn't depend on hardware handing
+    back fresh state, and every live test of Avid's own Load All Rigs
+    today worked cleanly. Reads the XML, validates every referenced file
+    exists and has a real TFX header BEFORE any hardware write — all or
+    nothing, matching Avid's own abort-on-missing-file behaviour (Charlie
+    specifically called this out as correct). Only writes the slots
+    actually listed in the XML (a 25-entry file touches exactly 25 slots)
+    — deliberately different from Export's always-104.
+    New: main.js (choose-import-xml, read-import-bank IPC, parseBankXml —
+    a narrow regex parser for the one known XML shape, not a general
+    parser), bank-transfer.js (importRigs/importSlotEntry), protocol.js
+    (slotNumFromLabel, inverse of ui.js's slotLabel), index.html (button +
+    confirm modal listing every slot about to be overwritten).
+    IF a live test finds the same kind of corruption Export All Rigs hit:
+    do NOT just add a settle delay and call it done — that was tried once
+    for export and failed on the very next test. Switch straight to the
+    recall-based Load TFX + Save-to-slot sequence (Sec 15/16) per XML
+    entry instead.
+  (2) EXPORT SETTLE TIME — SCAN_SETTLE_MS (state.js, shared by Scan Bank
+    and Export All Rigs' recall walk) lowered 400ms -> 200ms at Charlie's
+    request. The 400 was never a measured value — comment literally said
+    "TUNE THIS if slots keep timing out", a guess from when Scan Bank was
+    a rarely-used hidden feature. 200 is still double NAV_RECALL_SETTLE
+    (100ms, transport.js — the value ordinary patch nav has used
+    reliably everywhere else in the app), not equal to it, since 200
+    hasn't been live-tested yet either.
+EVIDENCE:    code written and read back; node --check clean on every
+  touched file. NOT yet tested live — no hardware run this entry.
+CONFLICTS:   none.
+NEXT:        Charlie tests both in the same build: (a) Import Rigs
+  against a real XML+TFX set, checking the target slots read back
+  correctly afterward (Jump List and/or Avid's own patch list, same
+  verification method that caught the export bug); (b) a full Export All
+  Rigs walk at the lower 200ms settle, checking timing AND that the
+  output is still clean (Avid load test, same as before). If Import Rigs
+  shows the export-style corruption, follow the NEXT above rather than
+  re-guessing a delay. If 200ms holds up clean, 100ms could plausibly be
+  tried next — but only after this one is confirmed, not before.
+-------------------------------------------------------------------
+DATE:        2026-08-10
 STATUS:      [SUPERSEDED — see the follow-up entry immediately below,
   same date, for what actually shipped]. Left in place rather than
   deleted: the byte-level evidence and the ruled-out name-length theory

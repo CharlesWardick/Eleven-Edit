@@ -337,6 +337,98 @@ ipcMain.handle('export-bank', function(e, folder, bankName, entries) {
   }
 });
 
+// ════════════════════════════════════════════════════════════════════
+// BANK IMPORT — "Import Rigs…" (2026-08-10). Avid's own direct by-slot
+// WRITE mechanism (decoded from the Wireshark capture, same session) —
+// no recall needed. Unlike the export side, a write has no "stale cold
+// read" failure mode to worry about (see bank-transfer.js and Session
+// Log 2026-08-10 for the export saga this deliberately does NOT repeat),
+// and every one of Charlie's live tests of Avid's OWN Load All Rigs
+// worked cleanly — real evidence for trying this method here, not just
+// an assumption.
+// Charlie's own framing (2026-08-10): Avid "blindly reads the XML and if
+// it can't find a patch or read a patch it ABORTS" — matched here by
+// validating every referenced file exists and has a real TFX header
+// BEFORE any hardware write happens, all-or-nothing. Only the XML's own
+// entries are ever touched — this is deliberately NOT "always all 104"
+// the way export is; a 25-entry XML writes exactly those 25 slots.
+// ════════════════════════════════════════════════════════════════════
+
+ipcMain.handle('choose-import-xml', async function() {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Import Rigs — Choose Bank XML',
+      defaultPath: getCapturesDir(),
+      filters: [{ name: 'Bank XML', extensions: ['xml'] }],
+      properties: ['openFile']
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths.length) {
+      return { ok: false, canceled: true };
+    }
+    return { ok: true, path: result.filePaths[0] };
+  } catch(e) {
+    logWrite('Choose import XML error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
+// Deliberately NOT a general-purpose XML parser — this only understands
+// the one fixed shape both Avid's own export and our own Export All Rigs
+// produce: repeated <patch><bank type_="string">"X1"</bank><file
+// type_="string">"name.tfx"</file></patch> blocks. Regex is safe here
+// because we control (or have fully reverse-engineered) every producer
+// of this format; a real parser would be overkill for one known shape.
+function parseBankXml(xmlText) {
+  const entries = [];
+  const patchRe = /<patch>([\s\S]*?)<\/patch>/g;
+  let m;
+  while ((m = patchRe.exec(xmlText)) !== null) {
+    const block = m[1];
+    const bankM = /<bank[^>]*>"([^"]*)"<\/bank>/.exec(block);
+    const fileM = /<file[^>]*>"([^"]*)"<\/file>/.exec(block);
+    if (bankM && fileM) entries.push({ bank: bankM[1], filename: fileM[1] });
+  }
+  return entries;
+}
+
+ipcMain.handle('read-import-bank', function(e, xmlPath) {
+  try {
+    const xmlText = fs.readFileSync(xmlPath, 'utf8');
+    const parsed = parseBankXml(xmlText);
+    if (!parsed.length) {
+      return { ok: false, error: 'No <patch> entries found in this XML — is it a bank export file?' };
+    }
+
+    const folder = path.dirname(xmlPath);
+    const missing = [];
+    const entries = [];
+    for (const p of parsed) {
+      const fpath = path.join(folder, p.filename);
+      if (!fs.existsSync(fpath)) { missing.push(p.filename + ' (slot ' + p.bank + ')'); continue; }
+      const raw = fs.readFileSync(fpath);
+      if (raw.length < 56 || raw.toString('ascii', 8, 24).indexOf('DigiElv') !== 0) {
+        missing.push(p.filename + ' (slot ' + p.bank + ') — not a valid TFX file');
+        continue;
+      }
+      entries.push({ bank: p.bank, filename: p.filename, body: Array.from(raw.slice(56)) });
+    }
+
+    // All-or-nothing, matching Avid's own behaviour Charlie specifically
+    // called out as correct — abort before any hardware write rather
+    // than import a partial bank silently.
+    if (missing.length) {
+      return { ok: false, error: 'Missing or invalid file(s), nothing written:\n' + missing.join('\n') };
+    }
+
+    logWrite('Import bank XML read: ' + entries.length + ' entries from ' + xmlPath);
+    return { ok: true, entries: entries };
+  } catch(e) {
+    logWrite('Read import bank error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('load-tfx-dialog', async function() {
   try {
     const win = BrowserWindow.getAllWindows()[0];

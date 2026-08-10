@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseExportDir: ()                        => ipcRenderer.invoke('choose-export-dir'),
   exportBank:      (folder, bankName, entries) => ipcRenderer.invoke('export-bank', folder, bankName, entries),
 
+  // Bank import ("Import Rigs…", 2026-08-10)
+  chooseImportXml: ()          => ipcRenderer.invoke('choose-import-xml'),
+  readImportBank:  (xmlPath)   => ipcRenderer.invoke('read-import-bank', xmlPath),
+
   // Splash window — main window renderer drives progress/gate state; the
   // splash window itself listens for these and relays button clicks back.
   splashProgress:      (data)       => ipcRenderer.send('splash-progress', data),
