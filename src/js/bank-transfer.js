@@ -127,10 +127,17 @@ async function exportAllRigs(bankName, targetDir) {
 
 // ── Button + modal wiring ──
 (function() {
-  const btn      = document.getElementById('btn-export-all-rigs');
-  const modal    = document.getElementById('bank-export-modal');
-  const input    = document.getElementById('bank-export-input');
+  const btn        = document.getElementById('btn-export-all-rigs');
+  const modal      = document.getElementById('bank-export-modal');
+  const input      = document.getElementById('bank-export-input');
+  const dirtyModal = document.getElementById('export-dirty-modal');
   if (!btn || !modal || !input) return;
+
+  function openNameModal() {
+    input.value = '';
+    modal.classList.add('open');
+    setTimeout(function() { input.focus(); }, 50);
+  }
 
   btn.addEventListener('click', function() {
     if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
@@ -144,20 +151,25 @@ async function exportAllRigs(bankName, targetDir) {
     // happens instead of surprising Charlie with "the dials changed"
     // after the fact (his own 2026-08-10 report).
     const saveBtn = document.getElementById('btn-save-menu');
-    if (saveBtn && saveBtn.classList.contains('green')) {
-      const proceed = window.confirm(
-        'The current patch has unsaved changes.\n\n' +
-        'Export All Rigs walks through every slot and will end up back on ' +
-        'this one, but a recall always reloads the SAVED version — any ' +
-        'unsaved knob edits will be lost, not restored.\n\n' +
-        'Save first, or continue anyway and lose the unsaved changes?'
-      );
-      if (!proceed) return;
+    if (saveBtn && saveBtn.classList.contains('green') && dirtyModal) {
+      dirtyModal.classList.add('open');
+      return; // openNameModal() fires from the Continue button instead
     }
-    input.value = '';
-    modal.classList.add('open');
-    setTimeout(function() { input.focus(); }, 50);
+    openNameModal();
   });
+
+  if (dirtyModal) {
+    document.getElementById('export-dirty-cancel').addEventListener('click', function() {
+      dirtyModal.classList.remove('open');
+    });
+    document.getElementById('export-dirty-continue').addEventListener('click', function() {
+      dirtyModal.classList.remove('open');
+      openNameModal();
+    });
+    dirtyModal.addEventListener('click', function(e) {
+      if (e.target === dirtyModal) dirtyModal.classList.remove('open');
+    });
+  }
 
   document.getElementById('bank-export-cancel').addEventListener('click', function() {
     modal.classList.remove('open');

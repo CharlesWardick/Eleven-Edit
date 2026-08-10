@@ -838,6 +838,13 @@
     align-items: center; justify-content: center;
   }
   #bank-export-modal.open { display: flex; }
+  /* Export All Rigs' unsaved-changes warning — same shell again */
+  #export-dirty-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65); z-index: 500;
+    align-items: center; justify-content: center;
+  }
+  #export-dirty-modal.open { display: flex; }
   #rack-save-box, .rack-save-box {
     background: #1e1e1e; border: 1px solid var(--accent-dim);
     border-radius: 8px; padding: 22px 26px; min-width: 320px;
@@ -1577,6 +1584,28 @@
     <div class="rack-save-btns">
       <button id="rack-save-cancel">Cancel</button>
       <button id="rack-save-ok" class="rack-save-ok-btn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXPORT ALL RIGS — UNSAVED CHANGES WARNING (2026-08-10) ══
+     Custom modal, not window.confirm() — a native dialog left the window
+     unable to receive keyboard focus afterward (Charlie found this live:
+     the name-prompt modal opened but couldn't be typed into), on top of
+     looking inconsistent with the rest of the app. -->
+<div id="export-dirty-modal">
+  <div class="rack-save-box" style="max-width:420px;">
+    <div class="rack-save-title">Unsaved Changes</div>
+    <div style="font-size:13px;color:var(--text);line-height:1.6;">
+      The current patch has unsaved changes.<br><br>
+      Export All Rigs walks through every slot and ends up back on this
+      one, but a recall always reloads the SAVED version — any unsaved
+      knob edits will be lost, not restored.<br><br>
+      Save first, or continue anyway and lose the unsaved changes?
+    </div>
+    <div class="rack-save-btns">
+      <button id="export-dirty-cancel">Cancel</button>
+      <button id="export-dirty-continue" class="rack-save-ok-btn">Continue Anyway</button>
     </div>
   </div>
 </div>
