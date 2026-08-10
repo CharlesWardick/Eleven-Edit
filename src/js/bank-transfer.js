@@ -11,7 +11,15 @@
 
 let exportChosenDir = null;
 
-function exportSlotBody(slot) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function exportSlotBody(slot) {
+  // Settle gap BEFORE the query, not after the reply — see EXPORT_SETTLE_MS
+  // (state.js) for why. Cheap either way at 60ms, but "before" means the
+  // very first slot gets the same gap as every other one, not a free pass.
+  await sleep(EXPORT_SETTLE_MS);
   return new Promise((resolve) => {
     pendingExportSlot = slot;
     pendingExportResolve = resolve;

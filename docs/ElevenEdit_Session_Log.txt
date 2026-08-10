@@ -39,6 +39,86 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-10
+STATUS:      provisional — symptom CONFIRMED by live byte-level diff, fix
+  UNCONFIRMED (settle delay added same session, not yet re-tested)
+AREA:        Export All Rigs — cold-slot read produces a stale
+  signature/cab-table snapshot Avid's loader rejects
+FINDING:     Live test (Charlie): a bank exported via the new Export All
+  Rigs button mostly round-trips fine, but Avid Editor errors loading
+  specific patches, both individually and as part of the full bank.
+  RULED OUT: patch name / character length. First suspected an internal
+  16-char-name truncation quirk in Avid's OWN exporter (real, separately
+  confirmed — see below) but that turned out to be a red herring for
+  THIS bug: Charlie's existing, already-shipped "Capture Current Patch"
+  manual-save (unrelated code, REQU_SEND_PATCH, no slot argument) captured
+  the SAME "Glaswerks SODII1" patch with the SAME full correct name and
+  imports into Avid with zero problems — so a correct 16-char name is not
+  what Avid is rejecting.
+  ACTUAL DIFFERENCE (byte diff, manual-capture file vs bank-export file of
+  the identical patch, both 1088 bytes, name field identical): 8 bytes
+  differ — file offset 60-63 (= body[4:8], the documented "signature/
+  headerCode" field, Sec 13: "changes when content changes") and four
+  single bytes at file offsets 324/340/356/372 (body[268]/[284]/[300]/
+  [316], evenly spaced 16 bytes apart, inside the per-model cab-data
+  table region).
+  THEORY (unconfirmed): the manual capture only ever runs against a patch
+  Charlie has just navigated to / recalled — a "hot", fully-settled patch.
+  Export All Rigs deliberately never recalls anything (Sec 17-adjacent,
+  the whole point of the Avid-style by-slot method vs ElevenHack's
+  recall-per-slot) and fired all 104 queries back-to-back with ZERO gap
+  between them. If the signature/cab-table fields only get freshly
+  recomputed at recall time, a cold slot read with no settle time could
+  hand back a stale signature sitting next to otherwise-current data —
+  and Avid's loader appears to validate that signature and reject the
+  mismatch (would explain "works individually as a single capture" vs
+  "fails via the no-recall bulk walk" perfectly). Does NOT explain why
+  Avid's OWN by-slot-style export (same wire mechanism, Sec 24 2026-08-10
+  entry) never hits this — possibly a timing/pacing difference between
+  Avid's own walk and ours, not something visible in the wire capture.
+  FIX APPLIED (bank-transfer.js/state.js): added EXPORT_SETTLE_MS (60ms)
+  before EVERY by-slot query, including the first, instead of firing all
+  104 with no gap. Pure bet on timing, not proven — NEXT below is the
+  actual test.
+  SEPARATE, CONFIRMED, UNRELATED FINDING (worth keeping even though it
+  wasn't this bug): Avid Editor's OWN exporter silently drops the LAST
+  character of a patch name whenever that name is exactly one character
+  longer than the immediately-preceding slot's name and shares its full
+  prefix (e.g. slot content "Dumble Drive" then next slot "Dumble
+  Drive1" -> Avid's own file for the second slot loses the "1"; same
+  pattern confirmed independently on "Glaswerks SODII" -> "Glaswerks
+  SODII1", a 16-char name at the true documented limit). Eleven Edit's
+  exports (both old single-patch capture AND new bank export) capture
+  the correct full name every time — cross-confirmed by two independent,
+  unrelated code paths agreeing with each other and disagreeing with
+  Avid. Reads like a stale-buffer/didn't-fully-clear bug in Avid's own
+  legacy capture code, specific to back-to-back same-prefix names — not
+  an Eleven Edit defect, but worth remembering since it means Avid's own
+  reference exports cannot always be trusted as ground truth for a
+  name field specifically.
+EVIDENCE:    Charlie's live files this session: Dumble_Drive.tfx /
+  Dumble_Drive1.tfx / Dumble_Drive2.tfx (ours) vs AE_Dumble_Drive.tfx /
+  Dumble_AE_Drive1.tfx / Dumble_AE_Drive2.tfx (Avid's own, same slots);
+  Glaswerks_SODII.tfx / Glaswerks_SODII1.tfx (ours, bank export) vs
+  AE_Glaswerks_SODII.tfx / Glaswerks_AE_SODII1.tfx (Avid's own);
+  Glaswerks_SODII1_manual.tfx (ours, single-patch capture, the working
+  reference this entry is built on). All decoded and byte-diffed in
+  session (Python, decode logic mirrors protocol.js's trusted
+  decode7bit/extractNameFromBody).
+CONFLICTS:   none with existing Tech Ref content — Sec 13's "968-byte
+  body" figure is ALSO now known to be a typical/simple-patch figure, not
+  a fixed constant (1032/1088/1096/1192-byte bodies all seen this session
+  on real, valid, non-corrupt patches with richer effect chains) — worth
+  a Tech Ref wording fix at wrap, not urgent.
+NEXT:        Charlie re-runs Export All Rigs with EXPORT_SETTLE_MS in
+  place and checks specifically whether Glaswerks SODII1 (and the Dumble
+  Drive1/2 pair) now import into Avid cleanly. If the settle delay does
+  NOT fix it, the next lever to try is an actual recall before each
+  by-slot query (sacrificing the "invisible on hardware" property for
+  correctness) rather than a longer guessed delay — don't just keep
+  increasing EXPORT_SETTLE_MS blindly per the Primer's "two failed fixes"
+  rule.
+-------------------------------------------------------------------
+DATE:        2026-08-10
 STATUS:      provisional — ONE capture, ONE machine, not yet cross-checked
   against a second run or against real hardware traffic from Eleven Edit
   itself sending these commands.

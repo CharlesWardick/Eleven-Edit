@@ -33,6 +33,15 @@ let exportCancelRequested = false;
 let pendingExportSlot     = null;
 let pendingExportResolve  = null;
 const EXPORT_RESPONSE_TIMEOUT_MS = 1200; // same budget as SCAN_RESPONSE_TIMEOUT_MS
+// Gap before each by-slot query (2026-08-10, live-test finding): a slot read
+// cold, with zero settle time, can hand back a stale signature/cab-table
+// snapshot next to otherwise-current data — Avid's loader appears to
+// validate that and reject the mismatch (session log has the byte-level
+// evidence). No recall happens here (that's the whole point of this
+// method), so this is a bet that pure timing, not a recall, is what the
+// hardware needs to present self-consistent data. UNCONFIRMED until
+// re-tested — see session log 2026-08-10.
+const EXPORT_SETTLE_MS = 60;
 
 // ── Jump List "by name" view (2026-08-03) — patch-name cache keyed by slot.
 // Deliberately SESSION-ONLY, never written to settings.json: if the app
