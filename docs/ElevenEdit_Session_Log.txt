@@ -38,6 +38,71 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-10
+STATUS:      provisional — ONE capture, ONE machine, not yet cross-checked
+  against a second run or against real hardware traffic from Eleven Edit
+  itself sending these commands.
+AREA:        Bank export/import — Avid Editor's OWN mechanism (distinct
+  from ElevenHack's EHB method, Tech Ref Sec 17). Not yet in Tech Ref;
+  this is genuinely new protocol, no prior research existed.
+FINDING:     Captured via Wireshark/USBPcap (Charlie): Avid Editor sitting
+  at a random patch, "Save All Rigs to Computer" -> pause with a couple of
+  live patch changes -> "Load All Rigs from Computer" (same files just
+  written). Decoded raw USB bulk transfers by hand (USBPcap header parse +
+  USB-MIDI CIN reassembly into SysEx, same method as the 7/31 FX1 capture
+  work) — no tshark available in-session, so a from-scratch Python decoder
+  was written and cross-checked against protocol.js's own decode7bit.
+  EXPORT ("Save All Rigs to Computer") — for slot 0x00-0x67 (all 104), ONE
+  query/reply pair each, NO recall, nothing touches the active patch (this
+  is why it never visibly walks slots on the front panel, unlike our own
+  Scan Bank / the ElevenHack method):
+    OUT: F0 13 0B 0F 01 00 [slot] F7
+    IN:  F0 13 0B 0F 12 00 [slot] [encode7bit(968-byte body), 1107 bytes] F7
+  No separate name query — the name comes for free inside the body (same
+  body layout as Tech Ref Sec 13: name at body[8:35], reversed per
+  quadlet). Decoded slot 0's reply body with protocol.js's own decode7bit
+  algorithm (reimplemented in Python) and got a clean, fully-readable name
+  ("800 EchoScream") straight out of the documented offset — the body
+  format is NOT new, it's the same one already fully trusted.
+  IMPORT ("Load All Rigs from Computer") — for each slot, TWO writes, again
+  no recall, no separate commit step, no rename-then-commit dance:
+    OUT: F0 13 0B 0F 00 00 [slot] [encode7bit(968-byte body)] F7  -> HW
+      echoes it back (dir 0x02, same cmd)
+    OUT: F0 13 0B 0F 00 04 00 [slot] [ASCII name] 00 F7            -> HW
+      echoes it back (dir 0x02, same cmd)
+  Decoded the slot-0 bulk write the same way -> same name, "800
+  EchoScream" -> confirms export and import share one wire body format,
+  consistent with Sec 13's "all sources SHA-256 identical" claim.
+  The CMD 0x04 write here uses a THIRD addressing scheme for that command
+  (constant 0x00, then a single raw slot byte 0-103) — distinct from BOTH
+  the Save protocol's bank/num split (Sec 15) AND the enumerate-GET's
+  user/factory-space + raw-slot format (the 2026-08-03 DO NOT RETRY entry).
+  Do not conflate any of these three.
+  EVERYTHING ELSE IN THE CAPTURE (a ~78-query CMD 0x11 param dump appearing
+  twice, plus one instance each of CMD 0x21/0x50/0x07/0x08/0x0A/0x03) is
+  Avid's own live UI re-syncing to whichever patch got selected during
+  Charlie's "patch change or two" pause — normal already-understood
+  traffic, not part of the bank protocol, not restated here.
+EVIDENCE:    Djent_and_Newer_Modded_20260615_1649.xml (bank map: <bank>/
+  <file> pairs, populated slots only, no -unused- entries) +
+  Bank_Save_Bank_Load_Capture.pcapng (843 reconstructed SysEx messages;
+  USBPcap linktype 249, device 4, endpoint 0x02/0x82, bulk transfers).
+  Both files are Charlie's uploads this session, not yet copied into the
+  repo/captures folder.
+CONFLICTS:   none with existing Tech Ref content — this is a new mechanism
+  documented nowhere yet, not a correction to anything confirmed. Tech Ref
+  Sec 17 (EHB) stays accurate for the ElevenHack method; this would become
+  a NEW subsection, not a replacement, once confirmed further.
+NEXT:        Charlie separately captured ElevenHack doing the same
+  save/load of the same bank files, not yet reviewed — worth a look to (a)
+  confirm it actually matches the already-documented Sec 15-17 protocol
+  (recall-per-slot via CMD 0x03 + 4-step Save sequence) rather than assume
+  it, and (b) get real round-trip/timing numbers for a fair side-by-side
+  with the Avid method above. Decide implementation approach with Charlie
+  before writing any code. If/when confirmed by a second capture or a live
+  build test, fold into Tech Ref as a new Sec (post-17) and update Primer
+  NOT YET IMPLEMENTED accordingly.
+-------------------------------------------------------------------
 DATE:        2026-08-03
 STATUS:      [FOLDED IN: Primer WORKING (Jump List) + Tech Ref Sec 24,
   2026-08-03] — Charlie confirmed TESTED LIVE ("Great work. Tick done.").
