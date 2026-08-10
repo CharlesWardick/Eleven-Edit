@@ -355,13 +355,17 @@ ipcMain.handle('export-bank', function(e, folder, bankName, entries) {
 // the way export is; a 25-entry XML writes exactly those 25 slots.
 // ════════════════════════════════════════════════════════════════════
 
-ipcMain.handle('choose-import-xml', async function() {
+ipcMain.handle('choose-import-source', async function() {
   try {
     const win = BrowserWindow.getAllWindows()[0];
     const result = await dialog.showOpenDialog(win, {
-      title: 'Import Rigs — Choose Bank XML',
+      title: 'Import Rigs — Choose Bank XML or ZIP',
       defaultPath: getCapturesDir(),
-      filters: [{ name: 'Bank XML', extensions: ['xml'] }],
+      filters: [
+        { name: 'Bank XML or ZIP', extensions: ['xml', 'zip'] },
+        { name: 'Bank XML', extensions: ['xml'] },
+        { name: 'Bank ZIP', extensions: ['zip'] },
+      ],
       properties: ['openFile']
     });
     if (result.canceled || !result.filePaths || !result.filePaths.length) {
@@ -369,7 +373,7 @@ ipcMain.handle('choose-import-xml', async function() {
     }
     return { ok: true, path: result.filePaths[0] };
   } catch(e) {
-    logWrite('Choose import XML error: ' + e.message);
+    logWrite('Choose import source error: ' + e.message);
     return { ok: false, error: e.message };
   }
 });
@@ -393,26 +397,52 @@ function parseBankXml(xmlText) {
   return entries;
 }
 
-ipcMain.handle('read-import-bank', function(e, xmlPath) {
+function validTfxBody(raw) {
+  if (raw.length < 56 || raw.toString('ascii', 8, 24).indexOf('DigiElv') !== 0) return null;
+  return raw.slice(56);
+}
+
+// sourcePath ends in .xml (loose folder, sibling files on disk) or .zip
+// (everything — the XML and every referenced TFX — inside the archive,
+// 2026-08-10). Same all-or-nothing validation either way: every entry
+// the XML lists must resolve to a real, valid TFX before anything is
+// returned for writing.
+ipcMain.handle('read-import-bank', function(e, sourcePath) {
   try {
-    const xmlText = fs.readFileSync(xmlPath, 'utf8');
+    const isZip = /\.zip$/i.test(sourcePath);
+    let xmlText, lookupBody;
+
+    if (isZip) {
+      const { readZip } = require('./src/js/zip-writer.js');
+      const zipEntries = readZip(fs.readFileSync(sourcePath));
+      const xmlEntry = zipEntries.find((z) => /\.xml$/i.test(z.name));
+      if (!xmlEntry) return { ok: false, error: 'No .xml file found inside this zip.' };
+      xmlText = xmlEntry.data.toString('utf8');
+      const byName = {};
+      for (const z of zipEntries) byName[z.name] = z.data;
+      lookupBody = (filename) => (byName[filename] !== undefined ? byName[filename] : null);
+    } else {
+      xmlText = fs.readFileSync(sourcePath, 'utf8');
+      const folder = path.dirname(sourcePath);
+      lookupBody = (filename) => {
+        const fpath = path.join(folder, filename);
+        return fs.existsSync(fpath) ? fs.readFileSync(fpath) : null;
+      };
+    }
+
     const parsed = parseBankXml(xmlText);
     if (!parsed.length) {
       return { ok: false, error: 'No <patch> entries found in this XML — is it a bank export file?' };
     }
 
-    const folder = path.dirname(xmlPath);
     const missing = [];
     const entries = [];
     for (const p of parsed) {
-      const fpath = path.join(folder, p.filename);
-      if (!fs.existsSync(fpath)) { missing.push(p.filename + ' (slot ' + p.bank + ')'); continue; }
-      const raw = fs.readFileSync(fpath);
-      if (raw.length < 56 || raw.toString('ascii', 8, 24).indexOf('DigiElv') !== 0) {
-        missing.push(p.filename + ' (slot ' + p.bank + ') — not a valid TFX file');
-        continue;
-      }
-      entries.push({ bank: p.bank, filename: p.filename, body: Array.from(raw.slice(56)) });
+      const raw = lookupBody(p.filename);
+      if (raw === null) { missing.push(p.filename + ' (slot ' + p.bank + ')'); continue; }
+      const body = validTfxBody(raw);
+      if (!body) { missing.push(p.filename + ' (slot ' + p.bank + ') — not a valid TFX file'); continue; }
+      entries.push({ bank: p.bank, filename: p.filename, body: Array.from(body) });
     }
 
     // All-or-nothing, matching Avid's own behaviour Charlie specifically
@@ -422,7 +452,7 @@ ipcMain.handle('read-import-bank', function(e, xmlPath) {
       return { ok: false, error: 'Missing or invalid file(s), nothing written:\n' + missing.join('\n') };
     }
 
-    logWrite('Import bank XML read: ' + entries.length + ' entries from ' + xmlPath);
+    logWrite('Import bank read: ' + entries.length + ' entries from ' + sourcePath);
     return { ok: true, entries: entries };
   } catch(e) {
     logWrite('Read import bank error: ' + e.message);

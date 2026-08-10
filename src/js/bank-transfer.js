@@ -293,11 +293,11 @@ async function importRigs(entries) {
 
   btn.addEventListener('click', async function() {
     if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
-    const xmlResult = await window.electronAPI.chooseImportXml();
-    if (!xmlResult || !xmlResult.ok) return; // cancelled
+    const srcResult = await window.electronAPI.chooseImportSource();
+    if (!srcResult || !srcResult.ok) return; // cancelled
 
-    setStatus('Reading bank XML…');
-    const readResult = await window.electronAPI.readImportBank(xmlResult.path);
+    setStatus('Reading bank…');
+    const readResult = await window.electronAPI.readImportBank(srcResult.path);
     if (!readResult || !readResult.ok) {
       setStatus('Import failed: ' + (readResult ? readResult.error : 'unknown'));
       appLog('Import Rigs: read failed — ' + (readResult ? readResult.error : 'unknown'));

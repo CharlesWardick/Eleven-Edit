@@ -39,8 +39,39 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      provisional — root cause identified and fixed in code,
-  NOT TESTED LIVE yet
+STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Import Rigs — direct .zip support (Charlie: "was the plan to
+  be able to zip too")
+FINDING:     Import Rigs previously only accepted a loose .xml with
+  sibling .tfx files on disk — the .zip Export All Rigs also produces
+  needed a manual unzip first. Added a dependency-free ZIP READER
+  (readZip, zip-writer.js) alongside the existing writer — scans backward
+  for the EOCD record rather than assuming a fixed offset, so it isn't
+  limited to zips this app wrote; STORE and DEFLATE (methods 0 and 8)
+  cover our own writer plus Windows' built-in zip and 7-Zip defaults.
+  Round-trip verified byte-exact against buildZip's own output, then
+  against a full simulated read-import-bank zip path (parse XML from
+  inside the zip, resolve each referenced .tfx from the OTHER zip
+  entries by name, validate TFX header) — both outside Electron, in
+  plain Node.
+  File picker (renamed choose-import-xml -> choose-import-source) and
+  read-import-bank (main.js) now branch on the source extension: .zip
+  reads everything from the archive (XML + every referenced TFX), .xml
+  keeps the original disk-based sibling-file lookup unchanged. Same
+  all-or-nothing validation either way — one missing or invalid entry
+  aborts before any hardware write, whichever source type it came from.
+EVIDENCE:    node --check clean on every touched file; zip round-trip and
+  full simulated import-read path both verified in plain Node (not
+  Electron) this session — see conversation for the exact test script.
+  NOT yet run through the real UI against real hardware.
+CONFLICTS:   none.
+NEXT:        Charlie tries Import Rigs against a .zip produced by Export
+  All Rigs directly (no manual unzip) and confirms the same slots land
+  correctly as the already-confirmed .xml path.
+-------------------------------------------------------------------
+DATE:        2026-08-10
+STATUS:      CONFIRMED — Charlie: "2 for 2 good" (two full clean 104-file
+  exports at the lowered 200ms settle time, back to back)
 AREA:        scanSlot() (capture-scan.js) / handleBulkTfxData
   (sysex-handler.js) — a genuine race condition in code that predates
   this session entirely, just never exercised at real scale before
@@ -92,9 +123,11 @@ NEXT:        Charlie runs a full Export All Rigs and confirms 104 files
   cause, not just this race.
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      CONFIRMED (Import Rigs itself — Charlie: "importing partial
+  banks worked too") / provisional (settle-time reduction, folded into
+  the CONFIRMED entry above once the 2-for-2 export result landed)
 AREA:        Import Rigs (new) + Export All Rigs settle-time reduction
-FINDING:     Two changes, neither yet exercised against real hardware:
+FINDING:     Two changes:
   (1) IMPORT RIGS — new button, deliberately built with Avid's own
     no-recall by-slot WRITE mechanism (decoded this session — see the
     earlier 2026-08-10 entry), NOT the recall-based walk Export All Rigs

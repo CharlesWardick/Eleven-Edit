@@ -110,4 +110,53 @@ function buildZip(entries) {
   return Buffer.concat([...localParts, centralDirBuf, eocd]);
 }
 
-module.exports = { buildZip, crc32 };
+// ── ZIP READER (2026-08-10, Import Rigs) ──
+// Dependency-free counterpart to buildZip — parses the central directory
+// (scanning backward for the EOCD record rather than assuming it's the
+// last 22 bytes, so this isn't limited to reading only zips this app
+// wrote; any zip using STORE or DEFLATE, which covers our own writer,
+// Windows' built-in "Send to compressed folder", and 7-Zip's defaults,
+// will parse). Returns [{name, data: Buffer}, ...], fully decompressed.
+function readZip(buf) {
+  const EOCD_SIG = 0x06054b50;
+  const minEOCD = 22;
+  let eocdOffset = -1;
+  const searchFloor = Math.max(0, buf.length - minEOCD - 65536);
+  for (let i = buf.length - minEOCD; i >= searchFloor; i--) {
+    if (buf.readUInt32LE(i) === EOCD_SIG) { eocdOffset = i; break; }
+  }
+  if (eocdOffset < 0) throw new Error('Not a valid ZIP file (no end-of-central-directory record found)');
+
+  const totalEntries     = buf.readUInt16LE(eocdOffset + 10);
+  const centralDirOffset = buf.readUInt32LE(eocdOffset + 16);
+
+  const dirEntries = [];
+  let offset = centralDirOffset;
+  for (let i = 0; i < totalEntries; i++) {
+    if (buf.readUInt32LE(offset) !== 0x02014b50) throw new Error('Malformed ZIP central directory');
+    const method            = buf.readUInt16LE(offset + 10);
+    const compSize          = buf.readUInt32LE(offset + 20);
+    const nameLen            = buf.readUInt16LE(offset + 28);
+    const extraLen           = buf.readUInt16LE(offset + 30);
+    const commentLen         = buf.readUInt16LE(offset + 32);
+    const localHeaderOffset = buf.readUInt32LE(offset + 42);
+    const name = buf.toString('utf8', offset + 46, offset + 46 + nameLen);
+    dirEntries.push({ name, method, compSize, localHeaderOffset });
+    offset += 46 + nameLen + extraLen + commentLen;
+  }
+
+  return dirEntries.map((e) => {
+    const lh = e.localHeaderOffset;
+    const lNameLen  = buf.readUInt16LE(lh + 26);
+    const lExtraLen = buf.readUInt16LE(lh + 28);
+    const dataStart = lh + 30 + lNameLen + lExtraLen;
+    const compData = buf.slice(dataStart, dataStart + e.compSize);
+    let data;
+    if (e.method === 8) data = zlib.inflateRawSync(compData);
+    else if (e.method === 0) data = compData;
+    else throw new Error('Unsupported ZIP compression method (' + e.method + ') for entry "' + e.name + '"');
+    return { name: e.name, data };
+  });
+}
+
+module.exports = { buildZip, readZip, crc32 };

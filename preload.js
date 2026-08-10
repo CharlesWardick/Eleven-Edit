@@ -52,9 +52,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseExportDir: ()                        => ipcRenderer.invoke('choose-export-dir'),
   exportBank:      (folder, bankName, entries) => ipcRenderer.invoke('export-bank', folder, bankName, entries),
 
-  // Bank import ("Import Rigs…", 2026-08-10)
-  chooseImportXml: ()          => ipcRenderer.invoke('choose-import-xml'),
-  readImportBank:  (xmlPath)   => ipcRenderer.invoke('read-import-bank', xmlPath),
+  // Bank import ("Import Rigs…", 2026-08-10) — accepts .xml or .zip
+  chooseImportSource: ()          => ipcRenderer.invoke('choose-import-source'),
+  readImportBank:     (sourcePath) => ipcRenderer.invoke('read-import-bank', sourcePath),
 
   // Splash window — main window renderer drives progress/gate state; the
   // splash window itself listens for these and relays button clicks back.
