@@ -283,10 +283,18 @@ async function importRigs(entries) {
 }
 
 // ── Button + confirm modal wiring ──
+// Validate-up-front, decide-once (2026-08-10, Charlie's call): main.js's
+// read-import-bank checks every entry before anything touches hardware
+// and hands back BOTH the importable list and the problem list, so this
+// can show the complete picture in one prompt — skip the bad ones and
+// import the rest, or cancel outright — rather than either silently
+// stopping partway (Avid's own behaviour) or blocking everything over
+// one bad file (this app's own first cut at Import Rigs, same day).
 (function() {
-  const btn   = document.getElementById('btn-import-rigs');
-  const modal = document.getElementById('import-confirm-modal');
-  const list  = document.getElementById('import-confirm-list');
+  const btn     = document.getElementById('btn-import-rigs');
+  const modal   = document.getElementById('import-confirm-modal');
+  const list    = document.getElementById('import-confirm-list');
+  const okBtn   = document.getElementById('import-confirm-ok');
   if (!btn) return;
 
   let pendingEntries = null;
@@ -304,15 +312,33 @@ async function importRigs(entries) {
       return;
     }
 
-    pendingEntries = readResult.entries;
-    if (modal && list) {
-      list.textContent = pendingEntries.length + ' patch(es): '
-        + pendingEntries.map(e => e.bank).join(', ');
-      modal.classList.add('open');
-    } else {
-      // No confirm modal in this build — go straight through.
-      importRigs(pendingEntries);
+    const valid    = readResult.valid || [];
+    const problems = readResult.problems || [];
+    pendingEntries = valid;
+
+    if (!modal || !list) {
+      // No confirm modal in this build — go straight through with whatever's valid.
+      if (valid.length) importRigs(valid);
+      return;
     }
+
+    let html = '<div style="color:var(--text);margin-bottom:8px;">Will import '
+      + valid.length + ' patch(es): ' + (valid.length ? valid.map(e => e.bank).join(', ') : '(none)')
+      + '</div>';
+    if (problems.length) {
+      html += '<div style="color:var(--red);">Skipping ' + problems.length
+        + ' missing/invalid patch(es):<br>'
+        + problems.map(p => p.bank + ' — ' + p.filename + ' (' + p.reason + ')').join('<br>')
+        + '</div>';
+    }
+    list.innerHTML = html;
+
+    if (okBtn) {
+      okBtn.textContent = valid.length ? 'Import ' + valid.length : 'Nothing to Import';
+      okBtn.disabled = !valid.length;
+      okBtn.style.opacity = valid.length ? '' : '0.5';
+    }
+    modal.classList.add('open');
   });
 
   if (modal) {
@@ -320,9 +346,9 @@ async function importRigs(entries) {
       modal.classList.remove('open');
       pendingEntries = null;
     });
-    document.getElementById('import-confirm-ok').addEventListener('click', function() {
+    if (okBtn) okBtn.addEventListener('click', function() {
       modal.classList.remove('open');
-      if (pendingEntries) importRigs(pendingEntries);
+      if (pendingEntries && pendingEntries.length) importRigs(pendingEntries);
       pendingEntries = null;
     });
     modal.addEventListener('click', function(e) {

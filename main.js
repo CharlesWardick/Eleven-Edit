@@ -404,9 +404,17 @@ function validTfxBody(raw) {
 
 // sourcePath ends in .xml (loose folder, sibling files on disk) or .zip
 // (everything — the XML and every referenced TFX — inside the archive,
-// 2026-08-10). Same all-or-nothing validation either way: every entry
-// the XML lists must resolve to a real, valid TFX before anything is
-// returned for writing.
+// 2026-08-10). VALIDATE UP FRONT, DECIDE ONCE (2026-08-10, revised same
+// day at Charlie's request) — NOT all-or-nothing, and NOT Avid's own
+// behaviour either (Avid writes progressively until it hits a bad file,
+// then silently stops mid-bank with no clear record of what did or
+// didn't land). This checks every entry before anything touches
+// hardware and returns BOTH lists — `valid` (ready to write) and
+// `problems` (missing or malformed, with why) — so the renderer can show
+// Charlie the complete picture in one prompt and let him choose skip-
+// and-continue or cancel, rather than either silently stopping partway
+// (Avid) or blocking the whole import over one bad file (the previous
+// version of this handler).
 ipcMain.handle('read-import-bank', function(e, sourcePath) {
   try {
     const isZip = /\.zip$/i.test(sourcePath);
@@ -435,25 +443,18 @@ ipcMain.handle('read-import-bank', function(e, sourcePath) {
       return { ok: false, error: 'No <patch> entries found in this XML — is it a bank export file?' };
     }
 
-    const missing = [];
-    const entries = [];
+    const valid = [];
+    const problems = [];
     for (const p of parsed) {
       const raw = lookupBody(p.filename);
-      if (raw === null) { missing.push(p.filename + ' (slot ' + p.bank + ')'); continue; }
+      if (raw === null) { problems.push({ bank: p.bank, filename: p.filename, reason: 'file not found' }); continue; }
       const body = validTfxBody(raw);
-      if (!body) { missing.push(p.filename + ' (slot ' + p.bank + ') — not a valid TFX file'); continue; }
-      entries.push({ bank: p.bank, filename: p.filename, body: Array.from(body) });
+      if (!body) { problems.push({ bank: p.bank, filename: p.filename, reason: 'not a valid TFX file' }); continue; }
+      valid.push({ bank: p.bank, filename: p.filename, body: Array.from(body) });
     }
 
-    // All-or-nothing, matching Avid's own behaviour Charlie specifically
-    // called out as correct — abort before any hardware write rather
-    // than import a partial bank silently.
-    if (missing.length) {
-      return { ok: false, error: 'Missing or invalid file(s), nothing written:\n' + missing.join('\n') };
-    }
-
-    logWrite('Import bank read: ' + entries.length + ' entries from ' + sourcePath);
-    return { ok: true, entries: entries };
+    logWrite('Import bank read: ' + valid.length + ' valid, ' + problems.length + ' problem(s) from ' + sourcePath);
+    return { ok: true, valid: valid, problems: problems };
   } catch(e) {
     logWrite('Read import bank error: ' + e.message);
     return { ok: false, error: e.message };

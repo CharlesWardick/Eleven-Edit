@@ -40,6 +40,42 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-10
 STATUS:      provisional — code written, NOT TESTED LIVE
+AREA:        Import Rigs — validate-up-front, decide-once (replaces the
+  original all-or-nothing behaviour, same day)
+FINDING:     Charlie's own clarification of Avid's real behaviour: Avid
+  does NOT validate up front — it writes progressively until it hits a
+  bad/missing file, throws an error on that one patch, and just STOPS,
+  leaving a partially-imported bank with no clear record of what did or
+  didn't land. Eleven Edit's first cut at Import Rigs (same day, earlier
+  entry) went the other direction — all-or-nothing, abort before any
+  write if ANYTHING was missing — which Charlie found too strict (one
+  bad file in a 104-entry bank blocked the other 103).
+  DECIDED (Charlie: "we will make you plan option B and go with it...
+  better to check up front than mid stream"): neither of the above.
+  Validate every entry up front like before, but instead of aborting,
+  return BOTH lists — valid (ready to write) and problems (missing or
+  malformed, with why) — and show ONE prompt with the complete picture:
+  "Will import N patch(es)... Skipping M missing/invalid patch(es):
+  [bank — filename (reason)]..." Charlie chooses skip-and-continue
+  (Import button, disabled/relabeled "Nothing to Import" if valid is
+  empty) or Cancel. No hardware write happens before that one decision,
+  and no per-failure interruptions during the walk itself.
+  main.js's read-import-bank (XML and ZIP paths both) now returns
+  { ok, valid, problems } instead of aborting with ok:false on the first
+  problem. bank-transfer.js's confirm-modal wiring shows both lists
+  (problems in --red) and only ever imports the valid list.
+EVIDENCE:    code read back; node --check clean on both touched files.
+  NOT yet tested live.
+CONFLICTS:   supersedes this same session's earlier "all-or-nothing,
+  matching Avid" note — that was an incomplete read of Avid's actual
+  behaviour (Avid doesn't validate up front either; it fails mid-walk).
+NEXT:        Charlie tests against a bank with at least one deliberately
+  missing or renamed TFX file, confirms the prompt lists it correctly,
+  and confirms Cancel truly writes nothing while Skip-and-continue writes
+  everything else.
+-------------------------------------------------------------------
+DATE:        2026-08-10
+STATUS:      provisional — code written, NOT TESTED LIVE
 AREA:        Import Rigs — direct .zip support (Charlie: "was the plan to
   be able to zip too")
 FINDING:     Import Rigs previously only accepted a loose .xml with
