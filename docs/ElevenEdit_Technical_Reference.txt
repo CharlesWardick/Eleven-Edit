@@ -41,7 +41,7 @@ TABLE OF CONTENTS
 14. TFX Field Offsets & Keys
 15. Save Protocol (software-initiated)
 16. Load TFX Protocol (file -> hardware memory)
-17. Bank Backup / Restore (EHB format)
+17. Bank Export / Import ("Export All Rigs…" / "Import Rigs…")
 18. Rig Volume & To Amp Controls
 19. CC Map (legacy DIN/CC path — reference only)
 20. Confirmed Dead Ends (do not retry)
@@ -1502,18 +1502,170 @@ handler decodes it (payload at position 6). Load accepts any file with
 
 
 ===================================================================
-17. BANK BACKUP / RESTORE (EHB format)
+17. BANK EXPORT / IMPORT ("Export All Rigs…" / "Import Rigs…")
 ===================================================================
 
-Not yet implemented; protocol fully known. EHB = a standard ZIP of 104 TFX
-files, one per slot. No proprietary format, no encryption.
-  Filename inside ZIP: [Letter][Number]-[PatchName].tfx (e.g. A1-DC Vintage
-  Crunc.tfx). Unused slots: "-unused-.tfx" (default empty patch).
-BANK SAVE (HW -> file): for each slot: CURR_RIG to slot -> REQU SEND_PATCH ->
-  hardware streams body back -> strip, decode7bit, prepend 56-byte header ->
-  write .tfx. (RIG_GETNAME via CMD 0x04 is a cheaper names-only scan.)
-BANK RESTORE (file -> HW): per slot, run the Load (Section 16) + Save
-  (Section 15) sequence. ~104 cycles; several minutes with per-slot verify.
+STATUS: IMPLEMENTED, TESTED LIVE 2026-08-10 (Charlie: multiple clean full
+exports, partial and zip-sourced imports, a deliberately-broken import
+correctly listing every bad entry). Full byte-level evidence, the
+abandoned-approach saga, and the race-condition bug hunt live in the
+Session Log 2026-08-10 entries — this section states the settled result.
+
+EXPORT ("Export All Rigs…") — RECALL-BASED, same core mechanism as the
+existing (still-hidden) Scan Bank feature: CMD 0x03/0xC0 recall each slot
+in turn, settle (SCAN_SETTLE_MS, state.js — 200ms, lowered from an
+untuned 400ms guess 2026-08-10), then REQU SEND_PATCH. Reuses
+capture-scan.js's scanSlot() directly rather than a separate
+implementation (bank-transfer.js). Visibly walks all 104 slots on the
+front panel, same as ElevenHack's method — the price of reliability, see
+ABANDONED APPROACH below for why this wasn't the invisible method.
+  OUTPUT (main.js, export-bank IPC): for each slot, a normal .tfx (56-byte
+  header + body, Sec 13 format, identical to a single-patch capture) named
+  from the patch's own embedded name. Filenames disambiguated on repeat
+  in ENCOUNTER ORDER with a "-N" suffix — first occurrence bare, second
+  "-1", third "-2", etc. — CONFIRMED to match Avid Editor's own
+  disambiguation convention byte-for-byte (Session Log 2026-08-10: a real
+  Avid export of 104 "-unused-" duplicates produced exactly
+  "-unused-.tfx", "-unused-1.tfx", ... "-unused-102.tfx", same scheme).
+  Writes a loose folder of these files PLUS an XML index PLUS a .zip of
+  both (Charlie's call: keep all three, never delete the loose files
+  after zipping). XML shape (matches Avid's own):
+    <?xml version="1.0"?>
+    <eleven>
+      <hardware type_="string">"Eleven Rack"</hardware>
+      <patch_list>
+        <patch>
+          <bank type_="string">"A1"</bank>
+          <file type_="string">"PatchName.tfx"</file>
+        </patch>
+        ...
+      </patch_list>
+    </eleven>
+  Always all 104 slots — export never asks the user which to include.
+  There is no hardware signature for "this slot is empty"; an unused slot
+  is exported and named exactly like any other patch (its stored name is
+  literally "-unused-" on an untouched factory slot — not a sentinel we
+  detect, just what's really stored there).
+  ZIP CONTAINER: dependency-free, hand-written (src/js/zip-writer.js) —
+  this project carries zero runtime npm dependencies by design. Standard
+  local-file-header + central-directory + EOCD structure, DEFLATE via
+  Node's built-in zlib when it helps, STORE otherwise. buildZip() writes,
+  readZip() reads (scans backward for the EOCD record rather than
+  assuming a fixed offset, so it isn't limited to zips this app wrote —
+  Windows' built-in zip and 7-Zip's defaults both parse fine, same STORE/
+  DEFLATE methods). Round-trip verified byte-exact.
+
+IMPORT ("Import Rigs…") — DIRECT BY-SLOT WRITE, Avid's own real
+mechanism (decoded from a live Wireshark capture of Avid Editor's actual
+"Load All Rigs from Computer", Session Log 2026-08-10), NOT the
+recall-based method export uses. Two writes per slot, no recall:
+    F0 13 0B 0F 00 00 [slot] [encode7bit(968-byte-class body)] F7
+      -> HW echoes it back (dir 0x02, same cmd)
+    F0 13 0B 0F 00 04 00 [slot] [ASCII name] 00 F7
+      -> HW echoes it back (dir 0x02, same cmd) — routes through the
+         existing CMD 0x04 name-enum handler (handlePatchNameEnumReply,
+         sysex-handler.js), which harmlessly also refreshes the Jump
+         List's patchNameCache for that slot as a side effect.
+  slot = raw 0-103 in both writes (NOT the SAVE protocol's bank/num
+  split, Sec 15 — a THIRD distinct addressing scheme CMD 0x04 can take;
+  see Sec 20 DO NOT RETRY for the other two, already-confirmed-different
+  ones. Do not conflate any of the three.)
+  Rationale for using the no-recall method here when export couldn't:
+  export's bug was specifically about READING — a cold, un-recalled slot
+  can hand back a stale signature/cab-table snapshot or even a stale
+  internal name next to otherwise-current data. A WRITE has no such
+  failure mode; you're setting data, not depending on hardware to hand
+  back something fresh. Every live test of Avid's own Load All Rigs
+  worked cleanly, including correctly refreshing the CMD 0x04 name-index
+  a stale-read slot can otherwise disagree with (see Sec 20 note below).
+  Existing pacing from the already-shipped single-patch Load TFX (Sec 16)
+  reused as-is (300ms after the bulk write, 150ms after the name write) —
+  not yet independently tuned for the multi-slot case, but not reported
+  as a problem either.
+  ONLY WRITES WHAT THE SOURCE LISTS — a 25-entry XML/zip writes exactly
+  those 25 slots and leaves the other 79 untouched. Source can be a loose
+  .xml (sibling .tfx files on disk, same folder) or a .zip (everything
+  read directly from the archive, no manual unzip needed).
+  VALIDATE-UP-FRONT, DECIDE-ONCE (Charlie's explicit design call,
+  2026-08-10 — see Session Log for the reasoning): every entry the XML
+  lists is checked (file exists, has a real TFX header) BEFORE any
+  hardware write happens. This is NEITHER of the two obvious options:
+  not Avid's own behaviour (writes progressively, stops silently on the
+  first bad file, leaves a partially-imported bank with no record of what
+  landed) and not naive all-or-nothing (one bad file blocking 103 good
+  ones). One prompt shows the complete picture — what will import, what's
+  being skipped and why — Charlie picks skip-and-continue or cancel once,
+  with full information, before anything touches the rack.
+
+ABANDONED APPROACH (kept in code, unused, for the record — protocol.js's
+reqSendPatchBySlot) — Avid's OWN direct by-slot SEND_PATCH QUERY (i.e.
+the read-side mirror of the import write above), no recall:
+    F0 13 0B 0F 01 00 [slot] F7
+    -> F0 13 0B 0F 12 00 [slot] [encode7bit(body)] F7
+  Decoded from the same Wireshark capture as the import mechanism above,
+  and initially used for export — half the round trips of the recall
+  method, nothing visible on the front panel. Live-tested and found
+  unreliable: files decoded as structurally perfect (right size, right
+  name, well-formed) but Avid Editor's own loader intermittently
+  rejected them, both singly and in a full bank. Byte-diffed against a
+  known-good single-patch manual capture (recall-based) of the same
+  patch and found the ONLY differences were the "signature/headerCode"
+  field (body[4:8]) and, on a separate occasion, the internal name field
+  itself truncated by one character — both consistent with reading a
+  slot's memory before some hardware-side refresh (triggered only by an
+  actual recall) had completed. A 60ms settle delay was tried as the
+  first, cheap fix and failed on the very next live test — two failed
+  fixes on the same theory (this Primer's own rule) meant switching
+  method, not tuning the delay further. Charlie's own read, plausible and
+  unconfirmed: ElevenHack's author likely tried this same invisible
+  method and hit the same wall, landing on the slower recall-per-slot
+  walk for exactly this reason.
+
+RACE CONDITION FOUND AND FIXED IN scanSlot() ITSELF (sysex-handler.js,
+handleBulkTfxData) — predates this session, just never exercised at real
+104-slot scale before (Scan Bank, which has always used this exact path,
+was a hidden feature with no UI entry point). scanSlot()'s REQU_SEND_PATCH
+reply (CMD 0x01) carries no slot number on the wire, so the handler
+guessed the slot from the app's own `currentSlot` — which only updates
+once a SEPARATE CMD 0x02 "slot confirmed" broadcast has landed. No
+ordering guarantee between those two messages; a late confirm meant the
+guess was wrong, the reply went unclaimed, and that slot's promise just
+timed out. Symptom: full exports coming back with roughly half the
+expected 104 files. FIX: for CMD 0x01 replies specifically, trust
+pendingScanResolve unconditionally (nothing else sends a bare
+REQU_SEND_PATCH while a scan/export has one in flight) instead of gating
+on the currentSlot guess, and resolve with the slot actually requested.
+CMD 0x00 broadcasts (which DO carry a real slot byte) are unaffected.
+CONFIRMED via two consecutive clean 104-file exports after the fix.
+
+RELATED, SEPARATE FINDING — Avid Editor's own exporter silently drops the
+LAST character of a patch name whenever that name is exactly one
+character longer than the immediately-preceding slot's name and shares
+its full prefix (e.g. a slot named "Dumble Drive" followed by one named
+"Dumble Drive1" -> Avid's own file for the second slot loses the "1"; a
+16-char name at the true documented limit, "Glaswerks SODII1", showed
+the identical pattern). Eleven Edit's own captures (both the old
+single-patch capture feature AND the new by-slot/recall methods)
+correctly preserve the full name every time — cross-confirmed by two
+independent, unrelated code paths agreeing with each other and
+disagreeing with Avid. Not an Eleven Edit defect; worth remembering that
+Avid's own reference exports cannot always be trusted as ground truth for
+a name field specifically. Separately, the CMD 0x04 name-index (read by
+the Jump List feature, Sec 24 2026-08-03 entry) is now confirmed to be a
+DIFFERENT stored value from the patch body's own embedded name and the
+two can genuinely disagree on real hardware (observed live: an old
+front-panel rename apparently updated one without the other) — Avid's
+own Load All Rigs explicitly rewrites both per slot (see the import wire
+sequence above), which is why a full Avid reload always shows them back
+in sync; nothing else in this app writes to that index.
+
+CODE FILE MAP additions: src/js/bank-transfer.js (export/import
+orchestration, both button+modal wiring), src/js/zip-writer.js
+(buildZip/readZip), protocol.js (reqSendPatchBySlot — abandoned/unused,
+slotNumFromLabel), main.js (choose-export-dir/export-bank,
+choose-import-source/read-import-bank/parseBankXml), state.js
+(exportInProgress/exportCancelRequested, SCAN_SETTLE_MS lowered),
+sysex-handler.js (the scanSlot() race fix above).
 
 
 ===================================================================
@@ -2857,6 +3009,32 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-08-10 (Bank Export/Import — "Export All Rigs…" / "Import Rigs…",
+  NEW FEATURE, TESTED LIVE) — full detail in Sec 17, which this entry
+  replaces the old "not yet implemented, EHB protocol known" placeholder
+  for. Short version: two Wireshark captures (Avid Editor's own Save/Load
+  All Rigs, and a separate ElevenHack bank save/load) decoded from
+  scratch this session gave two real, different, fully-understood
+  mechanisms — a no-recall direct by-slot method (Avid's) and a
+  recall-per-slot method (ElevenHack's, same as this app's existing
+  Scan Bank). Export tried the invisible no-recall method first, found it
+  produces stale data on a genuinely live test (not a hypothetical), and
+  switched to the recall method after two failed delay-based fixes on
+  the same theory — a real application of this Primer's "two failed
+  fixes" rule, not just words. Import went the other way deliberately —
+  the no-recall method for a WRITE has no equivalent failure mode, and
+  every live test of it (via Avid's own real mechanism) held up clean.
+  Along the way, found and fixed a genuine pre-existing race condition in
+  scanSlot() (the code Scan Bank has always used, just never exercised at
+  104-slot scale before this session) — not new code, a long-dormant bug
+  finally exercised for real. Also found, independently, that Avid
+  Editor's own exporter silently truncates certain patch names by one
+  character (unrelated to anything in this app), and that the CMD 0x04
+  name-index the Jump List reads is a genuinely separate stored value
+  from a patch's own embedded name that can disagree with it on real
+  hardware. Dependency-free ZIP reader/writer (zip-writer.js) added —
+  this project still carries zero runtime npm dependencies.
 
 2026-08-03 (Jump List feature + follow-on fixes, continuation of the same
   session as the entry below) — NEW FEATURE, TESTED LIVE: the patch-name

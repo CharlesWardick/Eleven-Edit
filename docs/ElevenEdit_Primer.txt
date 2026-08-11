@@ -1,8 +1,31 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-08-03
+Updated: 2026-08-10
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — JUMP LIST (patch-name overlay) COMPLETE
+Status: Active development — BANK EXPORT/IMPORT ("Export All Rigs…" /
+"Import Rigs…") COMPLETE (2026-08-10, TESTED LIVE). Full detail: Tech Ref
+Sec 17 (mechanism) and Sec 24 Change Log (2026-08-10 entry, the session's
+full saga — an abandoned invisible export method, a genuine pre-existing
+race condition found and fixed, and two independent Avid-side quirks
+discovered along the way).
+  BANK EXPORT/IMPORT: "Export All Rigs…" pulls all 104 slots
+  (recall-based, visibly walks the front panel — an invisible no-recall
+  method was tried first and produced unreliable data on live hardware,
+  see Tech Ref Sec 17) and writes a loose folder of .tfx files + an XML
+  index + a .zip, all three kept. "Import Rigs…" reads an XML or a .zip
+  and writes only the slots it lists, using Avid's own real no-recall
+  direct-write mechanism (reliable for writes even though the equivalent
+  read wasn't) — validates every entry up front and shows one prompt with
+  the complete picture (what will import, what's being skipped and why)
+  rather than either Avid's own silent-stop-partway behaviour or an
+  all-or-nothing block over one bad file.
+  CHARLIE'S OWN CALL ON SCOPE (2026-08-10): with this feature working and
+  live-tested, only "Save to Different Slot" (see NOT YET IMPLEMENTED) is
+  planned as further scoped work; otherwise the app moves into a break-it
+  testing phase over the following days rather than continued feature
+  work, per his own framing — "I could work on this program for another
+  year twiddling and fiddling and it wouldn't be done."
+Previously: JUMP LIST (patch-name overlay) COMPLETE
 (2026-08-03, TESTED LIVE), plus AMP CONTROLS TONE-KNOB REORDER and four
 other confirmed fixes, all the same day — a long single session that
 started as one focused feature and kept finding adjacent bugs worth
@@ -610,6 +633,19 @@ Build: electron-builder --win --x64 -> EXE.
     Breakup slider (joining Gate/To Amp/Rig Vol/Amp Out). One notch = 1 unit.
 
 WORKING:
+  BANK EXPORT / IMPORT (2026-08-10, TESTED LIVE) — "Export All Rigs…" and
+    "Import Rigs…", TFX/Bank toolbar (reordered same day: SAVE, Load TFX,
+    Export All Rigs, Import Rigs — single-patch ops before whole-bank
+    ops, Charlie's call). Full mechanism, wire protocol, the abandoned
+    invisible-export attempt, and the scanSlot() race-condition fix are
+    all in Tech Ref Sec 17 — not restated here. Short version: Export
+    pulls all 104 slots (recall-based, visibly walks the front panel) to
+    a loose .tfx folder + XML index + .zip, all three always kept; Import
+    reads an XML or a .zip, validates every entry up front, and shows one
+    prompt with the complete picture before writing only the slots it
+    lists (no recall needed for writes). Confirm-modal box widened to
+    640px/90vw with a 70vh-capped scrolling list so a full 104-entry bank
+    fits without scrolling on most windows.
   JUMP LIST (2026-08-03, TESTED LIVE) — click either side of the patch-name
     box to open a slot-picker overlay, in one of two views:
       BY SLOT (left half) — compact grid, id + a centered dash only, small
@@ -922,6 +958,11 @@ WORKING:
     button, unchanged. A one-off BSOD Charlie hit during testing did not
     reproduce on retest (USB2 or USB3) and is not believed related — see
     Tech Ref Sec 24 for the full note.
+    VERSION TAG (2026-08-10) — small muted text, bottom-right corner of
+    the splash window, package.json's version via a new get-app-version
+    IPC (app.getVersion()) — added specifically so a stale build can't be
+    mistaken for the current one mid-test-round (see "BUMP package.json's
+    version" under HOW TO WORK WITH CHARLIE, above).
 
 NOT YET IMPLEMENTED (largest first):
   *** ALL 10 CHAIN BLOCKS NOW HAVE WORKING EFFECT PANELS as of 2026-08-02
@@ -937,11 +978,26 @@ NOT YET IMPLEMENTED (largest first):
     slot argument and never used currentParamHi. Do not assume it is fixed.
   Save to Different Slot — slot picker UI not yet built; SAVE ▾ menu item
     exists but is greyed. Protocol is the same save sequence with a different
-    target slot number. When built, Load TFX + Save to Different Slot will
-    serve as "load file into any slot".
-  Bank backup/restore (EHB — protocol known)
+    target slot number. NOTE (2026-08-10): Import Rigs' importSlotEntry()
+    (bank-transfer.js, Tech Ref Sec 17) already does exactly this
+    mechanically — a direct write to an arbitrary slot with no recall —
+    so the underlying write is proven; what's missing now is UI (a slot
+    picker) wired to that single-patch case, not new protocol work. THE
+    ONLY ITEM CHARLIE HAS SCOPED AS FURTHER WORK as of 2026-08-10 —
+    everything else on this list is background/someday, not a current
+    plan (see Status line above).
   FX Loop connector variants 0x2E, 0x2F, 0x33 — the only three models with no
     output-channel entry; they draw a dashed connector until observed.
+  About box — real content not yet designed; a thought/placeholder only,
+    was never actually on this list until Charlie named it 2026-08-10.
+  Accessibility, specifically colorblind-safe knob/UI colours — discussed
+    at some point pre-dating this note but NEVER actually documented
+    anywhere until Charlie flagged the gap 2026-08-10. No decision, no
+    design, not even a confirmed list of what was discussed — starting
+    from zero if picked up. (KNOB_COLORS, ui.js, is already one named
+    place in the code where color choices live, mentioned in the 7/26 UI
+    PASS entry above as future-proofing for exactly this — but nothing
+    beyond that single hook exists yet.)
 
 
 DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
@@ -1004,10 +1060,21 @@ covered under CONFIRMED ARCHITECTURE above.
                    Opt-in per shortcut, not a global default — add /NOGPU
                    only to VM shortcuts, since forcing software rendering
                    has some performance cost.
+                   get-app-version IPC (2026-08-10, app.getVersion()) for
+                   the splash window's version tag. export-bank/
+                   choose-export-dir and choose-import-source/
+                   read-import-bank IPC (2026-08-10, Bank Export/Import) —
+                   the latter's parseBankXml is a narrow regex parser for
+                   the one known XML shape (not a general parser) and
+                   branches on .xml vs .zip source, requiring
+                   zip-writer.js's readZip for the zip case. See Tech
+                   Ref Sec 17 for the full mechanism.
   preload.js       Electron preload; exposes electronAPI to the renderer, incl.
                    the splash* wrappers and quitApp/appReady used by the startup
                    gate (both windows load the same preload.js), and
                    getToneKnobOrder/saveToneKnobOrder (2026-08-03).
+                   getAppVersion, chooseExportDir/exportBank, chooseImportSource/
+                   readImportBank (2026-08-10, Bank Export/Import).
   index.html       Full UI — HTML + CSS + script tags. All panels (amp, cab/mic,
                    DIST, REVERB), the SAVE dropdown, settings panel, chain row.
                    Jump List overlay (#slot-matrix, 2026-08-03) — buildMatrix
@@ -1019,7 +1086,12 @@ covered under CONFIRMED ARCHITECTURE above.
                    ::-webkit-scrollbar styling (applies app-wide, not just
                    here). Speaker Breakup slider's fully custom track/thumb
                    CSS (--track-color/--fill-pct, set by updateBreakupColor,
-                   ui.js).
+                   ui.js). TFX/Bank toolbar reordered 2026-08-10 (SAVE, Load
+                   TFX, Export All Rigs, Import Rigs). Export/Import Rigs
+                   modals (#bank-export-modal, #export-dirty-modal,
+                   #import-confirm-modal, 2026-08-10) all reuse the existing
+                   .rack-save-box/.rack-save-title/.rack-save-btns styling
+                   rather than introducing new modal chrome.
   src/splash.html  Splash window shown while the bridge/rack connect and the
                    first patch state loads (STARTUP GATE, 2026-08-02) — text
                    logo, progress bar/status line, and the Try Again/Quit gate
@@ -1033,7 +1105,13 @@ covered under CONFIRMED ARCHITECTURE above.
                    reveal readiness flags initialChainMapDone/initialNavPullDone/
                    appRevealed (STARTUP GATE, 2026-08-02). toneKnobOrderPrefs
                    (per-amp saved knob order) and toneRowLocked (Amp Controls
-                   reorder, 2026-08-03).
+                   reorder, 2026-08-03). exportInProgress/exportCancelRequested
+                   (Bank Export/Import, 2026-08-10) — Export All Rigs shares
+                   pendingScanSlot/pendingScanResolve with Scan Bank rather
+                   than duplicating them. SCAN_SETTLE_MS lowered 400ms ->
+                   200ms same day (was an untuned guess from Scan Bank's
+                   original build; still double the proven NAV_RECALL_SETTLE,
+                   not equal to it — see Tech Ref Sec 17).
   protocol.js      Constants and decoders: AMP_TONE_PARAMS, cab/mic lookup + type
                    lists, amp/effect model tables, Sync divisions, tempo
                    encode/decode, DIST/REVERB model tables, REQU/command byte defs.
@@ -1041,6 +1119,12 @@ covered under CONFIRMED ARCHITECTURE above.
                    resetToneKnobOrder (2026-08-03) — the single place every
                    tone-knob code path resolves "screen slot i = which
                    control", respecting a saved per-amp reorder.
+                   slotNumFromLabel (2026-08-10) — inverse of ui.js's
+                   slotLabel, "C2" -> 9, used by Import Rigs.
+                   reqSendPatchBySlot (2026-08-10) — Avid's direct by-slot
+                   SEND_PATCH query, ABANDONED/unused (Export All Rigs uses
+                   the recall-based scanSlot() instead) — left in place with
+                   its own explanation for why, see Tech Ref Sec 17.
   transport.js     Core SEND functions and CAB/MIC v0 lookup tables. Per-patch
                    writes route through sendPatchWrite (lights the SAVE dirty
                    latch); queries and readbacks call sendHex directly. Master
@@ -1072,6 +1156,13 @@ covered under CONFIRMED ARCHITECTURE above.
                    handleSaveArm (existing, the save-sequence arm broadcast)
                    vs handlePatchNameEnumReply (Jump List name-scan reply,
                    2026-08-03), distinguished by message length.
+                   handleBulkTfxData's pendingScanResolve early-exit
+                   (shared by Scan Bank and Export All Rigs' scanSlot())
+                   fixed 2026-08-10 — a genuine pre-existing race matching
+                   CMD 0x01 replies to a slot via a currentSlot guess that
+                   wasn't reliably updated in time; now trusts
+                   pendingScanResolve unconditionally for CMD 0x01 replies
+                   instead. See Tech Ref Sec 17.
   ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
                    handlers, chain-row render, knob-colour (dirty) tracking.
                    showStartupGate/hideStartupGate/splashSetProgress drive the
@@ -1112,7 +1203,29 @@ covered under CONFIRMED ARCHITECTURE above.
                    Save-to-Disk, rename). scanPatchNames (Jump List, 2026-08-03)
                    paces the 104 read-only name queries; saveCurrentPatchToSlot
                    also writes the new name into patchNameCache directly on our
-                   own saves, no round-trip wait needed.
+                   own saves, no round-trip wait needed. scanSlot() — recall +
+                   settle + REQU_SEND_PATCH per slot — reused directly by
+                   Export All Rigs (bank-transfer.js, 2026-08-10) rather than
+                   duplicated; see Tech Ref Sec 17 for the race condition
+                   found and fixed in its reply-matching this same session.
+  bank-transfer.js Export All Rigs / Import Rigs (2026-08-10) — exportAllRigs
+                   (walks scanSlot() over all 104, builds disambiguated
+                   filenames, hands entries to main.js's export-bank IPC) and
+                   importRigs/importSlotEntry (direct by-slot write per XML/
+                   zip entry, no recall — Avid's own mechanism). Button+modal
+                   wiring for both, including the validate-up-front/decide-
+                   once confirm flow. Full rationale for why export and
+                   import deliberately use DIFFERENT wire methods, and the
+                   abandoned invisible-export attempt, in Tech Ref Sec 17 —
+                   also documented at length in this file's own header
+                   comment.
+  zip-writer.js    Dependency-free ZIP reader/writer (2026-08-10) — buildZip/
+                   readZip, hand-rolled local-file-header + central-directory
+                   + EOCD structure, DEFLATE via Node's built-in zlib. Added
+                   for Export All Rigs' .zip output and Import Rigs' direct
+                   .zip reading; keeps this project at zero runtime npm
+                   dependencies (Charlie's explicit call over adding a
+                   library — see Tech Ref Sec 17).
   tfx-inspect.js   CLI: decode a TFX file.
   tfx-diff.js      CLI: diff two TFX files.
 

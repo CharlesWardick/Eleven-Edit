@@ -39,7 +39,9 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Tech Ref Sec 17, Primer WORKING] — CONFIRMED,
+  Charlie's screenshot showed exactly this behaviour live (87 valid / 17
+  flagged with reasons, one clean decision point)
 AREA:        Import Rigs — validate-up-front, decide-once (replaces the
   original all-or-nothing behaviour, same day)
 FINDING:     Charlie's own clarification of Avid's real behaviour: Avid
@@ -75,7 +77,8 @@ NEXT:        Charlie tests against a bank with at least one deliberately
   everything else.
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      provisional — code written, NOT TESTED LIVE
+STATUS:      [FOLDED IN: Tech Ref Sec 17] — CONFIRMED, Charlie: "zip
+  worked good"
 AREA:        Import Rigs — direct .zip support (Charlie: "was the plan to
   be able to zip too")
 FINDING:     Import Rigs previously only accepted a loose .xml with
@@ -106,8 +109,9 @@ NEXT:        Charlie tries Import Rigs against a .zip produced by Export
   correctly as the already-confirmed .xml path.
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      CONFIRMED — Charlie: "2 for 2 good" (two full clean 104-file
-  exports at the lowered 200ms settle time, back to back)
+STATUS:      [FOLDED IN: Tech Ref Sec 17, Primer CODE FILE MAP
+  (sysex-handler.js)] — CONFIRMED, Charlie: "2 for 2 good" (two full
+  clean 104-file exports at the lowered 200ms settle time, back to back)
 AREA:        scanSlot() (capture-scan.js) / handleBulkTfxData
   (sysex-handler.js) — a genuine race condition in code that predates
   this session entirely, just never exercised at real scale before
@@ -159,7 +163,8 @@ NEXT:        Charlie runs a full Export All Rigs and confirms 104 files
   cause, not just this race.
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      CONFIRMED (Import Rigs itself — Charlie: "importing partial
+STATUS:      [FOLDED IN: Tech Ref Sec 17, Primer WORKING + CODE FILE MAP]
+  — CONFIRMED (Import Rigs itself — Charlie: "importing partial
   banks worked too") / provisional (settle-time reduction, folded into
   the CONFIRMED entry above once the 2-for-2 export result landed)
 AREA:        Import Rigs (new) + Export All Rigs settle-time reduction
@@ -208,8 +213,9 @@ NEXT:        Charlie tests both in the same build: (a) Import Rigs
   tried next — but only after this one is confirmed, not before.
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      [SUPERSEDED — see the follow-up entry immediately below,
-  same date, for what actually shipped]. Left in place rather than
+STATUS:      [FOLDED IN: Tech Ref Sec 17 "ABANDONED APPROACH"] —
+  SUPERSEDED — see the follow-up entry immediately below,
+  same date, for what actually shipped. Left in place rather than
   deleted: the byte-level evidence and the ruled-out name-length theory
   are still the reasoning trail that led to the fix, and Charlie asked
   this failure be documented clearly for anyone who wants to pick the
@@ -285,8 +291,9 @@ CONFLICTS:   none with existing Tech Ref content — Sec 13's "968-byte
 NEXT:        [DONE — see follow-up entry below]
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      confirmed (symptom) — fix NOT YET TESTED LIVE (switched
-  approach entirely, see below; awaiting Charlie's next build/test)
+STATUS:      [FOLDED IN: Tech Ref Sec 17] — CONFIRMED end to end (the
+  switch itself, and the export-side symptom it fixed — Charlie's later
+  "2 for 2 good" full exports)
 AREA:        Export All Rigs — switched from the no-recall Avid-style
   by-slot query to the recall-based method (same mechanism as the
   existing Scan Bank feature), abandoning the approach in the entry above
@@ -344,7 +351,9 @@ NEXT:        Charlie rebuilds and re-runs Export All Rigs. Expect it to
   is wrong too and needs fresh evidence, not a third guess.
 -------------------------------------------------------------------
 DATE:        2026-08-10
-STATUS:      provisional — ONE capture, ONE machine, not yet cross-checked
+STATUS:      [FOLDED IN: Tech Ref Sec 17, replaces the old Sec 17
+  placeholder] — CONFIRMED as the mechanism actually shipped, though
+  still ONE capture, ONE machine, not cross-checked
   against a second run or against real hardware traffic from Eleven Edit
   itself sending these commands.
 AREA:        Bank export/import — Avid Editor's OWN mechanism (distinct
