@@ -712,6 +712,10 @@
     min-width: 480px; max-width: 92vw; max-height: 70vh;
   }
   #slot-matrix.open { display: flex; }
+  /* "by name" table needs real width for 4 name columns — the "by slot"
+     grid doesn't, and stays flex-wrap so it just fills whatever width it
+     gets. :has() is fine here (Electron/Chromium is well past support). */
+  #slot-matrix:has(#matrix-scroll.mode-name) { width: 640px; }
   .matrix-header {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-dim);
@@ -729,29 +733,53 @@
      colours: muted grey for the bank header, warm accent-dim for the
      per-slot id so it reads as "label", not competing with the name. */
   .matrix-bank-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-  .matrix-grid { display: grid; grid-template-columns: repeat(4, 148px); gap: 4px; margin-bottom: 10px; }
-  .matrix-slot { background: #222; border: 1px solid #555; border-radius: 3px; padding: 4px 6px; cursor: pointer; height: 40px; box-sizing: border-box; }
+  /* .matrix-grid/.matrix-slot now serve "by slot" ONLY — id + dash, no
+     name, unconditional compact fast-jump size (Charlie's call to leave
+     this view alone, 2026-08-11). "by name" has its own table below
+     (#matrix-name-table) instead of a second box size of this same grid,
+     which is what these used to switch between before that split. */
+  .matrix-grid { display: grid; grid-template-columns: repeat(4, 58px); gap: 4px; margin-bottom: 10px; }
+  .matrix-slot { background: #222; border: 1px solid #555; border-radius: 3px; padding: 4px 6px; cursor: pointer; height: 34px; text-align: center; box-sizing: border-box; }
   .matrix-slot:hover { border-color: var(--accent); }
   .matrix-slot.current { background: #2d2200; border-color: var(--accent); }
   .matrix-slot .slot-id   { color: var(--accent-dim); font-size: 11px; font-weight: bold; display: block; font-family: 'Consolas', monospace; }
-  /* TWO DISTINCT box sizes depending on which Jump List view is showing
-     (2026-08-03, Charlie's call — kept as two views on purpose rather than
-     merging into one, since they're genuinely different use cases): "by
-     name" needs real width for up to a 16-char name without an awkward
-     truncation (148px, set on #matrix-scroll.mode-name so every bank's
-     grid — and so every box — is the same size regardless of what any
-     patch happens to be named, replacing the old repeat(4,1fr) that sized
-     each bank off its own longest name). "by slot" is a compact, fast-jump
-     grid — id + a centered dash only, no name ever shown — so it goes back
-     to the small size Charlie remembered from before the name view existed:
-     far more banks fit per row, far less scrolling to reach a slot you
-     already know by number. */
-  #matrix-scroll.mode-name .matrix-grid { grid-template-columns: repeat(4, 148px); }
-  #matrix-scroll.mode-name .matrix-slot { height: 40px; }
-  #matrix-scroll.mode-slot .matrix-grid { grid-template-columns: repeat(4, 58px); }
-  #matrix-scroll.mode-slot .matrix-slot { height: 34px; text-align: center; }
   .matrix-slot .slot-name { color: var(--text); font-size: 13px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .matrix-slot.current .slot-name { color: var(--accent); }
+
+  /* "by name" — TRUE TABLE, not the stacked/grouped-by-bank grid above
+     (2026-08-11, Charlie's call: the grouped layout repeats a "BANK X"
+     header + gap every 4 slots, which is what made it tall enough to need
+     heavy scrolling for 104 slots — ElevenHack's own patch-list, shown for
+     reference, is a plain spreadsheet: one header row (1-4), one header
+     column (A-Z), no repeated per-bank chrome). Row/column headers already
+     carry the slot ID, so cells hold ONLY the name — repeating "A1" inside
+     every one of 104 cells would just eat width for something the headers
+     already say. 26 rows at this row height comfortably fits without
+     scrolling on most windows, unlike the grouped layout. #matrix-banks
+     (the "by slot" grid, unchanged per Charlie's call to leave it alone)
+     and this table are mutually exclusive, switched via the same
+     mode-name/mode-slot classes on #matrix-scroll everything else uses. */
+  #matrix-name-table { display: none; border-collapse: collapse; width: 100%; table-layout: fixed; }
+  #matrix-name-table col.row-label-col { width: 28px; }
+  #matrix-scroll.mode-name #matrix-banks     { display: none; }
+  #matrix-scroll.mode-name #matrix-name-table { display: table; }
+  #matrix-name-table th {
+    position: sticky; top: 0; background: #1a1a1a; color: var(--muted);
+    font-size: 11px; font-weight: normal; padding: 3px 8px; text-align: left;
+  }
+  #matrix-name-table td.row-label {
+    color: var(--accent-dim); font-size: 11px; font-weight: bold;
+    font-family: 'Consolas', monospace; padding: 2px 8px 2px 2px; text-align: right;
+    vertical-align: middle;
+  }
+  #matrix-name-table td.matrix-name-cell {
+    background: #222; border: 1px solid #383838; cursor: pointer;
+    padding: 2px 8px; font-size: 12px; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 1px; /* forces the cell to respect its column width, not the text */
+  }
+  #matrix-name-table td.matrix-name-cell:hover { border-color: var(--accent); }
+  #matrix-name-table td.matrix-name-cell.current { background: #2d2200; border-color: var(--accent); color: var(--accent); }
 
   /* ══ MODALS ══ */
   #watchdog-overlay, #scan-overlay, #about-overlay {
@@ -1672,7 +1700,8 @@
   </div>
   <div id="matrix-scroll">
     <div id="matrix-banks"></div>
-    <div style="font-size:10px;color:#666;font-style:italic;">User patches A1–Z4 (104 slots)</div>
+    <table id="matrix-name-table"></table>
+    <div style="font-size:10px;color:#666;font-style:italic;margin-top:8px;">User patches A1–Z4 (104 slots)</div>
   </div>
 </div>
 
@@ -2086,22 +2115,79 @@ window.addEventListener('load', function() {
   container.appendChild(wrapper);
 })();
 
-// Update matrix current-slot highlight whenever nav changes
+// ════════════════════════════════════════════════════════════════════
+// "BY NAME" TABLE — true spreadsheet layout (2026-08-11, Charlie's call —
+// see the CSS comment above #matrix-name-table for why this replaced the
+// old stacked/grouped-by-bank boxes for the name view specifically). One
+// header row (1-4), one header column (A-Z) built ONCE here; cell text is
+// filled in by refreshMatrixCells()/refreshNamedMatrixSlot() below, same
+// as the existing "by slot" grid's cells are.
+// ════════════════════════════════════════════════════════════════════
+(function buildNameTable() {
+  var table = document.getElementById('matrix-name-table');
+  var colgroup = document.createElement('colgroup');
+  var rowLabelCol = document.createElement('col');
+  rowLabelCol.className = 'row-label-col';
+  colgroup.appendChild(rowLabelCol);
+  for (var p = 0; p < 4; p++) colgroup.appendChild(document.createElement('col'));
+  table.appendChild(colgroup);
+
+  var thead = document.createElement('thead');
+  var headRow = document.createElement('tr');
+  headRow.appendChild(document.createElement('th')); // blank corner
+  for (var p = 0; p < 4; p++) {
+    var th = document.createElement('th');
+    th.textContent = (p + 1);
+    headRow.appendChild(th);
+  }
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  for (var b = 0; b < 26; b++) {
+    var row = document.createElement('tr');
+    var rowLbl = document.createElement('td');
+    rowLbl.className = 'row-label';
+    rowLbl.textContent = BANKS_P5[b];
+    row.appendChild(rowLbl);
+    for (var p2 = 0; p2 < 4; p2++) {
+      var slot = b * 4 + p2;
+      var td = document.createElement('td');
+      td.className = 'matrix-name-cell';
+      td.dataset.slot = slot;
+      td.textContent = '—';
+      td.title = BANKS_P5[b] + (p2 + 1); // hover = slot ID, since the cell itself omits it
+      td.addEventListener('click', (function(s) { return function() {
+        document.getElementById('slot-matrix').classList.remove('open');
+        if (typeof goToSlot === 'function') goToSlot(s);
+      }; })(slot));
+      row.appendChild(td);
+    }
+    tbody.appendChild(row);
+  }
+  table.appendChild(tbody);
+})();
+
+// Update matrix current-slot highlight whenever nav changes — both views
+// at once (whichever isn't showing just carries the class unseen, cheap).
 function updateMatrixHighlight(slot) {
   document.querySelectorAll('.matrix-slot').forEach(function(c) {
     c.classList.toggle('current', parseInt(c.dataset.slot) === slot);
   });
+  document.querySelectorAll('.matrix-name-cell').forEach(function(c) {
+    c.classList.toggle('current', parseInt(c.dataset.slot) === slot);
+  });
 }
 
-// ── Jump List "by name" view (2026-08-03) ──
-// One shared overlay/grid (#slot-matrix) now serves BOTH views — "by slot"
-// (id only, the original behaviour) and "by name" (patchNameCache,
-// state.js) — rather than building a second near-duplicate overlay.
-// matrixMode is which one is currently showing; refreshMatrixCells()
-// repaints every cell's .slot-name text for that mode, and
-// refreshNamedMatrixSlot (called live as name-scan replies/saves land,
-// capture-scan.js/sysex-handler.js) only touches a cell if the name view
-// is the one actually on screen right now.
+// ── Jump List "by name" view (2026-08-03, table layout 2026-08-11) ──
+// One shared overlay (#slot-matrix) serves BOTH views — "by slot"
+// (#matrix-banks, id only, the original behaviour) and "by name"
+// (#matrix-name-table, patchNameCache, state.js) — rather than building a
+// second near-duplicate overlay. matrixMode is which one is currently
+// showing; refreshMatrixCells() repaints every name-table cell for that
+// mode, and refreshNamedMatrixSlot (called live as name-scan replies/
+// saves land, capture-scan.js/sysex-handler.js) only touches a cell if
+// the name view is the one actually on screen right now.
 var matrixMode = 'slot';   // 'slot' | 'name'
 
 function refreshMatrixCells() {
@@ -2111,23 +2197,22 @@ function refreshMatrixCells() {
       ? 'PATCH NAMES — click to jump'
       : 'PATCH SLOTS — click to jump';
   }
-  // Drives the two distinct box sizes (index.html CSS: #matrix-scroll.mode-name
-  // vs .mode-slot) — kept as two views on purpose, see the CSS comment there.
+  // Drives which of the two views is visible — #matrix-banks (by slot) vs
+  // #matrix-name-table (by name) — see the CSS comment above
+  // #matrix-name-table for why they're two separate structures now.
   var scroll = document.getElementById('matrix-scroll');
   if (scroll) {
     scroll.classList.toggle('mode-name', matrixMode === 'name');
     scroll.classList.toggle('mode-slot', matrixMode !== 'name');
   }
-  document.querySelectorAll('.matrix-slot').forEach(function(c) {
-    var nameEl = c.querySelector('.slot-name');
-    if (!nameEl) return;
-    if (matrixMode === 'name') {
-      var slot = parseInt(c.dataset.slot);
-      var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
-      nameEl.textContent = (nm && nm.length) ? nm : '—';
-    } else {
-      nameEl.textContent = '—';
-    }
+  // "by slot" grid never shows names (Charlie's call — left alone), so
+  // its cells have nothing to refresh here anymore now that "by name" has
+  // its own table below.
+  if (matrixMode !== 'name') return;
+  document.querySelectorAll('.matrix-name-cell').forEach(function(c) {
+    var slot = parseInt(c.dataset.slot);
+    var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
+    c.textContent = (nm && nm.length) ? nm : '—';
   });
 }
 
@@ -2137,11 +2222,10 @@ function refreshMatrixCells() {
 // renderChainRow skipping a repaint mid-drag elsewhere in this app.
 function refreshNamedMatrixSlot(slot) {
   if (matrixMode !== 'name') return;
-  var cell = document.querySelector('.matrix-slot[data-slot="' + slot + '"]');
+  var cell = document.querySelector('.matrix-name-cell[data-slot="' + slot + '"]');
   if (!cell) return;
-  var nameEl = cell.querySelector('.slot-name');
   var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
-  if (nameEl) nameEl.textContent = (nm && nm.length) ? nm : '—';
+  cell.textContent = (nm && nm.length) ? nm : '—';
 }
 
 // ════════════════════════════════════════════════════════════════════

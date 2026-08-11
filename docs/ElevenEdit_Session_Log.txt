@@ -193,7 +193,65 @@ NEXT:        IMPLEMENTED: pauseRollerForTuner() (patch-nav.js), called
              main.js's log banner now reads "Eleven Edit Session Start
              ... (v<app.getVersion()>)", version read live from
              package.json instead of hand-maintained.
-             NOT YET TESTED LIVE.
+             UPDATE 2026-08-11 — Charlie's build confirmed the tuner
+             gates and Bug Report #2 both working, but caught the version
+             stamp landing after the timestamp instead of right after the
+             app name — moved to "Eleven Edit (v<ver>) Session Start ...".
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      [FOLDED IN: Primer JUMP LIST entry, BY NAME revision]
+AREA:        Jump List ("by name" view) / Chain Row graphics (discussion
+             only, no code)
+FINDING:     CHAIN ROW GRAPHICS (discussed, NOT built): explored a
+             generated/procedural pedal-icon fallback for when Avid's own
+             PNG assets aren't present (currently a blank tile). Landed on
+             "not worth it" — Charlie's own call: the only way to actually
+             know a block's exact content is opening its panel anyway,
+             and a generated approximation wouldn't give the same
+             at-a-glance recognition real Avid art does (confirmed via
+             Avid's own graphics being usable that way, several real
+             stomp-box images compared). Also confirmed: he can't
+             distribute/embed Avid's own graphic assets in this program,
+             but leveraging them from an already-installed Avid Eleven
+             Rack Editor on the SAME machine (which is what the existing
+             graphics scan already does) is fine — that's not a new
+             finding, just restated. Left for "opensource people" if
+             anyone ever wants to build a fallback icon set; no code
+             changed.
+             JUMP LIST "BY NAME" — separate topic, DID ship. Charlie
+             corrected an earlier assumption of mine: there's no such
+             thing as an "empty" slot — every one of the 104 always holds
+             a real, named patch (his own bank has several slots that are
+             just his default-zeroed 59 Tweed, but that's still a real,
+             named patch, not "unused" in the data sense). The existing
+             "by name" view (grouped-by-bank boxes + a repeated "BANK X"
+             header every 4 slots) was too tall, needing heavy scrolling
+             for 104 slots. Charlie pointed at ElevenHack's own patch list
+             (plain spreadsheet: header row 1-4, header column A-Z, no
+             repeated chrome) as the density target, and confirmed the
+             "by slot" view should be left alone for now — worth revisiting
+             whether it's still needed at all once the new "by name" table
+             is live-tested and looks clean.
+EVIDENCE:    Charlie's own screenshots: current "by name" grouped view,
+             his own real bank (BANK X/Y/Z showing named vs "-unused-"
+             labeled but still-real patches), and an ElevenHack patch-list
+             screenshot as the density reference.
+CONFLICTS:   Primer's original JUMP LIST entry (2026-08-03) described "by
+             name" as same-grid-different-box-size as "by slot" — no
+             longer true, now a genuinely different structure
+             (#matrix-name-table). Primer entry rewritten in place, not
+             appended, per HOW UPDATES WORK.
+NEXT:        IMPLEMENTED: #matrix-name-table (index.html) — real <table>,
+             header row/column built once (buildNameTable), cells hold
+             name only (slot ID available as a hover tooltip). Mutually
+             exclusive with #matrix-banks via the same mode-name/mode-slot
+             classing everything else already used. refreshMatrixCells/
+             refreshNamedMatrixSlot updated to target the new table's
+             cells instead of the old grid's when in name mode.
+             #matrix-banks ("by slot") left untouched. NOT YET TESTED
+             LIVE — once Charlie's seen it, decide together whether "by
+             slot" is still worth keeping as a separate view.
 
 (All other folded / resolved / closed entries have been drained to the
 Archive — see the index below.)

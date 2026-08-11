@@ -764,9 +764,24 @@ WORKING:
       BY SLOT (left half) — compact grid, id + a centered dash only, small
         fixed-width boxes so many banks fit per row with far less
         scrolling — for jumping to a slot you already know by number.
-      BY NAME (right half) — same grid, wider fixed-width boxes (148px,
-        fits a full 16-char name without an awkward truncation), showing
-        each slot's real patch name.
+      BY NAME (right half) — REVISED 2026-08-11 (Charlie's call) from
+        wider fixed boxes grouped under a repeated "BANK X" header every
+        4 slots (visually clean but tall — a lot of scrolling for 104
+        slots) to a TRUE TABLE (#matrix-name-table, index.html): one
+        header row (patch # 1-4), one header column (bank A-Z), built
+        once, no repeated per-bank chrome — reference point was
+        ElevenHack's own plain spreadsheet-style patch list. Row/column
+        headers already carry the slot ID, so cells hold ONLY the name
+        (repeating "A1" in all 104 cells would just cost width for
+        nothing the headers don't already say); hover shows the slot ID
+        as a tooltip. 26 rows fits without scrolling on most windows,
+        unlike the old grouped layout. #matrix-banks (BY SLOT) is
+        UNCHANGED — Charlie's explicit call to leave it alone, since it's
+        already dense and doesn't show names to begin with. Every slot
+        always has a real name now too (corrected assumption from the
+        original 2026-08-03 build) — there's no "empty slot" case; an
+        unused slot just shows whatever patch (often a zeroed default)
+        happens to be stored there, same as any other slot.
     Names come from patchNameCache (state.js) — a lightweight, SESSION-ONLY
     sweep of all 104 user slots via CMD 0x04's REQU form (sendPatchNameQuery/
     scanPatchNames, transport.js/capture-scan.js), fired once per bridge
