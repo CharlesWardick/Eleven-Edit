@@ -249,10 +249,18 @@ async function loadTfxFromDisk() {
   }
 }
 
-async function saveCurrentPatchToSlot(nameOverride) {
+// targetSlot (2026-08-11, Save to a Different Slot): optional — defaults
+// to currentSlot, same as always, when omitted. Protocol is identical
+// either way (Tech Ref Sec 15 — "only the target slot number changes");
+// Step 4's commit (CMD 0x02) is itself a slot-select, so committing to a
+// DIFFERENT slot than the one loaded also re-instantiates the hardware
+// onto that slot — currentSlot/the display self-heal from the resulting
+// broadcast via handleSlotConfirm (sysex-handler.js), same "adopt any
+// broadcast" pattern as a front-panel or Avid-editor nav.
+async function saveCurrentPatchToSlot(nameOverride, targetSlot) {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
   const name = ((nameOverride || currentPatchName || 'Untitled').substring(0, 16)).trim();
-  const slot = currentSlot;
+  const slot = (targetSlot !== undefined && targetSlot !== null) ? targetSlot : currentSlot;
   const bank = Math.floor(slot / 4);
   const num  = slot % 4;
   const slotHex = slot.toString(16).padStart(2,'0').toUpperCase();
@@ -298,11 +306,12 @@ async function saveCurrentPatchToSlot(nameOverride) {
 }
 
 // Save to Rack + auto-capture TFX to disk in one operation.
-// Commits to current slot with the supplied name, then pulls SEND_PATCH
-// back from hardware and writes it to the captures folder. The name
-// update happens before capture so the TFX filename matches the slot.
-async function saveToRackAndDisk(name) {
-  await saveCurrentPatchToSlot(name);
+// Commits to current slot (or targetSlot, if a different slot was picked —
+// 2026-08-11) with the supplied name, then pulls SEND_PATCH back from
+// hardware and writes it to the captures folder. The name update happens
+// before capture so the TFX filename matches the slot.
+async function saveToRackAndDisk(name, targetSlot) {
+  await saveCurrentPatchToSlot(name, targetSlot);
   // A rack commit makes the slot match the buffer, so the current values ARE
   // the new saved truth: re-baseline knobs (main + effect) and clear dirty.
   // Save-to-Disk does NOT call this, so after a disk-only save the knobs stay

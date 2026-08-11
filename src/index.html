@@ -708,14 +708,13 @@
     display: none; flex-direction: column; position: fixed; top: 62px; left: 50%;
     transform: translateX(-50%);
     background: #1a1a1a; border: 1px solid var(--accent-dim); border-radius: 6px;
-    z-index: 300; box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-    min-width: 480px; max-width: 92vw; max-height: 70vh;
+    /* Above #rack-save-modal (z-index 500) — as a slot PICKER (2026-08-11)
+       this overlay opens ON TOP OF the Save modal, not instead of it, so it
+       needs to actually win that stack. */
+    z-index: 600; box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+    width: 640px; max-width: 92vw; max-height: 70vh;
   }
   #slot-matrix.open { display: flex; }
-  /* "by name" table needs real width for 4 name columns — the "by slot"
-     grid doesn't, and stays flex-wrap so it just fills whatever width it
-     gets. :has() is fine here (Electron/Chromium is well past support). */
-  #slot-matrix:has(#matrix-scroll.mode-name) { width: 640px; }
   .matrix-header {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-dim);
@@ -728,37 +727,18 @@
   }
   .matrix-close-btn:hover { border-color: var(--accent); color: var(--accent); }
   #matrix-scroll { overflow-y: auto; padding: 14px; }
-  /* Bank label + slot id were #777 on a #222 background — Charlie found
-     both hard to read (2026-08-03). Bumped to legible, still-secondary
-     colours: muted grey for the bank header, warm accent-dim for the
-     per-slot id so it reads as "label", not competing with the name. */
-  .matrix-bank-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-  /* .matrix-grid/.matrix-slot now serve "by slot" ONLY — id + dash, no
-     name, unconditional compact fast-jump size (Charlie's call to leave
-     this view alone, 2026-08-11). "by name" has its own table below
-     (#matrix-name-table) instead of a second box size of this same grid,
-     which is what these used to switch between before that split. */
-  .matrix-grid { display: grid; grid-template-columns: repeat(4, 58px); gap: 4px; margin-bottom: 10px; }
-  .matrix-slot { background: #222; border: 1px solid #555; border-radius: 3px; padding: 4px 6px; cursor: pointer; height: 34px; text-align: center; box-sizing: border-box; }
-  .matrix-slot:hover { border-color: var(--accent); }
-  .matrix-slot.current { background: #2d2200; border-color: var(--accent); }
-  .matrix-slot .slot-id   { color: var(--accent-dim); font-size: 11px; font-weight: bold; display: block; font-family: 'Consolas', monospace; }
-  .matrix-slot .slot-name { color: var(--text); font-size: 13px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .matrix-slot.current .slot-name { color: var(--accent); }
 
-  /* "by name" — TRUE TABLE, not the stacked/grouped-by-bank grid above
-     (2026-08-11, Charlie's call: the grouped layout repeats a "BANK X"
-     header + gap every 4 slots, which is what made it tall enough to need
-     heavy scrolling for 104 slots — ElevenHack's own patch-list, shown for
-     reference, is a plain spreadsheet: one header row (1-4), one header
-     column (A-Z), no repeated per-bank chrome). Row/column headers already
-     carry the slot ID, so cells hold ONLY the name — repeating "A1" inside
-     every one of 104 cells would just eat width for something the headers
-     already say. 26 rows at this row height comfortably fits without
-     scrolling on most windows, unlike the grouped layout. #matrix-banks
-     (the "by slot" grid, unchanged per Charlie's call to leave it alone)
-     and this table are mutually exclusive, switched via the same
-     mode-name/mode-slot classes on #matrix-scroll everything else uses. */
+  /* "by name" — TRUE TABLE (2026-08-11): one header row (1-4), one header
+     column (A-Z), no repeated per-bank chrome — ElevenHack's own
+     patch-list was the density reference. Row/column headers already
+     carry the slot ID, so cells hold ONLY the name — repeating "A1"
+     inside every one of 104 cells would just eat width for something the
+     headers already say. 26 rows at this row height comfortably fits
+     without scrolling on most windows. THIS IS NOW THE ONLY JUMP LIST
+     VIEW — the old compact "by slot" grid (id + dash, no name) was
+     dropped the same day, once this table proved clean enough on its own
+     that keeping a second view stopped being worth the extra surface
+     (Charlie's call, confirmed after a live look at 1.3.19).
   /* SEPARATE borders, not collapse — an outline on .current still lost its
      top/left edges under collapse (confirmed live, 2026-08-11: same exact
      symptom as the plain-border attempt before it — Chromium's table cell
@@ -767,10 +747,8 @@
      borders every cell owns its own full border with nothing to resolve or
      clip. border-spacing:0 keeps cells touching so the grid still reads as
      continuous lines, not visibly gapped boxes. */
-  #matrix-name-table { display: none; border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
+  #matrix-name-table { display: table; border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
   #matrix-name-table col.row-label-col { width: 28px; }
-  #matrix-scroll.mode-name #matrix-banks     { display: none; }
-  #matrix-scroll.mode-name #matrix-name-table { display: table; }
   #matrix-name-table th {
     position: sticky; top: 0; background: #1a1a1a; color: var(--muted);
     font-size: 11px; font-weight: normal; padding: 3px 8px; text-align: left;
@@ -899,7 +877,17 @@
   }
   .rack-save-title { color: var(--accent); font-size: 13px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
   .rack-save-slot-line { font-size: 12px; color: var(--muted); }
-  #rack-save-slot-label { color: var(--text); font-weight: bold; }
+  #rack-save-slot-label {
+    color: var(--text); font-weight: bold; cursor: pointer;
+    border-bottom: 1px dashed var(--accent-dim); padding-bottom: 1px;
+  }
+  #rack-save-slot-label:hover { color: var(--accent); border-color: var(--accent); }
+  /* Shows the slot's CURRENT patch name once a different slot is picked —
+     every slot always holds a real, named patch (Charlie's correction,
+     2026-08-11 — there's no "empty" case), so this is always something
+     real, not a maybe-blank placeholder. Amber = you're about to overwrite
+     it, which is worth a beat of attention before hitting Save. */
+  #rack-save-slot-existing { font-size: 11px; color: var(--accent); display: none; margin-top: -6px; }
   .rack-save-label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
   #rack-save-input, #bank-export-input {
     background: #111; color: var(--text); border: 1px solid var(--border);
@@ -1627,7 +1615,8 @@
 <div id="rack-save-modal">
   <div id="rack-save-box">
     <div class="rack-save-title">Save to Rack</div>
-    <div class="rack-save-slot-line">Slot: <span id="rack-save-slot-label">A1</span></div>
+    <div class="rack-save-slot-line">Slot: <span id="rack-save-slot-label" title="Click to save to a different slot">A1</span></div>
+    <div id="rack-save-slot-existing"></div>
     <label class="rack-save-label" for="rack-save-input">Patch Name <span style="color:var(--muted);font-size:10px;">(max 16 chars)</span></label>
     <input type="text" id="rack-save-input" maxlength="16" autocomplete="off" spellcheck="false">
     <div class="rack-save-btns">
@@ -1702,14 +1691,13 @@
   <span id="log-path-label" style="display:none;"></span>
 </div>
 
-<!-- ══ SLOT MATRIX ══ -->
+<!-- ══ SLOT MATRIX (Jump List / slot picker — same overlay, two purposes) ══ -->
 <div id="slot-matrix">
   <div class="matrix-header">
-    <div class="matrix-title">PATCH SLOTS — click to jump</div>
-    <button class="matrix-close-btn" onclick="document.getElementById('slot-matrix').classList.remove('open')">CLOSE</button>
+    <div class="matrix-title">PATCH NAMES — click to jump</div>
+    <button class="matrix-close-btn" id="matrix-close-btn">CLOSE</button>
   </div>
   <div id="matrix-scroll">
-    <div id="matrix-banks"></div>
     <table id="matrix-name-table"></table>
     <div style="font-size:10px;color:#666;font-style:italic;margin-top:8px;">User patches A1–Z4 (104 slots)</div>
   </div>
@@ -2023,32 +2011,57 @@ document.getElementById('btn-fxhost-close').addEventListener('click', function()
   if (typeof closeFxHostPanel === 'function') closeFxHostPanel();
 });
 
-// Patch name box click = open the Jump List — LEFT half opens/closes the
-// "by slot" view, RIGHT half the "by name" view (2026-08-03). Clicking the
-// side that's already showing closes the overlay (original toggle
-// behaviour); clicking the OTHER side while it's open switches the view in
-// place instead of closing it.
-document.getElementById('patch-name-box').addEventListener('click', function(e) {
-  var r = this.getBoundingClientRect();
-  var wantMode = (e.clientX - r.left < r.width / 2) ? 'slot' : 'name';
+// Patch name box click = open the Jump List (2026-08-03; simplified
+// 2026-08-11 when the "by slot" compact view was dropped — either half of
+// the box now opens the same single "by name" table, click again to close).
+document.getElementById('patch-name-box').addEventListener('click', function() {
   var m = document.getElementById('slot-matrix');
-  var isOpen = m.classList.contains('open');
-  if (isOpen && matrixMode === wantMode) {
-    m.classList.remove('open');
-    return;
-  }
-  matrixMode = wantMode;
+  if (m.classList.contains('open')) { closeSlotMatrix(); return; }
+  document.querySelector('.matrix-title').textContent = 'PATCH NAMES — click to jump';
   refreshMatrixCells();
   m.classList.add('open');
 });
+
+document.getElementById('matrix-close-btn').addEventListener('click', closeSlotMatrix);
 
 // Close matrix on outside click
 document.addEventListener('click', function(e) {
   var m = document.getElementById('slot-matrix');
   if (m.classList.contains('open') && !m.contains(e.target) && e.target !== document.getElementById('patch-name-box')) {
-    m.classList.remove('open');
+    closeSlotMatrix();
   }
 });
+
+// ════════════════════════════════════════════════════════════════════
+// SLOT PICKER (2026-08-11) — the SAME Jump List overlay, reused as a
+// picker for "Save to [a different] Slot": openSlotPicker() resolves a
+// promise with the clicked slot number instead of navigating there.
+// matrixPickerResolve is the pending picker's resolve function, or null
+// when the overlay is just doing its normal jump-to-slot job — the cell
+// click handler (buildNameTable) and closeSlotMatrix() both check it.
+// ════════════════════════════════════════════════════════════════════
+var matrixPickerResolve = null;
+
+function openSlotPicker() {
+  return new Promise(function(resolve) {
+    matrixPickerResolve = resolve;
+    document.querySelector('.matrix-title').textContent = 'PICK A SLOT';
+    refreshMatrixCells();
+    document.getElementById('slot-matrix').classList.add('open');
+  });
+}
+
+// Single close path for every way the overlay can go away (Close button,
+// outside click, a jump-mode cell click) — resolves a pending picker with
+// null (cancelled) so its caller isn't left hanging.
+function closeSlotMatrix() {
+  document.getElementById('slot-matrix').classList.remove('open');
+  if (matrixPickerResolve) {
+    var resolve = matrixPickerResolve;
+    matrixPickerResolve = null;
+    resolve(null);
+  }
+}
 
 // ════════════════════════════════════════════════════════════════════
 // PATCH NAV DISPLAY — new split bank/patch display
@@ -2093,45 +2106,13 @@ window.addEventListener('load', function() {
 });
 
 // ════════════════════════════════════════════════════════════════════
-// SLOT MATRIX — populate all 26 banks × 4 patches
-// ════════════════════════════════════════════════════════════════════
-(function buildMatrix() {
-  var container = document.getElementById('matrix-banks');
-  var wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;';
-  for (var b = 0; b < 26; b++) {
-    var bankDiv = document.createElement('div');
-    var lbl = document.createElement('div');
-    lbl.className = 'matrix-bank-label';
-    lbl.textContent = 'BANK ' + BANKS_P5[b];
-    bankDiv.appendChild(lbl);
-    var grid = document.createElement('div');
-    grid.className = 'matrix-grid';
-    for (var p = 0; p < 4; p++) {
-      var slot = b * 4 + p;
-      var cell = document.createElement('div');
-      cell.className = 'matrix-slot';
-      cell.dataset.slot = slot;
-      cell.innerHTML = '<span class="slot-id">' + BANKS_P5[b] + (p+1) + '</span><span class="slot-name">—</span>';
-      cell.addEventListener('click', (function(s) { return function() {
-        document.getElementById('slot-matrix').classList.remove('open');
-        if (typeof goToSlot === 'function') goToSlot(s);
-      }; })(slot));
-      grid.appendChild(cell);
-    }
-    bankDiv.appendChild(grid);
-    wrapper.appendChild(bankDiv);
-  }
-  container.appendChild(wrapper);
-})();
-
-// ════════════════════════════════════════════════════════════════════
-// "BY NAME" TABLE — true spreadsheet layout (2026-08-11, Charlie's call —
-// see the CSS comment above #matrix-name-table for why this replaced the
-// old stacked/grouped-by-bank boxes for the name view specifically). One
-// header row (1-4), one header column (A-Z) built ONCE here; cell text is
-// filled in by refreshMatrixCells()/refreshNamedMatrixSlot() below, same
-// as the existing "by slot" grid's cells are.
+// JUMP LIST / SLOT PICKER TABLE — true spreadsheet layout (2026-08-11):
+// one header row (1-4), one header column (A-Z), built ONCE here; cell
+// text is filled in by refreshMatrixCells()/refreshNamedMatrixSlot()
+// below. This is now the ONLY view (the old compact "by slot" grid was
+// dropped the same day). A cell click either jumps to that slot (normal
+// use) or resolves a pending slot-picker promise instead of navigating —
+// see matrixPickerResolve above (patch-name-box click handler section).
 // ════════════════════════════════════════════════════════════════════
 (function buildNameTable() {
   var table = document.getElementById('matrix-name-table');
@@ -2168,6 +2149,13 @@ window.addEventListener('load', function() {
       td.textContent = '—';
       td.title = BANKS_P5[b] + (p2 + 1); // hover = slot ID, since the cell itself omits it
       td.addEventListener('click', (function(s) { return function() {
+        if (matrixPickerResolve) {
+          var resolve = matrixPickerResolve;
+          matrixPickerResolve = null;
+          document.getElementById('slot-matrix').classList.remove('open');
+          resolve(s);
+          return;
+        }
         document.getElementById('slot-matrix').classList.remove('open');
         if (typeof goToSlot === 'function') goToSlot(s);
       }; })(slot));
@@ -2178,47 +2166,16 @@ window.addEventListener('load', function() {
   table.appendChild(tbody);
 })();
 
-// Update matrix current-slot highlight whenever nav changes — both views
-// at once (whichever isn't showing just carries the class unseen, cheap).
+// Update matrix current-slot highlight whenever nav changes.
 function updateMatrixHighlight(slot) {
-  document.querySelectorAll('.matrix-slot').forEach(function(c) {
-    c.classList.toggle('current', parseInt(c.dataset.slot) === slot);
-  });
   document.querySelectorAll('.matrix-name-cell').forEach(function(c) {
     c.classList.toggle('current', parseInt(c.dataset.slot) === slot);
   });
 }
 
-// ── Jump List "by name" view (2026-08-03, table layout 2026-08-11) ──
-// One shared overlay (#slot-matrix) serves BOTH views — "by slot"
-// (#matrix-banks, id only, the original behaviour) and "by name"
-// (#matrix-name-table, patchNameCache, state.js) — rather than building a
-// second near-duplicate overlay. matrixMode is which one is currently
-// showing; refreshMatrixCells() repaints every name-table cell for that
-// mode, and refreshNamedMatrixSlot (called live as name-scan replies/
-// saves land, capture-scan.js/sysex-handler.js) only touches a cell if
-// the name view is the one actually on screen right now.
-var matrixMode = 'slot';   // 'slot' | 'name'
-
+// Repaints every cell's name from patchNameCache (state.js) — called
+// whenever the overlay opens (jump mode or picker mode alike).
 function refreshMatrixCells() {
-  var title = document.querySelector('.matrix-title');
-  if (title) {
-    title.textContent = (matrixMode === 'name')
-      ? 'PATCH NAMES — click to jump'
-      : 'PATCH SLOTS — click to jump';
-  }
-  // Drives which of the two views is visible — #matrix-banks (by slot) vs
-  // #matrix-name-table (by name) — see the CSS comment above
-  // #matrix-name-table for why they're two separate structures now.
-  var scroll = document.getElementById('matrix-scroll');
-  if (scroll) {
-    scroll.classList.toggle('mode-name', matrixMode === 'name');
-    scroll.classList.toggle('mode-slot', matrixMode !== 'name');
-  }
-  // "by slot" grid never shows names (Charlie's call — left alone), so
-  // its cells have nothing to refresh here anymore now that "by name" has
-  // its own table below.
-  if (matrixMode !== 'name') return;
   document.querySelectorAll('.matrix-name-cell').forEach(function(c) {
     var slot = parseInt(c.dataset.slot);
     var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
@@ -2228,10 +2185,10 @@ function refreshMatrixCells() {
 
 // Called live as individual name replies/saves land (handlePatchNameEnumReply,
 // sysex-handler.js; saveCurrentPatchToSlot, capture-scan.js) — a no-op
-// unless the name view is the one currently open, same reasoning as
+// unless the overlay is actually open right now, same reasoning as
 // renderChainRow skipping a repaint mid-drag elsewhere in this app.
 function refreshNamedMatrixSlot(slot) {
-  if (matrixMode !== 'name') return;
+  if (!document.getElementById('slot-matrix').classList.contains('open')) return;
   var cell = document.querySelector('.matrix-name-cell[data-slot="' + slot + '"]');
   if (!cell) return;
   var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
@@ -2338,25 +2295,59 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
   });
 
   var saveAction = 'rack'; // 'rack' or 'disk'
+  // The slot "Save to Rack…" actually commits to — defaults to wherever
+  // you're currently sitting (currentSlot), same as always; only set to
+  // something else once the slot label's been clicked and a different slot
+  // picked. Reset to null every time the modal opens fresh from the
+  // dropdown, so a leftover pick from an earlier save doesn't silently
+  // carry over into an unrelated one.
+  var saveTargetSlot = null;
+
+  function updateSlotLabel(slot) {
+    var slotLbl = document.getElementById('rack-save-slot-label');
+    if (slotLbl) slotLbl.textContent = slotLabel(slot);
+    // Every slot always holds a real, named patch — no "empty" case
+    // (confirmed by Charlie, 2026-08-11) — so this is always worth
+    // showing once you've picked a DIFFERENT slot than the one you're
+    // on, as a heads-up about what you're about to overwrite.
+    var existingEl = document.getElementById('rack-save-slot-existing');
+    if (existingEl) {
+      if (slot !== currentSlot) {
+        var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
+        existingEl.textContent = 'currently: ' + ((nm && nm.length) ? nm : '(name unknown)');
+        existingEl.style.display = '';
+      } else {
+        existingEl.style.display = 'none';
+      }
+    }
+  }
 
   function openSaveModal(action) {
     if (typeof pauseRollerForSave === 'function') pauseRollerForSave();
     saveAction = action;
+    saveTargetSlot = null;
     document.querySelector('.rack-save-title').textContent = action === 'rack' ? 'Save to Rack' : 'Save to Disk';
     input.value = (typeof currentPatchName !== 'undefined' ? currentPatchName : '') || '';
     var slotLine = document.querySelector('.rack-save-slot-line');
     if (slotLine) slotLine.style.display = action === 'rack' ? '' : 'none';
-    if (action === 'rack') {
-      var slotLbl = document.getElementById('rack-save-slot-label');
-      if (slotLbl && typeof currentSlot !== 'undefined') {
-        var bank  = Math.floor(currentSlot / 4);
-        var patch = (currentSlot % 4) + 1;
-        slotLbl.textContent = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[bank] + patch;
-      }
-    }
+    if (action === 'rack') updateSlotLabel(currentSlot);
     modal.classList.add('open');
     setTimeout(function() { input.focus(); input.select(); }, 50);
   }
+
+  // ── Click the slot label to save to a DIFFERENT slot ── (2026-08-11)
+  // Reuses the Jump List overlay as a picker (openSlotPicker, defined with
+  // the rest of the Jump List code below) rather than a second UI —
+  // clicking a cell there resolves this promise with that slot number
+  // instead of navigating to it.
+  document.getElementById('rack-save-slot-label').addEventListener('click', async function(e) {
+    e.stopPropagation();
+    if (typeof openSlotPicker !== 'function') return;
+    var picked = await openSlotPicker();
+    if (picked === null) return; // cancelled — leave the current pick alone
+    saveTargetSlot = picked;
+    updateSlotLabel(picked);
+  });
 
   // ── Save to Rack… ──
   document.getElementById('save-dd-rack').addEventListener('click', function() {
@@ -2381,7 +2372,8 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
     if (!name) { input.focus(); return; }
     modal.classList.remove('open');
     if (saveAction === 'rack') {
-      if (typeof saveToRackAndDisk === 'function') saveToRackAndDisk(name);
+      var targetSlot = (saveTargetSlot !== null) ? saveTargetSlot : currentSlot;
+      if (typeof saveToRackAndDisk === 'function') saveToRackAndDisk(name, targetSlot);
     } else {
       // Disk only — update name then capture
       if (typeof currentPatchName !== 'undefined') currentPatchName = name;

@@ -20,11 +20,12 @@ discovered along the way).
   rather than either Avid's own silent-stop-partway behaviour or an
   all-or-nothing block over one bad file.
   CHARLIE'S OWN CALL ON SCOPE (2026-08-10): with this feature working and
-  live-tested, only "Save to Different Slot" (see NOT YET IMPLEMENTED) is
-  planned as further scoped work; otherwise the app moves into a break-it
-  testing phase over the following days rather than continued feature
-  work, per his own framing — "I could work on this program for another
-  year twiddling and fiddling and it wouldn't be done."
+  live-tested, only "Save to Different Slot" was planned as further scoped
+  work; otherwise the app moves into a break-it testing phase over the
+  following days rather than continued feature work, per his own framing —
+  "I could work on this program for another year twiddling and fiddling
+  and it wouldn't be done." UPDATE (2026-08-11): Save to Different Slot is
+  now built (see JUMP LIST entry, WORKING) — NOT YET TESTED LIVE.
 Previously: JUMP LIST (patch-name overlay) COMPLETE
 (2026-08-03, TESTED LIVE), plus AMP CONTROLS TONE-KNOB REORDER and four
 other confirmed fixes, all the same day — a long single session that
@@ -759,29 +760,56 @@ WORKING:
     lists (no recall needed for writes). Confirm-modal box widened to
     640px/90vw with a 70vh-capped scrolling list so a full 104-entry bank
     fits without scrolling on most windows.
-  JUMP LIST (2026-08-03, TESTED LIVE) — click either side of the patch-name
-    box to open a slot-picker overlay, in one of two views:
-      BY SLOT (left half) — compact grid, id + a centered dash only, small
-        fixed-width boxes so many banks fit per row with far less
-        scrolling — for jumping to a slot you already know by number.
-      BY NAME (right half) — REVISED 2026-08-11 (Charlie's call) from
-        wider fixed boxes grouped under a repeated "BANK X" header every
-        4 slots (visually clean but tall — a lot of scrolling for 104
-        slots) to a TRUE TABLE (#matrix-name-table, index.html): one
-        header row (patch # 1-4), one header column (bank A-Z), built
-        once, no repeated per-bank chrome — reference point was
-        ElevenHack's own plain spreadsheet-style patch list. Row/column
-        headers already carry the slot ID, so cells hold ONLY the name
-        (repeating "A1" in all 104 cells would just cost width for
-        nothing the headers don't already say); hover shows the slot ID
-        as a tooltip. 26 rows fits without scrolling on most windows,
-        unlike the old grouped layout. #matrix-banks (BY SLOT) is
-        UNCHANGED — Charlie's explicit call to leave it alone, since it's
-        already dense and doesn't show names to begin with. Every slot
-        always has a real name now too (corrected assumption from the
-        original 2026-08-03 build) — there's no "empty slot" case; an
-        unused slot just shows whatever patch (often a zeroed default)
-        happens to be stored there, same as any other slot.
+  JUMP LIST (2026-08-03, table layout + slot picker 2026-08-11, TESTED
+    LIVE through the table revision — picker NOT YET TESTED LIVE) — click
+    either side of the patch-name box to open a slot overlay (#slot-matrix,
+    index.html). ONE VIEW ONLY as of 2026-08-11 — the original two-view
+    split (compact "by slot" grid vs a wider "by name" grid) had its "by
+    slot" half dropped once the "by name" table (below) proved dense
+    enough on its own that a second view stopped earning its keep
+    (Charlie's call, confirmed live on 1.3.19).
+    TABLE LAYOUT (#matrix-name-table) — revised 2026-08-11 from wider
+    fixed boxes grouped under a repeated "BANK X" header every 4 slots
+    (visually clean but tall — a lot of scrolling for 104 slots) to a TRUE
+    TABLE: one header row (patch # 1-4), one header column (bank A-Z),
+    built once, no repeated per-bank chrome — reference point was
+    ElevenHack's own plain spreadsheet-style patch list. Row/column
+    headers already carry the slot ID, so cells hold ONLY the name
+    (repeating "A1" in all 104 cells would just cost width for nothing the
+    headers don't already say); hover shows the slot ID as a tooltip. 26
+    rows fits without scrolling on most windows. Uses SEPARATE table
+    borders (border-collapse:separate, border-spacing:0), not collapsed —
+    two earlier attempts at highlighting the current-slot cell (a plain
+    border, then an outline) both lost their top/left edges to Chromium's
+    collapsed-border cell-paint order; separate borders give every cell
+    its own full border with nothing to resolve or clip, which is what
+    actually fixed it (confirmed live on 1.3.19). Every slot always has a
+    real name (corrected assumption from the original 2026-08-03 build) —
+    there's no "empty slot" case; an unused slot just shows whatever patch
+    (often a zeroed default) happens to be stored there, same as any other
+    slot.
+    SLOT PICKER (2026-08-11, NOT YET TESTED LIVE) — the SAME overlay is
+    now also reused as a picker for "Save to [a different] Slot" rather
+    than building a second UI: openSlotPicker() (index.html) opens it and
+    returns a Promise resolved with the clicked slot number (or null if
+    cancelled via Close/outside click), instead of navigating there.
+    matrixPickerResolve tracks whether a picker is pending; the shared
+    close path (closeSlotMatrix) and the table's own cell click handler
+    both check it. Wired into the Save to Rack modal: the "Slot: A1" label
+    is now clickable — pick a different slot and the modal updates to
+    show it, plus the picked slot's CURRENT patch name (from
+    patchNameCache) as a heads-up about what's being overwritten (again,
+    always a real name, never "empty"). saveCurrentPatchToSlot/
+    saveToRackAndDisk (capture-scan.js) both take an optional targetSlot
+    now, defaulting to currentSlot when omitted (existing callers
+    unaffected) — protocol is identical either way (Tech Ref Sec 15), and
+    since the save protocol's own commit step (CMD 0x02) is itself a
+    slot-select, committing to a different slot naturally re-instantiates
+    the hardware onto it; currentSlot/the display self-heal from the
+    resulting broadcast via handleSlotConfirm, same "adopt any broadcast"
+    pattern as any other hardware-initiated nav — no manual bookkeeping
+    needed for that part. This closes out the Primer's old "NOT YET:
+    save-to-different-slot" note.
     Names come from patchNameCache (state.js) — a lightweight, SESSION-ONLY
     sweep of all 104 user slots via CMD 0x04's REQU form (sendPatchNameQuery/
     scanPatchNames, transport.js/capture-scan.js), fired once per bridge
@@ -1114,16 +1142,14 @@ NOT YET IMPLEMENTED (largest first):
     HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
     defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
     slot argument and never used currentParamHi. Do not assume it is fixed.
-  Save to Different Slot — slot picker UI not yet built; SAVE ▾ menu item
-    exists but is greyed. Protocol is the same save sequence with a different
-    target slot number. NOTE (2026-08-10): Import Rigs' importSlotEntry()
-    (bank-transfer.js, Tech Ref Sec 17) already does exactly this
-    mechanically — a direct write to an arbitrary slot with no recall —
-    so the underlying write is proven; what's missing now is UI (a slot
-    picker) wired to that single-patch case, not new protocol work. THE
-    ONLY ITEM CHARLIE HAS SCOPED AS FURTHER WORK as of 2026-08-10 —
-    everything else on this list is background/someday, not a current
-    plan (see Status line above).
+  Save to Different Slot — IMPLEMENTED 2026-08-11 (NOT YET TESTED LIVE),
+    moved out of this list — see JUMP LIST entry above (WORKING) for the
+    mechanism (the Jump List overlay reused as a picker, clicking the Save
+    to Rack modal's slot label). The disabled "Save to Different Slot…
+    (coming soon)" dropdown item (index.html save-dropdown) is a SEPARATE,
+    still-unbuilt idea for pairing with Load TFX (import a file straight
+    into an arbitrary slot) — left disabled on purpose, not the same
+    feature as this one, do not enable it as part of this work.
   FX Loop connector variants 0x2E, 0x2F, 0x33 — the only three models with no
     output-channel entry; they draw a dashed connector until observed.
   About box — real content not yet designed; a thought/placeholder only,
