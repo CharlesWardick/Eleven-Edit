@@ -672,6 +672,29 @@ Build: electron-builder --win --x64 -> EXE.
   catches every edit CMD 0x03 would otherwise swallow after the first.
   NOT YET TESTED LIVE.
 
+2026-08-11 (later still) — FOUND IN THE NEXT LIVE LOG: the CMD 0x11 trigger
+  above missed a real touch itself. Charlie: "I swear it happened at least
+  twice on the first dirty flag detect but I can't recreate" — traced in
+  session-2026-08-11-124328.log to a genuine tone-knob drag (paramLo 0x0b,
+  vals 60->69->71) landing ~2s after a nav, INSIDE the CMD 0x11 trigger's
+  own ROLLER_NAV_SETTLE_GUARD window, so it was silently dropped by the very
+  guard meant to stop false pauses. ROOT ISSUE: elapsed-time-since-nav can't
+  tell a genuine quick touch apart from the hardware's own settle broadcasts
+  (every tone/amp param IS re-announced, twice, right after "Nav pull
+  complete" — confirmed in the same log), because both can land in the same
+  window; the CMD 0x03 case got lucky in that its settle noise reliably
+  arrives within milliseconds of the recall, but a human touch has no such
+  guarantee. FIXED: replaced the CMD 0x11 trigger's time guard with a VALUE
+  comparison. paramSettleBaseline (state.js) remembers the last value seen
+  per instId/paramLo since the last nav (cleared in goToSlot). The settle
+  broadcasts repeat the SAME value (the patch's actual stored value,
+  unchanged) — the first sighting of a paramLo each nav sets the baseline
+  silently, and only a LATER value that differs from it pauses the roll, no
+  matter how soon after nav it arrives. CMD 0x03's dirty-flag trigger keeps
+  its original time guard unchanged — its false positives were confirmed
+  arriving within milliseconds of the recall, so timing works fine there.
+  NOT YET TESTED LIVE.
+
 WORKING:
   BANK EXPORT / IMPORT (2026-08-10, TESTED LIVE) — "Export All Rigs…" and
     "Import Rigs…", TFX/Bank toolbar (reordered same day: SAVE, Load TFX,

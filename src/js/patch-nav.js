@@ -54,6 +54,7 @@ document.getElementById('range-to').addEventListener('change',   updateRangeLabe
 
 function goToSlot(slot) {
   lastNavTime = performance.now();
+  paramSettleBaseline = {};
   updateDisplay(slot);
   sendPC(slot);
   clearStaleReadoutsOnNav();

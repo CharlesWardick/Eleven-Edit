@@ -353,10 +353,10 @@ function handleSlotConfirm(data) {
 // the CMD 0x11 param-change trigger (see both call sites for why two
 // independent signals are needed, not just the dirty flag alone).
 // ════════════════════════════════════════════════════════════════════
-function maybePauseRollerOnEdit(reason) {
+function maybePauseRollerOnEdit(reason, skipSettleGuard) {
   if (autoStartTime === null || autoPaused) return;
   const sinceNav = lastNavTime === null ? Infinity : (performance.now() - lastNavTime);
-  if (sinceNav < ROLLER_NAV_SETTLE_GUARD) return;
+  if (!skipSettleGuard && sinceNav < ROLLER_NAV_SETTLE_GUARD) return;
   togglePause();
   appLog('Roller paused — control edited during roll (' + reason + ', ' +
          Math.round(sinceNav) + 'ms after last nav)');
@@ -706,7 +706,28 @@ function handleParamReadback(data) {
   // swallows every edit after the first one caught (found live 2026-08-11,
   // via Charlie's resume-then-touch-again test). Catching it here as well
   // closes that gap.
-  maybePauseRollerOnEdit('CMD 0x11 param change');
+  //
+  // BUT a flat post-nav TIME guard (like CMD 0x03 uses) is wrong here: the
+  // hardware's own settling-into-the-recalled-patch process ALSO broadcasts
+  // real FORMAT A messages for every tone/amp param (seen live, each value
+  // announced twice, back to back, right after "Nav pull complete") — using
+  // elapsed-time-since-nav to tell that apart from a genuine quick touch cost
+  // a real edit right after landing on a slot (Charlie's "happened twice,
+  // can't reproduce" report — a knob drag ~2s after nav lost the race against
+  // a 2000ms guard). VALUE COMPARISON instead of timing: paramSettleBaseline
+  // (state.js) remembers the last value seen for each instId/paramLo since
+  // the last nav (cleared in goToSlot). The settle broadcasts repeat the SAME
+  // value (that's the patch's actual stored value, announced, not changed) —
+  // only a value that DIFFERS from what was already seen this nav means the
+  // control's position actually moved, which is what "touched" means. No
+  // time window needed or used here.
+  const settleKey = instId + ':' + paramLo;
+  const prevVal = paramSettleBaseline[settleKey];
+  paramSettleBaseline[settleKey] = val;
+  if (prevVal !== undefined && prevVal !== val) {
+    maybePauseRollerOnEdit('CMD 0x11 param change (0x' + paramLo.toString(16).padStart(2,'0') +
+      ' ' + prevVal + '->' + val + ')', /*skipSettleGuard*/ true);
+  }
 
   // ── DIST parameter routing — handled before the amp-only instId guard
   // so DIST broadcasts (different handle) are not silently discarded.

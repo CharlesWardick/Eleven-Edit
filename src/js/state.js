@@ -69,6 +69,12 @@ let wasStopped    = true; // true at launch and after Stop — forces jump to FR
 // hardware's own settle/query traffic right after a recall lands on an
 // already-dirty slot (2026-08-11 false-pause bug). null until the first nav.
 let lastNavTime   = null;
+// Last CMD 0x11 FORMAT-A value seen per "instId:paramLo" since the last nav
+// (cleared in goToSlot). Lets the roller's pause-on-edit tell the hardware's
+// own settle-broadcast (repeats the patch's stored value, unchanged) apart
+// from a genuine touch (value actually differs) WITHOUT a time guard — see
+// handleParamReadback's Format-A branch, sysex-handler.js.
+let paramSettleBaseline = {};
 
 // ── Gate CC table — per amp model (CC for Threshold, CC for Release) ──
 // NOTE (7/9/2026): sl100drive/crunch/clean's thresh/release CCs were
