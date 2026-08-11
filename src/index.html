@@ -759,7 +759,15 @@
      (the "by slot" grid, unchanged per Charlie's call to leave it alone)
      and this table are mutually exclusive, switched via the same
      mode-name/mode-slot classes on #matrix-scroll everything else uses. */
-  #matrix-name-table { display: none; border-collapse: collapse; width: 100%; table-layout: fixed; }
+  /* SEPARATE borders, not collapse — an outline on .current still lost its
+     top/left edges under collapse (confirmed live, 2026-08-11: same exact
+     symptom as the plain-border attempt before it — Chromium's table cell
+     paint order can clip an outline the same way it resolves a collapsed
+     border, so switching decoration types didn't fix it). With separate
+     borders every cell owns its own full border with nothing to resolve or
+     clip. border-spacing:0 keeps cells touching so the grid still reads as
+     continuous lines, not visibly gapped boxes. */
+  #matrix-name-table { display: none; border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
   #matrix-name-table col.row-label-col { width: 28px; }
   #matrix-scroll.mode-name #matrix-banks     { display: none; }
   #matrix-scroll.mode-name #matrix-name-table { display: table; }
@@ -779,14 +787,8 @@
     max-width: 1px; /* forces the cell to respect its column width, not the text */
   }
   #matrix-name-table td.matrix-name-cell:hover { border-color: var(--accent); }
-  /* outline, not border-color, for .current — border-collapse merges each
-     shared edge into ONE line and picks a winner between the two cells
-     touching it, so a border-only highlight loses its top/left edges to
-     the plain grey of the cell above/left (seen live, 2026-08-11). An
-     outline sits outside the collapse entirely, so all four edges show. */
   #matrix-name-table td.matrix-name-cell.current {
-    background: #2d2200; color: var(--accent);
-    outline: 1px solid var(--accent); outline-offset: -1px;
+    background: #2d2200; border-color: var(--accent); color: var(--accent);
   }
 
   /* ══ MODALS ══ */
