@@ -137,6 +137,11 @@ async function handleBulkTfxData(data, cmd) {
     captureCount++;
     appLog('Save confirmed — capturing TFX slot ' + slotNum + ' (' + slotName + ')');
 
+    if (autoStartTime !== null && !autoPaused) {
+      togglePause();
+      appLog('Roller paused — hardware save detected (bulk broadcast matched armed save slot)');
+    }
+
     // Discrete controls (cab/mic, mono) are safe to apply from the body.
     const ampInfo = decodeAmpKey(body);
     const ampChanged = !!(ampInfo && ampInfo.key && ampInfo.key !== currentAmpKey);
@@ -346,14 +351,20 @@ function handleSlotConfirm(data) {
 // ════════════════════════════════════════════════════════════════════
 // CMD 0x03 — Save rig response
 // ════════════════════════════════════════════════════════════════════
-// Two variants: data[7]=0x01 = save confirmation, data[7]=0x00 = slot confirmation
-// Only pause roller on save confirmation (0x01)
+// data[7] is a per-slot DIRTY flag (0x01 = that slot has unsaved edits
+// pending, 0x00 = clean), NOT a save-just-happened event — see Tech Ref
+// Sec 15 (a real software save sends CMD 0x03 with data[7]=0x00) and
+// Sec 4 ("CMD 0x03 dirty flag"). This announcement also fires as a normal
+// side effect of CMD 0x02 slot navigation (Tech Ref Sec 6: "the hardware
+// echoes the requested slot in both the 0x03 and 0x02 announcements"), so
+// it fires on EVERY slot change, including the roller's own auto-advance —
+// landing on a slot that happens to already be dirty from earlier editing
+// used to falsely read as "hardware save detected" and self-pause the
+// roller (2026-08-11 bug report). Roller pause-on-save now hooks the
+// confirmed hardware-save signal instead — see handleBulkTfxData's isSave
+// branch, armed by the real CMD 0x04 + CMD 0x00 same-slot save sequence.
 function handleSaveRigResponse(data) {
   appLog('CMD 0x03 response: ' + Array.from(data).map(b=>b.toString(16).padStart(2,'0')).join(' '));
-  if (data.length >= 8 && data[7] === 0x01 && autoStartTime !== null && !autoPaused) {
-    togglePause();
-    appLog('Roller paused — hardware save detected (CMD 0x03 save variant)');
-  }
 }
 
 // ════════════════════════════════════════════════════════════════════
