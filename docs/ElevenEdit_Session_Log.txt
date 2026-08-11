@@ -155,7 +155,45 @@ NEXT:        IMPLEMENTED: pauseRollerForSave() (patch-nav.js) — hooked in
              All Rigs / Import Rigs button handlers (bank-transfer.js),
              before any other logic in each. Both gated on "armed"
              (autoStartTime !== null), so a paused-but-armed roller is
-             also caught, not just a running one. NOT YET TESTED LIVE.
+             also caught, not just a running one.
+             UPDATE 2026-08-11 — Charlie confirmed TESTED LIVE, all four
+             gates working.
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      [FOLDED IN: Primer WORKING, 2026-08-11 (2nd extension) +
+             Bug Report #2 entries]
+AREA:        RigRollerPlus / Tuner / main.js session log
+FINDING:     Two items from the same Charlie follow-up after confirming
+             the TFX/Bank gates worked:
+             (1) Tuner should join the roller's pause set — same family
+             as SAVE/Load TFX/Export/Import, since the roller stepping to
+             the next patch mid-tune is exactly the kind of disruption
+             those gates exist to prevent.
+             (2) SEPARATE gap Charlie spotted, not roller-related: a real
+             patch change turns the tuner off on hardware and shows the
+             next patch's own details in its place (confirmed, matches
+             Avid's own editor, which mimics this locally instead of
+             waiting on a broadcast) — this app didn't do that, so
+             tunerOn/the tuner button could go stale after any nav.
+             Bug Report #2: main.js's log banner still said
+             "RigRollerPlus" with no version — visible on line 1 of every
+             log, spotted by Charlie while reading a log file directly.
+EVIDENCE:    Charlie's direct observation of HW behaviour (tuner-off on
+             nav) plus the log file's own first line (RigRollerPlus name).
+CONFLICTS:   none.
+NEXT:        IMPLEMENTED: pauseRollerForTuner() (patch-nav.js), called
+             from handleTunerCC (ui.js) only on the confirmed ON
+             transition — matches that function's existing "confirmed
+             broadcast only" contract, not the local click.
+             goToSlot() (patch-nav.js) now clears tunerOn + the button's
+             'on' class directly when nav starts, mimicking Avid's editor
+             instead of waiting for a broadcast that a plain nav doesn't
+             reliably produce.
+             main.js's log banner now reads "Eleven Edit Session Start
+             ... (v<app.getVersion()>)", version read live from
+             package.json instead of hand-maintained.
+             NOT YET TESTED LIVE.
 
 (All other folded / resolved / closed entries have been drained to the
 Archive — see the index below.)

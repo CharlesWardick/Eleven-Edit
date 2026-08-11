@@ -55,6 +55,20 @@ document.getElementById('range-to').addEventListener('change',   updateRangeLabe
 function goToSlot(slot) {
   lastNavTime = performance.now();
   paramSettleBaseline = {};
+  // Bug Report #2 follow-up (2026-08-11): a patch recall turns the tuner
+  // off on hardware and shows the next patch's details in its place —
+  // confirmed, deterministic behaviour, the same thing Avid's own editor
+  // mimics locally instead of waiting for a broadcast. We otherwise leave
+  // tunerOn stale (still showing ON) until/unless a CC 69 broadcast happens
+  // to arrive, which a nav doesn't reliably produce. Mimic it directly here
+  // rather than waiting — same "predict what the confirmed hardware
+  // behaviour will be" logic as the roller's own pause gates, just applied
+  // to a display value instead of the roll.
+  if (tunerOn) {
+    tunerOn = false;
+    document.getElementById('btn-tuner').classList.remove('on');
+    appLog('Tuner OFF — patch change (mimicked, matches Avid editor behaviour)');
+  }
   updateDisplay(slot);
   sendPC(slot);
   clearStaleReadoutsOnNav();
@@ -182,6 +196,16 @@ function pauseRollerForSave() {
   if (autoStartTime === null || autoPaused) return;
   togglePause();
   appLog('Roller paused — SAVE initiated by user');
+}
+
+// Tuner (2026-08-11 extension) — same shape as pauseRollerForSave. Called
+// from handleTunerCC (ui.js) only on the confirmed ON transition, not on
+// the local click, matching that function's own "wait for hardware, don't
+// trust our own click assumption" contract.
+function pauseRollerForTuner() {
+  if (autoStartTime === null || autoPaused) return;
+  togglePause();
+  appLog('Roller paused — tuner engaged');
 }
 
 // Load TFX / Export All Rigs / Import Rigs — these drive their OWN slot

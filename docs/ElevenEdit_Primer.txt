@@ -722,6 +722,27 @@ Build: electron-builder --win --x64 -> EXE.
     meaningful anyway. Gated on "armed" (autoStartTime !== null), not
     just "running", so a paused-but-armed roller is also stopped, not
     left stale.
+  TESTED LIVE (Charlie, 2026-08-11): all four gates confirmed working.
+
+2026-08-11 (2nd extension) — TUNER ADDED TO ROLLER PAUSE SET + LOCAL
+  TUNER-OFF MIMIC ON NAV (NOT YET TESTED LIVE): two related tuner fixes
+  from the same Charlie follow-up.
+    PAUSE ON TUNER ENGAGE — same family as SAVE/Load TFX/Export/Import.
+    pauseRollerForTuner() (patch-nav.js), called from handleTunerCC
+    (ui.js) only on the confirmed hardware ON transition (0x40/127), not
+    on the local button click — matches this function's own existing
+    "single source of truth is the confirmed broadcast, not our own click
+    assumption" contract, so it can't fire on a click that hardware never
+    actually confirms.
+    LOCAL TUNER-OFF MIMIC — separate gap Charlie flagged: a patch recall
+    turns the tuner off on real hardware (replaced by the next patch's
+    details), a confirmed and deterministic behaviour Avid's own editor
+    mimics locally instead of waiting for a broadcast; this app didn't,
+    so tunerOn could be left stale/ON-looking after any nav (roller-
+    driven or manual) until a CC 69 broadcast happened to arrive, which a
+    plain nav doesn't reliably produce. goToSlot() (patch-nav.js) now
+    clears tunerOn and the button's 'on' class directly the moment nav
+    starts, matching Avid's own editor rather than waiting on hardware.
   NOT YET TESTED LIVE.
 
 WORKING:
@@ -832,6 +853,13 @@ WORKING:
     every knob, colour-only signalling.
   Stereo/Mono — clickable badge: SW send + TFX readback + live HW broadcast
     (Phase 7a-1; send echo is unreliable and deliberately suppressed)
+  BUG REPORT #2 FIXED (2026-08-11) — main.js's session-log banner still
+    read "RigRollerPlus" (the codebase this app was originally spun off
+    from) with no version, long after the rename to Eleven Edit — visible
+    on line 1 of every log file, confusing when cross-referencing a log
+    against the build that produced it. Now reads "Eleven Edit Session
+    Start ... (v<app.getVersion()>)", reading the live package.json
+    version at runtime instead of a hand-maintained string.
   Chain map — full chain stored on every CMD 0x21 (order, block identity,
     model, handle). Amp handle now correct at any chain position.
   Amp and Cab bypass — clickable, position independent, state read from HW.

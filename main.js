@@ -90,7 +90,15 @@ function initLog() {
     logPath = path.join(logsDir, 'session-' + stamp + '.log');
     logStream = fs.createWriteStream(logPath, { flags: 'a', encoding: 'utf8' });
     logStream.on('error', function(e) { console.error('Log stream error:', e.message); logStream = null; });
-    logWrite('=== RigRollerPlus Session Start ' + now.toLocaleString() + ' ===');
+    // Bug Report #2 (2026-08-11): this app was spun off RigRollerPlus's
+    // core, and the log banner kept that name/no version long after the
+    // rename to Eleven Edit — confusing when cross-referencing a log
+    // against which build produced it. app.getVersion() reads package.json
+    // (bumped every session per Primer convention), so this banner is
+    // always the actual running build, not a string someone has to remember
+    // to update by hand.
+    logWrite('=== Eleven Edit Session Start ' + now.toLocaleString() +
+      ' (v' + app.getVersion() + ') ===');
     logWrite('Log: ' + logPath);
     logWrite('userData: ' + userDataPath);
     console.log('Log file: ' + logPath);
@@ -112,7 +120,7 @@ function logWrite(line) {
 function logClose() {
   if (!logsEnabled) return;
   try {
-    logWrite('=== RigRollerPlus Session End ===');
+    logWrite('=== Eleven Edit Session End ===');
     if (logStream && !logStream.destroyed) { logStream.end(); }
     logStream = null;
   } catch(e) {}

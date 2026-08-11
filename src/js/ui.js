@@ -2339,12 +2339,19 @@ function setStatus(msg) { document.getElementById('status-msg').textContent = ms
 // This is what makes it correctly reflect hardware-button changes too,
 // same as gate/amp-out/amp-select already do for their own state. ──
 function handleTunerCC(val) {
+  const wasOn = tunerOn;
   if (val === 0x40 || val === 127) tunerOn = true;
   else if (val === 0x3F || val === 0) tunerOn = false;
   else return; // unrecognized value — not the state broadcast, ignore
   document.getElementById('btn-tuner').classList.toggle('on', tunerOn);
   setStatus('Tuner ' + (tunerOn ? 'ON' : 'OFF'));
   appLog('Tuner ' + (tunerOn ? 'ON' : 'OFF') + ' (confirmed via hardware)');
+  // Roller safety gate (2026-08-11, same family as SAVE/Load TFX/Export/
+  // Import): tuning is exactly the kind of thing the roller shouldn't step
+  // on mid-way through — pause on the ON transition, confirmed-state only
+  // (matches this function's own "wait for hardware" contract above), same
+  // shape as pauseRollerForSave.
+  if (tunerOn && !wasOn && typeof pauseRollerForTuner === 'function') pauseRollerForTuner();
 }
 
 const logEl = document.getElementById('monitor-log');
