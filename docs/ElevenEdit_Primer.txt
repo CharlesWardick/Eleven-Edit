@@ -349,6 +349,14 @@ sees; he cannot write or debug code himself and won't fill in gaps.
     told you the result. (2) the app does not run ON the hardware — it runs
     on Charlie's PC/VM and REMOTE-CONTROLS the Eleven Rack over MIDI via the
     Java bridge. Get this distinction right when describing the setup.
+  - CONFIRMATION IS OFTEN IMPLICIT — MOVING ON MEANS DONE (added 2026-08-11,
+    Charlie's own framing). Charlie won't move to the next item until the
+    current one is confirmed working and correct. So if the work shifts from
+    item #1 to item #2, it is safe to treat #1 as confirmed working even if
+    its log/Primer entry still reads "NOT YET TESTED LIVE" — he simply didn't
+    circle back to say so. When reconciling docs, a stale "not yet tested"
+    flag on a feature that later work clearly built on can be marked
+    confirmed; when genuinely unsure, ask.
   - Old eyes: amber-on-dark, readable fonts, generous sizing.
   - BUMP package.json's version EVERY SESSION that hands Charlie code to
     build (added 2026-08-10, Charlie's own request). Plain patch increment
@@ -723,8 +731,8 @@ Build: electron-builder --win --x64 -> EXE.
   previously-understood cause. Do not resume work on this without a new
   concrete repro/log from Charlie.
 
-2026-08-11 (extension) — ROLLER SAFETY GATES ON TFX/BANK OPS (NOT YET
-  TESTED LIVE): Charlie's follow-up — the SAVE/Load TFX/Export All Rigs/
+2026-08-11 (extension) — ROLLER SAFETY GATES ON TFX/BANK OPS (TESTED
+  LIVE — confirmed at end of entry): Charlie's follow-up — the SAVE/Load TFX/Export All Rigs/
   Import Rigs buttons didn't pause or stop the roller at all, unlike a
   real HW save (confirmed working). Agreed approach (Charlie's call,
   discussed before coding):
@@ -746,7 +754,7 @@ Build: electron-builder --win --x64 -> EXE.
   TESTED LIVE (Charlie, 2026-08-11): all four gates confirmed working.
 
 2026-08-11 (2nd extension) — TUNER ADDED TO ROLLER PAUSE SET + LOCAL
-  TUNER-OFF MIMIC ON NAV (NOT YET TESTED LIVE): two related tuner fixes
+  TUNER-OFF MIMIC ON NAV (TESTED LIVE, CONFIRMED WORKING): two related tuner fixes
   from the same Charlie follow-up.
     PAUSE ON TUNER ENGAGE — same family as SAVE/Load TFX/Export/Import.
     pauseRollerForTuner() (patch-nav.js), called from handleTunerCC
@@ -764,7 +772,8 @@ Build: electron-builder --win --x64 -> EXE.
     plain nav doesn't reliably produce. goToSlot() (patch-nav.js) now
     clears tunerOn and the button's 'on' class directly the moment nav
     starts, matching Avid's own editor rather than waiting on hardware.
-  NOT YET TESTED LIVE.
+  TESTED LIVE, CONFIRMED WORKING (Charlie, 2026-08-11 — feedback was delayed;
+  tuner pause and tuner-off-on-nav both confirmed working).
 
 WORKING:
   BANK EXPORT / IMPORT (2026-08-10, TESTED LIVE) — "Export All Rigs…" and
@@ -780,8 +789,8 @@ WORKING:
     lists (no recall needed for writes). Confirm-modal box widened to
     640px/90vw with a 70vh-capped scrolling list so a full 104-entry bank
     fits without scrolling on most windows.
-  JUMP LIST (2026-08-03, table layout + slot picker 2026-08-11, TESTED
-    LIVE through the table revision — picker NOT YET TESTED LIVE) — click
+  JUMP LIST (2026-08-03, table layout + slot picker 2026-08-11, both
+    TESTED LIVE and CONFIRMED WORKING) — click
     either side of the patch-name box to open a slot overlay (#slot-matrix,
     index.html). ONE VIEW ONLY as of 2026-08-11 — the original two-view
     split (compact "by slot" grid vs a wider "by name" grid) had its "by

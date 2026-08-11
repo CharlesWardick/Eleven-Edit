@@ -450,8 +450,9 @@ NEXT:        Charlie: Avid's own editor software does NOT have a
              table corrected in place (marked, not silently rewritten).
              STATUS -> [FOLDED IN: Tech Ref Sec 15 corrected table +
              re-confirmation note, Primer SLOT PICKER entry rewritten].
-             NOT YET TESTED LIVE — needs a real save to a non-Bank-A slot
-             to confirm the fix actually lands correctly on hardware.
+             TESTED LIVE, CONFIRMED WORKING (Charlie, 2026-08-11) — verified
+             with real saves to non-Bank-A slots landing on the correct
+             slot: "Nailed it works good now."
 
 (All other folded / resolved / closed entries have been drained to the
 Archive — see the index below.)
