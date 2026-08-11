@@ -85,6 +85,21 @@ NEXT:        FIXED, 1st pass (WRONG SCOPE): deleted the CMD 0x03 dirty-
              touch mid-roll (after settle) still pausing it, and (c) a
              real front-panel save during a roll still pausing it.
 
+             UPDATE 2026-08-11 (later) — Charlie's live test confirmed the
+             first-edit pause works and confirmed (via testing on main)
+             that this gap predates today's changes. Diagnosed by Charlie:
+             once dirty flag is 1, a second edit after Resume produces no
+             new CMD 0x03 broadcast (nothing to announce — flag already
+             set, and only a save clears it), so the roller never
+             re-paused on the second+ edit within a dirty session.
+             FIXED: added maybePauseRollerOnEdit(), shared by CMD 0x03
+             (first edit, dirty-flag transition) and CMD 0x11 (every
+             discrete param-change broadcast, unconditional — catches
+             every subsequent edit the dirty flag alone would swallow).
+             Both share the same ROLLER_NAV_SETTLE_GUARD gate. NOT YET
+             TESTED LIVE — needs confirmation that a second/third control
+             touch after Resume now pauses the roll again.
+
 (All other folded / resolved / closed entries have been drained to the
 Archive — see the index below.)
 

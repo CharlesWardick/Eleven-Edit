@@ -349,6 +349,20 @@ function handleSlotConfirm(data) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// Roller pause-on-edit — shared by the CMD 0x03 dirty-flag trigger and
+// the CMD 0x11 param-change trigger (see both call sites for why two
+// independent signals are needed, not just the dirty flag alone).
+// ════════════════════════════════════════════════════════════════════
+function maybePauseRollerOnEdit(reason) {
+  if (autoStartTime === null || autoPaused) return;
+  const sinceNav = lastNavTime === null ? Infinity : (performance.now() - lastNavTime);
+  if (sinceNav < ROLLER_NAV_SETTLE_GUARD) return;
+  togglePause();
+  appLog('Roller paused — control edited during roll (' + reason + ', ' +
+         Math.round(sinceNav) + 'ms after last nav)');
+}
+
+// ════════════════════════════════════════════════════════════════════
 // CMD 0x03 — Save rig response
 // ════════════════════════════════════════════════════════════════════
 // data[7] is a per-slot DIRTY flag (0x01 = that slot has unsaved edits
@@ -373,12 +387,8 @@ function handleSlotConfirm(data) {
 // the NEXT edit; a false pause on every dirty slot happened every time.
 function handleSaveRigResponse(data) {
   appLog('CMD 0x03 response: ' + Array.from(data).map(b=>b.toString(16).padStart(2,'0')).join(' '));
-  const sinceNav = lastNavTime === null ? Infinity : (performance.now() - lastNavTime);
-  if (data.length >= 8 && data[7] === 0x01 && autoStartTime !== null && !autoPaused &&
-      sinceNav >= ROLLER_NAV_SETTLE_GUARD) {
-    togglePause();
-    appLog('Roller paused — control edited during roll (CMD 0x03 dirty flag, ' +
-           Math.round(sinceNav) + 'ms after last nav)');
+  if (data.length >= 8 && data[7] === 0x01) {
+    maybePauseRollerOnEdit('CMD 0x03 dirty flag');
   }
 }
 
@@ -684,6 +694,19 @@ function handleParamReadback(data) {
   const paramLo = data[7];
   const v0      = data[8];
   const val     = (v0 >= 0x40) ? (v0 - 0x40) : (v0 + 64);
+
+  // FORMAT A is a spontaneous ASYNC broadcast — i.e. a real control just
+  // changed on hardware (front panel or Avid editor), unlike FORMAT B above
+  // which is only ever a reply to a REQU we ourselves sent. That makes this
+  // the direct "something was touched" signal, independent of the CMD 0x03
+  // dirty flag's own edge-only broadcast behaviour (see handleSaveRigResponse):
+  // the dirty flag only announces the FIRST edit after a save/recall — a
+  // second control touched later in the same roll leaves the flag already at
+  // 1 with nothing new to announce, so relying on CMD 0x03 alone silently
+  // swallows every edit after the first one caught (found live 2026-08-11,
+  // via Charlie's resume-then-touch-again test). Catching it here as well
+  // closes that gap.
+  maybePauseRollerOnEdit('CMD 0x11 param change');
 
   // ── DIST parameter routing — handled before the amp-only instId guard
   // so DIST broadcasts (different handle) are not silently discarded.

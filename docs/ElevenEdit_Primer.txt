@@ -654,6 +654,24 @@ Build: electron-builder --win --x64 -> EXE.
   (b) touching a knob mid-roll after the settle window still pauses it,
   as before. See Session Log 2026-08-11 for full evidence.
 
+2026-08-11 (later) — ROLLER PAUSE-ON-EDIT: SECOND EDIT AFTER RESUME MISSED
+  (NOT YET TESTED LIVE): Charlie's own live test of the above fix surfaced
+  a real design gap, not a regression: pause-on-edit worked for the FIRST
+  control touched mid-roll (CMD 0x03 dirty flag 0->1), but touching a
+  SECOND control after pressing Resume did not pause again. CAUSE: the
+  hardware's dirty flag only broadcasts CMD 0x03 on the 0->1 transition —
+  once dirty, further edits change nothing the hardware needs to announce
+  (nothing clears the flag between edits; only an actual save would), so
+  every edit after the first was silently swallowed. FIX: added a second,
+  independent pause-on-edit signal — CMD 0x11 (the actual param-change
+  broadcast fired on every discrete control touch, unconditionally, not
+  just on a dirty-flag edge) now also triggers the same settle-guarded
+  pause (shared helper maybePauseRollerOnEdit, sysex-handler.js). The two
+  triggers are complementary: CMD 0x03 catches the case CMD 0x11 doesn't
+  cover (e.g. controls outside the tone/effect-param family), CMD 0x11
+  catches every edit CMD 0x03 would otherwise swallow after the first.
+  NOT YET TESTED LIVE.
+
 WORKING:
   BANK EXPORT / IMPORT (2026-08-10, TESTED LIVE) — "Export All Rigs…" and
     "Import Rigs…", TFX/Bank toolbar (reordered same day: SAVE, Load TFX,
