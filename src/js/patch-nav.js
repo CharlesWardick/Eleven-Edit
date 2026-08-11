@@ -171,6 +171,35 @@ document.getElementById('btn-pause').addEventListener('click', togglePause);
 document.getElementById('btn-stop').addEventListener('click',  stopAuto);
 
 // ════════════════════════════════════════════════════════════════════
+// ROLLER SAFETY GATES — TFX/Bank ops (2026-08-11, Bug Report #1 follow-up)
+// ════════════════════════════════════════════════════════════════════
+// SAVE (software) — mimics the confirmed HW-save pause: pauses the instant
+// the user commits to saving, unconditionally (not gated on the patch
+// being dirty, and not waiting to see whether a save actually lands) —
+// Charlie's own call. A pause, not a stop: Resume picks the roll back up
+// exactly where it was, same as every other pause trigger.
+function pauseRollerForSave() {
+  if (autoStartTime === null || autoPaused) return;
+  togglePause();
+  appLog('Roller paused — SAVE initiated by user');
+}
+
+// Load TFX / Export All Rigs / Import Rigs — these drive their OWN slot
+// navigation (bank-wide walks, or a raw memory write with no fixed slot),
+// which directly conflicts with the roller's — Charlie's call was the
+// simple fix (option "a"): force a full STOP, not a pause, since Resume
+// afterward wouldn't mean anything (the roller's position/context is
+// stale once one of these has run). Gated on "armed" (autoStartTime !==
+// null) rather than strictly "running", so a paused-but-armed roller also
+// gets stopped, not left in a stale paused state.
+function stopRollerForBankOp(reason) {
+  if (autoStartTime === null) return;
+  stopAuto();
+  appLog('Auto-advance stopped — ' + reason);
+  setStatus('Auto-advance stopped — ' + reason);
+}
+
+// ════════════════════════════════════════════════════════════════════
 // TUNER
 // ════════════════════════════════════════════════════════════════════
 document.getElementById('btn-tuner').addEventListener('click', () => {

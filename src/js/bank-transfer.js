@@ -152,6 +152,7 @@ async function exportAllRigs(bankName, targetDir) {
   }
 
   btn.addEventListener('click', function() {
+    if (typeof stopRollerForBankOp === 'function') stopRollerForBankOp('Export All Rigs');
     if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
     // Export walks away from and back to the current slot (recall-based,
     // 2026-08-10) — it restores the right SLOT NUMBER when done, but a
@@ -300,6 +301,7 @@ async function importRigs(entries) {
   let pendingEntries = null;
 
   btn.addEventListener('click', async function() {
+    if (typeof stopRollerForBankOp === 'function') stopRollerForBankOp('Import Rigs');
     if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
     const srcResult = await window.electronAPI.chooseImportSource();
     if (!srcResult || !srcResult.ok) return; // cancelled

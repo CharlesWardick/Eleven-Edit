@@ -2246,6 +2246,7 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
   var saveAction = 'rack'; // 'rack' or 'disk'
 
   function openSaveModal(action) {
+    if (typeof pauseRollerForSave === 'function') pauseRollerForSave();
     saveAction = action;
     document.querySelector('.rack-save-title').textContent = action === 'rack' ? 'Save to Rack' : 'Save to Disk';
     input.value = (typeof currentPatchName !== 'undefined' ? currentPatchName : '') || '';

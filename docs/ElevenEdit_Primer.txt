@@ -702,6 +702,28 @@ Build: electron-builder --win --x64 -> EXE.
   previously-understood cause. Do not resume work on this without a new
   concrete repro/log from Charlie.
 
+2026-08-11 (extension) — ROLLER SAFETY GATES ON TFX/BANK OPS (NOT YET
+  TESTED LIVE): Charlie's follow-up — the SAVE/Load TFX/Export All Rigs/
+  Import Rigs buttons didn't pause or stop the roller at all, unlike a
+  real HW save (confirmed working). Agreed approach (Charlie's call,
+  discussed before coding):
+    SAVE ▾ (Save to Rack…/Save to Disk) — PAUSES the roller the instant
+    either menu item is clicked (openSaveModal, index.html), same as the
+    HW-save pause: unconditional, not gated on dirty state, not waiting
+    to see whether a save actually completes (fires even if the modal is
+    then cancelled). A pause, not a stop — Resume continues normally.
+    Load TFX / Export All Rigs / Import Rigs — force a full STOP
+    (stopRollerForBankOp, patch-nav.js) the instant the button is
+    clicked, before anything else in the handler runs. Charlie's explicit
+    call: no confirm modal (option "b" rejected as more code than the
+    problem warrants) — a clean forced Stop is enough; these are heavy,
+    bank-wide operations that drive their own slot navigation and
+    directly conflict with the roller's, so Resume afterward wouldn't be
+    meaningful anyway. Gated on "armed" (autoStartTime !== null), not
+    just "running", so a paused-but-armed roller is also stopped, not
+    left stale.
+  NOT YET TESTED LIVE.
+
 WORKING:
   BANK EXPORT / IMPORT (2026-08-10, TESTED LIVE) — "Export All Rigs…" and
     "Import Rigs…", TFX/Bank toolbar (reordered same day: SAVE, Load TFX,

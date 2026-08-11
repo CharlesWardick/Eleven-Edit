@@ -131,6 +131,32 @@ NEXT:        FIXED, 1st pass (WRONG SCOPE): deleted the CMD 0x03 dirty-
              entries]. Bug Report #1 (RigRollerPlus false pauses) closed
              at this state.
 
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      [FOLDED IN: Primer WORKING, 2026-08-11 (extension) entry]
+AREA:        RigRollerPlus / TFX-Bank toolbar
+FINDING:     Charlie's follow-up to Bug Report #1: the SAVE ▾/Load TFX/
+             Export All Rigs/Import Rigs toolbar buttons did nothing to
+             the roller at all — no pause, no stop — unlike a confirmed
+             real HW save. Discussed options before coding per Charlie's
+             request: (a) force a clean Stop with no confirm modal vs
+             (b) a confirm modal first (matching Export/Import's existing
+             modal pattern). Charlie picked (a) explicitly — "a lot more
+             code just to protect from stupid operations", users will
+             learn after it fires a few times, restart cost is low.
+EVIDENCE:    n/a — design/process decision, not a hardware finding.
+CONFLICTS:   none.
+NEXT:        IMPLEMENTED: pauseRollerForSave() (patch-nav.js) — hooked in
+             openSaveModal (index.html), fires on either "Save to Rack…"
+             or "Save to Disk" click, unconditional (not dirty-gated),
+             before the modal even opens (so it fires even if cancelled).
+             stopRollerForBankOp() (patch-nav.js) — hooked at the very
+             top of loadTfxFromDisk (capture-scan.js) and both the Export
+             All Rigs / Import Rigs button handlers (bank-transfer.js),
+             before any other logic in each. Both gated on "armed"
+             (autoStartTime !== null), so a paused-but-armed roller is
+             also caught, not just a running one. NOT YET TESTED LIVE.
+
 (All other folded / resolved / closed entries have been drained to the
 Archive — see the index below.)
 

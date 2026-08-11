@@ -200,6 +200,7 @@ function asciiToHexBytes(str) {
 }
 
 async function loadTfxFromDisk() {
+  if (typeof stopRollerForBankOp === 'function') stopRollerForBankOp('Load TFX');
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
   try {
     setStatus('Choose a TFX file...');
