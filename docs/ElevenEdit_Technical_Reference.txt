@@ -2307,7 +2307,6 @@ SCROLL WHEEL (item 4) — status 7/26/2026:
     val bytes. Dropdowns removed from GUI pending investigation.
   Save-to-different-slot (slot picker UI). Protocol identical to the current
     save — only the target slot number changes (Section 15).
-  Bank backup/restore UI (EHB — protocol known, Section 17).
   To Amp source: query current state on connect (CMD 0x3A for both slots)
     to initialize dropdowns when they are re-enabled.
 
