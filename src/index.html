@@ -1737,12 +1737,17 @@
       Electron renderer communicates over ws://localhost:57121. No iLok, no Avid software required.</p>
     </div>
     <div class="about-section">
-      <h3>Session Logs</h3>
-      <p>Launch with <strong>/LOGS</strong> to enable session logging.</p>
+      <h3>Startup Flags</h3>
+      <p><strong>/LOGS</strong> — enable session logging.<br>
+      <strong>/NOGPU</strong> — force software rendering (for VMs with a
+      splash-screen white-flash bug; not needed on real hardware).</p>
     </div>
     <div class="about-section">
-      <h3>Built On The Work Of</h3>
-      <p>Guillaume Schmid — <a href="https://sites.google.com/site/elevenhack/" target="_blank">ElevenHack (2013)</a></p>
+      <h3>Protocol Research Credit</h3>
+      <p>No code from this project is used here — Eleven Edit is built
+      independently from scratch. But its SysEx protocol map leans heavily
+      on prior reverse-engineering work by Guillaume Schmid —
+      <a href="https://sites.google.com/site/elevenhack/" target="_blank">ElevenHack (2013)</a>.</p>
     </div>
     <button id="btn-about-close">CLOSE</button>
   </div>
