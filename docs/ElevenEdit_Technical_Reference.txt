@@ -1409,15 +1409,30 @@ to active (green). Cab bypass DOES read on load via sldJ.
 15. SAVE PROTOCOL (software-initiated commit to slot)
 ===================================================================
 
-STATUS: implemented. Rename-on-save implemented (Phase 4a). Each step
-uses a DIFFERENT addressing format:
-  Step  Cmd     Format                          Example (slot 4 = B1)
+STATUS: implemented. Rename-on-save implemented (Phase 4a). CORRECTED
+2026-08-11 (see WITHDRAWN note below for the full incident) — every step
+but the first addresses the target by RAW SLOT NUMBER, no bank/num split
+anywhere:
+  Step  Cmd     Format                          Example (slot 0x67 = Z4)
   1     0x05    name (plain ASCII)              F0 13 0B 0F 00 05 [name] 00 F7
-  2     0x03    [raw_slot] [0x00]               F0 13 0B 0F 00 03 04 00 F7
-  3     0x04    [bank] [num] [name] [00]        F0 13 0B 0F 00 04 01 00 [name] 00 F7
-  4     0x02    [0x00] [raw_slot]               F0 13 0B 0F 00 02 00 04 F7
-  raw_slot = 0–103, bank = floor(slot/4), num = slot%4.
-  Name: plain ASCII, max 16 chars, null-terminated in Steps 1 and 3.
+  2     0x03    [raw_slot] [0x00]               F0 13 0B 0F 00 03 67 00 F7
+  3     0x04    [0x00] [raw_slot] [name] [00]   F0 13 0B 0F 00 04 00 67 [name] 00 F7
+  4     0x02    [0x00] [raw_slot]               F0 13 0B 0F 00 02 00 67 F7
+  raw_slot = 0–103. Name: plain ASCII, max 16 chars, null-terminated in
+  Steps 1 and 3. Step 3's leading byte is a constant 0x00, NOT
+  bank=floor(slot/4) — see WITHDRAWN note; confirmed by decoding a live
+  Wireshark capture of Avid's own "Save Rig To…" saving to a different
+  slot (AE_Save_to_Another_Slot_Capture.pcapng, 2026-08-11).
+  HARDWARE RESPONSE, confirmed the same capture, in order: CMD 0x05 (name
+  echo), CMD 0x03 dirty-flag-SET for the ORIGINAL/currently-loaded slot
+  (the name edit alone dirties it — a side effect of Step 1, unrelated to
+  the target slot). Then, once all four of OUR sends have gone out: a
+  spontaneous CMD 0x00 bulk TFX broadcast for the TARGET slot — this is
+  the exact same "hardware save" signal handleBulkTfxData's isSave branch
+  (sysex-handler.js) already looks for, confirming that mechanism
+  generalizes correctly to a different-slot commit with no change needed
+  there — followed by echoes of Steps 3, 2 (now dirty-flag CLEARED for the
+  target), and 4 (slot confirm) in that order.
 
 RENAME: Step 1 (CMD 0x05) IS the rename. Passing any name string renames
 the patch in hardware memory before committing. saveCurrentPatchToSlot()
@@ -1436,25 +1451,34 @@ Hardware responds with dirty-flag clear, slot confirm, full bulk broadcast.
 SAFETY NOTE: software save does NOT trigger the hardware-save auto-export
 (the CMD 0x04 echo arrives AFTER the bulk broadcast in software save, but
 auto-export detection needs it BEFORE).
-*** WITHDRAWN 2026-08-11 — "protocol is identical to current save, only the
-target slot number changes" (the line that used to be here) is WRONG,
-confirmed by Charlie's live test: a slot-picker UI was built on this
-assumption (see Primer, Save to Different Slot) substituting the target
-slot into Steps 2-4 above while deliberately not recalling it first (so the
-live edit buffer stays intact) — the commit landed on the ORIGINAL slot
-instead of the target. This assumption had never actually been exercised
-with a target different from the currently-loaded slot before that test;
-every real save prior to 2026-08-11 was always slot === currentSlot, so it
-had nowhere to be wrong until then. UNCONFIRMED working theory: Steps 2-4's
-target-slot bytes may only update the target's name-index entry and then
-navigate there, while the actual "commit the live buffer" operation is tied
-to whatever slot the rack's firmware considers currently active internally
-— unaffected by these bytes. NEXT: re-derive from a live capture of the
-rack's OWN FRONT PANEL doing a genuine save-to-a-different-slot (Avid's
-software does not have this feature; the rack itself does, per Charlie) —
-not from another guess at this sequence. See Session Log 2026-08-11 for the
-full incident and Primer for current app-level state (UI works, the actual
-write does not).
+*** WITHDRAWN THEN RE-CONFIRMED, 2026-08-11 — "protocol is identical to
+current save, only the target slot number changes" (the line that used to
+be here) turned out to be RIGHT about the overall shape (Steps 1-4, same
+commands) but WRONG about one specific byte format: Step 3's
+[bank][num] split. Full incident: a slot-picker UI was built on the old
+(unverified) assumption, substituting the target slot into Steps 2-4 while
+deliberately not recalling it first (so the live edit buffer stays
+intact) — Charlie's live test showed the commit landing on the ORIGINAL
+slot instead of the target. This exact assumption had never actually been
+exercised with a target different from the currently-loaded slot before
+that test; every real save prior to 2026-08-11 was always
+slot === currentSlot, so a [bank][num] split had nowhere to diverge from
+the correct [0x00][raw_slot] format — for anything in Bank A specifically,
+bank=0 and num=rawSlot, so the two formats are byte-IDENTICAL by pure
+coincidence, and Bank A is where most day-to-day saves land. ROOT CAUSE
+CONFIRMED (not a guess) via Charlie's Wireshark capture of Avid's own
+"Save Rig To…" saving to Z4 (AE_Save_to_Another_Slot_Capture.pcapng):
+Step 3 is genuinely [0x00 constant][raw_slot], same addressing as Steps
+2 and 4, both of which our code already had right. Bonus context: this
+exact mistake (bank/num split where the real format is [space/0x00][raw
+slot]) had already been found and fixed ONCE before, on CMD 0x04's sibling
+READ form (sendPatchNameQuery, transport.js, 2026-08-03's "B1-B4 show
+a1-a4" bug) — that fix was never generalized to this WRITE form, which is
+how the same mistake survived here for months. Sec 15's step table above
+is now corrected in place; code fix in saveCurrentPatchToSlot
+(capture-scan.js). See Session Log 2026-08-11 for the full incident,
+Primer for current app-level state (NOT YET TESTED LIVE against this
+fix).
 
 POST-SAVE HANDLE REFRESH (7/26/2026). A commit re-instantiates the patch and
 REASSIGNS block handles (see Sec 4), so after the save-confirm bulk broadcast

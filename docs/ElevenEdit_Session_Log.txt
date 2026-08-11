@@ -401,6 +401,58 @@ NEXT:        Charlie: Avid's own editor software does NOT have a
              the factory-preset area is exactly the class of mistake to
              avoid repeating here).
 
+             UPDATE 2026-08-11 — RESOLVED, capture obtained sooner than
+             expected: Charlie found Avid's OWN software actually does
+             have a "Save Rig To…" different-slot feature after all (he'd
+             said it didn't, then caught his own correction — "Avid
+             doesn't have this feature on software but the rack does" ->
+             then sent a capture of exactly that Avid feature). Captured
+             with Wireshark/USBPcap: AE_Save_to_Another_Slot_Capture.pcapng
+             (Editor loaded to A1, nav'd to A4, then Save Rig To → Z4 with
+             a name change). No tshark/scapy available in-session, so
+             parsed by hand in Python — pcapng Enhanced Packet Blocks,
+             then USB-MIDI CIN de-framing (CIN 0x4 continues, 0x5/0x6/0x7
+             end with 1/2/3 valid bytes) to reconstruct the same clean
+             "F0 13 0B 0F [dir] [cmd] ... F7" shape the app's own logs
+             already show — matches the C1 0x04-framing note (Sec 22)
+             exactly, same technique as the rest of this protocol's
+             research.
+             ROOT CAUSE FOUND: Step 3 (CMD 0x04, bank-index name write)
+             uses [0x00 constant][raw_slot], NOT [bank][num] — Avid's
+             capture for Z4 (raw slot 0x67) sent "00 04 00 67 <name> 00",
+             our code was sending "00 04 19 03 <name> 00" (bank=0x19,
+             num=0x03 for slot 103). Steps 2 and 4 were ALREADY correct
+             (both use raw_slot, confirmed byte-identical to Avid's
+             capture). The "byte-identical by coincidence for Bank A"
+             theory from the retraction above is confirmed exactly right:
+             for any A1-A4 target, bank=0=the real constant AND
+             num=rawSlot, so the wrong formula silently produced correct
+             bytes anyway — which is why this had never been caught
+             despite the code existing since Phase 4a.
+             BONUS FINDING: this exact mistake (bank/num split where the
+             real format is [space-or-0x00][raw_slot]) had already been
+             found and fixed ONCE before — on CMD 0x04's sibling REQU
+             (read) form, sendPatchNameQuery (transport.js), 2026-08-03's
+             "B1-B4 show a1-a4" bug. That fix was never generalized to
+             this WRITE form, which is exactly how the same mistake
+             survived here for months afterward. Worth remembering: a
+             fix to one form of a shared command doesn't imply its
+             sibling form got the same fix — check both explicitly.
+             ALSO CONFIRMED FROM THE SAME CAPTURE: the hardware's full
+             broadcast response to a different-slot save includes a
+             spontaneous CMD 0x00 bulk TFX broadcast for the TARGET slot
+             — exactly the "hardware save" signal handleBulkTfxData's
+             isSave branch already watches for (Sec 15), so that
+             mechanism needs no changes to generalize to this case.
+             FIXED: saveCurrentPatchToSlot (capture-scan.js) Step 3 now
+             sends "00 [slotHex]" instead of "[bankHex] [numHex]"; the
+             now-unused bank/num locals removed. Tech Ref Sec 15's step
+             table corrected in place (marked, not silently rewritten).
+             STATUS -> [FOLDED IN: Tech Ref Sec 15 corrected table +
+             re-confirmation note, Primer SLOT PICKER entry rewritten].
+             NOT YET TESTED LIVE — needs a real save to a non-Bank-A slot
+             to confirm the fix actually lands correctly on hardware.
+
 (All other folded / resolved / closed entries have been drained to the
 Archive — see the index below.)
 

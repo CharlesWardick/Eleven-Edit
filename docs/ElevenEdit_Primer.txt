@@ -788,9 +788,9 @@ WORKING:
     there's no "empty slot" case; an unused slot just shows whatever patch
     (often a zeroed default) happens to be stored there, same as any other
     slot.
-    SLOT PICKER (2026-08-11, UI TESTED LIVE + WORKING; the actual save-to-
-    a-different-slot WRITE TESTED LIVE and CONFIRMED BROKEN — see below) —
-    the SAME overlay is now also reused as a picker for "Save to [a
+    SLOT PICKER (2026-08-11, UI TESTED LIVE + WORKING; the underlying
+    write BUG FOUND AND FIXED same day, NOT YET RE-TESTED LIVE) — the
+    SAME overlay is now also reused as a picker for "Save to [a
     different] Slot" rather than building a second UI: openSlotPicker()
     (index.html) opens it and returns a Promise resolved with the clicked
     slot number (or null if cancelled via Close/outside click), instead of
@@ -800,36 +800,23 @@ WORKING:
     the "Slot: A1" label is clickable — pick a different slot and the
     modal updates to show it, plus the picked slot's CURRENT patch name
     (from patchNameCache) as a heads-up about what's being overwritten.
-    ALL OF THIS PART IS CONFIRMED WORKING (Charlie, 2026-08-11): picker
-    opens, slot updates in the modal, rename still works, Save fires.
-    *** RETRACTED — THE ACTUAL COMMIT DOES NOT GO TO THE PICKED SLOT ***
-    (2026-08-11, Charlie's live test): saveCurrentPatchToSlot/
-    saveToRackAndDisk (capture-scan.js) DO take an optional targetSlot and
-    DO thread it correctly through the JS/wire-byte layer — that part is
-    right. What's WRONG is the underlying assumption this was built on
-    (Tech Ref Sec 15's "protocol is identical to current save, only the
-    target slot number changes") — that line was carried over from June
-    research and had NEVER actually been exercised live with
-    targetSlot !== currentSlot until this session; every real save before
-    now was always to the already-loaded slot, so the assumption had
-    nowhere to be wrong until today. Live result: the commit landed on the
-    ORIGINAL slot, not the picked one. Working theory, UNCONFIRMED: the
-    commit-sequence's target-slot bytes (CMD 0x03 dirty write, CMD 0x04
-    bank-index write, final CMD 0x02) may only update the target slot's
-    NAME-INDEX ENTRY and then navigate there afterward, while the actual
-    "commit the live edit buffer" operation is tied to whatever slot the
-    rack's own firmware considers currently active internally — which
-    never changed, since deliberately no recall happened first. NEXT:
-    Charlie confirmed the RACK'S OWN FRONT PANEL can do a genuine
-    save-to-a-different-slot (Avid's software cannot) — plan is to run
-    Eleven Edit connected while doing that on the front panel and capture
-    the resulting session log; a catch-all "UNHANDLED CMD" logger was
-    added to sysex-handler.js (parseSysEx) specifically for this, so any
-    command this app has never seen before won't be silently dropped the
-    way it would have been previously. DO NOT re-attempt a blind byte
-    fix here — wait for that capture (project's own "two failed fixes =
-    stop and re-derive" rule; this is failure #1, and real evidence beats
-    a second guess).
+    UI CONFIRMED WORKING (Charlie, 2026-08-11): picker opens, slot updates
+    in the modal, rename still works, Save fires.
+    THE ACTUAL WRITE WAS BROKEN, ROOT-CAUSED, AND FIXED (2026-08-11) — the
+    commit landed on the ORIGINAL slot instead of the picked one on first
+    live test. Root cause CONFIRMED (not a guess) via a Wireshark capture
+    of Avid's own "Save Rig To…" saving to a different slot: Step 3 of the
+    4-step save sequence (CMD 0x04, the bank-index name write) was using a
+    [bank][num] address split that is simply wrong — the real format is
+    [0x00 constant][raw slot number], same addressing Steps 2 and 4
+    already used correctly. The bug hid itself perfectly for months: for
+    any slot in Bank A, bank=0 and num=rawSlot, so the wrong formula
+    produces byte-identical output to the right one by pure coincidence —
+    every real save before this investigation happened to be in a case
+    where that didn't matter. Full detail and the exact byte comparison:
+    Tech Ref Sec 15. Fixed in saveCurrentPatchToSlot (capture-scan.js).
+    NOT YET TESTED LIVE against this fix — needs a real save to a
+    non-Bank-A slot to confirm.
     Names come from patchNameCache (state.js) — a lightweight, SESSION-ONLY
     sweep of all 104 user slots via CMD 0x04's REQU form (sendPatchNameQuery/
     scanPatchNames, transport.js/capture-scan.js), fired once per bridge

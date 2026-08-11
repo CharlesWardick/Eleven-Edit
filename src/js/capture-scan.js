@@ -261,11 +261,10 @@ async function saveCurrentPatchToSlot(nameOverride, targetSlot) {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
   const name = ((nameOverride || currentPatchName || 'Untitled').substring(0, 16)).trim();
   const slot = (targetSlot !== undefined && targetSlot !== null) ? targetSlot : currentSlot;
-  const bank = Math.floor(slot / 4);
-  const num  = slot % 4;
+  // Every write in this function addresses the target by RAW SLOT NUMBER
+  // (0-103) — no bank/num split anywhere (see the retraction note on
+  // Step 3 below for why that used to be wrong for one of these).
   const slotHex = slot.toString(16).padStart(2,'0').toUpperCase();
-  const bankHex = bank.toString(16).padStart(2,'0').toUpperCase();
-  const numHex  = num.toString(16).padStart(2,'0').toUpperCase();
   const nameHex = asciiToHexBytes(name);
 
   // Update global and display so TFX capture picks up the new name
@@ -291,8 +290,21 @@ async function saveCurrentPatchToSlot(nameOverride, targetSlot) {
   sendHex('F0 13 0B 0F 00 03 ' + slotHex + ' 00 F7');
   await sleep(150);
 
-  // 3. Bank-index name entry write — CMD 0x04 DOES use bank/num split
-  sendHex('F0 13 0B 0F 00 04 ' + bankHex + ' ' + numHex + ' ' + nameHex + ' 00 F7');
+  // 3. Bank-index name entry write — RETRACTED 2026-08-11: this was
+  // documented (Tech Ref Sec 15) as using a [bank][num] split. WRONG,
+  // confirmed by decoding Charlie's live Wireshark capture of Avid's own
+  // "Save Rig To..." (AE_Save_to_Another_Slot_Capture.pcapng, saving to
+  // Z4/raw slot 0x67): Avid sends CMD 0x04 as [0x00 constant][RAW SLOT
+  // NUMBER], the same raw-slot addressing Steps 2 and 4 already use — NOT
+  // bank/num. The bug hid itself perfectly: for any slot in Bank A
+  // (A1-A4), bank=0 and num=rawSlot, so [bankHex,numHex] and
+  // [0x00,slotHex] happen to be byte-IDENTICAL by coincidence — every
+  // save before this investigation just happened to be in a case where
+  // the wrong formula produced the right bytes anyway. Diverges hugely
+  // for anything outside Bank A (Z4: 19 03 sent vs 00 67 real), which is
+  // exactly the case that first exposed it (Bug: Save to a Different
+  // Slot committing to the original slot instead of the picked one).
+  sendHex('F0 13 0B 0F 00 04 00 ' + slotHex + ' ' + nameHex + ' 00 F7');
   await sleep(150);
 
   // 4. Commit trigger — confirmed from real Avid capture: uses 00 + raw
