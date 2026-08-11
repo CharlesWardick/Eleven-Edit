@@ -1436,9 +1436,25 @@ Hardware responds with dirty-flag clear, slot confirm, full bulk broadcast.
 SAFETY NOTE: software save does NOT trigger the hardware-save auto-export
 (the CMD 0x04 echo arrives AFTER the bulk broadcast in software save, but
 auto-export detection needs it BEFORE).
-NOT YET: save-to-different-slot (slot picker UI). Protocol is identical to
-current save — only the target slot number changes. When built, Load TFX
-→ Save to Different Slot serves as "copy file into any slot".
+*** WITHDRAWN 2026-08-11 — "protocol is identical to current save, only the
+target slot number changes" (the line that used to be here) is WRONG,
+confirmed by Charlie's live test: a slot-picker UI was built on this
+assumption (see Primer, Save to Different Slot) substituting the target
+slot into Steps 2-4 above while deliberately not recalling it first (so the
+live edit buffer stays intact) — the commit landed on the ORIGINAL slot
+instead of the target. This assumption had never actually been exercised
+with a target different from the currently-loaded slot before that test;
+every real save prior to 2026-08-11 was always slot === currentSlot, so it
+had nowhere to be wrong until then. UNCONFIRMED working theory: Steps 2-4's
+target-slot bytes may only update the target's name-index entry and then
+navigate there, while the actual "commit the live buffer" operation is tied
+to whatever slot the rack's firmware considers currently active internally
+— unaffected by these bytes. NEXT: re-derive from a live capture of the
+rack's OWN FRONT PANEL doing a genuine save-to-a-different-slot (Avid's
+software does not have this feature; the rack itself does, per Charlie) —
+not from another guess at this sequence. See Session Log 2026-08-11 for the
+full incident and Primer for current app-level state (UI works, the actual
+write does not).
 
 POST-SAVE HANDLE REFRESH (7/26/2026). A commit re-instantiates the patch and
 REASSIGNS block handles (see Sec 4), so after the save-confirm bulk broadcast

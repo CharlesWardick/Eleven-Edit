@@ -330,6 +330,77 @@ NEXT:        IMPLEMENTED:
              hardware-initiated nav.
              NOT YET TESTED LIVE.
 
+             UPDATE 2026-08-11 — Charlie's live test: the UI half is
+             confirmed working end to end (picker opens, slot updates in
+             the modal, rename still works, Save fires) — but the actual
+             hardware write is CONFIRMED BROKEN: "except the part of
+             navigating to the selected slot and saving it there." Asked
+             a clarifying question; Charlie confirmed via multiple-choice
+             that it "Saved to the ORIGINAL slot instead" of the picked
+             one. See new entry below — this was folded into Primer
+             (retraction, marked *** RETRACTED ***) and Tech Ref Sec 15
+             (marked *** WITHDRAWN ***) rather than left only here, since
+             it invalidates a documented protocol claim other sessions
+             could otherwise build on.
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      confirmed (retraction) — [FOLDED IN: Primer SLOT PICKER
+             entry + Tech Ref Sec 15, both marked WITHDRAWN/RETRACTED
+             in place, not deleted]
+AREA:        Save to Different Slot / CMD 0x02-0x04 commit sequence
+FINDING:     Tech Ref Sec 15's "protocol is identical to current save,
+             only the target slot number changes" is WRONG. Confirmed by
+             Charlie's live test of the newly-built slot picker: saving
+             to a picked slot different from currentSlot committed to
+             the ORIGINAL slot instead. This line had carried an
+             unverified assumption since June-era research — every real
+             save before today was always to the already-loaded slot
+             (slot === currentSlot in every prior test), so the
+             assumption had literally never been exercised, let alone
+             confirmed, until this session's first live test of the
+             genuinely-different-slot case.
+             UNCONFIRMED WORKING THEORY: the commit sequence's Steps 2-4
+             (CMD 0x03 dirty write, CMD 0x04 bank-index write, CMD 0x02
+             final commit), all addressed to the target slot, may only
+             update that slot's NAME-INDEX ENTRY and then navigate there
+             — while the actual "commit the live edit buffer to a slot"
+             operation is tied to whatever slot the rack's own firmware
+             considers currently active internally, which our sequence
+             never changes (deliberately, so as not to discard the live
+             buffer by recalling the target first). Not yet confirmed by
+             any capture — a theory to test, not a fix to ship.
+EVIDENCE:    Charlie's direct live-hardware test + follow-up multiple-
+             choice confirmation ("Saved to the ORIGINAL slot instead").
+             No packet capture yet — that's the NEXT step.
+CONFLICTS:   Directly contradicts Tech Ref Sec 15's prior text (now
+             marked WITHDRAWN in place, original wording preserved in a
+             surrounding note per the Archive rule — never delete a
+             retraction's context, only append the correction).
+NEXT:        Charlie: Avid's own editor software does NOT have a
+             save-to-a-different-slot feature, but the RACK'S OWN FRONT
+             PANEL does. Plan: run Eleven Edit connected (so its passive
+             SysEx monitoring/log captures whatever the rack broadcasts)
+             while doing a genuine front-panel save-to-a-different-slot,
+             then bring the resulting session log back for decoding —
+             same method already used for Bug Reports #1/#2, no
+             USBPcap/Wireshark needed since the app already sees this
+             traffic passively.
+             Added ahead of that test (sysex-handler.js, parseSysEx): a
+             catch-all "UNHANDLED CMD 0x.. ..." logger for any incoming
+             command byte that doesn't match a known case — previously
+             silently dropped with zero log trace unless it happened to
+             also be in PROBE_DUMP_CMDS. A front-panel save-as might use
+             a command this app has never decoded, and silently dropping
+             it would defeat the whole point of this capture.
+             DO NOT attempt another blind byte-sequence fix here without
+             that capture — this is the project's own "two failed fixes
+             = stop and re-derive" rule, and blind-guessing a hardware
+             WRITE command carries real risk (the existing Sec 15 note
+             about a wrong Step 4 byte order once mis-sending saves to
+             the factory-preset area is exactly the class of mistake to
+             avoid repeating here).
+
 (All other folded / resolved / closed entries have been drained to the
 Archive — see the index below.)
 

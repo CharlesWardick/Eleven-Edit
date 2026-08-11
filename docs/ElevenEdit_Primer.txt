@@ -788,28 +788,48 @@ WORKING:
     there's no "empty slot" case; an unused slot just shows whatever patch
     (often a zeroed default) happens to be stored there, same as any other
     slot.
-    SLOT PICKER (2026-08-11, NOT YET TESTED LIVE) — the SAME overlay is
-    now also reused as a picker for "Save to [a different] Slot" rather
-    than building a second UI: openSlotPicker() (index.html) opens it and
-    returns a Promise resolved with the clicked slot number (or null if
-    cancelled via Close/outside click), instead of navigating there.
-    matrixPickerResolve tracks whether a picker is pending; the shared
-    close path (closeSlotMatrix) and the table's own cell click handler
-    both check it. Wired into the Save to Rack modal: the "Slot: A1" label
-    is now clickable — pick a different slot and the modal updates to
-    show it, plus the picked slot's CURRENT patch name (from
-    patchNameCache) as a heads-up about what's being overwritten (again,
-    always a real name, never "empty"). saveCurrentPatchToSlot/
-    saveToRackAndDisk (capture-scan.js) both take an optional targetSlot
-    now, defaulting to currentSlot when omitted (existing callers
-    unaffected) — protocol is identical either way (Tech Ref Sec 15), and
-    since the save protocol's own commit step (CMD 0x02) is itself a
-    slot-select, committing to a different slot naturally re-instantiates
-    the hardware onto it; currentSlot/the display self-heal from the
-    resulting broadcast via handleSlotConfirm, same "adopt any broadcast"
-    pattern as any other hardware-initiated nav — no manual bookkeeping
-    needed for that part. This closes out the Primer's old "NOT YET:
-    save-to-different-slot" note.
+    SLOT PICKER (2026-08-11, UI TESTED LIVE + WORKING; the actual save-to-
+    a-different-slot WRITE TESTED LIVE and CONFIRMED BROKEN — see below) —
+    the SAME overlay is now also reused as a picker for "Save to [a
+    different] Slot" rather than building a second UI: openSlotPicker()
+    (index.html) opens it and returns a Promise resolved with the clicked
+    slot number (or null if cancelled via Close/outside click), instead of
+    navigating there. matrixPickerResolve tracks whether a picker is
+    pending; the shared close path (closeSlotMatrix) and the table's own
+    cell click handler both check it. Wired into the Save to Rack modal:
+    the "Slot: A1" label is clickable — pick a different slot and the
+    modal updates to show it, plus the picked slot's CURRENT patch name
+    (from patchNameCache) as a heads-up about what's being overwritten.
+    ALL OF THIS PART IS CONFIRMED WORKING (Charlie, 2026-08-11): picker
+    opens, slot updates in the modal, rename still works, Save fires.
+    *** RETRACTED — THE ACTUAL COMMIT DOES NOT GO TO THE PICKED SLOT ***
+    (2026-08-11, Charlie's live test): saveCurrentPatchToSlot/
+    saveToRackAndDisk (capture-scan.js) DO take an optional targetSlot and
+    DO thread it correctly through the JS/wire-byte layer — that part is
+    right. What's WRONG is the underlying assumption this was built on
+    (Tech Ref Sec 15's "protocol is identical to current save, only the
+    target slot number changes") — that line was carried over from June
+    research and had NEVER actually been exercised live with
+    targetSlot !== currentSlot until this session; every real save before
+    now was always to the already-loaded slot, so the assumption had
+    nowhere to be wrong until today. Live result: the commit landed on the
+    ORIGINAL slot, not the picked one. Working theory, UNCONFIRMED: the
+    commit-sequence's target-slot bytes (CMD 0x03 dirty write, CMD 0x04
+    bank-index write, final CMD 0x02) may only update the target slot's
+    NAME-INDEX ENTRY and then navigate there afterward, while the actual
+    "commit the live edit buffer" operation is tied to whatever slot the
+    rack's own firmware considers currently active internally — which
+    never changed, since deliberately no recall happened first. NEXT:
+    Charlie confirmed the RACK'S OWN FRONT PANEL can do a genuine
+    save-to-a-different-slot (Avid's software cannot) — plan is to run
+    Eleven Edit connected while doing that on the front panel and capture
+    the resulting session log; a catch-all "UNHANDLED CMD" logger was
+    added to sysex-handler.js (parseSysEx) specifically for this, so any
+    command this app has never seen before won't be silently dropped the
+    way it would have been previously. DO NOT re-attempt a blind byte
+    fix here — wait for that capture (project's own "two failed fixes =
+    stop and re-derive" rule; this is failure #1, and real evidence beats
+    a second guess).
     Names come from patchNameCache (state.js) — a lightweight, SESSION-ONLY
     sweep of all 104 user slots via CMD 0x04's REQU form (sendPatchNameQuery/
     scanPatchNames, transport.js/capture-scan.js), fired once per bridge

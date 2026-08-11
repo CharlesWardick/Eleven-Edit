@@ -55,6 +55,17 @@ async function parseSysEx(data) {
     case 0x3D: return handleInputSelectorBroadcast(data);
     case 0x11: return handleParamReadback(data);
   }
+  // Fell through — no case above claimed this CMD (every case returns, so
+  // reaching here means none matched). Added 2026-08-11 for the Save to
+  // Different Slot investigation: a front-panel "save to a different slot"
+  // may use a command this app has never seen, and until now anything
+  // outside PROBE_DUMP_CMDS was silently dropped with no log at all — a
+  // real risk of missing exactly the evidence this investigation needs.
+  // Safe to leave in permanently: a no-op for every command already
+  // handled above (they all return before reaching this line).
+  appLog('UNHANDLED CMD 0x' + cmd.toString(16).padStart(2,'0').toUpperCase() +
+         '  len=' + data.length + 'b  ' +
+         Array.from(data).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' '));
 }
 
 // ════════════════════════════════════════════════════════════════════
