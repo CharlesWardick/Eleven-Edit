@@ -97,8 +97,8 @@ function initLog() {
     // (bumped every session per Primer convention), so this banner is
     // always the actual running build, not a string someone has to remember
     // to update by hand.
-    logWrite('=== Eleven Edit Session Start ' + now.toLocaleString() +
-      ' (v' + app.getVersion() + ') ===');
+    logWrite('=== Eleven Edit (v' + app.getVersion() + ') Session Start ' +
+      now.toLocaleString() + ' ===');
     logWrite('Log: ' + logPath);
     logWrite('userData: ' + userDataPath);
     console.log('Log file: ' + logPath);

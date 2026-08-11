@@ -857,9 +857,12 @@ WORKING:
     read "RigRollerPlus" (the codebase this app was originally spun off
     from) with no version, long after the rename to Eleven Edit — visible
     on line 1 of every log file, confusing when cross-referencing a log
-    against the build that produced it. Now reads "Eleven Edit Session
-    Start ... (v<app.getVersion()>)", reading the live package.json
-    version at runtime instead of a hand-maintained string.
+    against the build that produced it. Now reads "Eleven Edit
+    (v<app.getVersion()>) Session Start ...", reading the live
+    package.json version at runtime instead of a hand-maintained string.
+    Version placement fixed same day (Charlie's catch) — first landed
+    after the timestamp, moved to right after the app name, matching how
+    a build/version stamp normally reads.
   Chain map — full chain stored on every CMD 0x21 (order, block identity,
     model, handle). Amp handle now correct at any chain position.
   Amp and Cab bypass — clickable, position independent, state read from HW.
