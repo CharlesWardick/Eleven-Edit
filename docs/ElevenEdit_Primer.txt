@@ -1,12 +1,39 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-08-10
+Updated: 2026-08-11
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: Active development — BANK EXPORT/IMPORT ("Export All Rigs…" /
-"Import Rigs…") COMPLETE (2026-08-10, TESTED LIVE). Full detail: Tech Ref
-Sec 17 (mechanism) and Sec 24 Change Log (2026-08-10 entry, the session's
-full saga — an abandoned invisible export method, a genuine pre-existing
-race condition found and fixed, and two independent Avid-side quirks
+Status: CHARLIE'S CALL (2026-08-11) — FEATURE-COMPLETE, pending only bugs/
+omissions found during his own several-days test period. "Other than
+changing the version number to 1.0.0 (not today) you may have completed
+the final coding for the program... If I don't find any further obvious
+bugs or omissions then we are finally done." He is now moving on to
+release documentation and the open-source-release side docs, not further
+feature work. A NEW SESSION PICKING THIS UP: do not assume more features
+are wanted — read a fresh bug report/request on its own terms, but do not
+proactively suggest new work. The version is still 1.3.x on purpose
+(Charlie's own bump-every-session convention, Tech Ref/Primer HOW TO WORK
+WITH CHARLIE) — 1.0.0 is reserved for an actual public release, done by
+Charlie, not automatically.
+  2026-08-11 SESSION SUMMARY (full detail: Session Log 2026-08-11 entries,
+  now folded in below) — closed out Bug Report #1 (RigRollerPlus false
+  pauses, multiple rounds — settle-window then value-comparison fixes),
+  added roller safety gates (SAVE/Load TFX/Export/Import force a
+  pause-or-stop instead of silently racing the roll; tuner joined the
+  same pause set, plus a local tuner-off-on-nav mimic matching Avid's
+  editor), revised the Jump List into a dense single-view spreadsheet
+  table (dropped the old "by slot" grid entirely), built and root-caused
+  Save to Different Slot (a real protocol bug found via a live Wireshark
+  capture, not a guess — CMD 0x04's address format was wrong, TESTED LIVE
+  CONFIRMED WORKING per Charlie: "Nailed it works good now"), fixed Bug
+  Report #2 (stale "RigRollerPlus" log banner), and polished the About box
+  (live version, Bandcamp link, Claude Code credit, community footer).
+  Chain Row graphics fallback was discussed and deliberately NOT built
+  (see Session Log — not worth it, real recognition value wasn't there).
+Previously: BANK EXPORT/IMPORT ("Export All Rigs…" / "Import Rigs…")
+COMPLETE (2026-08-10, TESTED LIVE). Full detail: Tech Ref Sec 17
+(mechanism) and Sec 24 Change Log (2026-08-10 entry, the session's full
+saga — an abandoned invisible export method, a genuine pre-existing race
+condition found and fixed, and two independent Avid-side quirks
 discovered along the way).
   BANK EXPORT/IMPORT: "Export All Rigs…" pulls all 104 slots
   (recall-based, visibly walks the front panel — an invisible no-recall
@@ -19,13 +46,6 @@ discovered along the way).
   the complete picture (what will import, what's being skipped and why)
   rather than either Avid's own silent-stop-partway behaviour or an
   all-or-nothing block over one bad file.
-  CHARLIE'S OWN CALL ON SCOPE (2026-08-10): with this feature working and
-  live-tested, only "Save to Different Slot" was planned as further scoped
-  work; otherwise the app moves into a break-it testing phase over the
-  following days rather than continued feature work, per his own framing —
-  "I could work on this program for another year twiddling and fiddling
-  and it wouldn't be done." UPDATE (2026-08-11): Save to Different Slot is
-  now built (see JUMP LIST entry, WORKING) — NOT YET TESTED LIVE.
 Previously: JUMP LIST (patch-name overlay) COMPLETE
 (2026-08-03, TESTED LIVE), plus AMP CONTROLS TONE-KNOB REORDER and four
 other confirmed fixes, all the same day — a long single session that
@@ -788,9 +808,9 @@ WORKING:
     there's no "empty slot" case; an unused slot just shows whatever patch
     (often a zeroed default) happens to be stored there, same as any other
     slot.
-    SLOT PICKER (2026-08-11, UI TESTED LIVE + WORKING; the underlying
-    write BUG FOUND AND FIXED same day, NOT YET RE-TESTED LIVE) — the
-    SAME overlay is now also reused as a picker for "Save to [a
+    SLOT PICKER (2026-08-11, TESTED LIVE, CONFIRMED WORKING — Charlie:
+    "Nailed it works good now") — the SAME overlay is now also reused as
+    a picker for "Save to [a
     different] Slot" rather than building a second UI: openSlotPicker()
     (index.html) opens it and returns a Promise resolved with the clicked
     slot number (or null if cancelled via Close/outside click), instead of
@@ -815,8 +835,7 @@ WORKING:
     every real save before this investigation happened to be in a case
     where that didn't matter. Full detail and the exact byte comparison:
     Tech Ref Sec 15. Fixed in saveCurrentPatchToSlot (capture-scan.js).
-    NOT YET TESTED LIVE against this fix — needs a real save to a
-    non-Bank-A slot to confirm.
+    RE-TESTED LIVE, CONFIRMED WORKING (Charlie, 2026-08-11).
     Names come from patchNameCache (state.js) — a lightweight, SESSION-ONLY
     sweep of all 104 user slots via CMD 0x04's REQU form (sendPatchNameQuery/
     scanPatchNames, transport.js/capture-scan.js), fired once per bridge
@@ -1149,8 +1168,9 @@ NOT YET IMPLEMENTED (largest first):
     HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
     defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
     slot argument and never used currentParamHi. Do not assume it is fixed.
-  Save to Different Slot — IMPLEMENTED 2026-08-11 (NOT YET TESTED LIVE),
-    moved out of this list — see JUMP LIST entry above (WORKING) for the
+  Save to Different Slot — IMPLEMENTED 2026-08-11, TESTED LIVE and
+    CONFIRMED WORKING (Charlie: "Nailed it works good now"), moved out of
+    this list — see JUMP LIST entry above (WORKING) for the
     mechanism (the Jump List overlay reused as a picker, clicking the Save
     to Rack modal's slot label). The disabled "Save to Different Slot…
     (coming soon)" dropdown item (index.html save-dropdown) is a SEPARATE,
@@ -1240,6 +1260,10 @@ covered under CONFIRMED ARCHITECTURE above.
                    branches on .xml vs .zip source, requiring
                    zip-writer.js's readZip for the zip case. See Tech
                    Ref Sec 17 for the full mechanism.
+                   Session-log banner (Bug Report #2, 2026-08-11) reads
+                   "Eleven Edit (v<app.getVersion()>) Session Start ..."
+                   instead of a hardcoded "RigRollerPlus" (this app's
+                   original codebase name) — live from package.json.
   preload.js       Electron preload; exposes electronAPI to the renderer, incl.
                    the splash* wrappers and quitApp/appReady used by the startup
                    gate (both windows load the same preload.js), and
@@ -1248,12 +1272,25 @@ covered under CONFIRMED ARCHITECTURE above.
                    readImportBank (2026-08-10, Bank Export/Import).
   index.html       Full UI — HTML + CSS + script tags. All panels (amp, cab/mic,
                    DIST, REVERB), the SAVE dropdown, settings panel, chain row.
-                   Jump List overlay (#slot-matrix, 2026-08-03) — buildMatrix
-                   (IIFE, builds the 26x4 grid once at parse time),
-                   refreshMatrixCells/refreshNamedMatrixSlot (repaint for
-                   whichever of the two views — by-slot compact vs by-name
-                   148px — matrixMode is currently showing), the split
-                   left/right click handler on #patch-name-box. Global dark
+                   Jump List overlay (#slot-matrix, 2026-08-03, rebuilt as a
+                   true table + reused as a slot picker 2026-08-11) —
+                   buildNameTable (IIFE, builds the header row/column +
+                   104-cell #matrix-name-table once at parse time; the old
+                   "by slot" grid and its buildMatrix/matrixMode split were
+                   removed the same day), refreshMatrixCells/
+                   refreshNamedMatrixSlot (repaint from patchNameCache),
+                   openSlotPicker/matrixPickerResolve/closeSlotMatrix
+                   (picker mode — a cell click resolves a Promise with the
+                   picked slot instead of navigating there; used by the
+                   Save to Rack modal's clickable slot label), one click
+                   handler on #patch-name-box (open/close, no more left/
+                   right split). Roller safety gates (2026-08-11):
+                   pauseRollerForSave/stopRollerForBankOp calls wired into
+                   the SAVE dropdown and Load TFX/Export/Import handlers
+                   — see patch-nav.js for the functions themselves. About
+                   box (2026-08-11): live version via getAppVersion(),
+                   Bandcamp link, Claude Code credit, community footer.
+                   Global dark
                    ::-webkit-scrollbar styling (applies app-wide, not just
                    here). Speaker Breakup slider's fully custom track/thumb
                    CSS (--track-color/--fill-pct, set by updateBreakupColor,
@@ -1334,6 +1371,17 @@ covered under CONFIRMED ARCHITECTURE above.
                    wasn't reliably updated in time; now trusts
                    pendingScanResolve unconditionally for CMD 0x01 replies
                    instead. See Tech Ref Sec 17.
+                   Roller pause-on-edit (2026-08-11, Bug Report #1): CMD
+                   0x03's dirty-flag branch (handleSaveRigResponse) and
+                   CMD 0x11's Format-A branch (handleParamReadback) both
+                   call the shared maybePauseRollerOnEdit (patch-nav.js) —
+                   see there for why two independent triggers exist.
+                   handleBulkTfxData's isSave branch also now pauses the
+                   roller on a confirmed hardware save. Catch-all
+                   "UNHANDLED CMD" logger added at the end of parseSysEx —
+                   anything not matched by the switch used to be silently
+                   dropped with zero trace; now every command byte gets at
+                   least a raw hex log line.
   ui.js            Knob rendering, tone knobs, Bright toggle, drag/reorder
                    handlers, chain-row render, knob-colour (dirty) tracking.
                    showStartupGate/hideStartupGate/splashSetProgress drive the
@@ -1346,6 +1394,8 @@ covered under CONFIRMED ARCHITECTURE above.
                    moves the DOM nodes themselves), carrying both value AND
                    the red/amber baseline (dataset.orig) with it on every
                    swap (see Tech Ref Sec 24 for the two bugs this closed).
+                   handleTunerCC (2026-08-11) calls pauseRollerForTuner
+                   (patch-nav.js) on the confirmed ON transition only.
   fx-panels.js     Per-effect-panel UI (DIST, REVERB, WAH, VOL, DELAY, FX
                    LOOP), split out of ui.js for the same reason
                    as fx-transport.js. DELAY additionally has its own
@@ -1369,7 +1419,20 @@ covered under CONFIRMED ARCHITECTURE above.
                    ui.js even load, which raced the scan's own promise
                    resolution against those files defining the functions it
                    calls; init() only runs after every script has loaded).
-  patch-nav.js     Patch navigation logic and the post-nav state pull.
+  patch-nav.js     Patch navigation logic (goToSlot/stepNav/autoStep) and the
+                   post-nav state pull. goToSlot also clears lastNavTime/
+                   paramSettleBaseline (roller pause-on-edit gating) and
+                   mimics tuner-off on nav (2026-08-11 — matches Avid's
+                   editor instead of waiting on a broadcast). Roller
+                   pause/stop helpers (2026-08-11, Bug Report #1 + safety
+                   gates): togglePause/stopAuto (existing) plus
+                   maybePauseRollerOnEdit (shared by the CMD 0x03 dirty-flag
+                   and CMD 0x11 param-change triggers, sysex-handler.js),
+                   pauseRollerForSave/pauseRollerForTuner (unconditional
+                   pause on SAVE click / confirmed tuner-ON), and
+                   stopRollerForBankOp (forces a clean Stop for Load TFX/
+                   Export All Rigs/Import Rigs — see index.html for the
+                   call sites).
   capture-scan.js  TFX capture to disk, bank scan, load/save (Save-to-Rack and
                    Save-to-Disk, rename). scanPatchNames (Jump List, 2026-08-03)
                    paces the 104 read-only name queries; saveCurrentPatchToSlot
@@ -1379,6 +1442,12 @@ covered under CONFIRMED ARCHITECTURE above.
                    Export All Rigs (bank-transfer.js, 2026-08-10) rather than
                    duplicated; see Tech Ref Sec 17 for the race condition
                    found and fixed in its reply-matching this same session.
+                   saveCurrentPatchToSlot/saveToRackAndDisk (2026-08-11, Save
+                   to Different Slot) take an optional targetSlot, default
+                   currentSlot when omitted — every write addresses the
+                   target by RAW SLOT NUMBER (0-103), no bank/num split
+                   anywhere in this function; see Tech Ref Sec 15 for the
+                   real protocol bug this corrected (Step 3 was wrong).
   bank-transfer.js Export All Rigs / Import Rigs (2026-08-10) — exportAllRigs
                    (walks scanSlot() over all 104, builds disambiguated
                    filenames, hands entries to main.js's export-bank IPC) and

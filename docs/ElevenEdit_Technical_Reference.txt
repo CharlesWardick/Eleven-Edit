@@ -1476,9 +1476,9 @@ READ form (sendPatchNameQuery, transport.js, 2026-08-03's "B1-B4 show
 a1-a4" bug) — that fix was never generalized to this WRITE form, which is
 how the same mistake survived here for months. Sec 15's step table above
 is now corrected in place; code fix in saveCurrentPatchToSlot
-(capture-scan.js). See Session Log 2026-08-11 for the full incident,
-Primer for current app-level state (NOT YET TESTED LIVE against this
-fix).
+(capture-scan.js). RE-TESTED LIVE, CONFIRMED WORKING (Charlie, 2026-08-11:
+"Nailed it works good now"). See Session Log 2026-08-11 for the full
+incident.
 
 POST-SAVE HANDLE REFRESH (7/26/2026). A commit re-instantiates the patch and
 REASSIGNS block handles (see Sec 4), so after the save-confirm bulk broadcast
@@ -3048,6 +3048,52 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-08-11 (Bug Report #1 fixed, roller safety gates, Jump List revised,
+  Save to Different Slot built + root-caused + fixed, Bug Report #2 fixed,
+  About box polish — CHARLIE'S CALL: FEATURE-COMPLETE as of this session)
+  — full detail across Sec 4 (tuner-off-on-nav), Sec 15 (Save protocol
+  correction), Sec 22 (0x04 USB framing, referenced during the Wireshark
+  decode), and the Session Log's full run of 2026-08-11 entries.
+  RIGROLLERPLUS FALSE PAUSES (Bug Report #1): root-caused to CMD 0x03's
+  data[7] being a per-slot DIRTY flag, not a save-event — it fires as a
+  side effect of ordinary nav, so the roller was self-pausing on
+  already-dirty slots with no user action. Two more rounds followed a
+  first fix that (correctly, per Charlie's catch) restored the existing
+  pause-on-edit behavior a first pass had wrongly deleted, then replaced
+  a time-window guard with a value-comparison approach once Charlie
+  proved a real quick edit could lose the race against the window. Closed
+  at 1.3.13 by Charlie's own call — an edge case remains but is
+  "a lot harder" to hit, not worth more tuning.
+  ROLLER SAFETY GATES: SAVE now pauses the roller unconditionally on
+  click; Load TFX/Export All Rigs/Import Rigs force a clean Stop, no
+  confirm modal (Charlie's explicit call on scope, option "a" over "b").
+  Tuner joined the same pause set (confirmed-broadcast only, not the
+  local click); a local tuner-off mimic on nav was added separately,
+  matching real hardware/Avid-editor behaviour instead of waiting on a
+  broadcast a plain nav doesn't reliably produce.
+  JUMP LIST: "by name" rebuilt as a true spreadsheet table (one header
+  row/column, no repeated "BANK X" chrome, ElevenHack's own patch list as
+  the density reference) — TESTED LIVE, "the winner" per Charlie. The old
+  "by slot" compact grid was dropped entirely once the table alone proved
+  clean enough. Two follow-up CSS rounds fixed the current-slot highlight
+  losing edges under border-collapse — root cause was the collapse model
+  itself (not the highlight's decoration type), fixed by switching the
+  table to separate borders.
+  SAVE TO DIFFERENT SLOT: built by reusing the Jump List overlay as a
+  picker. First live test failed (committed to the original slot, not the
+  picked one) — root-caused via a live Wireshark capture of Avid's own
+  "Save Rig To…" (not a guess): the save protocol's Step 3 (CMD 0x04)
+  uses [0x00][raw_slot] addressing, not the documented [bank][num] split.
+  The bug had hidden itself for months — bank/num and 0x00/raw_slot are
+  byte-identical for any Bank A target, which is where real saves always
+  landed until this session. TESTED LIVE, CONFIRMED WORKING after the
+  fix. Sec 15's step table corrected in place.
+  BUG REPORT #2: main.js's session-log banner still said "RigRollerPlus"
+  (this app's original codebase name) with no version. Now reads live
+  from app.getVersion().
+  ABOUT BOX: bigger text, live version number, Bandcamp link, Claude Code
+  credit, community disclaimer footer.
 
 2026-08-10 (Bank Export/Import — "Export All Rigs…" / "Import Rigs…",
   NEW FEATURE, TESTED LIVE) — full detail in Sec 17, which this entry
