@@ -53,6 +53,7 @@ document.getElementById('range-from').addEventListener('change', updateRangeLabe
 document.getElementById('range-to').addEventListener('change',   updateRangeLabel);
 
 function goToSlot(slot) {
+  lastNavTime = performance.now();
   updateDisplay(slot);
   sendPC(slot);
   clearStaleReadoutsOnNav();

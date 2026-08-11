@@ -64,6 +64,11 @@ let autoStartTime = null;
 let autoElapsed   = 0;
 let autoPaused    = false;
 let wasStopped    = true; // true at launch and after Stop — forces jump to FROM on next Start
+// Timestamp (performance.now()) of the most recent slot navigation — lets the
+// roller tell a genuine user edit's dirty-flag broadcast apart from the
+// hardware's own settle/query traffic right after a recall lands on an
+// already-dirty slot (2026-08-11 false-pause bug). null until the first nav.
+let lastNavTime   = null;
 
 // ── Gate CC table — per amp model (CC for Threshold, CC for Release) ──
 // NOTE (7/9/2026): sl100drive/crunch/clean's thresh/release CCs were

@@ -893,6 +893,11 @@ var NAV_QUERY_GAP    = 15;   // between ordinary queries
 var NAV_RECALL_SETTLE = 100; // after the patch recall, before querying
 var NAV_CHAIN_TIMEOUT = 900; // max wait for the chain map reply (see below)
 var NAV_AMP_TIMEOUT   = 700; // max wait for the amp identity reply (see below)
+var ROLLER_NAV_SETTLE_GUARD = 2000; // ms after a recall during which an
+  // incoming CMD 0x03 dirty-flag broadcast is treated as settle/query noise
+  // from the recall itself (worst case: NAV_RECALL_SETTLE + NAV_CHAIN_TIMEOUT
+  // + NAV_AMP_TIMEOUT + several NAV_QUERY_GAPs), not a genuine user edit —
+  // see sysex-handler.js handleSaveRigResponse and the 2026-08-11 bug report.
 var NAV_BASELINE_SETTLE = 250; // after the last query, before snapshotting the
                                // knob-colour baseline (item A) — lets the async
                                // CMD 0x11 replies land first. Raise if a freshly

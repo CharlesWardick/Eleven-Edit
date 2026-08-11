@@ -63,14 +63,27 @@ EVIDENCE:    RigRollerPlus session-2026-08-11-112642.log lines 8327,
              11:28-11:31, long before any save).
 CONFLICTS:   none — clarifies Tech Ref Sec 4's existing "CMD 0x03 dirty
              flag" note, does not contradict it.
-NEXT:        FIXED (code) — removed the CMD 0x03-based pause heuristic;
-             roller pause now hooks the already-reliable hardware-save
-             detector in handleBulkTfxData's isSave branch (armed by the
-             genuine CMD 0x04 + same-slot CMD 0x00 save sequence, Sec 15).
-             NOT YET TESTED LIVE — needs a real front-panel save during an
-             active roll to confirm the roller still pauses on a genuine
-             save, and several slot changes across dirty slots to confirm
-             no more false pauses.
+NEXT:        FIXED, 1st pass (WRONG SCOPE): deleted the CMD 0x03 dirty-
+             flag pause trigger outright and routed roller-pause only
+             through handleBulkTfxData's isSave (real-save) branch. Broke
+             an existing, working feature — Charlie confirmed the dirty-
+             flag trigger is what correctly pauses the roll when a user
+             touches ANY control (bass, vol, etc.) mid-roll; that behavior
+             is intentional and was not part of the reported bug.
+             FIXED, 2nd pass (CORRECT SCOPE): restored the dirty-flag
+             pause-on-edit trigger, but gated it with a settle-window
+             guard — ROLLER_NAV_SETTLE_GUARD (2000ms, transport.js) —
+             using a new lastNavTime timestamp set in goToSlot
+             (patch-nav.js). A CMD 0x03 dirty broadcast arriving within
+             2000ms of the last recall is treated as settle/query noise
+             from the recall itself (matches worst-case NAV_RECALL_SETTLE
+             + NAV_CHAIN_TIMEOUT + NAV_AMP_TIMEOUT + query gaps); one
+             arriving after that window pauses the roll same as before.
+             Real hardware-save pause (isSave branch) is untouched and
+             coexists with this. NOT YET TESTED LIVE — needs (a) a full
+             roll session with no false pauses on dirty slots, (b) a knob
+             touch mid-roll (after settle) still pausing it, and (c) a
+             real front-panel save during a roll still pausing it.
 
 (All other folded / resolved / closed entries have been drained to the
 Archive — see the index below.)

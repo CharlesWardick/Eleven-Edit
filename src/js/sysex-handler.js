@@ -352,19 +352,34 @@ function handleSlotConfirm(data) {
 // CMD 0x03 — Save rig response
 // ════════════════════════════════════════════════════════════════════
 // data[7] is a per-slot DIRTY flag (0x01 = that slot has unsaved edits
-// pending, 0x00 = clean), NOT a save-just-happened event — see Tech Ref
-// Sec 15 (a real software save sends CMD 0x03 with data[7]=0x00) and
-// Sec 4 ("CMD 0x03 dirty flag"). This announcement also fires as a normal
-// side effect of CMD 0x02 slot navigation (Tech Ref Sec 6: "the hardware
-// echoes the requested slot in both the 0x03 and 0x02 announcements"), so
-// it fires on EVERY slot change, including the roller's own auto-advance —
-// landing on a slot that happens to already be dirty from earlier editing
-// used to falsely read as "hardware save detected" and self-pause the
-// roller (2026-08-11 bug report). Roller pause-on-save now hooks the
-// confirmed hardware-save signal instead — see handleBulkTfxData's isSave
-// branch, armed by the real CMD 0x04 + CMD 0x00 same-slot save sequence.
+// pending, 0x00 = clean) — see Tech Ref Sec 4 ("CMD 0x03 dirty flag").
+// PAUSE-ON-EDIT (intended feature): the roller pauses when the flag flips
+// to dirty, since that's exactly what happens the instant a user touches
+// any control (bass, vol, etc.) mid-roll — confirmed working before
+// 2026-08-11.
+// PAUSE-ON-SAVE (separate, confirmed feature) is handled elsewhere — see
+// handleBulkTfxData's isSave branch, armed by the real CMD 0x04 + CMD 0x00
+// same-slot save sequence.
+// THE 2026-08-11 BUG: CMD 0x03 also fires as a normal side effect of plain
+// CMD 0x02 slot navigation (Tech Ref Sec 6 — "the hardware echoes the
+// requested slot in both the 0x03 and 0x02 announcements"), including the
+// settle/query traffic right after the roller's OWN auto-advance recall.
+// Landing on a slot that was already dirty from earlier editing (this
+// session or a previous one) then broadcasts data[7]=0x01 with no user
+// having touched anything, and used to falsely pause the roll. FIX: only
+// treat the dirty flag as a real edit once the post-recall settle window
+// (ROLLER_NAV_SETTLE_GUARD, transport.js) has passed — a genuine user
+// touch during that early window is rare and, if missed, will still catch
+// the NEXT edit; a false pause on every dirty slot happened every time.
 function handleSaveRigResponse(data) {
   appLog('CMD 0x03 response: ' + Array.from(data).map(b=>b.toString(16).padStart(2,'0')).join(' '));
+  const sinceNav = lastNavTime === null ? Infinity : (performance.now() - lastNavTime);
+  if (data.length >= 8 && data[7] === 0x01 && autoStartTime !== null && !autoPaused &&
+      sinceNav >= ROLLER_NAV_SETTLE_GUARD) {
+    togglePause();
+    appLog('Roller paused — control edited during roll (CMD 0x03 dirty flag, ' +
+           Math.round(sinceNav) + 'ms after last nav)');
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
