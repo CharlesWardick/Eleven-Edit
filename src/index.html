@@ -779,8 +779,9 @@
     background: #100808; border: 2px solid var(--accent-dim); border-radius: 10px;
     padding: 24px 28px; max-width: 460px; width: 100%; display: flex; flex-direction: column; gap: 14px;
   }
-  #about-box { background: #121212; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+  #about-box { background: #121212; max-width: 560px; max-height: 80vh; overflow-y: auto; }
   #watchdog-box h3, #scan-box h3, #about-box h2 { font-size: 15px; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+  #about-box h2 { font-size: 19px; }
   #watchdog-msg { font-size: 13px; color: var(--text); line-height: 1.7; white-space: pre-line; }
   #btn-watchdog-ok, #btn-scan-skip, #btn-about-close {
     background: transparent; border: 2px solid var(--accent-dim); color: var(--accent);
@@ -791,9 +792,9 @@
   #scan-progress-text { font-size: 13px; color: var(--text); font-family: 'Consolas', monospace; }
   #scan-progress-track { background: var(--raised); border: 1px solid var(--border2); border-radius: 4px; height: 10px; overflow: hidden; }
   #scan-progress-bar { background: var(--accent-dim); height: 100%; width: 0%; transition: width 0.15s linear; }
-  .about-version { font-size: 11px; color: var(--text-dark); letter-spacing: 1px; margin-top: -8px; }
-  .about-section h3 { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
-  .about-section p  { color: var(--text-dim); font-size: 12px; line-height: 1.7; }
+  .about-version { font-size: 13px; color: var(--text-dark); letter-spacing: 1px; margin-top: -8px; }
+  .about-section h3 { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+  .about-section p  { color: var(--text-dim); font-size: 14px; line-height: 1.7; }
   .about-section a  { color: var(--accent-dim); text-decoration: none; }
   #avid-msg { font-size: 12px; color: var(--accent); display: none; }
 
@@ -1726,15 +1727,17 @@
 <div id="about-overlay">
   <div id="about-box">
     <h2>Eleven Edit</h2>
-    <div class="about-version">Phase 6 — July 2026</div>
+    <div class="about-version" id="about-version">Version —</div>
     <div class="about-section">
       <h3>Design &amp; Concept</h3>
-      <p>Charles Wardick — <a href="mailto:charles.wardick@gmail.com">charles.wardick@gmail.com</a></p>
+      <p>Charles Wardick — <a href="mailto:charles.wardick@gmail.com">charles.wardick@gmail.com</a><br>
+      Music: <a href="https://wardick.bandcamp.com" target="_blank">wardick.bandcamp.com</a></p>
     </div>
     <div class="about-section">
       <h3>Architecture</h3>
       <p>Java WebSocket bridge (ElevenRackBridge.jar) owns all MIDI hardware access via javax.sound.midi.
-      Electron renderer communicates over ws://localhost:57121. No iLok, no Avid software required.</p>
+      Electron renderer communicates over ws://localhost:57121. No iLok, no Avid software required.
+      Built with <a href="https://claude.com/claude-code" target="_blank">Claude Code</a>, Anthropic's AI coding assistant.</p>
     </div>
     <div class="about-section">
       <h3>Startup Flags</h3>
@@ -1748,6 +1751,14 @@
       independently from scratch. But its SysEx protocol map leans heavily
       on prior reverse-engineering work by Guillaume Schmid —
       <a href="https://sites.google.com/site/elevenhack/" target="_blank">ElevenHack (2013)</a>.</p>
+    </div>
+    <div class="about-section">
+      <h3>For The Community</h3>
+      <p>Free to use and share. Released to the Eleven Rack community with
+      no warranty expressed or implied. Use at your own risk. Always back
+      up your unit before loading new banks. The author is not responsible
+      for lost patches, corrupted banks, or gear that mysteriously starts
+      playing better than you can.</p>
     </div>
     <button id="btn-about-close">CLOSE</button>
   </div>
@@ -2596,8 +2607,15 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
 // ════════════════════════════════════════════════════════════════════
 // ABOUT
 // ════════════════════════════════════════════════════════════════════
-document.getElementById('btn-about').addEventListener('click', function() {
+document.getElementById('btn-about').addEventListener('click', async function() {
   document.getElementById('about-overlay').classList.add('open');
+  // Read live from package.json (main.js's app.getVersion(), same source as
+  // the session-log banner, Bug Report #2) rather than a hand-maintained
+  // "Phase N" string that goes stale the moment nobody remembers to bump it.
+  if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
+    const v = await window.electronAPI.getAppVersion();
+    document.getElementById('about-version').textContent = 'Version ' + v;
+  }
 });
 document.getElementById('btn-about-close').addEventListener('click', function() {
   document.getElementById('about-overlay').classList.remove('open');
