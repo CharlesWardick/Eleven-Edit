@@ -779,7 +779,15 @@
     max-width: 1px; /* forces the cell to respect its column width, not the text */
   }
   #matrix-name-table td.matrix-name-cell:hover { border-color: var(--accent); }
-  #matrix-name-table td.matrix-name-cell.current { background: #2d2200; border-color: var(--accent); color: var(--accent); }
+  /* outline, not border-color, for .current — border-collapse merges each
+     shared edge into ONE line and picks a winner between the two cells
+     touching it, so a border-only highlight loses its top/left edges to
+     the plain grey of the cell above/left (seen live, 2026-08-11). An
+     outline sits outside the collapse entirely, so all four edges show. */
+  #matrix-name-table td.matrix-name-cell.current {
+    background: #2d2200; color: var(--accent);
+    outline: 1px solid var(--accent); outline-offset: -1px;
+  }
 
   /* ══ MODALS ══ */
   #watchdog-overlay, #scan-overlay, #about-overlay {
