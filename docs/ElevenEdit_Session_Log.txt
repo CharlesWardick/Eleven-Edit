@@ -39,7 +39,8 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      provisional — code fixed, NOT YET TESTED LIVE
+STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-27): min/max/midpoint
+             (0.0 at centre) all correct on both To Amp 1 and To Amp 2.
 AREA:        To Amp 1/2 Volume / CMD 0x36 / sendToAmpVolume (transport.js)
 FINDING:     Charlie's report: both To Amp knobs rotate correctly from mute
              to +12 but hardware never actually reads past +11.8 at the top
@@ -70,12 +71,13 @@ EVIDENCE:    Charlie's live-hardware report (11.8 max, never 12.0); Tech Ref
              existing 7/23/2026 fix as the confirmed working pattern for
              this exact symptom shape.
 CONFLICTS:   none — pure bug fix, no documented value changes.
-NEXT:        Charlie to build 1.3.29+ and confirm live that both To Amp
-             knobs now hold exactly +12.0 dB at full clockwise. NOTE:
-             sendMasterVolume (transport.js, same CMD 0x36 family, Main Vol
-             on the chain strip) almost certainly has the identical gap -
-             flagged to Charlie, not fixed yet since it wasn't the reported
-             bug and is a separate control; fix on request.
+NEXT:        None — closed. CONFIRMED LIVE 2026-08-27. Master (Main) Volume
+             was flagged as a same-family risk but Charlie clarifies it is
+             NOT a knob (it's the chain-strip stepper/value-box control,
+             valToMasterVol) and is already spot-on at every value he's
+             checked — the endpoint-sentinel gap is specific to the two
+             CANVAS KNOB controls (To Amp 1/2) using sendToAmpVolume; no
+             action needed on Master Volume.
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
