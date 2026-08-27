@@ -2165,6 +2165,7 @@ document.getElementById('patch-name-box').addEventListener('click', function() {
   if (m.classList.contains('open')) { closeSlotMatrix(); return; }
   document.querySelector('.matrix-title').textContent = 'PATCH NAMES — click to jump';
   refreshMatrixCells();
+  if (typeof currentSlot !== 'undefined') updateMatrixHighlight(currentSlot);
   m.classList.add('open');
 });
 
@@ -2193,6 +2194,7 @@ function openSlotPicker() {
     matrixPickerResolve = resolve;
     document.querySelector('.matrix-title').textContent = 'PICK A SLOT';
     refreshMatrixCells();
+    if (typeof currentSlot !== 'undefined') updateMatrixHighlight(currentSlot);
     document.getElementById('slot-matrix').classList.add('open');
   });
 }
@@ -2224,6 +2226,7 @@ function updateNavDisplay(slot) {
   document.getElementById('nav-patch-slot').textContent = patch;
   document.getElementById('slot-display').textContent   = bankLetter + patch;
   document.getElementById('slot-num').textContent       = 'Slot ' + slot;
+  if (typeof updateMatrixHighlight === 'function') updateMatrixHighlight(slot);
 }
 
 // Monkey-patch updateDisplay to also refresh the nav display

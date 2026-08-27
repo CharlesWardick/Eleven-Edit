@@ -39,6 +39,40 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
+STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        Jump List / slot matrix current-patch highlight (src/index.html)
+FINDING:     Charlie asked for the current patch to be highlighted in the
+             Jump List flyout — we already know the current slot before
+             opening it. Turned out to be nearly free: updateMatrixHighlight
+             (slot) (toggles a `.current` class per cell) and the matching
+             CSS (#matrix-name-table td.matrix-name-cell.current — amber
+             ring/fill matching the accent) already existed in the code but
+             were never called from anywhere, so the ring never appeared.
+             Wired it in three places: (1) the patch-name-box click handler
+             that opens the Jump List, (2) openSlotPicker() (the same
+             overlay reused for Save-to-different-slot), both call
+             updateMatrixHighlight(currentSlot) right after
+             refreshMatrixCells() and before the overlay opens; (3)
+             updateNavDisplay(slot) — called on every patch nav via the
+             updateDisplay monkey-patch — also calls it, so the ring stays
+             correct even if a nav somehow happens while the overlay is
+             open. All three are in the same top-level <script> block
+             (index.html ~1881-2759) as updateMatrixHighlight's own
+             definition, so function hoisting covers the call order; no
+             new globals, no new state.
+EVIDENCE:    Text/JS-only diff, src/index.html (three call sites, no CSS or
+             markup changes — the `.current` styling and the highlight
+             function were both already present, just dead code until now).
+             Version bumped 1.3.42 -> 1.3.43 (package.json).
+CONFLICTS:   none
+NEXT:        NOT YET TESTED LIVE — needs hardware connected to confirm the
+             ring appears on the correct cell both on first open and after
+             navigating with the overlay closed, and that it doesn't
+             misbehave in slot-picker mode (Save to different slot).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
 STATUS:      confirmed
 AREA:        README.md Requirements section — docs only, no code/protocol touched
 FINDING:     Charlie asked for the README's Requirements TODO to be filled
