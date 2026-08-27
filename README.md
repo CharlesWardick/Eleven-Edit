@@ -29,10 +29,15 @@ coding assistant.
 
 ## Requirements
 
-<!-- TODO: confirm/complete exact versions and OS support. -->
 - An Avid Eleven Rack connected over USB.
-- A Java runtime (for the bridge).
-- Windows / macOS / Linux <!-- TODO: state which are actually tested. -->
+- The Avid Eleven Rack USB driver (v1.1.12 confirmed working) installed —
+  the Avid Eleven Rack Editor itself is not needed, just its driver.
+- A Java runtime for the bridge (JRE 21 or newer confirmed working).
+- **Windows 10 or Windows 11** — the only platforms tested and supported
+  today. macOS and Linux are untested; the Avid driver and this app's MIDI
+  access are both Windows-only as it stands. Porting to other platforms is
+  a hoped-for community contribution after open-source release, not
+  something the current codebase has been adapted for yet.
 
 ## Install / Build
 

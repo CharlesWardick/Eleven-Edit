@@ -40,6 +40,32 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-27
 STATUS:      confirmed
+AREA:        README.md Requirements section — docs only, no code/protocol touched
+FINDING:     Charlie asked for the README's Requirements TODO to be filled
+             in with real values (OS support, Avid driver, Java) ahead of
+             an eventual open-source release. Pulled from confirmed facts
+             already in the Primer (PLATFORM MATRIX, 7/21/2026) and Tech
+             Ref: Avid USB driver v1.1.12 confirmed working; Eleven Edit
+             itself runs on Windows 10 and Windows 11 (22H2 and 26H1, VM
+             and physical) — macOS/Linux have never been run or tested,
+             so listed as unsupported today, with a note that portability
+             is a hoped-for post-open-source community contribution, not
+             yet attempted in the codebase. Java: JRE 21 confirmed working
+             at runtime (bridge itself targets --release 8 for broad JRE
+             compatibility). Removed the two TODO comments in this section.
+EVIDENCE:    Text-only diff, README.md Requirements section. Cross-checked
+             against Primer's 7/21/2026 PLATFORM MATRIX and "Java: bridge
+             is Java 8 compatible... runtimes verified on 21, 25 and 26"
+             line. Version bumped 1.3.41 -> 1.3.42 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to confirm the Requirements section reads accurately;
+             Install/Build section below it still has its own TODOs
+             (release link, from-source steps) not addressed here.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      confirmed
 AREA:        About box Architecture section (src/index.html) + README.md —
              BRIDGE-INDEPENDENT, no hardware/protocol touched
 FINDING:     Charlie flagged "No iLok, no Avid software required" as
