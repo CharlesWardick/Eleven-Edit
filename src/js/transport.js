@@ -492,11 +492,23 @@ function sendCabParamWrite(paramLo, v127) {
 // HW was reading the extra 0x02 byte as slot (always To Amp 1) and
 // our slot byte as v0, causing both knobs to control To Amp 1.
 // v0 = raw 0x00–0x7F (direct, no formula).
+// ENDPOINT SENTINEL (added 2026-08-27 — the "9.9 bug", ported here from
+// sendParamWrite/CMD 0x11). Sec 7 already documents CMD 0x36 as part of the
+// same single-byte-offset-binary family as 0x11/0x07, sentinels included
+// (min 0x40 00 00 00, max 0x3F 7F 7F 7F) — this command just never got the
+// fix applied. A plain "v0 00 00 00 00" tail asks for the BOTTOM of v0's
+// step, not its top; for the true max (v0=0x3F) that lands about one step
+// short of +12.0 dB, matching Charlie's report of maxing out at 11.8. The
+// true min (v0=0x40 00 00 00) was already correct by coincidence — the
+// bottom of that step IS the true minimum, so mute was never affected.
 function sendToAmpVolume(slot, v127) {
-  const v0 = ((v127 + 64) % 128) & 0x7F;
+  let v0, tail;
+  if (v127 >= 127)     { v0 = 0x3F; tail = '7F 7F 7F 7F'; }
+  else if (v127 <= 0)  { v0 = 0x40; tail = '00 00 00 00'; }
+  else                 { v0 = ((v127 + 64) % 128) & 0x7F; tail = '00 00 00 00'; }
   const hex = 'F0 13 0B 0F 00 36 '
     + slot.toString(16).padStart(2,'0').toUpperCase() + ' '
-    + v0.toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
+    + v0.toString(16).padStart(2,'0').toUpperCase() + ' ' + tail + ' F7';
   appLog('sendToAmpVolume: slot=0x' + slot.toString(16).padStart(2,'0') + ' v127=' + v127 + ' v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase());
   return sendPatchWrite(hex);
 }

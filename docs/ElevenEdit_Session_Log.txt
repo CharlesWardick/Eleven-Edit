@@ -38,6 +38,47 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      provisional — code fixed, NOT YET TESTED LIVE
+AREA:        To Amp 1/2 Volume / CMD 0x36 / sendToAmpVolume (transport.js)
+FINDING:     Charlie's report: both To Amp knobs rotate correctly from mute
+             to +12 but hardware never actually reads past +11.8 at the top
+             end (min/mute end is fine). Root cause: sendToAmpVolume never
+             got the endpoint-sentinel fix that sendParamWrite (CMD 0x11)
+             got on 7/23/2026 for the same "9.9 bug" class of symptom. Tech
+             Ref Sec 7 already documents CMD 0x36 as part of the same
+             single-byte-offset-binary family as 0x11/0x07, sentinels
+             included (min 0x40 00 00 00, max 0x3F 7F 7F 7F) - the fix was
+             simply never applied to this specific send function. The old
+             code always sent v0 + a flat "00 00 00 00" tail, which for the
+             true top value (v0=0x3F) asks for the BOTTOM of that step, not
+             the top - landing about one 24dB/127-step (~0.19 dB) short of
+             +12.0, consistent with the reported 11.8. Min was unaffected by
+             coincidence: 0x40 00 00 00 already IS the true minimum's exact
+             encoding, so there's no "bottom of the step" gap to fall into
+             at that end. FIXED: sendToAmpVolume (transport.js) now special-
+             cases v127>=127 with tail "7F 7F 7F 7F" (true max) and
+             v127<=0 with "00 00 00 00" (unchanged, already correct),
+             matching sendParamWrite's approach but WITHOUT copying CMD
+             0x11's extra final-byte 0x10-broadcast-offset quirk (0x0F in
+             its own max sentinel) - that quirk is specific to CMD 0x11's
+             message framing per Sec 7's TRAILING BYTES note and has no
+             documented equivalent for CMD 0x36.
+EVIDENCE:    Charlie's live-hardware report (11.8 max, never 12.0); Tech Ref
+             Sec 7 CONTINUOUS KNOBS entry naming 0x36 in the same family as
+             0x11/0x07 with the same sentinel scheme; sendParamWrite's
+             existing 7/23/2026 fix as the confirmed working pattern for
+             this exact symptom shape.
+CONFLICTS:   none — pure bug fix, no documented value changes.
+NEXT:        Charlie to build 1.3.29+ and confirm live that both To Amp
+             knobs now hold exactly +12.0 dB at full clockwise. NOTE:
+             sendMasterVolume (transport.js, same CMD 0x36 family, Main Vol
+             on the chain strip) almost certainly has the identical gap -
+             flagged to Charlie, not fixed yet since it wasn't the reported
+             bug and is a separate control; fix on request.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-08-11
 STATUS:      [FOLDED IN: Primer WORKING/Tech Ref Sec 15 cross-check]
 AREA:        RigRollerPlus auto-advance / CMD 0x03
