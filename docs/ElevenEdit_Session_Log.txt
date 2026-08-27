@@ -40,6 +40,30 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-27
 STATUS:      confirmed
+AREA:        About box Architecture section (src/index.html) + README.md —
+             BRIDGE-INDEPENDENT, no hardware/protocol touched
+FINDING:     Charlie flagged "No iLok, no Avid software required" as
+             factually wrong: the Avid USB driver (Avid software) IS
+             required, and a hardware rack must be connected, just to run
+             the app at all — you can't even open the About box otherwise.
+             "No Avid EDITOR required" is true but redundant (Eleven Edit
+             replacing that editor is the whole premise of the app).
+             Removed the line entirely from the About box Architecture
+             section. README.md had the identical claim in its opening
+             line (separate from its Acknowledgments section's "no Avid
+             software... was used" claim, which is about development-time
+             sourcing, not runtime requirements, and is accurate as-is) —
+             reworded to "No iLok and no Avid Eleven Rack Editor required —
+             just the Avid USB driver and a connected Eleven Rack."
+EVIDENCE:    Text-only diffs, src/index.html Architecture paragraph and
+             README.md line 4. Version bumped 1.3.40 -> 1.3.41 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to confirm both read correctly.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      confirmed
 AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
 FINDING:     Charlie flagged that "Protocol Research Credit"'s opening line
              ("No code from that project is used here...") had no
