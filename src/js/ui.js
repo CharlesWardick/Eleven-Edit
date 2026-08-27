@@ -41,6 +41,17 @@ function knobColor(canvas, value127) {
   return base;
 }
 
+// Pointer-line knob (replaced the filled glow-ring arc + dot, 2026-08-27,
+// Charlie's call — "hate the glow ring now"). Same red-on-change contract,
+// same track groove; only the value indicator changed, to a single radial
+// line plus a static tick on the track marking the baseline (the value the
+// patch loaded with, wrap.dataset.orig) so a change is visible against
+// where it started, not just what colour it turned. LINE_WIDTH is the one
+// knob to turn bolder later if it reads too thin in the real panels —
+// mocked up at 3 alongside thicker/thinner alternatives before this value
+// was picked; nothing else about the geometry needs to change to retune it.
+const KNOB_LINE_WIDTH = 3;
+
 function drawKnob(canvas, value127) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
@@ -63,12 +74,26 @@ function drawKnob(canvas, value127) {
   ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
   ctx.stroke();
 
-  // Value arc
-  if (value127 > 0) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, r-4, startRad, endRad);
-    ctx.strokeStyle = knobCol; ctx.lineWidth = 5; ctx.lineCap = 'round';
-    ctx.stroke();
+  // Baseline mark — a short static tick on the track at the value this
+  // knob loaded with, so a change reads against where it started, not
+  // just its colour. Only drawn once the live value has actually moved
+  // off it; a knob still sitting on its baseline needs no second marker
+  // on top of its own pointer line.
+  const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
+    const origV = parseInt(wrap.dataset.orig);
+    if (origV !== value127) {
+      const baseRad = startRad + (sweepRad * origV/127);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(baseRad + Math.PI/2);
+      ctx.beginPath();
+      ctx.moveTo(0, -(r-1));
+      ctx.lineTo(0, -(r-8));
+      ctx.strokeStyle = '#888'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // Body
@@ -77,15 +102,16 @@ function drawKnob(canvas, value127) {
   ctx.fillStyle = '#242424'; ctx.fill();
   ctx.strokeStyle = '#484848'; ctx.lineWidth = 1.5; ctx.stroke();
 
-  // Indicator dot — endRad is a canvas arc angle (0=3 o'clock).
-  // The dot offset -(r-17) points up (12 o'clock) before rotation,
-  // so we add PI/2 to align it with the arc endpoint.
+  // Pointer line — endRad is a canvas arc angle (0=3 o'clock). Rotated
+  // frame's "up" (-y) is 12 o'clock, so add PI/2 to align it with endRad.
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(endRad + Math.PI/2);
   ctx.beginPath();
-  ctx.arc(0, -(r-17), 4, 0, Math.PI*2);
-  ctx.fillStyle = knobCol; ctx.fill();
+  ctx.moveTo(0, -6);
+  ctx.lineTo(0, -(r-13));
+  ctx.strokeStyle = knobCol; ctx.lineWidth = KNOB_LINE_WIDTH; ctx.lineCap = 'round';
+  ctx.stroke();
   ctx.restore();
 }
 
