@@ -38,6 +38,58 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-27 (5th entry)
+STATUS:      provisional — code written, NOT YET TESTED LIVE
+AREA:        Chain row / ▼ caret removal (visual only, no protocol change)
+FINDING:     Follow-up to the selection-ring entry above. Charlie: the
+             carets have "no real purpose having moved what they did [to]
+             the graphic handle" (thumb-click has opened/closed panels
+             since 8/2/2026) — asked to remove them and let every effect
+             block's label drop to the same visual baseline as GUITAR/
+             STEREO/TEMPO. AMP-CAB (never had a caret) untouched.
+FIXED:       .chain-open — visibility:hidden (NOT display:none, NOT
+             removed from the DOM). This was a deliberate choice, not the
+             obvious one: display:none would have let .chain-name's own
+             margin-top:auto pull it down to fill the freed space, but
+             landing it flush with the OLD caret's own bottom edge — 12px
+             HIGHER than GUITAR/STEREO/TEMPO's already-established
+             baseline (see below), not on the same plane at all.
+             visibility:hidden instead preserves the caret's real
+             reserved height (nothing reflows) while making it invisible
+             and non-hit-testable — same trick #chain-input-wrap/
+             #tempo-wrap ALREADY use for their own hidden carets (body
+             markup, 7/28) — and crucially leaves .click() (used by the
+             thumb-click-forwarding handler) and the .panel-open class
+             (watched by the selection ring's MutationObserver) both
+             completely unaffected, since neither depends on visibility.
+             .chain-name — added transform:translateY(12px), the EXACT
+             same nudge #mono-indicator/#chain-input-wrap/#tempo-wrap
+             already use and that Charlie hand-picked off four rendered
+             options on 7/28 (their hidden-caret position alone read "too
+             high" without it) — reused rather than re-derived, since that
+             number was only ever established by eye, never by formula,
+             per this file's own 7/28 history. Also changed .chain-name's
+             border-radius from 4px 4px 0 0 (flat bottom, assumed a caret
+             glued below) to a plain 4px (standalone pill) now that
+             nothing visible sits below it.
+             Fully reversible: dropping the one visibility:hidden line
+             brings the carets straight back, nothing else in this change
+             depends on them being invisible (Charlie's own explicit ask
+             before agreeing to this, given the chain row's history of
+             half-day debugging sessions over small changes here).
+EVIDENCE:    Charlie's request; the ALREADY-PROVEN GUITAR/STEREO/TEMPO
+             hidden-caret + translateY(12px) pattern (7/28) reused
+             directly rather than inventing new positioning math.
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.33+ and confirm live that every label
+             (VOL/WAH/DIST/FX LOOP/FX1/MOD/FX2/DELAY/REVERB) now sits on
+             the same visual baseline as GUITAR/STEREO/TEMPO, AMP/CAB
+             unchanged, and that click-to-open/bypass/drag-reorder/the
+             selection ring all still work exactly as before (pure CSS
+             change, but this area's history says verify anyway).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-08-27 (4th entry)
 STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27): "What
              you did is fine, no point really is a custom 'glove' fitting

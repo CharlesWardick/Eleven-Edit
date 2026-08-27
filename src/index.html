@@ -391,9 +391,13 @@
   }
   #tempo-steps div:hover { color: var(--accent); border-color: var(--accent); }
 
-  /* Standard slot: drag-handle thumb, then label, then ▼ underneath.
-     align-items stays stretch — .chain-name/.chain-open rely on it to match
-     each other's width; .chain-thumb has a fixed width and self-centers. */
+  /* Standard slot: drag-handle thumb, then label, then a ▼ still present in
+     the DOM underneath but visibility:hidden as of 2026-08-27 (see
+     .chain-open's own comment) — reserves the same height it always did,
+     .chain-name just gets a translateY nudge into that space instead of
+     sitting glued on top of a visible caret. align-items stays stretch —
+     .chain-name/.chain-open rely on it to match each other's width;
+     .chain-thumb has a fixed width and self-centers. */
   .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; }
   /* drop-before/drop-after marker removed 7/28 — the live preview (blocks
      actually shifting during the drag) replaced it; see ui.js wireChainDrag */
@@ -440,13 +444,29 @@
   .chain-thumb-img { pointer-events: none; }
   .chain-name {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
-    border-radius: 4px 4px 0 0; border-bottom: none;
+    /* 2026-08-27, Charlie's call: carets removed as a distinct click target
+       (thumb-click has done that job since 8/2/2026 — see the ▼-forwarding
+       comment below), so the label is now a standalone pill, not a top cap
+       glued to a caret below it. Full radius, real bottom border. */
+    border-radius: 4px;
     padding: 5px 13px; font-size: 13px; font-weight: bold;
     cursor: pointer; white-space: nowrap; text-align: center; transition: all 0.15s;
     /* 7/28: pins the label+caret group to the BOTTOM of the now fixed-height
        .chain-slot — the gap above (between thumb and label) is what
        absorbs the slot's height, not the thumb's own position. */
     margin-top: auto;
+    /* 2026-08-27: .chain-open (still real in the DOM, still the click
+       target thumb-clicks forward to and what the selection ring's
+       MutationObserver watches — see below) is now visibility:hidden, not
+       removed, so it keeps reserving its real height and nothing reflows.
+       That alone would leave .chain-name sitting exactly where it always
+       has, flush against the now-invisible caret — the SAME translateY(12px)
+       nudge GUITAR/STEREO/TEMPO already use for this exact reason (their
+       hidden-caret position read "too high" until Charlie picked this
+       value off four rendered options, 7/28 — see #mono-indicator's CSS
+       comment) is applied here too, so every label on the row lands on the
+       same visual baseline instead of three different hand-tuned ones. */
+    transform: translateY(12px);
   }
   .chain-name.slot-on  { background: #1a2a1a; border-color: #3a7a3a; color: #70c070; }
   .chain-name.slot-off { background: #2a1a1a; border-color: #884444; color: #884444; text-decoration: line-through; }
@@ -454,10 +474,23 @@
   .chain-name.slot-off:hover { border-color: var(--red); }
   .chain-name.slot-unknown   { background: #2a2a2a; border-color: #666; color: var(--muted); }
 
+  /* 2026-08-27, Charlie's call: carets removed VISUALLY only — every
+     .chain-open stays in the DOM at full size (real height, not
+     display:none) with its click handler, data-panel, and .panel-open
+     class all untouched, so thumb-click forwarding (below) and the
+     selection ring's MutationObserver (which watches .chain-open's class
+     attribute) both keep working exactly as before. Reversible in one
+     line (drop this visibility:hidden) if Charlie wants the carets back —
+     nothing else in this change depends on them being visible.
+     The caret's whole job (open/close a panel) moved onto the thumb click
+     back on 8/2/2026; it had no remaining visual purpose once that
+     existed, per Charlie: "the caret[s] now have no real purpose having
+     moved what they did [to] the graphic handle." */
   .chain-open {
     background: #222; border: 1px solid #555; color: #777;
     border-radius: 0 0 4px 4px; padding: 1px 13px;
     font-size: 12px; cursor: pointer; text-align: center; transition: all 0.15s;
+    visibility: hidden;
   }
   .chain-open:hover       { background: #2d2200; border-color: var(--accent-dim); color: var(--accent); }
   .chain-open.panel-open  { background: #2d2200; border-color: var(--accent); color: var(--accent); }
