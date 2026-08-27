@@ -38,6 +38,49 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-27 (2nd entry)
+STATUS:      provisional — code written, NOT YET TESTED LIVE
+AREA:        DELAY / EP Tape Echo / Expanded Delay toggle / Delay knob display
+FINDING:     EP Tape Echo's Delay knob display (protocol.js DELAY_MODELS,
+             lo 0x04) was captured with Expanded Delay OFF only (70-600 ms,
+             plain linear) — the original capture never accounted for the
+             Expanded Delay toggle (lo 0x09) changing that range. Charlie's
+             own eyeballed numbers (not yet Wireshark-verified): 20-2400 ms
+             with Expanded Delay ON. Avid's own editor does NOT rescale its
+             display when the toggle changes (a known Avid bug per
+             Charlie) — ours now does. DISPLAY-ONLY CHANGE: the wire
+             encoding/raw v127 sweep for the Delay knob is untouched, only
+             the ms text shown is now toggle-aware. Added `affectedByToggle`
+             on the Delay cell so updateDelayKnob (fx-panels.js) refreshes
+             the Delay knob's displayed ms the moment Expanded Delay is
+             flipped, even without moving the Delay knob itself.
+             STILL OPEN, DELIBERATELY NOT TOUCHED THIS PASS: Charlie flagged
+             that Sync-driven delay times may ALSO shift under Expanded
+             Delay — two different possible shapes (A: same raw v0 per Sync
+             division in both toggle states, just this same ms-display
+             rescale applies once Sync hands the knob a raw value =
+             "autopilot", nothing more to fix; B: hardware actually
+             broadcasts a DIFFERENT raw v0 for the same named division
+             depending on the toggle, meaning SYNC_DIVISIONS/
+             syncIndexFromV127/syncV127FromIndex need a toggle-aware
+             variant too). Charlie is testing this rescale live first,
+             specifically to see whether Sync's readout now falls out
+             correct on its own (case A) before we chase case B.
+             NOT ADDRESSED: BBD Delay's Expanded Delay toggle (also lo
+             0x09) and its own Delay knob ('delayMs', 32-400 ms) — no
+             extended-range numbers given for BBD, left untouched. Dyn
+             Delay has no Expanded Delay control at all (not applicable).
+EVIDENCE:    Charlie's live-hardware eyeballing (20-2400 ms with Expanded
+             Delay ON), not yet cross-checked against a Wireshark capture
+             the way the original 70-600 ms range was.
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.30+ and confirm live that the Delay
+             knob's ms readout is now correct in both toggle states, then
+             report back what Sync's readout does with Expanded Delay ON
+             (that result decides whether case A or case B above applies).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-08-27
 STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-27): min/max/midpoint
              (0.0 at centre) all correct on both To Amp 1 and To Amp 2.

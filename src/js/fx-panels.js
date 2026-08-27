@@ -1169,6 +1169,22 @@ function updateDelayKnob(paramLo, val) {
       btn.dataset.value = val;
       btn.textContent   = (val === 0) ? toggleOptions[0] : toggleOptions[1];
     }
+    // Re-render any knob whose display formula depends on THIS toggle
+    // (Expanded Delay rescaling the Delay knob's ms range, 2026-08-27) —
+    // the knob's own raw value hasn't moved, but what it MEANS has, so
+    // its readout needs refreshing even without a drag.
+    if (model && model.rows) {
+      delayAllCells(model).forEach(function(c) {
+        if (c.affectedByToggle === paramLo && !c.toggle && !c.select && !c.delaySync) {
+          const dLoHex = c.lo.toString(16).padStart(2,'0');
+          const dWrap  = document.getElementById('delay-w-' + dLoHex);
+          const dValEl = document.getElementById('delay-v-' + dLoHex);
+          if (dWrap && dValEl) {
+            dValEl.textContent = delayKnobDisplay(c.lo, parseInt(dWrap.dataset.value) || 0);
+          }
+        }
+      });
+    }
     return;
   }
   if (cell && cell.select) {

@@ -1661,8 +1661,23 @@ const DELAY_MODELS = [
         ]
       },
       { rows: [
-          [ {label:'Delay', lo:0x04,
-              display: function(v) { return Math.round(70 + (v / 127) * (600 - 70)) + ' ms'; }} ],
+          // Delay ms range depends on the Expanded Delay toggle (lo 0x09)
+          // (2026-08-27, Charlie's live-eyeballed numbers, display-only —
+          // NOT re-verified against a fresh Wireshark capture, so treat the
+          // two ranges as provisional until confirmed): 70-600 ms normal,
+          // 20-2400 ms with Expanded Delay ON. Avid's own editor does NOT
+          // rescale its display when the toggle changes (Charlie: "Avid
+          // editor is bugged and the scaling never changes") — we do.
+          // affectedByToggle tells updateDelayKnob (fx-panels.js) to
+          // refresh THIS knob's displayed value whenever that toggle
+          // itself changes, not just when the knob moves.
+          [ {label:'Delay', lo:0x04, affectedByToggle:0x09,
+              display: function(v) {
+                var tgl = document.getElementById('delay-tgl-09');
+                var extended = tgl && parseInt(tgl.dataset.value) > 0;
+                var lo = extended ? 20 : 70, hi = extended ? 2400 : 600;
+                return Math.round(lo + (v / 127) * (hi - lo)) + ' ms';
+              }} ],
           [ {label:'Sync', lo:0x05, delaySync:true} ]
         ]
       },
