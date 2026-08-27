@@ -71,21 +71,53 @@ function drawKnob(canvas, value127) {
     ctx.stroke();
   }
 
+  // Baseline mark (2026-08-27, Charlie's call, replaces the brief
+  // pointer-line experiment — ring restored, this stayed) — a small tick
+  // at the value this knob loaded with, so a change reads against where
+  // it started, not just its colour. Drawn from the first paint, not
+  // just once the value has diverged (2026-08-27, 2nd round) — Charlie's
+  // call: appearing/disappearing on the first move read as awkward, so
+  // it coincides with the tip indicator until the knob actually moves.
+  // SHRUNK TO A SHORT EXTERNAL TICK (2026-08-27, 3rd round, Charlie's own
+  // paint mockup) — the earlier version was a notch crossing the ring
+  // stroke itself, which read as a second ring segment, not a marker.
+  // This sits entirely just outside the ring's outer edge (r-1.5, given
+  // the ring's own 5px lineWidth at radius r-4), so it never overlaps
+  // the lit or unlit track and needs no black-outline contrast trick.
+  const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
+    const origV = parseInt(wrap.dataset.orig);
+    const baseRad = startRad + (sweepRad * origV/127);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(baseRad + Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(0, -(r+2));
+    ctx.lineTo(0, -(r-2));
+    ctx.strokeStyle = '#c8c8c8'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Body
   ctx.beginPath();
   ctx.arc(cx, cy, r-11, 0, Math.PI*2);
   ctx.fillStyle = '#242424'; ctx.fill();
   ctx.strokeStyle = '#484848'; ctx.lineWidth = 1.5; ctx.stroke();
 
-  // Indicator dot — endRad is a canvas arc angle (0=3 o'clock).
-  // The dot offset -(r-17) points up (12 o'clock) before rotation,
-  // so we add PI/2 to align it with the arc endpoint.
+  // Indicator — was a dot at the arc's tip; now a radial line (Charlie's
+  // call, 2026-08-27; lengthened 2x same day, was reading out of scale
+  // at the original 8px), same position and colour. endRad is a canvas
+  // arc angle (0=3 o'clock); the rotated frame's "up" (-y) is 12
+  // o'clock, so add PI/2 to align it with the arc endpoint.
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(endRad + Math.PI/2);
   ctx.beginPath();
-  ctx.arc(0, -(r-17), 4, 0, Math.PI*2);
-  ctx.fillStyle = knobCol; ctx.fill();
+  ctx.moveTo(0, -(r-13));
+  ctx.lineTo(0, -Math.max(0, r-29));
+  ctx.strokeStyle = knobCol; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -227,11 +259,39 @@ function clearBreakupBaseline() {
 function updateBreakupColor() {
   const slider = document.getElementById('breakup-slider');
   if (!slider) return;
-  const changed = slider.dataset.orig !== undefined && slider.dataset.orig !== ''
-                  && parseInt(slider.dataset.orig) !== parseInt(slider.value);
+  const hasOrig = slider.dataset.orig !== undefined && slider.dataset.orig !== '';
+  const changed = hasOrig && parseInt(slider.dataset.orig) !== parseInt(slider.value);
   slider.classList.toggle('changed', changed);
   slider.style.setProperty('--track-color', changed ? KNOB_COLORS.red : KNOB_COLORS.amber);
   slider.style.setProperty('--fill-pct', (parseInt(slider.value) / 127 * 100) + '%');
+
+  // Baseline tick (2026-08-27) — the knob's "value this control loaded
+  // with" marker (see drawKnob), adapted for this native <input
+  // type=range>: a separate positioned DOM element (index.html
+  // .sctrl-baseline), not something drawn on the control itself, since a
+  // native range input has no canvas and no way to host an injected child.
+  // Position is corrected for the thumb's own width (14px) — the thumb's
+  // CENTRE travels from thumbW/2 to trackW-thumbW/2, not edge to edge, so
+  // a plain 0-100% placement would drift away from where the thumb
+  // actually sits as the value nears either end.
+  const tick = document.getElementById('breakup-baseline');
+  if (tick) {
+    if (hasOrig) {
+      const trackW = slider.offsetWidth || 160;
+      const thumbW = 14;
+      const origV = parseInt(slider.dataset.orig);
+      tick.style.left = ((thumbW / 2) + (trackW - thumbW) * (origV / 127)) + 'px';
+      // NOT '' — that clears the inline override and falls back to the
+      // stylesheet, whose .sctrl-baseline rule IS display:none (that's the
+      // hidden-by-default state), so it never actually showed anything.
+      // Real bug behind two rounds of "no visible change" on the z-index
+      // attempts (2026-08-27) — this line, not stacking order, was why the
+      // tick never appeared at all.
+      tick.style.display = 'block';
+    } else {
+      tick.style.display = 'none';
+    }
+  }
 }
 
 function valDisplay(v127) { return (v127/127*10).toFixed(1); }

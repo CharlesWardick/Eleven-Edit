@@ -38,6 +38,341 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-27 (6th entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "I
+             think it looks good now." Both screenshots (low and high
+             value) show the split tick sitting cleanly above/below the
+             track. No further action.
+             FULL ROUND HISTORY (kept — a real multi-bug saga, not just a
+             one-line fix): 1st report: correct build confirmed via
+             About box, tick computed correctly (value/color logic all
+             fine — the red thumb/fill proves dataset.orig existed and
+             differed) but genuinely invisible on screen, not just subtle.
+             ROOT CAUSE: a native <input type=range> paints its own
+             track/thumb as a special replaced-element rendering layer
+             that sits above ordinary sibling content regardless of DOM
+             order — the tick <div> came AFTER the input in markup but was
+             still being painted UNDER it. FIXED: gave the input
+             position:relative + z-index:1 and the tick z-index:2 (z-index
+             only compares POSITIONED elements, which is why this needed
+             both sides, not just the tick).
+             2ND ROUND: NO CHANGE ("build confirmed .35, no change" —
+             Charlie offered to drop it after one more try). Re-derived
+             instead of guessing a 3rd stacking fix (Primer's TWO-FAILED-
+             FIXES rule) — found the REAL bug: updateBreakupColor
+             (ui.js) set `tick.style.display = ''` to show the tick. That
+             clears an INLINE override and falls back to the stylesheet,
+             whose .sctrl-baseline rule IS display:none (the hidden-by-
+             default state) — so that line never actually showed anything,
+             on any of the previous rounds. The z-index changes were
+             correct but irrelevant: there was nothing rendered to stack in
+             the first place. FIXED: `tick.style.display = 'block'`
+             instead of ''.
+             3RD ROUND (consistency, not a bug): Charlie confirmed the
+             tick now shows, but asked it match the knob's version, which
+             sits OUTSIDE the ring rather than crossing through it. Split
+             the tick into two short segments (top/bottom) via a linear-
+             gradient with a transparent 6px gap through the middle,
+             matching the track's own height so the gap lines up exactly
+             with the groove/thumb instead of a solid line running through
+             them.
+AREA:        Speaker Breakup slider / baseline mark (visual only)
+FINDING:     Charlie asked to extend the knob baseline-tick treatment
+             (this session's earlier work: a short static mark showing the
+             value a control loaded with) to Speaker Breakup — the one
+             control in the app that's a native <input type=range>, not a
+             .knob-wrap canvas (2026-08-03 rework, ui.js/index.html), so
+             it already needed its own separate wiring into the amber/red
+             "changed" contract and gets the same separate treatment here.
+FIXED:       A native range input has no canvas to draw a tick on and no
+             way to inject a positioned child INSIDE it, so the tick is a
+             separate DOM element (#breakup-baseline, index.html) layered
+             on top via a new positioning wrapper (.sctrl-track-wrap,
+             sized to the input by default — no layout change to the
+             slider itself). Positioned in JS (updateBreakupColor, ui.js)
+             rather than drawn, corrected for the thumb's own 14px width
+             (the thumb's CENTRE travels thumbW/2 to trackW-thumbW/2, not
+             edge to edge — a plain 0-100% placement would drift from the
+             thumb's real position near either end). Same light-grey
+             (#c8c8c8), same "only shown once a baseline exists" rule as
+             the knob version.
+EVIDENCE:    Charlie's request, direct continuation of this session's
+             earlier knob baseline-tick work (5 rounds of live-tested
+             iteration, now closed).
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.34+ and confirm live: tick appears at
+             the right x-position for a few different baseline values
+             (check near both ends of the range, where the thumb-width
+             correction matters most), stays put while dragging, and
+             disappears/reappears correctly across a patch nav.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27 (5th entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "Look
+             good first try. Probably because you didn't remove the caret
+             code and us[ed] it as reference anchor." All labels sit flush
+             with GUITAR/STEREO/TEMPO, AMP/CAB unchanged, selection ring
+             correct on AMP (screenshot). No further action.
+AREA:        Chain row / ▼ caret removal (visual only, no protocol change)
+FINDING:     Follow-up to the selection-ring entry above. Charlie: the
+             carets have "no real purpose having moved what they did [to]
+             the graphic handle" (thumb-click has opened/closed panels
+             since 8/2/2026) — asked to remove them and let every effect
+             block's label drop to the same visual baseline as GUITAR/
+             STEREO/TEMPO. AMP-CAB (never had a caret) untouched.
+FIXED:       .chain-open — visibility:hidden (NOT display:none, NOT
+             removed from the DOM). This was a deliberate choice, not the
+             obvious one: display:none would have let .chain-name's own
+             margin-top:auto pull it down to fill the freed space, but
+             landing it flush with the OLD caret's own bottom edge — 12px
+             HIGHER than GUITAR/STEREO/TEMPO's already-established
+             baseline (see below), not on the same plane at all.
+             visibility:hidden instead preserves the caret's real
+             reserved height (nothing reflows) while making it invisible
+             and non-hit-testable — same trick #chain-input-wrap/
+             #tempo-wrap ALREADY use for their own hidden carets (body
+             markup, 7/28) — and crucially leaves .click() (used by the
+             thumb-click-forwarding handler) and the .panel-open class
+             (watched by the selection ring's MutationObserver) both
+             completely unaffected, since neither depends on visibility.
+             .chain-name — added transform:translateY(12px), the EXACT
+             same nudge #mono-indicator/#chain-input-wrap/#tempo-wrap
+             already use and that Charlie hand-picked off four rendered
+             options on 7/28 (their hidden-caret position alone read "too
+             high" without it) — reused rather than re-derived, since that
+             number was only ever established by eye, never by formula,
+             per this file's own 7/28 history. Also changed .chain-name's
+             border-radius from 4px 4px 0 0 (flat bottom, assumed a caret
+             glued below) to a plain 4px (standalone pill) now that
+             nothing visible sits below it.
+             Fully reversible: dropping the one visibility:hidden line
+             brings the carets straight back, nothing else in this change
+             depends on them being invisible (Charlie's own explicit ask
+             before agreeing to this, given the chain row's history of
+             half-day debugging sessions over small changes here).
+EVIDENCE:    Charlie's request; the ALREADY-PROVEN GUITAR/STEREO/TEMPO
+             hidden-caret + translateY(12px) pattern (7/28) reused
+             directly rather than inventing new positioning math.
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.33+ and confirm live that every label
+             (VOL/WAH/DIST/FX LOOP/FX1/MOD/FX2/DELAY/REVERB) now sits on
+             the same visual baseline as GUITAR/STEREO/TEMPO, AMP/CAB
+             unchanged, and that click-to-open/bypass/drag-reorder/the
+             selection ring all still work exactly as before (pure CSS
+             change, but this area's history says verify anyway).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27 (4th entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "What
+             you did is fine, no point really is a custom 'glove' fitting
+             ring. What you did works too for no graphics." One CSS ring
+             covering both real-graphics and dummy-tile cases stands as
+             the final design — no per-block custom ring assets needed.
+             OPEN QUESTION RAISED, NOT DECIDED: now that the ring exists,
+             Charlie floated possibly removing the ▼ carets entirely
+             (ring + thumb-click already opens/closes each panel, per the
+             8/2/2026 CHAIN ROW CLICK-TO-OPEN addition) — explicitly "not
+             sure yet", not a request to act. Do not remove the carets
+             without an explicit go-ahead.
+             SEPARATE, UNRELATED OBSERVATION (not a request to fix): the
+             AMP-CAB slot's single thumb only shows the amp graphic, never
+             the cab graphic — a pre-existing "one thumb serves the pair"
+             design (index.html markup comment, 7/28), not something this
+             ring change touched or was asked to change.
+AREA:        Chain row / selection ring (visual only, no protocol change)
+FINDING:     Charlie's complaint: clicking a chain-row block only turned
+             the ▼ caret amber — no highlight anywhere on the thumb/pedal
+             graphic itself, and AMP-CAB (no ▼ of its own) never showed
+             ANY selection indicator, even though it's effectively the
+             default/home view. Matches a real gap left open back on 7/28:
+             chain-graphics.js's header comment already documented that
+             every pedal image has a matching "_sel" file in Avid's real
+             install, but the 7/28 POC (chainrowpoc4.html) found "_sel" is
+             just a generic amber rounded-rect outline, not a per-pedal
+             custom asset — "worth doing as CSS instead of another image
+             dependency" (Archive, 7/28 POC note). That CSS was never
+             actually built until now.
+FIXED:       .chain-thumb.chain-selected (index.html CSS) — box-shadow
+             ring (not border, so it doesn't change the thumb's box size/
+             alignment), rounded to match the described "rounded-rect
+             outline". Works identically whether the thumb holds a real
+             Avid image or the dashed dummy placeholder, so this covers
+             BOTH cases Charlie asked about (real-graphics ring AND a
+             "something similar" for tile-only mode) with one rule — no
+             separate no-graphics treatment needed.
+             updateChainSelectionRing() (index.html JS) derives which
+             block should carry the ring purely from current DOM state
+             (whichever .chain-open has .panel-open; AMP-CAB's own thumb
+             if none do, since AMP-CAB has no .chain-open of its own) and
+             repaints from scratch on every call. Wired via a
+             MutationObserver watching every .chain-open's class attribute,
+             rather than being threaded through the ~10 separate places in
+             index.html that already toggle .panel-open (bypass reads,
+             roller-stop, every panel-close handler, etc.) — one choke
+             point instead of ten call sites to keep in sync by hand.
+EVIDENCE:    Charlie's screenshot + description; chain-graphics.js header
+             comment (7/29 dated, references the 7/28 POC finding);
+             Archive 7/28 POC entry (chainrowpoc4.html, generic amber
+             rounded-rect outline, not per-pedal).
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.32+ and confirm live: ring appears on
+             whichever block's panel is open, including AMP-CAB by
+             default/on close, and correctly follows drag-reorder (thumb
+             element moves with its block, class travels with it).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27 (3rd entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27). Both
+             delay-block Expanded Delay display fixes (this entry, BBD
+             Delay, and the 2nd entry above, EP Tape Echo) done for this
+             session.
+AREA:        DELAY / BBD Delay / Expanded Delay toggle / Delay knob display
+FINDING:     Same fix as EP Tape Echo (see 2026-08-27 2nd entry, now
+             CLOSED) applied to BBD Delay's own Delay knob (protocol.js
+             DELAY_MODELS, lo 0x04) and its own Expanded Delay toggle
+             (also lo 0x09). Charlie's numbers: 32-400 ms normal
+             (unchanged, was the 'delayMs' legacy display flag), 128-1600
+             ms with Expanded Delay ON. Converted the Delay cell from the
+             string flag 'delayMs' to a function display (same
+             affectedByToggle:0x09 mechanism), and removed the now-unused
+             'delayMs' branch from delayKnobDisplay (fx-panels.js) since
+             BBD was its only caller. Dyn Delay confirmed to have no
+             Expanded Delay control — not applicable there.
+             Given the EP Tape Echo precedent (2nd entry above), expect the
+             same "close but not Wireshark-point-verified, a few ms off
+             under Sync + Extended is fine" outcome here too — not chasing
+             point-by-point verification unless Charlie's live test shows
+             something qualitatively different from the EP Tape Echo case.
+EVIDENCE:    Charlie's live-hardware numbers (128-1600 ms with Expanded
+             Delay ON), same "not yet Wireshark-verified" status as the
+             prior EP Tape Echo range.
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.31+ and confirm live.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27 (2nd entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — CHARLIE'S CALL (2026-08-27).
+             Manual-knob display
+             confirmed live: "solved like 99% of the issue." Sync-engaged +
+             Expanded Delay showed a several-ms residual gap between HW
+             truth and the display; root cause identified (not a new bug —
+             see below) and Charlie explicitly decided NOT to chase it
+             further: "who cares if our display is off by 6ms — nobody can
+             hear that difference in the context of a delay." Do not
+             reopen without a new concrete complaint from Charlie.
+AREA:        DELAY / EP Tape Echo / Expanded Delay toggle / Delay knob display
+FINDING:     EP Tape Echo's Delay knob display (protocol.js DELAY_MODELS,
+             lo 0x04) was captured with Expanded Delay OFF only (70-600 ms,
+             plain linear) — the original capture never accounted for the
+             Expanded Delay toggle (lo 0x09) changing that range. Charlie's
+             own eyeballed numbers (not yet Wireshark-verified): 20-2400 ms
+             with Expanded Delay ON. Avid's own editor does NOT rescale its
+             display when the toggle changes (a known Avid bug per
+             Charlie) — ours now does. DISPLAY-ONLY CHANGE: the wire
+             encoding/raw v127 sweep for the Delay knob is untouched, only
+             the ms text shown is now toggle-aware. Added `affectedByToggle`
+             on the Delay cell so updateDelayKnob (fx-panels.js) refreshes
+             the Delay knob's displayed ms the moment Expanded Delay is
+             flipped, even without moving the Delay knob itself.
+             STILL OPEN, DELIBERATELY NOT TOUCHED THIS PASS: Charlie flagged
+             that Sync-driven delay times may ALSO shift under Expanded
+             Delay — two different possible shapes (A: same raw v0 per Sync
+             division in both toggle states, just this same ms-display
+             rescale applies once Sync hands the knob a raw value =
+             "autopilot", nothing more to fix; B: hardware actually
+             broadcasts a DIFFERENT raw v0 for the same named division
+             depending on the toggle, meaning SYNC_DIVISIONS/
+             syncIndexFromV127/syncV127FromIndex need a toggle-aware
+             variant too). Charlie is testing this rescale live first,
+             specifically to see whether Sync's readout now falls out
+             correct on its own (case A) before we chase case B.
+             ADDRESSED 2026-08-27 (3rd entry): BBD Delay's own Expanded
+             Delay toggle (also lo 0x09) and Delay knob got the identical
+             fix — see that entry. Dyn Delay has no Expanded Delay control
+             at all (not applicable, confirmed by Charlie).
+EVIDENCE:    Charlie's live-hardware eyeballing (20-2400 ms with Expanded
+             Delay ON), not yet cross-checked against a Wireshark capture
+             the way the original 70-600 ms range was.
+CONFLICTS:   none.
+RESOLUTION:  ROOT CAUSE OF THE RESIDUAL GAP (no code change, explanation
+             only): the app never reads an ms value from hardware — the
+             display is ALWAYS our own math (ms = lo + raw/127*(hi-lo)) on
+             top of the raw 0-127 value HW actually sends. The ORIGINAL
+             70-600 ms range was also hardware-eyeballed, same as the new
+             20-2400 range — the difference is the original got cross-
+             checked against 13 separate Sync-division points (Charlie's
+             chart) and landed within 1 ms of each; the 20-2400 range is
+             just the two endpoints, never point-by-point verified. Because
+             the extended range is 4x wider, the same size of underlying
+             endpoint/linearity error shows up ~4x bigger in ms on screen —
+             expected amplification, not a distinct new bug. HW's own
+             Sync behaviour is correct regardless (confirmed by Charlie);
+             only our display math is approximate. Would need the same kind
+             of multi-point Wireshark capture (raw v0 at several Sync
+             divisions, Expanded Delay ON) to close the gap further, but
+             per Charlie's call above, not worth doing.
+NEXT:        None. Closed.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: Tech Ref Sec 7 / Sec 24 Change Log, Primer
+             2026-08-27 SESSION SUMMARY] — confirmed — TESTED LIVE
+             (Charlie, 2026-08-27): min/max/midpoint
+             (0.0 at centre) all correct on both To Amp 1 and To Amp 2.
+AREA:        To Amp 1/2 Volume / CMD 0x36 / sendToAmpVolume (transport.js)
+FINDING:     Charlie's report: both To Amp knobs rotate correctly from mute
+             to +12 but hardware never actually reads past +11.8 at the top
+             end (min/mute end is fine). Root cause: sendToAmpVolume never
+             got the endpoint-sentinel fix that sendParamWrite (CMD 0x11)
+             got on 7/23/2026 for the same "9.9 bug" class of symptom. Tech
+             Ref Sec 7 already documents CMD 0x36 as part of the same
+             single-byte-offset-binary family as 0x11/0x07, sentinels
+             included (min 0x40 00 00 00, max 0x3F 7F 7F 7F) - the fix was
+             simply never applied to this specific send function. The old
+             code always sent v0 + a flat "00 00 00 00" tail, which for the
+             true top value (v0=0x3F) asks for the BOTTOM of that step, not
+             the top - landing about one 24dB/127-step (~0.19 dB) short of
+             +12.0, consistent with the reported 11.8. Min was unaffected by
+             coincidence: 0x40 00 00 00 already IS the true minimum's exact
+             encoding, so there's no "bottom of the step" gap to fall into
+             at that end. FIXED: sendToAmpVolume (transport.js) now special-
+             cases v127>=127 with tail "7F 7F 7F 7F" (true max) and
+             v127<=0 with "00 00 00 00" (unchanged, already correct),
+             matching sendParamWrite's approach but WITHOUT copying CMD
+             0x11's extra final-byte 0x10-broadcast-offset quirk (0x0F in
+             its own max sentinel) - that quirk is specific to CMD 0x11's
+             message framing per Sec 7's TRAILING BYTES note and has no
+             documented equivalent for CMD 0x36.
+EVIDENCE:    Charlie's live-hardware report (11.8 max, never 12.0); Tech Ref
+             Sec 7 CONTINUOUS KNOBS entry naming 0x36 in the same family as
+             0x11/0x07 with the same sentinel scheme; sendParamWrite's
+             existing 7/23/2026 fix as the confirmed working pattern for
+             this exact symptom shape.
+CONFLICTS:   none — pure bug fix, no documented value changes.
+NEXT:        None — closed. CONFIRMED LIVE 2026-08-27. Master (Main) Volume
+             was flagged as a same-family risk but Charlie clarifies it is
+             NOT a knob (it's the chain-strip stepper/value-box control,
+             valToMasterVol) and is already spot-on at every value he's
+             checked — the endpoint-sentinel gap is specific to the two
+             CANVAS KNOB controls (To Amp 1/2) using sendToAmpVolume; no
+             action needed on Master Volume.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-08-11
 STATUS:      [FOLDED IN: Primer WORKING/Tech Ref Sec 15 cross-check]
 AREA:        RigRollerPlus auto-advance / CMD 0x03
