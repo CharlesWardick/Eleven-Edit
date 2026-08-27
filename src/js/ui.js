@@ -259,11 +259,33 @@ function clearBreakupBaseline() {
 function updateBreakupColor() {
   const slider = document.getElementById('breakup-slider');
   if (!slider) return;
-  const changed = slider.dataset.orig !== undefined && slider.dataset.orig !== ''
-                  && parseInt(slider.dataset.orig) !== parseInt(slider.value);
+  const hasOrig = slider.dataset.orig !== undefined && slider.dataset.orig !== '';
+  const changed = hasOrig && parseInt(slider.dataset.orig) !== parseInt(slider.value);
   slider.classList.toggle('changed', changed);
   slider.style.setProperty('--track-color', changed ? KNOB_COLORS.red : KNOB_COLORS.amber);
   slider.style.setProperty('--fill-pct', (parseInt(slider.value) / 127 * 100) + '%');
+
+  // Baseline tick (2026-08-27) — the knob's "value this control loaded
+  // with" marker (see drawKnob), adapted for this native <input
+  // type=range>: a separate positioned DOM element (index.html
+  // .sctrl-baseline), not something drawn on the control itself, since a
+  // native range input has no canvas and no way to host an injected child.
+  // Position is corrected for the thumb's own width (14px) — the thumb's
+  // CENTRE travels from thumbW/2 to trackW-thumbW/2, not edge to edge, so
+  // a plain 0-100% placement would drift away from where the thumb
+  // actually sits as the value nears either end.
+  const tick = document.getElementById('breakup-baseline');
+  if (tick) {
+    if (hasOrig) {
+      const trackW = slider.offsetWidth || 160;
+      const thumbW = 14;
+      const origV = parseInt(slider.dataset.orig);
+      tick.style.left = ((thumbW / 2) + (trackW - thumbW) * (origV / 127)) + 'px';
+      tick.style.display = '';
+    } else {
+      tick.style.display = 'none';
+    }
+  }
 }
 
 function valDisplay(v127) { return (v127/127*10).toFixed(1); }

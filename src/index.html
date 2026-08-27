@@ -656,6 +656,21 @@
     width: 14px; height: 14px; border-radius: 50%;
     background: var(--track-color); border: none; cursor: pointer;
   }
+  /* Baseline mark (2026-08-27) — the knob's "value this control loaded
+     with" tick (Charlie's call, see drawKnob in ui.js), adapted for a
+     native <input type=range>: there's no canvas to draw on and no way to
+     inject a positioned element INSIDE a native range input, so this is a
+     separate DOM element layered over the track instead, positioned in JS
+     (updateBreakupColor, ui.js) rather than drawn. .sctrl-track-wrap just
+     exists to give it a positioning parent — sized to the input by default
+     (no explicit width), so nothing about the input's own layout changes. */
+  .sctrl-track-wrap { position: relative; display: inline-flex; align-items: center; }
+  .sctrl-baseline {
+    position: absolute; top: 50%; left: 0; width: 2px; height: 14px;
+    background: #c8c8c8; border-radius: 1px; pointer-events: none;
+    transform: translate(-1px, -50%);
+    display: none;   /* JS shows this once a baseline (dataset.orig) exists */
+  }
   .sctrl-val    { font-size: 12px; color: var(--accent); font-weight: bold; min-width: 32px; font-family: 'Consolas', monospace; }
   .tog-btn { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--muted); border-radius: 4px; padding: 4px 13px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center; }
   .tog-btn.on { background: #1a3a1a; border-color: var(--green); color: var(--green); }
@@ -1245,7 +1260,10 @@
         <div class="sctrl">
           <label>Speaker Breakup</label>
           <div class="sctrl-row">
-            <input type="range" min="0" max="127" value="64" id="breakup-slider">
+            <div class="sctrl-track-wrap">
+              <input type="range" min="0" max="127" value="64" id="breakup-slider">
+              <div class="sctrl-baseline" id="breakup-baseline"></div>
+            </div>
             <span class="sctrl-val" id="breakup-val">5.0</span>
           </div>
         </div>

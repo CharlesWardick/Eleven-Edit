@@ -38,6 +38,40 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-27 (6th entry)
+STATUS:      provisional — code written, NOT YET TESTED LIVE
+AREA:        Speaker Breakup slider / baseline mark (visual only)
+FINDING:     Charlie asked to extend the knob baseline-tick treatment
+             (this session's earlier work: a short static mark showing the
+             value a control loaded with) to Speaker Breakup — the one
+             control in the app that's a native <input type=range>, not a
+             .knob-wrap canvas (2026-08-03 rework, ui.js/index.html), so
+             it already needed its own separate wiring into the amber/red
+             "changed" contract and gets the same separate treatment here.
+FIXED:       A native range input has no canvas to draw a tick on and no
+             way to inject a positioned child INSIDE it, so the tick is a
+             separate DOM element (#breakup-baseline, index.html) layered
+             on top via a new positioning wrapper (.sctrl-track-wrap,
+             sized to the input by default — no layout change to the
+             slider itself). Positioned in JS (updateBreakupColor, ui.js)
+             rather than drawn, corrected for the thumb's own 14px width
+             (the thumb's CENTRE travels thumbW/2 to trackW-thumbW/2, not
+             edge to edge — a plain 0-100% placement would drift from the
+             thumb's real position near either end). Same light-grey
+             (#c8c8c8), same "only shown once a baseline exists" rule as
+             the knob version.
+EVIDENCE:    Charlie's request, direct continuation of this session's
+             earlier knob baseline-tick work (5 rounds of live-tested
+             iteration, now closed).
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.34+ and confirm live: tick appears at
+             the right x-position for a few different baseline values
+             (check near both ends of the range, where the thumb-width
+             correction matters most), stays put while dragging, and
+             disappears/reappears correctly across a patch nav.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-08-27 (5th entry)
 STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27): "Look
              good first try. Probably because you didn't remove the caret
