@@ -39,8 +39,12 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (6th entry)
-STATUS:      provisional — 1st live round found a real bug, 2nd fix not
-             yet tested. Charlie's report: correct build confirmed via
+STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27): "I
+             think it looks good now." Both screenshots (low and high
+             value) show the split tick sitting cleanly above/below the
+             track. No further action.
+             FULL ROUND HISTORY (kept — a real multi-bug saga, not just a
+             one-line fix): 1st report: correct build confirmed via
              About box, tick computed correctly (value/color logic all
              fine — the red thumb/fill proves dataset.orig existed and
              differed) but genuinely invisible on screen, not just subtle.
