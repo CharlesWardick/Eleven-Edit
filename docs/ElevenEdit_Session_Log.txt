@@ -38,6 +38,51 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-27 (4th entry)
+STATUS:      provisional — code written, NOT YET TESTED LIVE
+AREA:        Chain row / selection ring (visual only, no protocol change)
+FINDING:     Charlie's complaint: clicking a chain-row block only turned
+             the ▼ caret amber — no highlight anywhere on the thumb/pedal
+             graphic itself, and AMP-CAB (no ▼ of its own) never showed
+             ANY selection indicator, even though it's effectively the
+             default/home view. Matches a real gap left open back on 7/28:
+             chain-graphics.js's header comment already documented that
+             every pedal image has a matching "_sel" file in Avid's real
+             install, but the 7/28 POC (chainrowpoc4.html) found "_sel" is
+             just a generic amber rounded-rect outline, not a per-pedal
+             custom asset — "worth doing as CSS instead of another image
+             dependency" (Archive, 7/28 POC note). That CSS was never
+             actually built until now.
+FIXED:       .chain-thumb.chain-selected (index.html CSS) — box-shadow
+             ring (not border, so it doesn't change the thumb's box size/
+             alignment), rounded to match the described "rounded-rect
+             outline". Works identically whether the thumb holds a real
+             Avid image or the dashed dummy placeholder, so this covers
+             BOTH cases Charlie asked about (real-graphics ring AND a
+             "something similar" for tile-only mode) with one rule — no
+             separate no-graphics treatment needed.
+             updateChainSelectionRing() (index.html JS) derives which
+             block should carry the ring purely from current DOM state
+             (whichever .chain-open has .panel-open; AMP-CAB's own thumb
+             if none do, since AMP-CAB has no .chain-open of its own) and
+             repaints from scratch on every call. Wired via a
+             MutationObserver watching every .chain-open's class attribute,
+             rather than being threaded through the ~10 separate places in
+             index.html that already toggle .panel-open (bypass reads,
+             roller-stop, every panel-close handler, etc.) — one choke
+             point instead of ten call sites to keep in sync by hand.
+EVIDENCE:    Charlie's screenshot + description; chain-graphics.js header
+             comment (7/29 dated, references the 7/28 POC finding);
+             Archive 7/28 POC entry (chainrowpoc4.html, generic amber
+             rounded-rect outline, not per-pedal).
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.32+ and confirm live: ring appears on
+             whichever block's panel is open, including AMP-CAB by
+             default/on close, and correctly follows drag-reorder (thumb
+             element moves with its block, class travels with it).
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
 DATE:        2026-08-27 (3rd entry)
 STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27). Both
              delay-block Expanded Delay display fixes (this entry, BBD

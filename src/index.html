@@ -410,6 +410,21 @@
     cursor: grab;
   }
   .chain-thumb.dragging { opacity: 0.35; cursor: grabbing; }
+  /* 2026-08-27 — chain row selection ring, Charlie's call: Avid's own
+     editor rings the currently-selected block's pedal graphic (a real
+     "_sel" PNG per block exists in the Avid install, but the 7/28 POC
+     found it's just a generic amber rounded-rect outline, not a custom
+     per-pedal asset — see chain-graphics.js header comment and Archive
+     7/28 POC note), so it was always meant to be done as CSS, not another
+     image dependency. box-shadow (not border) so it doesn't change the
+     thumb's box size/alignment; works identically whether the thumb holds
+     a real Avid image or the dashed dummy placeholder — one rule covers
+     both cases Charlie asked for, no separate "no-graphics" treatment
+     needed. See updateChainSelectionRing() below for what sets this. */
+  .chain-thumb.chain-selected {
+    border-radius: 5px;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
   /* 7/28: #2a2a2a dashed on #161616 (against #chainstrip's #181818) was
      nearly invisible — Charlie: "I can't see the drag handles but I know
      they are there". Matches the existing knob-wrapper treatment used in
@@ -1897,6 +1912,40 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
     }
   });
 });
+
+// CHAIN ROW SELECTION RING (2026-08-27, Charlie's call — see the CSS
+// comment on .chain-thumb.chain-selected for the "why CSS not a PNG"
+// background). Single choke point: derives which block's thumb should
+// carry the ring purely from current DOM state (whichever .chain-open
+// has .panel-open, or AMP-CAB's own thumb if none do — AMP-CAB has no
+// .chain-open of its own) and repaints from scratch every call, rather
+// than being threaded through each of the many places that toggle
+// .panel-open (bypass reads, roller stop, panel-close handlers, etc.).
+// A MutationObserver on every .chain-open's class attribute calls this
+// automatically no matter which of those code paths fires, so a future
+// call site needs no special-case wiring to keep the ring correct.
+function updateChainSelectionRing() {
+  document.querySelectorAll('.chain-thumb.chain-selected').forEach(function(t) {
+    t.classList.remove('chain-selected');
+  });
+  var openBtn = document.querySelector('.chain-open.panel-open');
+  var slot;
+  if (openBtn) {
+    slot = openBtn.closest('.chain-slot');
+  } else {
+    var ampLabel = document.getElementById('chain-amp');
+    slot = ampLabel ? ampLabel.closest('.chain-slot-stack') : null;
+  }
+  var thumb = slot ? slot.querySelector('.chain-thumb') : null;
+  if (thumb) thumb.classList.add('chain-selected');
+}
+(function() {
+  var ringObserver = new MutationObserver(updateChainSelectionRing);
+  document.querySelectorAll('.chain-open').forEach(function(btn) {
+    ringObserver.observe(btn, { attributes: true, attributeFilter: ['class'] });
+  });
+  updateChainSelectionRing();   // initial paint — AMP-CAB is the default view
+})();
 
 // 8/2/2026: click the pedal thumbnail itself to open its panel, matching
 // Avid's own editor (click the pedal graphic, not a separate control).
