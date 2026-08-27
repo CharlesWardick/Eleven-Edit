@@ -39,7 +39,7 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      confirmed — TESTED LIVE
 AREA:        Knob rendering — value-arc round-cap blob at tiny values
              (drawKnob, src/js/ui.js) — applies to EVERY knob, reported on
              FX LOOP Mix
@@ -69,10 +69,9 @@ EVIDENCE:    JS-only diff, src/js/ui.js drawKnob(). Not yet visually
              confirmed against a real drag to a low value on hardware.
              Version bumped 1.3.43 -> 1.3.44 (package.json).
 CONFLICTS:   none
-NEXT:        Charlie to build and drag a few knobs (not just FX Loop Mix)
-             down near 0-2% to confirm the dot is gone and the line reads
-             as a small sliver instead, with no regression at mid/high
-             values or at exactly 0%.
+NEXT:        TESTED LIVE (Charlie, 2026-08-27) — confirmed fixed on FX
+             Loop Mix. Not yet folded into Primer/Tech Ref masters — waits
+             for a wrap signal per HOW UPDATES WORK.
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
