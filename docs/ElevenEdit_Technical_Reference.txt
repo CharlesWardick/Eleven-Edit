@@ -765,6 +765,17 @@ CONTINUOUS KNOBS (CMD 0x11, 0x07, 0x36) — single-byte offset binary:
   ENCODE: v0 = (targetV127 + 64) % 128
   val 0–127 maps to 0.0–10.0 on display.
   Sentinels: min = 0x40 00 00 00 (val 0); max = 0x3F 7F 7F 7F (val 127).
+  CONFIRMED 2026-08-27: this sentinel rule applies to CMD 0x36 (To Amp 1/2
+  volume) as much as 0x11/0x07 — it just hadn't been implemented there.
+  sendToAmpVolume (transport.js) always sent a flat v0+00 00 00 00 tail,
+  which for the true max landed ~0.19 dB short of +12.0 (asking for the
+  BOTTOM of v0's step, not the top) — the same "9.9 bug" shape as the
+  amp Tremolo Speed knob that started this rule on 7/23. Fixed and TESTED
+  LIVE (Charlie, 2026-08-27): both To Amp knobs now hold exact min/max/
+  0.0-centre. sendMasterVolume (same CMD 0x36 family, chain-strip MAIN
+  VOL) is NOT a canvas knob — Charlie confirms it's the stepper/value-box
+  control and is already exact at every value checked, so this gap does
+  not apply there.
 
 MULTI-BYTE CMD 0x11 VALUES (35-bit) — added 7/23/2026:
   *** SCOPE WARNING (added later the same day). The formula below does NOT
@@ -3048,6 +3059,51 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-08-27 (knob restyle, To Amp endpoint fix, Delay Expanded scaling x2,
+  chain row selection ring + caret removal, Speaker Breakup baseline tick
+  — all TESTED LIVE, full detail in Session Log 2026-08-27 entries 1-7)
+  KNOB VISUAL REDESIGN: the filled glow-ring knob (value arc + tip dot)
+  went through a short-lived pointer-line variant, then was RESTORED at
+  Charlie's call after live testing — kept from that detour: a baseline
+  tick (short external mark at the value the patch loaded with, shown
+  from first paint) and the tip dot became a short radial line. See
+  Sec 20A knob contract for the full R-rule set this sits alongside.
+  TO AMP 1/2 ENDPOINT FIX: sentinel rule (Sec 7) now applied to CMD 0x36
+  (sendToAmpVolume, transport.js) — see Sec 7 for detail. Both knobs
+  confirmed exact at min/max/0.0-centre.
+  DELAY EXPANDED-DELAY DISPLAY RESCALE: EP Tape Echo and BBD Delay's
+  Delay knobs now read the Expanded Delay toggle and switch ms range
+  live (EP Tape Echo 70-600/20-2400 ms, BBD Delay 32-400/128-1600 ms,
+  Charlie's own hardware-read numbers) — display-only, wire encoding
+  unchanged. Sync-engaged residual ms error under Expanded Delay
+  root-caused (linear-interpolation display math amplified ~4x by the
+  wider range, same class of approximation the original 70-600 ms range
+  had, just cross-checked at 13 points where the new ranges are not) and
+  explicitly accepted by Charlie — inaudible at a few ms on a delay, not
+  pursued further.
+  CHAIN ROW: selection ring added on the open block's thumb (box-shadow,
+  works identically for real Avid graphics and the dummy placeholder) —
+  the "_sel" PNG asset chain-graphics.js already knew about was confirmed
+  back on 7/28 to be a generic amber outline, not custom per-pedal art,
+  so this was always meant to be CSS, just never built until now. ▼
+  carets then hidden (visibility:hidden, not removed — fully reversible,
+  DOM/click-handling untouched) at Charlie's follow-up call, since the
+  thumb-click already does their job (8/2/2026); labels reuse the exact
+  translateY(12px) nudge GUITAR/STEREO/TEMPO already used for this same
+  hidden-caret-reads-too-high reason (7/28), landing all chain-row labels
+  on one visual baseline on the first live try.
+  SPEAKER BREAKUP: same baseline-tick treatment as the knobs, adapted for
+  a native <input type=range> (no canvas, no way to inject a positioned
+  child inside it — a separate DOM element layered on top instead,
+  position-corrected for the thumb's own width). Two real bugs found and
+  fixed en route, not just tuning: (1) the tick was invisible because
+  `tick.style.display = ''` clears an inline override and falls back to
+  the stylesheet's own display:none, so it was never shown at all,
+  regardless of an earlier (correct but irrelevant) z-index/stacking fix;
+  (2) once visible, split into two segments with a gap matching the
+  track's height, to sit outside the groove like the knob's tick rather
+  than crossing through it.
 
 2026-08-11 (Bug Report #1 fixed, roller safety gates, Jump List revised,
   Save to Different Slot built + root-caused + fixed, Bug Report #2 fixed,

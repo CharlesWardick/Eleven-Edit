@@ -39,7 +39,9 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (6th entry)
-STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27): "I
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "I
              think it looks good now." Both screenshots (low and high
              value) show the split tick sitting cleanly above/below the
              track. No further action.
@@ -109,7 +111,9 @@ NEXT:        Charlie to build 1.3.34+ and confirm live: tick appears at
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (5th entry)
-STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27): "Look
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "Look
              good first try. Probably because you didn't remove the caret
              code and us[ed] it as reference anchor." All labels sit flush
              with GUITAR/STEREO/TEMPO, AMP/CAB unchanged, selection ring
@@ -165,7 +169,9 @@ NEXT:        Charlie to build 1.3.33+ and confirm live that every label
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (4th entry)
-STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27): "What
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "What
              you did is fine, no point really is a custom 'glove' fitting
              ring. What you did works too for no graphics." One CSS ring
              covering both real-graphics and dummy-tile cases stands as
@@ -225,7 +231,9 @@ NEXT:        Charlie to build 1.3.32+ and confirm live: ring appears on
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (3rd entry)
-STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27). Both
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27). Both
              delay-block Expanded Delay display fixes (this entry, BBD
              Delay, and the 2nd entry above, EP Tape Echo) done for this
              session.
@@ -255,7 +263,9 @@ NEXT:        Charlie to build 1.3.31+ and confirm live.
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (2nd entry)
-STATUS:      CLOSED — CHARLIE'S CALL (2026-08-27). Manual-knob display
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — CHARLIE'S CALL (2026-08-27).
+             Manual-knob display
              confirmed live: "solved like 99% of the issue." Sync-engaged +
              Expanded Delay showed a several-ms residual gap between HW
              truth and the display; root cause identified (not a new bug —
@@ -319,7 +329,9 @@ NEXT:        None. Closed.
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-27): min/max/midpoint
+STATUS:      [FOLDED IN: Tech Ref Sec 7 / Sec 24 Change Log, Primer
+             2026-08-27 SESSION SUMMARY] — confirmed — TESTED LIVE
+             (Charlie, 2026-08-27): min/max/midpoint
              (0.0 at centre) all correct on both To Amp 1 and To Amp 2.
 AREA:        To Amp 1/2 Volume / CMD 0x36 / sendToAmpVolume (transport.js)
 FINDING:     Charlie's report: both To Amp knobs rotate correctly from mute
