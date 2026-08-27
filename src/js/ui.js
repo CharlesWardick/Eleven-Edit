@@ -63,11 +63,17 @@ function drawKnob(canvas, value127) {
   ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
   ctx.stroke();
 
-  // Value arc
+  // Value arc. At a very small value, the swept angle is shorter than the
+  // round cap's own width, so both end-caps overlap into a solid blob that
+  // pokes past the ring's edge instead of reading as a sliver of line — use
+  // a flat cap for those tiny sweeps; round caps still look right once the
+  // arc is long enough to show them properly.
   if (value127 > 0) {
+    const minSweepForRoundCap = 5 / (r-4); // ~lineWidth's angular width at this radius
     ctx.beginPath();
     ctx.arc(cx, cy, r-4, startRad, endRad);
-    ctx.strokeStyle = knobCol; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.strokeStyle = knobCol; ctx.lineWidth = 5;
+    ctx.lineCap = (endRad - startRad) < minSweepForRoundCap ? 'butt' : 'round';
     ctx.stroke();
   }
 

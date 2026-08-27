@@ -39,6 +39,44 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
+STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        Knob rendering — value-arc round-cap blob at tiny values
+             (drawKnob, src/js/ui.js) — applies to EVERY knob, reported on
+             FX LOOP Mix
+FINDING:     Charlie reported a round dot sitting outside the knob's ring
+             at very low values (e.g. FX Loop Mix at 1%), and that the dot
+             disappears once the value hits exactly 0 (knob turns red at
+             that point too, but the two are coincidental, not related).
+             ROOT CAUSE: the value arc is stroked with lineWidth 5 and
+             lineCap 'round'. At a small enough value, the swept angle is
+             shorter than the cap's own width, so the two end-caps overlap
+             almost entirely into a solid round blob instead of reading as
+             a short line segment — and because a round cap bulges
+             tangentially past its stroke's own endpoints, that blob can
+             sit partly outside the ring's normal silhouette. At value127
+             === 0 no arc is drawn at all (existing `if (value127 > 0)`
+             guard), which is why the dot vanishes there — not because red
+             fixes anything, just because nothing is drawn.
+FIX:         drawKnob (ui.js ~line 67) now computes minSweepForRoundCap =
+             5/(r-4) (the arc's own lineWidth as an angular width at this
+             radius) and uses lineCap 'butt' instead of 'round' only when
+             the swept angle is below that threshold; normal-sized arcs
+             are unaffected and still get the polished rounded-cap look.
+             Threshold is geometric (radius-relative), not a magic value
+             count, so it should hold for any knob canvas size, not just
+             FX Loop's.
+EVIDENCE:    JS-only diff, src/js/ui.js drawKnob(). Not yet visually
+             confirmed against a real drag to a low value on hardware.
+             Version bumped 1.3.43 -> 1.3.44 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to build and drag a few knobs (not just FX Loop Mix)
+             down near 0-2% to confirm the dot is gone and the line reads
+             as a small sliver instead, with no regression at mid/high
+             values or at exactly 0%.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
 STATUS:      confirmed — TESTED LIVE
 AREA:        Jump List / slot matrix current-patch highlight (src/index.html)
 FINDING:     Charlie asked for the current patch to be highlighted in the
