@@ -41,17 +41,6 @@ function knobColor(canvas, value127) {
   return base;
 }
 
-// Pointer-line knob (replaced the filled glow-ring arc + dot, 2026-08-27,
-// Charlie's call — "hate the glow ring now"). Same red-on-change contract,
-// same track groove; only the value indicator changed, to a single radial
-// line plus a static tick on the track marking the baseline (the value the
-// patch loaded with, wrap.dataset.orig) so a change is visible against
-// where it started, not just what colour it turned. LINE_WIDTH is the one
-// knob to turn bolder later if it reads too thin in the real panels —
-// mocked up at 3 alongside thicker/thinner alternatives before this value
-// was picked; nothing else about the geometry needs to change to retune it.
-const KNOB_LINE_WIDTH = 3;
-
 function drawKnob(canvas, value127) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
@@ -74,11 +63,24 @@ function drawKnob(canvas, value127) {
   ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
   ctx.stroke();
 
-  // Baseline mark — a short static tick on the track at the value this
-  // knob loaded with, so a change reads against where it started, not
-  // just its colour. Only drawn once the live value has actually moved
-  // off it; a knob still sitting on its baseline needs no second marker
-  // on top of its own pointer line.
+  // Value arc
+  if (value127 > 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r-4, startRad, endRad);
+    ctx.strokeStyle = knobCol; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // Baseline mark (2026-08-27, Charlie's call, replaces the brief
+  // pointer-line experiment — ring restored, this stayed) — a short
+  // radial notch across the track at the value this knob loaded with,
+  // so a change reads against where it started, not just its colour.
+  // Drawn dark-outlined WHITE rather than knobCol/track colour on
+  // purpose: it has to read whether it lands in the unlit grey track
+  // (turning the knob DOWN from baseline) or inside the lit value arc
+  // (turning UP) — a single colour can't contrast both. Only drawn once
+  // the live value has actually left it; a knob still sitting on its
+  // baseline needs no separate marker.
   const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
   if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
     const origV = parseInt(wrap.dataset.orig);
@@ -88,9 +90,14 @@ function drawKnob(canvas, value127) {
       ctx.translate(cx, cy);
       ctx.rotate(baseRad + Math.PI/2);
       ctx.beginPath();
-      ctx.moveTo(0, -(r-1));
-      ctx.lineTo(0, -(r-8));
-      ctx.strokeStyle = '#888'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.moveTo(0, -(r+1));
+      ctx.lineTo(0, -(r-9));
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -(r+1));
+      ctx.lineTo(0, -(r-9));
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
       ctx.stroke();
       ctx.restore();
     }
@@ -102,15 +109,17 @@ function drawKnob(canvas, value127) {
   ctx.fillStyle = '#242424'; ctx.fill();
   ctx.strokeStyle = '#484848'; ctx.lineWidth = 1.5; ctx.stroke();
 
-  // Pointer line — endRad is a canvas arc angle (0=3 o'clock). Rotated
-  // frame's "up" (-y) is 12 o'clock, so add PI/2 to align it with endRad.
+  // Indicator — was a dot at the arc's tip; now a short radial line
+  // (Charlie's call, 2026-08-27), same position and colour. endRad is a
+  // canvas arc angle (0=3 o'clock); the rotated frame's "up" (-y) is 12
+  // o'clock, so add PI/2 to align it with the arc endpoint.
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(endRad + Math.PI/2);
   ctx.beginPath();
-  ctx.moveTo(0, -6);
-  ctx.lineTo(0, -(r-13));
-  ctx.strokeStyle = knobCol; ctx.lineWidth = KNOB_LINE_WIDTH; ctx.lineCap = 'round';
+  ctx.moveTo(0, -(r-13));
+  ctx.lineTo(0, -(r-21));
+  ctx.strokeStyle = knobCol; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.stroke();
   ctx.restore();
 }
