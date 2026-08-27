@@ -52,6 +52,18 @@ STATUS:      provisional — 1st live round found a real bug, 2nd fix not
              position:relative + z-index:1 and the tick z-index:2 (z-index
              only compares POSITIONED elements, which is why this needed
              both sides, not just the tick).
+             2ND ROUND: NO CHANGE ("build confirmed .35, no change" —
+             Charlie offered to drop it after one more try). Re-derived
+             instead of guessing a 3rd stacking fix (Primer's TWO-FAILED-
+             FIXES rule) — found the REAL bug: updateBreakupColor
+             (ui.js) set `tick.style.display = ''` to show the tick. That
+             clears an INLINE override and falls back to the stylesheet,
+             whose .sctrl-baseline rule IS display:none (the hidden-by-
+             default state) — so that line never actually showed anything,
+             on any of the previous rounds. The z-index changes were
+             correct but irrelevant: there was nothing rendered to stack in
+             the first place. FIXED: `tick.style.display = 'block'`
+             instead of ''.
 AREA:        Speaker Breakup slider / baseline mark (visual only)
 FINDING:     Charlie asked to extend the knob baseline-tick treatment
              (this session's earlier work: a short static mark showing the

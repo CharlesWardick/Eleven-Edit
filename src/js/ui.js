@@ -281,7 +281,13 @@ function updateBreakupColor() {
       const thumbW = 14;
       const origV = parseInt(slider.dataset.orig);
       tick.style.left = ((thumbW / 2) + (trackW - thumbW) * (origV / 127)) + 'px';
-      tick.style.display = '';
+      // NOT '' — that clears the inline override and falls back to the
+      // stylesheet, whose .sctrl-baseline rule IS display:none (that's the
+      // hidden-by-default state), so it never actually showed anything.
+      // Real bug behind two rounds of "no visible change" on the z-index
+      // attempts (2026-08-27) — this line, not stacking order, was why the
+      // tick never appeared at all.
+      tick.style.display = 'block';
     } else {
       tick.style.display = 'none';
     }
