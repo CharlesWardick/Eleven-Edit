@@ -72,17 +72,18 @@ function drawKnob(canvas, value127) {
   }
 
   // Baseline mark (2026-08-27, Charlie's call, replaces the brief
-  // pointer-line experiment — ring restored, this stayed) — a short
-  // radial notch across the track at the value this knob loaded with,
-  // so a change reads against where it started, not just its colour.
-  // Drawn dark-outlined WHITE rather than knobCol/track colour on
-  // purpose: it has to read whether it lands in the unlit grey track
-  // (turning the knob DOWN from baseline) or inside the lit value arc
-  // (turning UP) — a single colour can't contrast both. Drawn from the
-  // first paint, not just once the value has diverged — Charlie's call
-  // (2026-08-27, 2nd round): appearing/disappearing on the first move
-  // read as awkward, so it's present from the start, coinciding with the
-  // tip indicator until the knob actually moves off it.
+  // pointer-line experiment — ring restored, this stayed) — a small tick
+  // at the value this knob loaded with, so a change reads against where
+  // it started, not just its colour. Drawn from the first paint, not
+  // just once the value has diverged (2026-08-27, 2nd round) — Charlie's
+  // call: appearing/disappearing on the first move read as awkward, so
+  // it coincides with the tip indicator until the knob actually moves.
+  // SHRUNK TO A SHORT EXTERNAL TICK (2026-08-27, 3rd round, Charlie's own
+  // paint mockup) — the earlier version was a notch crossing the ring
+  // stroke itself, which read as a second ring segment, not a marker.
+  // This sits entirely just outside the ring's outer edge (r-1.5, given
+  // the ring's own 5px lineWidth at radius r-4), so it never overlaps
+  // the lit or unlit track and needs no black-outline contrast trick.
   const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
   if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
     const origV = parseInt(wrap.dataset.orig);
@@ -91,14 +92,9 @@ function drawKnob(canvas, value127) {
     ctx.translate(cx, cy);
     ctx.rotate(baseRad + Math.PI/2);
     ctx.beginPath();
-    ctx.moveTo(0, -(r+1));
-    ctx.lineTo(0, -(r-9));
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, -(r+1));
-    ctx.lineTo(0, -(r-9));
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.moveTo(0, -(r+2));
+    ctx.lineTo(0, -(r-2));
+    ctx.strokeStyle = '#c8c8c8'; ctx.lineWidth = 2; ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
   }
