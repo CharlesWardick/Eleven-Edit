@@ -7327,9 +7327,766 @@ NEXT:        Done — global rule confirmed in use. If any panel ever shows the
   old light scrollbar, reopen; not expected given the app-wide rule.
 -------------------------------------------------------------------
 
+
+===================================================================
+PART 12 — 2026-08-11 to 08-27 (drained from Session Log 2026-08-27):
+the 08-11 session (roller fixes, safety gates, Jump List table, Save-to-
+Slot, Bug #2, About box) and the 08-27 session (knob restyle, To Amp
+0x36 endpoint fix, Delay ms rescale, chain-row ring + caret, Speaker
+Breakup tick).
+===================================================================
+Promoted into the masters (Primer / Tech Ref) and verified there, then
+moved here. Nothing below is needed for current work.
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      confirmed (retraction) — [FOLDED IN: Primer SLOT PICKER
+             entry + Tech Ref Sec 15, both marked WITHDRAWN/RETRACTED
+             in place, not deleted]
+AREA:        Save to Different Slot / CMD 0x02-0x04 commit sequence
+FINDING:     Tech Ref Sec 15's "protocol is identical to current save,
+             only the target slot number changes" is WRONG. Confirmed by
+             Charlie's live test of the newly-built slot picker: saving
+             to a picked slot different from currentSlot committed to
+             the ORIGINAL slot instead. This line had carried an
+             unverified assumption since June-era research — every real
+             save before today was always to the already-loaded slot
+             (slot === currentSlot in every prior test), so the
+             assumption had literally never been exercised, let alone
+             confirmed, until this session's first live test of the
+             genuinely-different-slot case.
+             UNCONFIRMED WORKING THEORY: the commit sequence's Steps 2-4
+             (CMD 0x03 dirty write, CMD 0x04 bank-index write, CMD 0x02
+             final commit), all addressed to the target slot, may only
+             update that slot's NAME-INDEX ENTRY and then navigate there
+             — while the actual "commit the live edit buffer to a slot"
+             operation is tied to whatever slot the rack's own firmware
+             considers currently active internally, which our sequence
+             never changes (deliberately, so as not to discard the live
+             buffer by recalling the target first). Not yet confirmed by
+             any capture — a theory to test, not a fix to ship.
+EVIDENCE:    Charlie's direct live-hardware test + follow-up multiple-
+             choice confirmation ("Saved to the ORIGINAL slot instead").
+             No packet capture yet — that's the NEXT step.
+CONFLICTS:   Directly contradicts Tech Ref Sec 15's prior text (now
+             marked WITHDRAWN in place, original wording preserved in a
+             surrounding note per the Archive rule — never delete a
+             retraction's context, only append the correction).
+NEXT:        Charlie: Avid's own editor software does NOT have a
+             save-to-a-different-slot feature, but the RACK'S OWN FRONT
+             PANEL does. Plan: run Eleven Edit connected (so its passive
+             SysEx monitoring/log captures whatever the rack broadcasts)
+             while doing a genuine front-panel save-to-a-different-slot,
+             then bring the resulting session log back for decoding —
+             same method already used for Bug Reports #1/#2, no
+             USBPcap/Wireshark needed since the app already sees this
+             traffic passively.
+             Added ahead of that test (sysex-handler.js, parseSysEx): a
+             catch-all "UNHANDLED CMD 0x.. ..." logger for any incoming
+             command byte that doesn't match a known case — previously
+             silently dropped with zero log trace unless it happened to
+             also be in PROBE_DUMP_CMDS. A front-panel save-as might use
+             a command this app has never decoded, and silently dropping
+             it would defeat the whole point of this capture.
+             DO NOT attempt another blind byte-sequence fix here without
+             that capture — this is the project's own "two failed fixes
+             = stop and re-derive" rule, and blind-guessing a hardware
+             WRITE command carries real risk (the existing Sec 15 note
+             about a wrong Step 4 byte order once mis-sending saves to
+             the factory-preset area is exactly the class of mistake to
+             avoid repeating here).
+
+             UPDATE 2026-08-11 — RESOLVED, capture obtained sooner than
+             expected: Charlie found Avid's OWN software actually does
+             have a "Save Rig To…" different-slot feature after all (he'd
+             said it didn't, then caught his own correction — "Avid
+             doesn't have this feature on software but the rack does" ->
+             then sent a capture of exactly that Avid feature). Captured
+             with Wireshark/USBPcap: AE_Save_to_Another_Slot_Capture.pcapng
+             (Editor loaded to A1, nav'd to A4, then Save Rig To → Z4 with
+             a name change). No tshark/scapy available in-session, so
+             parsed by hand in Python — pcapng Enhanced Packet Blocks,
+             then USB-MIDI CIN de-framing (CIN 0x4 continues, 0x5/0x6/0x7
+             end with 1/2/3 valid bytes) to reconstruct the same clean
+             "F0 13 0B 0F [dir] [cmd] ... F7" shape the app's own logs
+             already show — matches the C1 0x04-framing note (Sec 22)
+             exactly, same technique as the rest of this protocol's
+             research.
+             ROOT CAUSE FOUND: Step 3 (CMD 0x04, bank-index name write)
+             uses [0x00 constant][raw_slot], NOT [bank][num] — Avid's
+             capture for Z4 (raw slot 0x67) sent "00 04 00 67 <name> 00",
+             our code was sending "00 04 19 03 <name> 00" (bank=0x19,
+             num=0x03 for slot 103). Steps 2 and 4 were ALREADY correct
+             (both use raw_slot, confirmed byte-identical to Avid's
+             capture). The "byte-identical by coincidence for Bank A"
+             theory from the retraction above is confirmed exactly right:
+             for any A1-A4 target, bank=0=the real constant AND
+             num=rawSlot, so the wrong formula silently produced correct
+             bytes anyway — which is why this had never been caught
+             despite the code existing since Phase 4a.
+             BONUS FINDING: this exact mistake (bank/num split where the
+             real format is [space-or-0x00][raw_slot]) had already been
+             found and fixed ONCE before — on CMD 0x04's sibling REQU
+             (read) form, sendPatchNameQuery (transport.js), 2026-08-03's
+             "B1-B4 show a1-a4" bug. That fix was never generalized to
+             this WRITE form, which is exactly how the same mistake
+             survived here for months afterward. Worth remembering: a
+             fix to one form of a shared command doesn't imply its
+             sibling form got the same fix — check both explicitly.
+             ALSO CONFIRMED FROM THE SAME CAPTURE: the hardware's full
+             broadcast response to a different-slot save includes a
+             spontaneous CMD 0x00 bulk TFX broadcast for the TARGET slot
+             — exactly the "hardware save" signal handleBulkTfxData's
+             isSave branch already watches for (Sec 15), so that
+             mechanism needs no changes to generalize to this case.
+             FIXED: saveCurrentPatchToSlot (capture-scan.js) Step 3 now
+             sends "00 [slotHex]" instead of "[bankHex] [numHex]"; the
+             now-unused bank/num locals removed. Tech Ref Sec 15's step
+             table corrected in place (marked, not silently rewritten).
+             STATUS -> [FOLDED IN: Tech Ref Sec 15 corrected table +
+             re-confirmation note, Primer SLOT PICKER entry rewritten].
+             TESTED LIVE, CONFIRMED WORKING (Charlie, 2026-08-11) — verified
+             with real saves to non-Bank-A slots landing on the correct
+             slot: "Nailed it works good now."
+
+(All other folded / resolved / closed entries have been drained to the
+Archive — see the index below.)
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      [FOLDED IN: Primer JUMP LIST entry (rewritten in place) +
+             "Save to Different Slot" moved out of NOT YET IMPLEMENTED]
+AREA:        Jump List (single view) / Save to Different Slot
+FINDING:     Two related asks from Charlie once the table (above) was
+             confirmed clean on 1.3.19:
+             (1) Drop the "by slot" compact grid entirely now that the
+             table alone looks clean — either half of the patch-name box
+             opens the same single view.
+             (2) Now that the Jump List handles "104 slots + need to see
+             existing names" well, reuse it as the picker for "Save to
+             Different Slot" (the one item Charlie scoped as further work
+             back on 2026-08-10) — discussed earlier in this session:
+             reuse the overlay as a picker rather than build a second UI,
+             clicking a cell resolves the target slot instead of
+             navigating there, and the modal shows the target slot's
+             current name as an overwrite heads-up.
+EVIDENCE:    n/a — direct requests + design already discussed/agreed
+             earlier in this session before building the table.
+CONFLICTS:   none.
+NEXT:        IMPLEMENTED:
+             — #matrix-banks ("by slot"), buildMatrix, and all
+             .matrix-slot/.matrix-grid/.matrix-bank-label CSS deleted
+             outright (not just hidden) — genuinely unused now.
+             patch-name-box click is a single open/close toggle onto
+             #matrix-name-table; matrixMode variable removed entirely
+             (replaced by simple .open-class + "is a picker pending"
+             checks).
+             — openSlotPicker() (index.html): opens the same overlay,
+             returns a Promise resolved with the picked slot (or null on
+             cancel via Close/outside click). matrixPickerResolve tracks
+             the pending picker; the table's cell click handler and the
+             shared closeSlotMatrix() both check it before deciding
+             jump-there vs resolve-the-picker.
+             — Save to Rack modal: #rack-save-slot-label is now
+             clickable, opens the picker, and on a pick shows the target
+             slot's current name (patchNameCache) as an amber heads-up
+             line (#rack-save-slot-existing) — always a real name, never
+             "empty" (Charlie's correction from earlier this session).
+             saveTargetSlot resets to null every time the modal opens
+             fresh, so a stale pick can't leak into an unrelated save.
+             #slot-matrix z-index bumped above #rack-save-modal's so the
+             picker actually renders on top when opened from inside it.
+             — saveCurrentPatchToSlot(nameOverride, targetSlot) and
+             saveToRackAndDisk(name, targetSlot) (capture-scan.js): new
+             optional targetSlot param, defaults to currentSlot when
+             omitted (existing callers — btn-save-slot — unaffected).
+             Protocol is identical for any target slot (Tech Ref Sec 15);
+             no special-casing needed for currentSlot/display afterward —
+             the save protocol's own commit step (CMD 0x02) is itself a
+             slot-select, so the hardware's resulting broadcast makes
+             handleSlotConfirm's existing self-heal pick up the new
+             current slot automatically, same as any other
+             hardware-initiated nav.
+             NOT YET TESTED LIVE.
+
+             UPDATE 2026-08-11 — Charlie's live test: the UI half is
+             confirmed working end to end (picker opens, slot updates in
+             the modal, rename still works, Save fires) — but the actual
+             hardware write is CONFIRMED BROKEN: "except the part of
+             navigating to the selected slot and saving it there." Asked
+             a clarifying question; Charlie confirmed via multiple-choice
+             that it "Saved to the ORIGINAL slot instead" of the picked
+             one. See new entry below — this was folded into Primer
+             (retraction, marked *** RETRACTED ***) and Tech Ref Sec 15
+             (marked *** WITHDRAWN ***) rather than left only here, since
+             it invalidates a documented protocol claim other sessions
+             could otherwise build on.
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      [FOLDED IN: Primer JUMP LIST entry, BY NAME revision]
+AREA:        Jump List ("by name" view) / Chain Row graphics (discussion
+             only, no code)
+FINDING:     CHAIN ROW GRAPHICS (discussed, NOT built): explored a
+             generated/procedural pedal-icon fallback for when Avid's own
+             PNG assets aren't present (currently a blank tile). Landed on
+             "not worth it" — Charlie's own call: the only way to actually
+             know a block's exact content is opening its panel anyway,
+             and a generated approximation wouldn't give the same
+             at-a-glance recognition real Avid art does (confirmed via
+             Avid's own graphics being usable that way, several real
+             stomp-box images compared). Also confirmed: he can't
+             distribute/embed Avid's own graphic assets in this program,
+             but leveraging them from an already-installed Avid Eleven
+             Rack Editor on the SAME machine (which is what the existing
+             graphics scan already does) is fine — that's not a new
+             finding, just restated. Left for "opensource people" if
+             anyone ever wants to build a fallback icon set; no code
+             changed.
+             JUMP LIST "BY NAME" — separate topic, DID ship. Charlie
+             corrected an earlier assumption of mine: there's no such
+             thing as an "empty" slot — every one of the 104 always holds
+             a real, named patch (his own bank has several slots that are
+             just his default-zeroed 59 Tweed, but that's still a real,
+             named patch, not "unused" in the data sense). The existing
+             "by name" view (grouped-by-bank boxes + a repeated "BANK X"
+             header every 4 slots) was too tall, needing heavy scrolling
+             for 104 slots. Charlie pointed at ElevenHack's own patch list
+             (plain spreadsheet: header row 1-4, header column A-Z, no
+             repeated chrome) as the density target, and confirmed the
+             "by slot" view should be left alone for now — worth revisiting
+             whether it's still needed at all once the new "by name" table
+             is live-tested and looks clean.
+EVIDENCE:    Charlie's own screenshots: current "by name" grouped view,
+             his own real bank (BANK X/Y/Z showing named vs "-unused-"
+             labeled but still-real patches), and an ElevenHack patch-list
+             screenshot as the density reference.
+CONFLICTS:   Primer's original JUMP LIST entry (2026-08-03) described "by
+             name" as same-grid-different-box-size as "by slot" — no
+             longer true, now a genuinely different structure
+             (#matrix-name-table). Primer entry rewritten in place, not
+             appended, per HOW UPDATES WORK.
+NEXT:        IMPLEMENTED: #matrix-name-table (index.html) — real <table>,
+             header row/column built once (buildNameTable), cells hold
+             name only (slot ID available as a hover tooltip). Mutually
+             exclusive with #matrix-banks via the same mode-name/mode-slot
+             classing everything else already used. refreshMatrixCells/
+             refreshNamedMatrixSlot updated to target the new table's
+             cells instead of the old grid's when in name mode.
+             #matrix-banks ("by slot") left untouched. NOT YET TESTED
+             LIVE — once Charlie's seen it, decide together whether "by
+             slot" is still worth keeping as a separate view.
+
+             UPDATE 2026-08-11 — Charlie confirmed the table TESTED LIVE
+             and clean (1.3.19). Two follow-up bugs on the current-slot
+             cell highlight, both fixed same day:
+               1st attempt: plain border-color on .current lost its
+               top/left edges under border-collapse (adjacent cells'
+               shared edge resolution picked the neighbor's plain grey).
+               2nd attempt: switched to outline instead of border — SAME
+               exact symptom persisted (Charlie confirmed identical
+               pattern: A1 full box, row A missing left, everything else
+               missing top+left), proving it wasn't the decoration type,
+               it was border-collapse itself clipping cell paint.
+               FIX: switched the table from border-collapse:collapse to
+               separate/border-spacing:0 — every cell now owns its own
+               full border with nothing to resolve or clip. Confirmed
+               "the winner" by Charlie (1.3.19).
+             Per Charlie's own follow-up: "by slot" (#matrix-banks) is now
+             DROPPED entirely — the table alone was clean enough that a
+             second view stopped earning its keep. Superseded by the new
+             entry below.
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      [FOLDED IN: Primer WORKING, 2026-08-11 (2nd extension) +
+             Bug Report #2 entries]
+AREA:        RigRollerPlus / Tuner / main.js session log
+FINDING:     Two items from the same Charlie follow-up after confirming
+             the TFX/Bank gates worked:
+             (1) Tuner should join the roller's pause set — same family
+             as SAVE/Load TFX/Export/Import, since the roller stepping to
+             the next patch mid-tune is exactly the kind of disruption
+             those gates exist to prevent.
+             (2) SEPARATE gap Charlie spotted, not roller-related: a real
+             patch change turns the tuner off on hardware and shows the
+             next patch's own details in its place (confirmed, matches
+             Avid's own editor, which mimics this locally instead of
+             waiting on a broadcast) — this app didn't do that, so
+             tunerOn/the tuner button could go stale after any nav.
+             Bug Report #2: main.js's log banner still said
+             "RigRollerPlus" with no version — visible on line 1 of every
+             log, spotted by Charlie while reading a log file directly.
+EVIDENCE:    Charlie's direct observation of HW behaviour (tuner-off on
+             nav) plus the log file's own first line (RigRollerPlus name).
+CONFLICTS:   none.
+NEXT:        IMPLEMENTED: pauseRollerForTuner() (patch-nav.js), called
+             from handleTunerCC (ui.js) only on the confirmed ON
+             transition — matches that function's existing "confirmed
+             broadcast only" contract, not the local click.
+             goToSlot() (patch-nav.js) now clears tunerOn + the button's
+             'on' class directly when nav starts, mimicking Avid's editor
+             instead of waiting for a broadcast that a plain nav doesn't
+             reliably produce.
+             main.js's log banner now reads "Eleven Edit Session Start
+             ... (v<app.getVersion()>)", version read live from
+             package.json instead of hand-maintained.
+             UPDATE 2026-08-11 — Charlie's build confirmed the tuner
+             gates and Bug Report #2 both working, but caught the version
+             stamp landing after the timestamp instead of right after the
+             app name — moved to "Eleven Edit (v<ver>) Session Start ...".
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      [FOLDED IN: Primer WORKING, 2026-08-11 (extension) entry]
+AREA:        RigRollerPlus / TFX-Bank toolbar
+FINDING:     Charlie's follow-up to Bug Report #1: the SAVE ▾/Load TFX/
+             Export All Rigs/Import Rigs toolbar buttons did nothing to
+             the roller at all — no pause, no stop — unlike a confirmed
+             real HW save. Discussed options before coding per Charlie's
+             request: (a) force a clean Stop with no confirm modal vs
+             (b) a confirm modal first (matching Export/Import's existing
+             modal pattern). Charlie picked (a) explicitly — "a lot more
+             code just to protect from stupid operations", users will
+             learn after it fires a few times, restart cost is low.
+EVIDENCE:    n/a — design/process decision, not a hardware finding.
+CONFLICTS:   none.
+NEXT:        IMPLEMENTED: pauseRollerForSave() (patch-nav.js) — hooked in
+             openSaveModal (index.html), fires on either "Save to Rack…"
+             or "Save to Disk" click, unconditional (not dirty-gated),
+             before the modal even opens (so it fires even if cancelled).
+             stopRollerForBankOp() (patch-nav.js) — hooked at the very
+             top of loadTfxFromDisk (capture-scan.js) and both the Export
+             All Rigs / Import Rigs button handlers (bank-transfer.js),
+             before any other logic in each. Both gated on "armed"
+             (autoStartTime !== null), so a paused-but-armed roller is
+             also caught, not just a running one.
+             UPDATE 2026-08-11 — Charlie confirmed TESTED LIVE, all four
+             gates working.
+
+-------------------------------------------------------------------
+DATE:        2026-08-11
+STATUS:      [FOLDED IN: Primer WORKING/Tech Ref Sec 15 cross-check]
+AREA:        RigRollerPlus auto-advance / CMD 0x03
+FINDING:     Roller self-paused 4x in an 11:26-12:01 session with no real
+             hardware save. Root cause: handleSaveRigResponse (sysex-
+             handler.js) treated CMD 0x03 data[7]===0x01 as "a save just
+             happened" and called togglePause(). But per Tech Ref Sec 4/15,
+             data[7] is a per-SLOT DIRTY flag (unsaved edits present on
+             that slot), not a save event, and CMD 0x03 also fires as a
+             side effect of ordinary CMD 0x02 slot navigation (Sec 6) —
+             including the roller's own auto-advance. Landing on an
+             already-dirty slot (leftover from earlier manual editing)
+             falsely read as a hardware save. Confirmed against the
+             uploaded log: all 4 pause events line up exactly with "PROBE
+             resp CMD 0x03 ... 01" broadcasts following ordinary nav, not
+             any front-panel save action.
+EVIDENCE:    RigRollerPlus session-2026-08-11-112642.log lines 8327,
+             15255, 16975, 21485 — each pause immediately follows an
+             unsolicited CMD 0x03 broadcast (data[6]=slot, data[7]=0x01)
+             with no preceding save action; cross-checked against the full
+             set of CMD 0x03 variants in the same log (data[7] is 0x01 for
+             specific slots throughout an ordinary bank walk at
+             11:28-11:31, long before any save).
+CONFLICTS:   none — clarifies Tech Ref Sec 4's existing "CMD 0x03 dirty
+             flag" note, does not contradict it.
+NEXT:        FIXED, 1st pass (WRONG SCOPE): deleted the CMD 0x03 dirty-
+             flag pause trigger outright and routed roller-pause only
+             through handleBulkTfxData's isSave (real-save) branch. Broke
+             an existing, working feature — Charlie confirmed the dirty-
+             flag trigger is what correctly pauses the roll when a user
+             touches ANY control (bass, vol, etc.) mid-roll; that behavior
+             is intentional and was not part of the reported bug.
+             FIXED, 2nd pass (CORRECT SCOPE): restored the dirty-flag
+             pause-on-edit trigger, but gated it with a settle-window
+             guard — ROLLER_NAV_SETTLE_GUARD (2000ms, transport.js) —
+             using a new lastNavTime timestamp set in goToSlot
+             (patch-nav.js). A CMD 0x03 dirty broadcast arriving within
+             2000ms of the last recall is treated as settle/query noise
+             from the recall itself (matches worst-case NAV_RECALL_SETTLE
+             + NAV_CHAIN_TIMEOUT + NAV_AMP_TIMEOUT + query gaps); one
+             arriving after that window pauses the roll same as before.
+             Real hardware-save pause (isSave branch) is untouched and
+             coexists with this. NOT YET TESTED LIVE — needs (a) a full
+             roll session with no false pauses on dirty slots, (b) a knob
+             touch mid-roll (after settle) still pausing it, and (c) a
+             real front-panel save during a roll still pausing it.
+
+             UPDATE 2026-08-11 (later) — Charlie's live test confirmed the
+             first-edit pause works and confirmed (via testing on main)
+             that this gap predates today's changes. Diagnosed by Charlie:
+             once dirty flag is 1, a second edit after Resume produces no
+             new CMD 0x03 broadcast (nothing to announce — flag already
+             set, and only a save clears it), so the roller never
+             re-paused on the second+ edit within a dirty session.
+             FIXED: added maybePauseRollerOnEdit(), shared by CMD 0x03
+             (first edit, dirty-flag transition) and CMD 0x11 (every
+             discrete param-change broadcast, unconditional — catches
+             every subsequent edit the dirty flag alone would swallow).
+             Both share the same ROLLER_NAV_SETTLE_GUARD gate. NOT YET
+             TESTED LIVE — needs confirmation that a second/third control
+             touch after Resume now pauses the roll again.
+
+             UPDATE 2026-08-11 (later still) — Charlie's report of a missed
+             touch confirmed against session-2026-08-11-124328.log: a real
+             drag on tone Middle (paramLo 0x0b, 60->69->71) at ~2s after a
+             nav did NOT pause, because it landed inside the CMD 0x11
+             trigger's own 2000ms settle guard — the same guard meant to
+             stop false pauses ended up eating a real one. Confirmed from
+             the same log that the hardware's settle process re-broadcasts
+             every tone/amp paramLo TWICE with the identical value right
+             after "Nav pull complete" — so a time window can't cleanly
+             separate settle noise from a fast genuine touch, since both
+             can land in the same few seconds.
+             FIXED: CMD 0x11's trigger no longer uses a time guard at all.
+             paramSettleBaseline (state.js), keyed by instId:paramLo,
+             cleared in goToSlot, records the last value seen for each
+             param since the current nav. First sighting of a paramLo this
+             nav = settle baseline, not a pause. Any LATER value that
+             differs from that baseline = the knob actually moved = pause,
+             regardless of elapsed time. CMD 0x03's dirty-flag trigger is
+             unchanged (still time-guarded) — its settle-noise broadcasts
+             were confirmed to arrive within milliseconds of the recall
+             every time, so a time guard is sufficient there specifically.
+
+             UPDATE 2026-08-11 (final) — Charlie confirmed the 1.3.12 miss
+             reproduced every time once he knew the trick (touch right
+             after nav, before settle). On 1.3.13 still reproducible but
+             "a lot harder." CHARLIE'S CALL: good enough — STOP TUNING
+             THIS for now, no further rounds without a new concrete
+             repro/log. STATUS -> [FOLDED IN: Primer WORKING, 2026-08-11
+             entries]. Bug Report #1 (RigRollerPlus false pauses) closed
+             at this state.
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: Tech Ref Sec 7 / Sec 24 Change Log, Primer
+             2026-08-27 SESSION SUMMARY] — confirmed — TESTED LIVE
+             (Charlie, 2026-08-27): min/max/midpoint
+             (0.0 at centre) all correct on both To Amp 1 and To Amp 2.
+AREA:        To Amp 1/2 Volume / CMD 0x36 / sendToAmpVolume (transport.js)
+FINDING:     Charlie's report: both To Amp knobs rotate correctly from mute
+             to +12 but hardware never actually reads past +11.8 at the top
+             end (min/mute end is fine). Root cause: sendToAmpVolume never
+             got the endpoint-sentinel fix that sendParamWrite (CMD 0x11)
+             got on 7/23/2026 for the same "9.9 bug" class of symptom. Tech
+             Ref Sec 7 already documents CMD 0x36 as part of the same
+             single-byte-offset-binary family as 0x11/0x07, sentinels
+             included (min 0x40 00 00 00, max 0x3F 7F 7F 7F) - the fix was
+             simply never applied to this specific send function. The old
+             code always sent v0 + a flat "00 00 00 00" tail, which for the
+             true top value (v0=0x3F) asks for the BOTTOM of that step, not
+             the top - landing about one 24dB/127-step (~0.19 dB) short of
+             +12.0, consistent with the reported 11.8. Min was unaffected by
+             coincidence: 0x40 00 00 00 already IS the true minimum's exact
+             encoding, so there's no "bottom of the step" gap to fall into
+             at that end. FIXED: sendToAmpVolume (transport.js) now special-
+             cases v127>=127 with tail "7F 7F 7F 7F" (true max) and
+             v127<=0 with "00 00 00 00" (unchanged, already correct),
+             matching sendParamWrite's approach but WITHOUT copying CMD
+             0x11's extra final-byte 0x10-broadcast-offset quirk (0x0F in
+             its own max sentinel) - that quirk is specific to CMD 0x11's
+             message framing per Sec 7's TRAILING BYTES note and has no
+             documented equivalent for CMD 0x36.
+EVIDENCE:    Charlie's live-hardware report (11.8 max, never 12.0); Tech Ref
+             Sec 7 CONTINUOUS KNOBS entry naming 0x36 in the same family as
+             0x11/0x07 with the same sentinel scheme; sendParamWrite's
+             existing 7/23/2026 fix as the confirmed working pattern for
+             this exact symptom shape.
+CONFLICTS:   none — pure bug fix, no documented value changes.
+NEXT:        None — closed. CONFIRMED LIVE 2026-08-27. Master (Main) Volume
+             was flagged as a same-family risk but Charlie clarifies it is
+             NOT a knob (it's the chain-strip stepper/value-box control,
+             valToMasterVol) and is already spot-on at every value he's
+             checked — the endpoint-sentinel gap is specific to the two
+             CANVAS KNOB controls (To Amp 1/2) using sendToAmpVolume; no
+             action needed on Master Volume.
+-------------------------------------------------------------------
+DATE:        2026-08-27 (2nd entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — CHARLIE'S CALL (2026-08-27).
+             Manual-knob display
+             confirmed live: "solved like 99% of the issue." Sync-engaged +
+             Expanded Delay showed a several-ms residual gap between HW
+             truth and the display; root cause identified (not a new bug —
+             see below) and Charlie explicitly decided NOT to chase it
+             further: "who cares if our display is off by 6ms — nobody can
+             hear that difference in the context of a delay." Do not
+             reopen without a new concrete complaint from Charlie.
+AREA:        DELAY / EP Tape Echo / Expanded Delay toggle / Delay knob display
+FINDING:     EP Tape Echo's Delay knob display (protocol.js DELAY_MODELS,
+             lo 0x04) was captured with Expanded Delay OFF only (70-600 ms,
+             plain linear) — the original capture never accounted for the
+             Expanded Delay toggle (lo 0x09) changing that range. Charlie's
+             own eyeballed numbers (not yet Wireshark-verified): 20-2400 ms
+             with Expanded Delay ON. Avid's own editor does NOT rescale its
+             display when the toggle changes (a known Avid bug per
+             Charlie) — ours now does. DISPLAY-ONLY CHANGE: the wire
+             encoding/raw v127 sweep for the Delay knob is untouched, only
+             the ms text shown is now toggle-aware. Added `affectedByToggle`
+             on the Delay cell so updateDelayKnob (fx-panels.js) refreshes
+             the Delay knob's displayed ms the moment Expanded Delay is
+             flipped, even without moving the Delay knob itself.
+             STILL OPEN, DELIBERATELY NOT TOUCHED THIS PASS: Charlie flagged
+             that Sync-driven delay times may ALSO shift under Expanded
+             Delay — two different possible shapes (A: same raw v0 per Sync
+             division in both toggle states, just this same ms-display
+             rescale applies once Sync hands the knob a raw value =
+             "autopilot", nothing more to fix; B: hardware actually
+             broadcasts a DIFFERENT raw v0 for the same named division
+             depending on the toggle, meaning SYNC_DIVISIONS/
+             syncIndexFromV127/syncV127FromIndex need a toggle-aware
+             variant too). Charlie is testing this rescale live first,
+             specifically to see whether Sync's readout now falls out
+             correct on its own (case A) before we chase case B.
+             ADDRESSED 2026-08-27 (3rd entry): BBD Delay's own Expanded
+             Delay toggle (also lo 0x09) and Delay knob got the identical
+             fix — see that entry. Dyn Delay has no Expanded Delay control
+             at all (not applicable, confirmed by Charlie).
+EVIDENCE:    Charlie's live-hardware eyeballing (20-2400 ms with Expanded
+             Delay ON), not yet cross-checked against a Wireshark capture
+             the way the original 70-600 ms range was.
+CONFLICTS:   none.
+RESOLUTION:  ROOT CAUSE OF THE RESIDUAL GAP (no code change, explanation
+             only): the app never reads an ms value from hardware — the
+             display is ALWAYS our own math (ms = lo + raw/127*(hi-lo)) on
+             top of the raw 0-127 value HW actually sends. The ORIGINAL
+             70-600 ms range was also hardware-eyeballed, same as the new
+             20-2400 range — the difference is the original got cross-
+             checked against 13 separate Sync-division points (Charlie's
+             chart) and landed within 1 ms of each; the 20-2400 range is
+             just the two endpoints, never point-by-point verified. Because
+             the extended range is 4x wider, the same size of underlying
+             endpoint/linearity error shows up ~4x bigger in ms on screen —
+             expected amplification, not a distinct new bug. HW's own
+             Sync behaviour is correct regardless (confirmed by Charlie);
+             only our display math is approximate. Would need the same kind
+             of multi-point Wireshark capture (raw v0 at several Sync
+             divisions, Expanded Delay ON) to close the gap further, but
+             per Charlie's call above, not worth doing.
+NEXT:        None. Closed.
+-------------------------------------------------------------------
+DATE:        2026-08-27 (3rd entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27). Both
+             delay-block Expanded Delay display fixes (this entry, BBD
+             Delay, and the 2nd entry above, EP Tape Echo) done for this
+             session.
+AREA:        DELAY / BBD Delay / Expanded Delay toggle / Delay knob display
+FINDING:     Same fix as EP Tape Echo (see 2026-08-27 2nd entry, now
+             CLOSED) applied to BBD Delay's own Delay knob (protocol.js
+             DELAY_MODELS, lo 0x04) and its own Expanded Delay toggle
+             (also lo 0x09). Charlie's numbers: 32-400 ms normal
+             (unchanged, was the 'delayMs' legacy display flag), 128-1600
+             ms with Expanded Delay ON. Converted the Delay cell from the
+             string flag 'delayMs' to a function display (same
+             affectedByToggle:0x09 mechanism), and removed the now-unused
+             'delayMs' branch from delayKnobDisplay (fx-panels.js) since
+             BBD was its only caller. Dyn Delay confirmed to have no
+             Expanded Delay control — not applicable there.
+             Given the EP Tape Echo precedent (2nd entry above), expect the
+             same "close but not Wireshark-point-verified, a few ms off
+             under Sync + Extended is fine" outcome here too — not chasing
+             point-by-point verification unless Charlie's live test shows
+             something qualitatively different from the EP Tape Echo case.
+EVIDENCE:    Charlie's live-hardware numbers (128-1600 ms with Expanded
+             Delay ON), same "not yet Wireshark-verified" status as the
+             prior EP Tape Echo range.
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.31+ and confirm live.
+-------------------------------------------------------------------
+DATE:        2026-08-27 (4th entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "What
+             you did is fine, no point really is a custom 'glove' fitting
+             ring. What you did works too for no graphics." One CSS ring
+             covering both real-graphics and dummy-tile cases stands as
+             the final design — no per-block custom ring assets needed.
+             OPEN QUESTION RAISED, NOT DECIDED: now that the ring exists,
+             Charlie floated possibly removing the ▼ carets entirely
+             (ring + thumb-click already opens/closes each panel, per the
+             8/2/2026 CHAIN ROW CLICK-TO-OPEN addition) — explicitly "not
+             sure yet", not a request to act. Do not remove the carets
+             without an explicit go-ahead.
+             SEPARATE, UNRELATED OBSERVATION (not a request to fix): the
+             AMP-CAB slot's single thumb only shows the amp graphic, never
+             the cab graphic — a pre-existing "one thumb serves the pair"
+             design (index.html markup comment, 7/28), not something this
+             ring change touched or was asked to change.
+AREA:        Chain row / selection ring (visual only, no protocol change)
+FINDING:     Charlie's complaint: clicking a chain-row block only turned
+             the ▼ caret amber — no highlight anywhere on the thumb/pedal
+             graphic itself, and AMP-CAB (no ▼ of its own) never showed
+             ANY selection indicator, even though it's effectively the
+             default/home view. Matches a real gap left open back on 7/28:
+             chain-graphics.js's header comment already documented that
+             every pedal image has a matching "_sel" file in Avid's real
+             install, but the 7/28 POC (chainrowpoc4.html) found "_sel" is
+             just a generic amber rounded-rect outline, not a per-pedal
+             custom asset — "worth doing as CSS instead of another image
+             dependency" (Archive, 7/28 POC note). That CSS was never
+             actually built until now.
+FIXED:       .chain-thumb.chain-selected (index.html CSS) — box-shadow
+             ring (not border, so it doesn't change the thumb's box size/
+             alignment), rounded to match the described "rounded-rect
+             outline". Works identically whether the thumb holds a real
+             Avid image or the dashed dummy placeholder, so this covers
+             BOTH cases Charlie asked about (real-graphics ring AND a
+             "something similar" for tile-only mode) with one rule — no
+             separate no-graphics treatment needed.
+             updateChainSelectionRing() (index.html JS) derives which
+             block should carry the ring purely from current DOM state
+             (whichever .chain-open has .panel-open; AMP-CAB's own thumb
+             if none do, since AMP-CAB has no .chain-open of its own) and
+             repaints from scratch on every call. Wired via a
+             MutationObserver watching every .chain-open's class attribute,
+             rather than being threaded through the ~10 separate places in
+             index.html that already toggle .panel-open (bypass reads,
+             roller-stop, every panel-close handler, etc.) — one choke
+             point instead of ten call sites to keep in sync by hand.
+EVIDENCE:    Charlie's screenshot + description; chain-graphics.js header
+             comment (7/29 dated, references the 7/28 POC finding);
+             Archive 7/28 POC entry (chainrowpoc4.html, generic amber
+             rounded-rect outline, not per-pedal).
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.32+ and confirm live: ring appears on
+             whichever block's panel is open, including AMP-CAB by
+             default/on close, and correctly follows drag-reorder (thumb
+             element moves with its block, class travels with it).
+-------------------------------------------------------------------
+DATE:        2026-08-27 (5th entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "Look
+             good first try. Probably because you didn't remove the caret
+             code and us[ed] it as reference anchor." All labels sit flush
+             with GUITAR/STEREO/TEMPO, AMP/CAB unchanged, selection ring
+             correct on AMP (screenshot). No further action.
+AREA:        Chain row / ▼ caret removal (visual only, no protocol change)
+FINDING:     Follow-up to the selection-ring entry above. Charlie: the
+             carets have "no real purpose having moved what they did [to]
+             the graphic handle" (thumb-click has opened/closed panels
+             since 8/2/2026) — asked to remove them and let every effect
+             block's label drop to the same visual baseline as GUITAR/
+             STEREO/TEMPO. AMP-CAB (never had a caret) untouched.
+FIXED:       .chain-open — visibility:hidden (NOT display:none, NOT
+             removed from the DOM). This was a deliberate choice, not the
+             obvious one: display:none would have let .chain-name's own
+             margin-top:auto pull it down to fill the freed space, but
+             landing it flush with the OLD caret's own bottom edge — 12px
+             HIGHER than GUITAR/STEREO/TEMPO's already-established
+             baseline (see below), not on the same plane at all.
+             visibility:hidden instead preserves the caret's real
+             reserved height (nothing reflows) while making it invisible
+             and non-hit-testable — same trick #chain-input-wrap/
+             #tempo-wrap ALREADY use for their own hidden carets (body
+             markup, 7/28) — and crucially leaves .click() (used by the
+             thumb-click-forwarding handler) and the .panel-open class
+             (watched by the selection ring's MutationObserver) both
+             completely unaffected, since neither depends on visibility.
+             .chain-name — added transform:translateY(12px), the EXACT
+             same nudge #mono-indicator/#chain-input-wrap/#tempo-wrap
+             already use and that Charlie hand-picked off four rendered
+             options on 7/28 (their hidden-caret position alone read "too
+             high" without it) — reused rather than re-derived, since that
+             number was only ever established by eye, never by formula,
+             per this file's own 7/28 history. Also changed .chain-name's
+             border-radius from 4px 4px 0 0 (flat bottom, assumed a caret
+             glued below) to a plain 4px (standalone pill) now that
+             nothing visible sits below it.
+             Fully reversible: dropping the one visibility:hidden line
+             brings the carets straight back, nothing else in this change
+             depends on them being invisible (Charlie's own explicit ask
+             before agreeing to this, given the chain row's history of
+             half-day debugging sessions over small changes here).
+EVIDENCE:    Charlie's request; the ALREADY-PROVEN GUITAR/STEREO/TEMPO
+             hidden-caret + translateY(12px) pattern (7/28) reused
+             directly rather than inventing new positioning math.
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.33+ and confirm live that every label
+             (VOL/WAH/DIST/FX LOOP/FX1/MOD/FX2/DELAY/REVERB) now sits on
+             the same visual baseline as GUITAR/STEREO/TEMPO, AMP/CAB
+             unchanged, and that click-to-open/bypass/drag-reorder/the
+             selection ring all still work exactly as before (pure CSS
+             change, but this area's history says verify anyway).
+-------------------------------------------------------------------
+DATE:        2026-08-27 (6th entry)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log, Primer 2026-08-27
+             SESSION SUMMARY] — CLOSED — TESTED LIVE, CONFIRMED (Charlie,
+             2026-08-27): "I
+             think it looks good now." Both screenshots (low and high
+             value) show the split tick sitting cleanly above/below the
+             track. No further action.
+             FULL ROUND HISTORY (kept — a real multi-bug saga, not just a
+             one-line fix): 1st report: correct build confirmed via
+             About box, tick computed correctly (value/color logic all
+             fine — the red thumb/fill proves dataset.orig existed and
+             differed) but genuinely invisible on screen, not just subtle.
+             ROOT CAUSE: a native <input type=range> paints its own
+             track/thumb as a special replaced-element rendering layer
+             that sits above ordinary sibling content regardless of DOM
+             order — the tick <div> came AFTER the input in markup but was
+             still being painted UNDER it. FIXED: gave the input
+             position:relative + z-index:1 and the tick z-index:2 (z-index
+             only compares POSITIONED elements, which is why this needed
+             both sides, not just the tick).
+             2ND ROUND: NO CHANGE ("build confirmed .35, no change" —
+             Charlie offered to drop it after one more try). Re-derived
+             instead of guessing a 3rd stacking fix (Primer's TWO-FAILED-
+             FIXES rule) — found the REAL bug: updateBreakupColor
+             (ui.js) set `tick.style.display = ''` to show the tick. That
+             clears an INLINE override and falls back to the stylesheet,
+             whose .sctrl-baseline rule IS display:none (the hidden-by-
+             default state) — so that line never actually showed anything,
+             on any of the previous rounds. The z-index changes were
+             correct but irrelevant: there was nothing rendered to stack in
+             the first place. FIXED: `tick.style.display = 'block'`
+             instead of ''.
+             3RD ROUND (consistency, not a bug): Charlie confirmed the
+             tick now shows, but asked it match the knob's version, which
+             sits OUTSIDE the ring rather than crossing through it. Split
+             the tick into two short segments (top/bottom) via a linear-
+             gradient with a transparent 6px gap through the middle,
+             matching the track's own height so the gap lines up exactly
+             with the groove/thumb instead of a solid line running through
+             them.
+AREA:        Speaker Breakup slider / baseline mark (visual only)
+FINDING:     Charlie asked to extend the knob baseline-tick treatment
+             (this session's earlier work: a short static mark showing the
+             value a control loaded with) to Speaker Breakup — the one
+             control in the app that's a native <input type=range>, not a
+             .knob-wrap canvas (2026-08-03 rework, ui.js/index.html), so
+             it already needed its own separate wiring into the amber/red
+             "changed" contract and gets the same separate treatment here.
+FIXED:       A native range input has no canvas to draw a tick on and no
+             way to inject a positioned child INSIDE it, so the tick is a
+             separate DOM element (#breakup-baseline, index.html) layered
+             on top via a new positioning wrapper (.sctrl-track-wrap,
+             sized to the input by default — no layout change to the
+             slider itself). Positioned in JS (updateBreakupColor, ui.js)
+             rather than drawn, corrected for the thumb's own 14px width
+             (the thumb's CENTRE travels thumbW/2 to trackW-thumbW/2, not
+             edge to edge — a plain 0-100% placement would drift from the
+             thumb's real position near either end). Same light-grey
+             (#c8c8c8), same "only shown once a baseline exists" rule as
+             the knob version.
+EVIDENCE:    Charlie's request, direct continuation of this session's
+             earlier knob baseline-tick work (5 rounds of live-tested
+             iteration, now closed).
+CONFLICTS:   none.
+NEXT:        Charlie to build 1.3.34+ and confirm live: tick appears at
+             the right x-position for a few different baseline values
+             (check near both ends of the range, where the thumb-width
+             correction matters most), stays put while dragging, and
+             disappears/reappears correctly across a patch nav.
+-------------------------------------------------------------------
+
 ===================================================================
 END OF ARCHIVE
 ===================================================================
+
 
 
 
