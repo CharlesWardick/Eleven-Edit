@@ -41,6 +41,25 @@ ENTRIES (newest first)
 DATE:        2026-08-27
 STATUS:      confirmed
 AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
+FINDING:     Charlie flagged that "Protocol Research Credit"'s opening line
+             ("No code from that project is used here...") had no
+             antecedent — the section's first sentence referenced "that
+             project" before naming ElevenHack, reading as dangling/unclear
+             about which entity (ElevenHack? Avid?) it meant. Reordered so
+             ElevenHack/Guillaume Schmid is named first, then "no code from
+             that project" clearly refers back to it, and the Avid
+             no-software-used statement is now its own distinct sentence.
+             Same facts as before, wording only.
+EVIDENCE:    Text-only diff, src/index.html Protocol Research Credit
+             paragraph. Version bumped 1.3.39 -> 1.3.40 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to confirm the reworded paragraph reads clearly.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      confirmed
+AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
 FINDING:     Widened #about-box from max-width 560px to 680px, at Charlie's
              request, to reduce/eliminate line wraps and the scrollbar in
              the (now longer) body text — a chosen value, not tied to any
