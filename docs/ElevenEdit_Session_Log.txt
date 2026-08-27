@@ -64,6 +64,14 @@ STATUS:      provisional — 1st live round found a real bug, 2nd fix not
              correct but irrelevant: there was nothing rendered to stack in
              the first place. FIXED: `tick.style.display = 'block'`
              instead of ''.
+             3RD ROUND (consistency, not a bug): Charlie confirmed the
+             tick now shows, but asked it match the knob's version, which
+             sits OUTSIDE the ring rather than crossing through it. Split
+             the tick into two short segments (top/bottom) via a linear-
+             gradient with a transparent 6px gap through the middle,
+             matching the track's own height so the gap lines up exactly
+             with the groove/thumb instead of a solid line running through
+             them.
 AREA:        Speaker Breakup slider / baseline mark (visual only)
 FINDING:     Charlie asked to extend the knob baseline-tick treatment
              (this session's earlier work: a short static mark showing the

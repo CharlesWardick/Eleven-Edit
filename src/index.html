@@ -673,7 +673,18 @@
   .sctrl-track-wrap { position: relative; display: inline-flex; align-items: center; }
   .sctrl-baseline {
     position: absolute; top: 50%; left: 0; width: 2px; height: 14px;
-    background: #c8c8c8; border-radius: 1px; pointer-events: none;
+    /* Consistency call, 2026-08-27: matches the knob's baseline tick,
+       which sits OUTSIDE the ring rather than crossing through it. Split
+       into two short segments (top/bottom) with a transparent gap through
+       the middle — the gap's height (6px, at 4px-10px of this 14px total)
+       matches the track's own height (.sctrl input[type=range]'s
+       height:6px, above), so the gap lines up exactly with the track
+       instead of the tick running straight through the groove/thumb. */
+    background: linear-gradient(to bottom,
+      #c8c8c8 0, #c8c8c8 4px,
+      transparent 4px, transparent 10px,
+      #c8c8c8 10px, #c8c8c8 14px);
+    border-radius: 1px; pointer-events: none;
     transform: translate(-1px, -50%);
     /* A native <input type=range> paints its track/thumb as a special
        replaced-element layer that sits above ordinary sibling content
