@@ -41,6 +41,25 @@ ENTRIES (newest first)
 DATE:        2026-08-27
 STATUS:      confirmed
 AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
+FINDING:     Widened #about-box from max-width 560px to 680px, at Charlie's
+             request, to reduce/eliminate line wraps and the scrollbar in
+             the (now longer) body text — a chosen value, not tied to any
+             platform standard. Only #about-box's own max-width changed;
+             the shared rule with #watchdog-box/#scan-box (padding, border,
+             base max-width 460px) is untouched since #about-box overrides
+             max-width separately. No layout/styling/link changes otherwise.
+EVIDENCE:    Text-only CSS diff, src/index.html line ~870. Version bumped
+             1.3.38 -> 1.3.39 (package.json). Not yet confirmed by Charlie
+             whether wraps/scrollbar are actually gone.
+CONFLICTS:   none
+NEXT:        Charlie to build and confirm the wider box reads well and the
+             scrollbar is gone; adjust further if still needed.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      confirmed
+AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
 FINDING:     Reworded the "Protocol Research Credit" and "For The Community"
              body text per Charlie's brief (uploaded ABOUT_BOX_UPDATE.md).
              Protocol Research Credit now states plainly that no Avid
