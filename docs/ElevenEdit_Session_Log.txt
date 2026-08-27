@@ -39,7 +39,10 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (3rd entry)
-STATUS:      provisional — code written, NOT YET TESTED LIVE
+STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27). Both
+             delay-block Expanded Delay display fixes (this entry, BBD
+             Delay, and the 2nd entry above, EP Tape Echo) done for this
+             session.
 AREA:        DELAY / BBD Delay / Expanded Delay toggle / Delay knob display
 FINDING:     Same fix as EP Tape Echo (see 2026-08-27 2nd entry, now
              CLOSED) applied to BBD Delay's own Delay knob (protocol.js
