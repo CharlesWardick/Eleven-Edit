@@ -39,7 +39,19 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (6th entry)
-STATUS:      provisional — code written, NOT YET TESTED LIVE
+STATUS:      provisional — 1st live round found a real bug, 2nd fix not
+             yet tested. Charlie's report: correct build confirmed via
+             About box, tick computed correctly (value/color logic all
+             fine — the red thumb/fill proves dataset.orig existed and
+             differed) but genuinely invisible on screen, not just subtle.
+             ROOT CAUSE: a native <input type=range> paints its own
+             track/thumb as a special replaced-element rendering layer
+             that sits above ordinary sibling content regardless of DOM
+             order — the tick <div> came AFTER the input in markup but was
+             still being painted UNDER it. FIXED: gave the input
+             position:relative + z-index:1 and the tick z-index:2 (z-index
+             only compares POSITIONED elements, which is why this needed
+             both sides, not just the tick).
 AREA:        Speaker Breakup slider / baseline mark (visual only)
 FINDING:     Charlie asked to extend the knob baseline-tick treatment
              (this session's earlier work: a short static mark showing the

@@ -650,6 +650,12 @@
     background: linear-gradient(to right,
       var(--track-color) 0%, var(--track-color) var(--fill-pct),
       #1a1a1a var(--fill-pct), #1a1a1a 100%);
+    /* position+z-index so the baseline tick (.sctrl-baseline, a sibling
+       positioned OVER it) reliably paints on top — a native range input's
+       replaced-element rendering otherwise sits above ordinary sibling
+       content regardless of DOM order, z-index has no effect unless both
+       elements are positioned (2026-08-27 fix, see .sctrl-baseline). */
+    position: relative; z-index: 1;
   }
   .sctrl input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none;
@@ -669,6 +675,14 @@
     position: absolute; top: 50%; left: 0; width: 2px; height: 14px;
     background: #c8c8c8; border-radius: 1px; pointer-events: none;
     transform: translate(-1px, -50%);
+    /* A native <input type=range> paints its track/thumb as a special
+       replaced-element layer that sits above ordinary sibling content
+       regardless of DOM order (this was the actual bug Charlie caught
+       2026-08-27 — the tick was being computed and shown correctly, just
+       painted UNDER the slider, invisible). z-index only has an effect
+       between positioned elements, so the input itself needs one too — see
+       .sctrl input[type=range] below. */
+    z-index: 2;
     display: none;   /* JS shows this once a baseline (dataset.orig) exists */
   }
   .sctrl-val    { font-size: 12px; color: var(--accent); font-weight: bold; min-width: 32px; font-family: 'Consolas', monospace; }
