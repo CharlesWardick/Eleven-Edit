@@ -39,7 +39,22 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (4th entry)
-STATUS:      provisional — code written, NOT YET TESTED LIVE
+STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27): "What
+             you did is fine, no point really is a custom 'glove' fitting
+             ring. What you did works too for no graphics." One CSS ring
+             covering both real-graphics and dummy-tile cases stands as
+             the final design — no per-block custom ring assets needed.
+             OPEN QUESTION RAISED, NOT DECIDED: now that the ring exists,
+             Charlie floated possibly removing the ▼ carets entirely
+             (ring + thumb-click already opens/closes each panel, per the
+             8/2/2026 CHAIN ROW CLICK-TO-OPEN addition) — explicitly "not
+             sure yet", not a request to act. Do not remove the carets
+             without an explicit go-ahead.
+             SEPARATE, UNRELATED OBSERVATION (not a request to fix): the
+             AMP-CAB slot's single thumb only shows the amp graphic, never
+             the cab graphic — a pre-existing "one thumb serves the pair"
+             design (index.html markup comment, 7/28), not something this
+             ring change touched or was asked to change.
 AREA:        Chain row / selection ring (visual only, no protocol change)
 FINDING:     Charlie's complaint: clicking a chain-row block only turned
              the ▼ caret amber — no highlight anywhere on the thumb/pedal
