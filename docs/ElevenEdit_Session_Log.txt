@@ -37,8 +37,34 @@ NEXT:        what would confirm it, or what to do with it
 ENTRIES (newest first)
 ===================================================================
 
-(No live provisional entries. All folded / resolved / closed entries
-have been drained to the Archive — see the index below. Add new
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      confirmed
+AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
+FINDING:     Reworded the "Protocol Research Credit" and "For The Community"
+             body text per Charlie's brief (uploaded ABOUT_BOX_UPDATE.md).
+             Protocol Research Credit now states plainly that no Avid
+             software/source was used and the protocol was re-derived via
+             direct packet analysis, while still crediting Guillaume
+             Schmid/ElevenHack (2013) (link unchanged). For The Community
+             now cites the MIT License explicitly and adds a courtesy
+             (non-obligatory) request to keep Charles Wardick and Guillaume
+             Schmid named in credits if someone builds on Eleven Edit.
+             DESIGN & CONCEPT, ARCHITECTURE, STARTUP FLAGS, version display,
+             links, layout, and styling all left untouched, per the brief.
+             The optional footer license/trademark line from the brief was
+             NOT added (only requested "if asked").
+EVIDENCE:    Text-only diff, src/index.html (about-section blocks for the
+             two headings). Version bumped 1.3.37 -> 1.3.38 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to build and confirm the wording reads correctly in
+             the running app (BRIDGE-INDEPENDENT — testable without hardware,
+             per Primer's HOW "TESTED" WORKS HERE). No further action unless
+             he asks for the optional footer line or further wording changes.
+-------------------------------------------------------------------
+
+(No other live provisional entries. All other folded / resolved / closed
+entries have been drained to the Archive — see the index below. Add new
 findings here as work resumes.)
 
 ===================================================================
