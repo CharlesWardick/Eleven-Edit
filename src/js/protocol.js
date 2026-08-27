@@ -1696,7 +1696,17 @@ const DELAY_MODELS = [
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A],
     rows: [
       [ {label:'Input',    lo:0x06, display:'delayTen'},
-        {label:'Delay',    lo:0x04, display:'delayMs'},
+        // Same Expanded Delay rescale as EP Tape Echo (2026-08-27, Charlie's
+        // eyeballed numbers, same "not Wireshark point-checked, accepted as
+        // close enough" status as that fix — see Session Log): 32-400 ms
+        // normal, 128-1600 ms with Expanded Delay (lo 0x09) ON.
+        {label:'Delay', lo:0x04, affectedByToggle:0x09,
+          display: function(v) {
+            var tgl = document.getElementById('delay-tgl-09');
+            var extended = tgl && parseInt(tgl.dataset.value) > 0;
+            var lo = extended ? 128 : 32, hi = extended ? 1600 : 400;
+            return Math.round(lo + (v / 127) * (hi - lo)) + ' ms';
+          }},
         {label:'Feedback', lo:0x03, display:'delayTen'},
         {label:'Depth',    lo:0x07, display:'delayTen'},
         {label:'Mix',      lo:0x02, display:'delayTen'} ],

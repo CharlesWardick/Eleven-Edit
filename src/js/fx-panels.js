@@ -1136,9 +1136,9 @@ function renderDelayKnobs(mid) {
 }
 
 // Display string for a DELAY knob value. cell.display can be a function
-// (Dyn Delay — one per knob, its own real formula) or one of BBD Delay's
-// legacy string flags ('delayTen'/'delayMs', kept for backward compat
-// rather than rewritten to functions for no reason).
+// (one per knob, its own real formula) or BBD Delay's remaining legacy
+// string flag ('delayTen' — its own Delay knob moved to a function,
+// 2026-08-27, to be Expanded Delay-toggle-aware like EP Tape Echo's).
 function delayKnobDisplay(paramLo, val) {
   const delayBlk = currentChain.find(b => b.slotId === SLOT_DELAY);
   const model = delayBlk ? DELAY_MODEL_BY_MID[delayBlk.modelId] : null;
@@ -1149,7 +1149,6 @@ function delayKnobDisplay(paramLo, val) {
     if (cell.lo !== paramLo) continue;
     if (typeof cell.display === 'function') return cell.display(val);
     if (cell.display === 'delayTen') return (val / 127 * 10).toFixed(1);
-    if (cell.display === 'delayMs')  return (32 + val / 127 * (400 - 32)).toFixed(0) + ' ms';
   }
   return valDisplay(val);
 }
