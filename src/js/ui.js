@@ -78,29 +78,29 @@ function drawKnob(canvas, value127) {
   // Drawn dark-outlined WHITE rather than knobCol/track colour on
   // purpose: it has to read whether it lands in the unlit grey track
   // (turning the knob DOWN from baseline) or inside the lit value arc
-  // (turning UP) — a single colour can't contrast both. Only drawn once
-  // the live value has actually left it; a knob still sitting on its
-  // baseline needs no separate marker.
+  // (turning UP) — a single colour can't contrast both. Drawn from the
+  // first paint, not just once the value has diverged — Charlie's call
+  // (2026-08-27, 2nd round): appearing/disappearing on the first move
+  // read as awkward, so it's present from the start, coinciding with the
+  // tip indicator until the knob actually moves off it.
   const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
   if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
     const origV = parseInt(wrap.dataset.orig);
-    if (origV !== value127) {
-      const baseRad = startRad + (sweepRad * origV/127);
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(baseRad + Math.PI/2);
-      ctx.beginPath();
-      ctx.moveTo(0, -(r+1));
-      ctx.lineTo(0, -(r-9));
-      ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, -(r+1));
-      ctx.lineTo(0, -(r-9));
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
-      ctx.stroke();
-      ctx.restore();
-    }
+    const baseRad = startRad + (sweepRad * origV/127);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(baseRad + Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(0, -(r+1));
+    ctx.lineTo(0, -(r-9));
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -(r+1));
+    ctx.lineTo(0, -(r-9));
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
   }
 
   // Body
@@ -109,16 +109,17 @@ function drawKnob(canvas, value127) {
   ctx.fillStyle = '#242424'; ctx.fill();
   ctx.strokeStyle = '#484848'; ctx.lineWidth = 1.5; ctx.stroke();
 
-  // Indicator — was a dot at the arc's tip; now a short radial line
-  // (Charlie's call, 2026-08-27), same position and colour. endRad is a
-  // canvas arc angle (0=3 o'clock); the rotated frame's "up" (-y) is 12
+  // Indicator — was a dot at the arc's tip; now a radial line (Charlie's
+  // call, 2026-08-27; lengthened 2x same day, was reading out of scale
+  // at the original 8px), same position and colour. endRad is a canvas
+  // arc angle (0=3 o'clock); the rotated frame's "up" (-y) is 12
   // o'clock, so add PI/2 to align it with the arc endpoint.
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(endRad + Math.PI/2);
   ctx.beginPath();
   ctx.moveTo(0, -(r-13));
-  ctx.lineTo(0, -(r-21));
+  ctx.lineTo(0, -Math.max(0, r-29));
   ctx.strokeStyle = knobCol; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.stroke();
   ctx.restore();
