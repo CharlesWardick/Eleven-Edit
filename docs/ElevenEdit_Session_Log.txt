@@ -39,7 +39,11 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-27 (5th entry)
-STATUS:      provisional — code written, NOT YET TESTED LIVE
+STATUS:      CLOSED — TESTED LIVE, CONFIRMED (Charlie, 2026-08-27): "Look
+             good first try. Probably because you didn't remove the caret
+             code and us[ed] it as reference anchor." All labels sit flush
+             with GUITAR/STEREO/TEMPO, AMP/CAB unchanged, selection ring
+             correct on AMP (screenshot). No further action.
 AREA:        Chain row / ▼ caret removal (visual only, no protocol change)
 FINDING:     Follow-up to the selection-ring entry above. Charlie: the
              carets have "no real purpose having moved what they did [to]
