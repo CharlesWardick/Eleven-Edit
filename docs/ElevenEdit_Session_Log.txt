@@ -40,6 +40,36 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        BNK</>◀ never wrapped at the ends of the range — index.html
+              btn-prev-bank/btn-next-bank handlers
+FINDING:     Live-tested follow-up: after the stepNav wrap fix (PCH>/PCH<
+              now correctly wraps z4<->A1, confirmed working by Charlie),
+              he found BNK◀ from A1 did nothing at all — it was still a
+              dead Math.max(0,...) clamp, never wired to wrap like PCH now
+              does. BNK> was ALSO only a clamp (Math.min(MAX_NAV_SLOT,...))
+              rather than a true wrap, it just wasn't noticed because
+              MAX_NAV_SLOT (207) IS z4, so clamping there looks correct by
+              coincidence.
+FIX:          Both handlers now wrap around the full 0-207 range using the
+              same position-in-bank-preserving rule BNK> already had
+              (confirmed correct behaviour, 2026-08-28 earlier today): +4/
+              -4 with modulo wraparound at the ends, so A1 (bank position
+              1) wraps to z1 (position 1 of the last bank), NOT z4 (a
+              different bank position) — confirmed as the wanted target
+              directly by Charlie mid-fix, not assumed.
+EVIDENCE:     HTML/JS-only diff, index.html bank-button handlers. Passes
+              node --check on the extracted inline script. Version bumped
+              1.3.47 -> 1.3.48 (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm BNK◀ from A1 lands
+              on z1, and BNK> from z4 wraps back to A1, with mid-range
+              bank stepping (e.g. Z4->a4, already confirmed working)
+              unaffected.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      provisional — NOT YET TESTED LIVE
 AREA:        Manual step nav (PCH>/PCH<, arrow keys) wrongly clamped to the
               Roll from/to range — patch-nav.js stepNav()
 FINDING:     Live-tested follow-up to Stage 1 (factory patch nav): Charlie

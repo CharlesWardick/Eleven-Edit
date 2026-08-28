@@ -2250,14 +2250,20 @@ window.addEventListener('load', function() {
         // Bank size (4) divides evenly into both the user and factory
         // ranges (104 slots each), so bank boundaries stay aligned straight
         // across the Z4/a1 seam on the unified index — no special-casing
-        // needed at the boundary, same as plain step nav.
-        var target = Math.max(0, currentSlot - 4);
+        // needed at the boundary, same as plain step nav. Wraps around the
+        // full range (2026-08-28 follow-up — was a dead clamp at A1, never
+        // wrapped at all, unlike PCH< which does) — same position-in-bank-
+        // preserving rule BNK> already uses, so A1 wraps to z1 (position 1
+        // of the last bank), not z4 (a different bank position).
+        var target = currentSlot - 4;
+        if (target < 0) target = MAX_NAV_SLOT + 1 + target;
         if (typeof goToSlot === 'function') goToSlot(target);
       }
     });
     document.getElementById('btn-next-bank').addEventListener('click', function() {
       if (typeof currentSlot !== 'undefined') {
-        var target = Math.min(MAX_NAV_SLOT, currentSlot + 4);
+        var target = currentSlot + 4;
+        if (target > MAX_NAV_SLOT) target = target - (MAX_NAV_SLOT + 1);
         if (typeof goToSlot === 'function') goToSlot(target);
       }
     });
