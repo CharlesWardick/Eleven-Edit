@@ -2396,9 +2396,22 @@ function updateDisplay(slot) {
   el.classList.add('flash');
   setTimeout(() => el.classList.remove('flash'), 80);
   document.getElementById('slot-num').textContent = 'Slot ' + slot;
+  // A hardware-initiated nav (front panel) can land mid-rename-edit, when
+  // #patch-name has been temporarily replaced by #patch-name-edit (see
+  // startPatchNameEdit, index.html) — the pending edit no longer applies
+  // to whatever patch is now loading, so drop it rather than orphan it or
+  // crash on a null nameEl.
+  const editEl = document.getElementById('patch-name-edit');
+  if (editEl) {
+    const span = document.createElement('span');
+    span.id = 'patch-name';
+    editEl.replaceWith(span);
+  }
   const nameEl = document.getElementById('patch-name');
-  nameEl.textContent = '…';
-  nameEl.classList.remove('live');
+  if (nameEl) {
+    nameEl.textContent = '…';
+    nameEl.classList.remove('live');
+  }
 }
 
 function setStatus(msg) { document.getElementById('status-msg').textContent = msg; }

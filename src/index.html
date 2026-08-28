@@ -103,10 +103,25 @@
     background: #111; border: 1px solid var(--accent-dim); color: var(--accent);
     padding: 5px 18px; border-radius: 4px; font-size: 18px; font-weight: bold;
     width: 260px; text-align: center; cursor: pointer; position: relative;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;
+    flex-shrink: 0;
   }
   #patch-name-box:hover { border-color: var(--accent); }
+  /* Ellipsis truncation lives on the NAME itself now, not the outer box
+     (2026-08-28) — the box used to carry overflow:hidden, which silently
+     clipped .hint below since an absolutely-positioned child is clipped by
+     its own containing block's overflow. Moving truncation here frees the
+     box to show .hint without changing how long names still ellipsize. */
+  #patch-name {
+    display: inline-block; max-width: 100%; vertical-align: middle;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    cursor: text;
+  }
+  #patch-name:hover { text-decoration: underline dotted; text-decoration-color: var(--accent-dim); }
   #patch-name-box .hint { position: absolute; bottom: -13px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #666; white-space: nowrap; pointer-events: none; }
+  #patch-name-edit {
+    background: #1a1400; border: 1px solid var(--accent); color: var(--accent);
+    font: inherit; text-align: center; width: 100%; border-radius: 3px; outline: none;
+  }
 
   /* Avid status */
   .avid-status { display: flex; flex-direction: column; align-items: center; gap: 1px; flex-shrink: 0; }
@@ -2171,7 +2186,63 @@ function openJumpList(space) {
   if (typeof currentSlot !== 'undefined') updateMatrixHighlight(currentSlot);
   m.classList.add('open');
 }
+// ════════════════════════════════════════════════════════════════════
+// PATCH NAME BOX — one delegated click handler for both jobs it does:
+// clicking the visible NAME TEXT starts a local rename (below); clicking
+// anywhere else in the box opens the Jump List (left half=user, right=
+// factory). Delegated on the box rather than bound to #patch-name
+// directly (2026-08-28) because rename's commit/cancel REPLACES that
+// span with a fresh element with no listeners of its own each time —
+// checking e.target here instead of binding-then-losing-the-binding is
+// what makes rename work more than once.
+// CLICK-TO-RENAME sends nothing to hardware — it's a local edit exactly
+// like any other realtime patch change: marks the SAVE button dirty via
+// the existing markPatchDirty() latch, and openSaveModal already defaults
+// its name field from currentPatchName, so this just becomes what Save
+// proposes. Roller paused while editing (pauseRollerForSave, same guard
+// the Save modal itself uses) — an auto-advance mid-edit would silently
+// move the rename onto a different patch than the one on screen.
+// ════════════════════════════════════════════════════════════════════
+function startPatchNameEdit() {
+  var nameEl = document.getElementById('patch-name');
+  if (!nameEl || document.getElementById('patch-name-edit')) return; // already editing
+  if (typeof pauseRollerForSave === 'function') pauseRollerForSave();
+  var original = (typeof currentPatchName !== 'undefined' ? currentPatchName : '') || nameEl.textContent;
+  var input = document.createElement('input');
+  input.id = 'patch-name-edit';
+  input.type = 'text';
+  input.maxLength = 16;   // hardware name limit — see saveCurrentPatchToSlot, capture-scan.js
+  input.value = original;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  function restoreSpan(text) {
+    var span = document.createElement('span');
+    span.id = 'patch-name';
+    span.textContent = text;
+    input.replaceWith(span);
+  }
+  function commit() {
+    var val = input.value.trim();
+    restoreSpan(val || original);
+    if (val && val !== original) {
+      currentPatchName = val;
+      if (typeof markPatchDirty === 'function') markPatchDirty();
+      appLog('Patch name edited locally to "' + val + '" — not sent to hardware until Save');
+    }
+  }
+  input.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); restoreSpan(original); }
+  });
+  input.addEventListener('blur', commit);
+  input.addEventListener('click', function(ev) { ev.stopPropagation(); });
+}
+
 document.getElementById('patch-name-box').addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'patch-name') { startPatchNameEdit(); return; }
+  if (document.getElementById('patch-name-edit')) return; // mid-edit — box clicks elsewhere shouldn't also open the Jump List
   var box = document.getElementById('patch-name-box');
   var r = box.getBoundingClientRect();
   var leftHalf = (e.clientX - r.left) < (r.width / 2);

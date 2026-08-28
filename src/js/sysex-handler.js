@@ -460,10 +460,15 @@ function handlePatchName(data) {
   }
   const name = bytes.map(b => String.fromCharCode(b)).join('');
   if (name) {
+    // Same guard as R9 elsewhere in this app (a broadcast readback must not
+    // fight an in-progress user edit) — if a local rename (startPatchNameEdit,
+    // index.html) is mid-edit, this broadcast would otherwise both crash on
+    // a null nameEl (the span is temporarily replaced by the edit input) AND
+    // silently overwrite the pending rename with hardware's own value.
+    if (document.getElementById('patch-name-edit')) return;
     currentPatchName = name;
     const nameEl = document.getElementById('patch-name');
-    nameEl.textContent = name;
-    nameEl.classList.add('live');
+    if (nameEl) { nameEl.textContent = name; nameEl.classList.add('live'); }
     setStatus(slotLabel(currentSlot) + ' — ' + name);
     appLog('Patch name: "' + name + '"');
   }

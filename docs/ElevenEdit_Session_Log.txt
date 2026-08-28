@@ -39,6 +39,73 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
+STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        Jump List UX polish + click-to-rename — index.html, ui.js,
+              sysex-handler.js
+FINDING:     Stage 4 confirmed working live (Charlie: "could not seem to
+              break it"). Two follow-on requests from the same
+              conversation: (1) the Jump List's left/right click zones
+              (Stage 2) had no visible affordance beyond the hand cursor —
+              turned out the existing ".hint" text ("< user patches *
+              factory patches >") was ALREADY there in the markup but
+              silently invisible: #patch-name-box carried overflow:hidden
+              for its own text-ellipsis, which also clips its absolutely-
+              positioned .hint child (positioned outside the box's own
+              bounds) — a real rendering bug, not a missing feature. (2)
+              Charlie asked for clicking the patch NAME to be a real local
+              rename — same as any other realtime patch edit, marking the
+              SAVE dirty latch but sending nothing to hardware until Save
+              is actually chosen.
+FIX:          (1) Ellipsis truncation moved from #patch-name-box onto
+              #patch-name itself (display:inline-block, its own overflow/
+              ellipsis) — frees the box from needing overflow:hidden, so
+              .hint now actually renders below it. Also added a dotted-
+              underline hover cue on the name text itself, distinct from
+              the box's existing border-brighten hover, so the two click
+              targets read as different affordances.
+              (2) startPatchNameEdit() (index.html) swaps the name span
+              for a text input (maxlength 16, matching the hardware name
+              limit) on click; Enter/blur commits (updates currentPatchName,
+              calls markPatchDirty(), logs — no SysEx sent), Escape
+              cancels. The box's click handler is now ONE delegated
+              handler checking e.target.id, not two separate bindings —
+              rename's commit/cancel REPLACES the span with a fresh
+              element each time, which would silently break a listener
+              bound directly to the old node; delegation on the box
+              (which never gets replaced) survives that.
+              THREE REAL BUGS FOUND AND FIXED ALONG THE WAY, all from the
+              same root cause (existing code assuming #patch-name always
+              exists, which the new edit-mode breaks): updateDisplay
+              (ui.js) would have thrown on ANY nav that happened mid-edit
+              (front-panel wheel, auto-advance) — now null-guards AND
+              cancels any in-progress edit first, since a nav means the
+              edit no longer applies to what's loaded. handlePatchName
+              (sysex-handler.js, CMD 0x05 broadcast) would have both
+              crashed AND silently overwritten a pending local rename with
+              hardware's own value — now skips entirely while mid-edit,
+              same "broadcast must not fight an in-progress user action"
+              rule as R9 elsewhere in this codebase. The two existing
+              patch-name writers in capture-scan.js were already null-
+              guarded, no change needed there.
+EVIDENCE:     HTML/JS diff across index.html, ui.js, sysex-handler.js. All
+              pass node --check (index.html's inline script extracted and
+              checked separately, same method as prior stages). Version
+              bumped 1.3.55 -> 1.3.56 (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) the "< user *
+              factory >" hint is now actually visible below the name box,
+              (b) clicking the name text starts an editable field (dotted-
+              underline hover cue distinguishes it from the rest of the
+              box), Enter/blur commits locally and lights the SAVE button
+              green with no hardware traffic, Escape cancels cleanly, (c)
+              the renamed value is what Save to Rack proposes by default,
+              (d) a nav (front-panel wheel, or auto-advance) happening
+              mid-edit doesn't crash or leave a stuck input — the edit
+              should just quietly drop.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
 STATUS:      [FOLDED IN: ElevenEdit_Technical_Reference.txt Sec 15 + CHAIN/
               DANGER catalog] — confirmed, not provisional
 AREA:        HARDWARE SAFETY — SAVE sequence with an out-of-range slot
