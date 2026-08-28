@@ -101,23 +101,28 @@
   /* Patch name */
   #patch-name-box {
     background: #111; border: 1px solid var(--accent-dim); color: var(--accent);
-    padding: 5px 18px; border-radius: 4px; font-size: 18px; font-weight: bold;
-    width: 260px; text-align: center; cursor: pointer; position: relative;
+    padding: 4px 18px; border-radius: 4px; font-size: 18px; font-weight: bold;
+    width: 260px; text-align: center; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
   #patch-name-box:hover { border-color: var(--accent); }
-  /* Ellipsis truncation lives on the NAME itself now, not the outer box
-     (2026-08-28) — the box used to carry overflow:hidden, which silently
-     clipped .hint below since an absolutely-positioned child is clipped by
-     its own containing block's overflow. Moving truncation here frees the
-     box to show .hint without changing how long names still ellipsize. */
+  /* Ellipsis truncation lives on the NAME itself, not the outer box
+     (2026-08-28). ALSO (same day, 2nd round) — .hint moved from absolutely
+     positioned below the box into normal flow, stacked under the name via
+     the box's own flex-column layout above: #topbar itself carries a
+     second overflow:hidden (fixed 64px toolbar height) that clipped .hint
+     even after the first fix freed it from the box's own clipping — two
+     layers of the same problem. Stacking it in-flow sidesteps ancestor
+     clipping entirely rather than chasing a third overflow:hidden if one
+     ever gets added upstream of this. */
   #patch-name {
-    display: inline-block; max-width: 100%; vertical-align: middle;
+    display: inline-block; max-width: 100%;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     cursor: text;
   }
   #patch-name:hover { text-decoration: underline dotted; text-decoration-color: var(--accent-dim); }
-  #patch-name-box .hint { position: absolute; bottom: -13px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #666; white-space: nowrap; pointer-events: none; }
+  #patch-name-box .hint { font-size: 10px; font-weight: normal; color: #666; white-space: nowrap; pointer-events: none; margin-top: 2px; }
   #patch-name-edit {
     background: #1a1400; border: 1px solid var(--accent); color: var(--accent);
     font: inherit; text-align: center; width: 100%; border-radius: 3px; outline: none;
@@ -2217,16 +2222,27 @@ function startPatchNameEdit() {
   input.focus();
   input.select();
 
-  function restoreSpan(text) {
+  // Removing a focused element from the DOM fires 'blur' on it SYNCHRONOUSLY
+  // — so calling input.replaceWith(...) from inside commit() (Enter) itself
+  // triggers this same input's own blur listener a moment later, which
+  // called commit() a SECOND time on an already-detached node -> crashed
+  // ("node no longer a child of this node"). input._settled, checked at the
+  // top of finish() and set BEFORE the replace happens, makes every path
+  // (Enter, Escape, blur, and ui.js's own forced-cancel on a mid-edit nav)
+  // idempotent — first caller wins, every later one is a no-op.
+  function finish(text) {
+    if (input._settled) return;
+    input._settled = true;
     var span = document.createElement('span');
     span.id = 'patch-name';
     span.textContent = text;
-    input.replaceWith(span);
+    if (input.parentNode) input.replaceWith(span);
   }
   function commit() {
     var val = input.value.trim();
-    restoreSpan(val || original);
-    if (val && val !== original) {
+    var applied = val && val !== original;
+    finish(applied ? val : original);
+    if (applied) {
       currentPatchName = val;
       if (typeof markPatchDirty === 'function') markPatchDirty();
       appLog('Patch name edited locally to "' + val + '" — not sent to hardware until Save');
@@ -2234,7 +2250,7 @@ function startPatchNameEdit() {
   }
   input.addEventListener('keydown', function(ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
-    else if (ev.key === 'Escape') { ev.preventDefault(); restoreSpan(original); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); finish(original); }
   });
   input.addEventListener('blur', commit);
   input.addEventListener('click', function(ev) { ev.stopPropagation(); });

@@ -2400,9 +2400,13 @@ function updateDisplay(slot) {
   // #patch-name has been temporarily replaced by #patch-name-edit (see
   // startPatchNameEdit, index.html) — the pending edit no longer applies
   // to whatever patch is now loading, so drop it rather than orphan it or
-  // crash on a null nameEl.
+  // crash on a null nameEl. editEl._settled = true BEFORE removing it is
+  // what stops the edit's own commit()/blur handler (still attached, since
+  // this removal fires 'blur' synchronously) from firing a second,
+  // now-invalid replaceWith on the same node right after this one.
   const editEl = document.getElementById('patch-name-edit');
   if (editEl) {
+    editEl._settled = true;
     const span = document.createElement('span');
     span.id = 'patch-name';
     editEl.replaceWith(span);
