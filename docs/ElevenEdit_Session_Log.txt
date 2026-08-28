@@ -40,6 +40,44 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        Manual step nav (PCH>/PCH<, arrow keys) wrongly clamped to the
+              Roll from/to range — patch-nav.js stepNav()
+FINDING:     Live-tested follow-up to Stage 1 (factory patch nav): Charlie
+              reported PCH> from Z4 landed on A1 (not a1), and PCH> from a4
+              (reached via BNK>, confirmed correct — bank-step deliberately
+              preserves slot-within-bank position across a bank change,
+              not a bug) also landed on A1 instead of b1. ROOT CAUSE:
+              stepNav (used by both the manual Prev/Next buttons/arrow
+              keys AND shared, pre-dating today, by autoStep's timed
+              auto-advance loop) wraps within getRangeFrom()/getRangeTo()
+              — the Roll from/to pickers, which default to 0-103 (user
+              only). That range exists to bound the TIMED auto-advance
+              loop; manual single-stepping had no business sharing it, but
+              did. So PCH> would silently snap back to A1 the instant you
+              were anywhere the roll range didn't cover — including a4,
+              reached validly via BNK>, which is outside the default
+              range entirely.
+FIX:          stepNav decoupled from the Roll from/to pickers — now wraps
+              across the full 0-MAX_NAV_SLOT (207) range unconditionally,
+              independent of whatever the roller's range is set to.
+              autoStep/startAuto (the actual timed loop) are UNCHANGED and
+              still respect the Roll from/to pickers exactly as before —
+              that was always their correct job, just wrongly shared with
+              manual stepping.
+EVIDENCE:     JS-only diff, patch-nav.js stepNav(). Passes `node --check`.
+              Version bumped 1.3.46 -> 1.3.47 (package.json). Diagnosis
+              derived from Charlie's two reported cases (Z4->A1, a4->A1)
+              both matching the shared-range-clamp math exactly; not yet
+              re-tested live after the fix.
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm PCH>/PCH< now cross
+              Z4<->a1 and wrap z4<->A1 at the true ends, with auto-advance
+              still respecting the Roll from/to range unchanged.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      provisional — NOT YET TESTED LIVE
 AREA:        Factory patch navigation, Stage 1 of 4 (nav / jump list /
               auto-advance / save) — protocol.js, ui.js, patch-nav.js,
               sysex-handler.js, index.html

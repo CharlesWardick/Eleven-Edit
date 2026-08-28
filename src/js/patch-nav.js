@@ -86,11 +86,16 @@ function goToSlot(slot) {
 
 function stepNav(dir) {
   stopAuto();
-  const lo = Math.min(getRangeFrom(), getRangeTo());
-  const hi = Math.max(getRangeFrom(), getRangeTo());
+  // Manual single-step nav always wraps across the FULL available range
+  // (0-207 incl. factory), independent of the Roll from/to pickers — those
+  // exist to bound the timed AUTO-ADVANCE loop (autoStep), not to limit
+  // where a plain Prev/Next can go. Sharing that range here (pre-2026-08-28)
+  // meant Prev/Next silently snapped back to A1 the moment you were
+  // anywhere outside the roll range's default 0-103 (e.g. after using BNK>
+  // to reach factory space) — reported by Charlie same day.
   let next = currentSlot + dir;
-  if (next > hi) next = lo;
-  if (next < lo) next = hi;
+  if (next > MAX_NAV_SLOT) next = 0;
+  if (next < 0) next = MAX_NAV_SLOT;
   goToSlot(next);
 }
 
