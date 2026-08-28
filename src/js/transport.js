@@ -32,17 +32,49 @@ function armStartupGate() {
 }
 
 // Splash reveal — fires electronAPI.appReady() exactly once, the first
-// time BOTH the chain map and the post-nav param pull have landed (see
-// initialChainMapDone/initialNavPullDone, state.js). Called from
-// handleChainMap (sysex-handler.js) and requestPatchStateAfterNav's
-// finish() below, each time either one completes.
+// time the chain map, the post-nav param pull, AND the firmware identity
+// check have all landed (see initialChainMapDone/initialNavPullDone/
+// firmwareCheckDone, state.js). Called from handleChainMap
+// (sysex-handler.js), requestPatchStateAfterNav's finish() below, and
+// handleIdentityReply/armFirmwareCheckTimeout, each time any of the
+// three completes.
+// FIRMWARE GATE (2026-08-28): if the check completed but didn't match
+// (wrong build, or no reply at all), the main window is NEVER revealed —
+// showFirmwareGate takes over instead, same "stay hidden behind the
+// splash forever rather than show dead/wrong controls" contract the
+// no-hardware gate already uses. This only runs once per session
+// (appRevealed guards re-entry); a mid-session reconnect doesn't re-gate.
 function checkInitialPopulateReady() {
   if (appRevealed) return;
-  if (!initialChainMapDone || !initialNavPullDone) return;
+  if (!initialChainMapDone || !initialNavPullDone || !firmwareCheckDone) return;
+  if (!firmwareOk) {
+    if (typeof showFirmwareGate === 'function') showFirmwareGate(firmwareVersionSeen);
+    return;
+  }
   appRevealed = true;
   splashSetProgress('Ready', 1);
   if (window.electronAPI) window.electronAPI.appReady();
   appLog('Startup: initial chain/knob state populated — revealing main window');
+}
+
+function sendIdentityRequest() {
+  sendHex('F0 7E 7F 06 01 F7');
+  appLog('Sent MIDI Identity Request (firmware check)');
+}
+
+// Fail closed: if nothing replies within the timeout, treat the check as
+// failed rather than leaving it pending forever (which would leave the
+// app stuck on the splash with no explanation).
+function armFirmwareCheckTimeout() {
+  clearTimeout(firmwareCheckTimer);
+  firmwareCheckTimer = setTimeout(function() {
+    if (firmwareCheckDone) return;
+    firmwareCheckDone = true;
+    firmwareOk = false;
+    firmwareVersionSeen = null;
+    appLog('Firmware identity check: no reply within ' + FIRMWARE_CHECK_TIMEOUT_MS + 'ms — treating as unverified/blocked');
+    checkInitialPopulateReady();
+  }, FIRMWARE_CHECK_TIMEOUT_MS);
 }
 
 function connectBridgeWs() {
@@ -112,6 +144,13 @@ function handleBridgeMsg(msg) {
       clearStaleReadoutsOnNav();
       if (!hasCompletedInitialConnect) {
         hasCompletedInitialConnect = true;
+        // Firmware check (2026-08-28) — only on the FIRST connect of the
+        // session, same scope as the reveal gate itself; a mid-session
+        // reconnect doesn't re-block (matches the no-hardware gate's own
+        // "mid-session drop is the status bar's job" scoping).
+        firmwareCheckDone = false; firmwareOk = false; firmwareVersionSeen = null;
+        sendIdentityRequest();
+        armFirmwareCheckTimeout();
         appLog('First connect this session — reflecting the rack\'s current patch (no forced nav)');
         setTimeout(function() {
           // Behave like Avid: land on whatever patch the rack is already on

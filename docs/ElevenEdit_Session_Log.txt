@@ -40,6 +40,78 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        Firmware identity check / startup gate — state.js, transport.js,
+              sysex-handler.js, ui.js, main.js, preload.js, src/splash.html
+FINDING:     Charlie asked for a hard startup gate so nobody runs Eleven
+              Edit against untested firmware — HARDWARE SAFETY, not
+              cosmetic: CMD 0x37 (To Amp Source) is confirmed to brick the
+              rack on assert (three separate incidents, full factory reset
+              each time), and this app has zero visibility into whether an
+              older firmware's memory layout is even compatible with any
+              command it sends.
+              Traced to a genuine, standard mechanism: a Wireshark capture
+              of the Avid Editor's cold-start (Charlie's capture,
+              "Avid_Startup_With_Rack_On.pcapng") showed a MIDI Universal
+              SysEx Identity Request/Reply (F0 7E 7F 06 01 F7 / F0 7E
+              <id> 06 02 <mfr> <family> <member> <4-byte revision> F7) —
+              a different prefix from Avid's own 13 0B 0F command set
+              entirely, which is why three separate "what does this
+              unknown command do" investigations never found it. The
+              4-byte revision field is plain ASCII: "0157" — Charlie's
+              firmware, Version 2.0.1 Build 0.1.5.7. Same capture also
+              turned up (but did not decode the meaning of) two of the
+              four long-documented startup-only unknowns, CMD 0x35 (reply
+              "02") and CMD 0x39 (reply "00") — Sec 6's "purpose unknown"
+              note — plus reconfirmed 0x08/0x0A are per-patch state, not
+              device info (their values tracked the loaded patch exactly
+              across the earlier Z3-a2 nav capture).
+DESIGN:       Sends the Identity Request once, only on the FIRST connect
+              of a session (same scope as the existing no-hardware gate —
+              a mid-session reconnect doesn't re-block, matching that
+              gate's own "mid-session drop is the status bar's job" rule).
+              FAILS CLOSED: checkInitialPopulateReady (transport.js) now
+              also requires firmwareCheckDone before revealing the main
+              window, and refuses to reveal at all if firmwareOk is false
+              — whether that's an exact-mismatch reply OR no reply within
+              FIRMWARE_CHECK_TIMEOUT_MS (4000ms, armFirmwareCheckTimeout).
+              No reply is treated exactly the same as a wrong reply, per
+              Charlie's own call ("assume it won't [start] if it doesn't
+              see the 0157") — a device that doesn't answer the check at
+              all is not a device we've confirmed is safe.
+              Reuses the EXISTING splash/gate machinery (the "can't find
+              hardware" Try Again/Quit modal) rather than building a
+              second one — extended splash-show-gate's IPC payload to
+              carry an optional {reason, detail}, so splash.html shows a
+              different explanatory message for a firmware mismatch and
+              hides the Try Again button entirely (rescanning can't fix a
+              firmware mismatch, so offering it would be actively
+              misleading — Quit is the only real option).
+EVIDENCE:     JS/HTML diff across 7 files, `node --check` clean on all
+              (main.js, preload.js, state.js, sysex-handler.js,
+              transport.js, ui.js, and splash.html's extracted inline
+              script). Version bumped 1.3.49 -> 1.3.50 (package.json).
+              Charlie's own literal words captured the intended fail
+              mode: "Best I can do for test the gate is to confirm the
+              program still starts and assume it won't if it doesn't see
+              the 0157."
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) normal startup
+              on his known-good firmware still reaches the main window
+              (the gate must NOT fire on the confirmed-working case,
+              CRITICAL — a false positive here would make the app
+              unusable), (b) appLog shows "Firmware identity reply: build
+              "0157" (matches expected 0157)" during that normal startup.
+              Testing the actual BLOCK path (b) requires either different
+              firmware (which Charlie has said he doesn't have access to)
+              or a deliberate temporary change to EXPECTED_FIRMWARE_BUILD
+              to force a mismatch — worth doing once, briefly, just to
+              confirm the gate message/Quit-only button actually render
+              correctly, then reverting.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      provisional — NOT YET TESTED LIVE
 AREA:        Jump List Stage 2 — user/factory click zones + factory name
               scan — index.html, capture-scan.js, sysex-handler.js
 FINDING:     Charlie approved Stage 2: the patch-name box's left/right

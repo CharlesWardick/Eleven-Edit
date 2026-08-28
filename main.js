@@ -900,8 +900,8 @@ function createSplashWindow() {
 ipcMain.on('splash-progress', function(e, data) {
   if (splashWindow) splashWindow.webContents.send('splash-progress', data);
 });
-ipcMain.on('splash-show-gate', function() {
-  if (splashWindow) splashWindow.webContents.send('splash-show-gate');
+ipcMain.on('splash-show-gate', function(e, data) {
+  if (splashWindow) splashWindow.webContents.send('splash-show-gate', data);
 });
 ipcMain.on('splash-hide-gate', function() {
   if (splashWindow) splashWindow.webContents.send('splash-hide-gate');

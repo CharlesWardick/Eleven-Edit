@@ -82,15 +82,37 @@
     }
   });
 
-  window.electronAPI.onSplashShowGate(() => {
+  var gateMsg   = document.getElementById('gate-msg');
+  var retryBtn  = document.getElementById('btn-startup-retry');
+
+  window.electronAPI.onSplashShowGate((data) => {
     progressView.classList.add('hidden');
     gateView.classList.add('open');
+    if (data && data.reason === 'firmware') {
+      // Firmware mismatch (2026-08-28) — Try Again is hidden here on
+      // purpose: the rack's firmware won't change by rescanning, so
+      // offering that button would just invite a repeat of the same
+      // block. Quit is the only real option until Eleven Edit is
+      // confirmed against whatever firmware this unit is running.
+      gateMsg.innerHTML = 'This Eleven Rack is reporting firmware ' +
+        (data.detail || 'that could not be confirmed') +
+        ', not the only firmware Eleven Edit has been built and tested ' +
+        'against (build 0157).<br><br>Some commands this app sends have ' +
+        'previously bricked test hardware on the confirmed firmware (a ' +
+        'full factory reset was required) — running against unverified ' +
+        'firmware is not safe to guess at.<br><br>Click Quit to close.';
+      retryBtn.style.display = 'none';
+    } else {
+      gateMsg.innerHTML = 'Unable to locate Eleven Rack. Make sure Eleven Rack is connected and turned on.<br>Click Try Again to rescan. Click Quit to close.';
+      retryBtn.style.display = '';
+    }
   });
 
   window.electronAPI.onSplashHideGate(() => {
     gateView.classList.remove('open');
     progressView.classList.remove('hidden');
     progressBar.style.width = '5%';
+    retryBtn.style.display = '';
   });
 
   document.getElementById('btn-startup-retry').addEventListener('click', () => {

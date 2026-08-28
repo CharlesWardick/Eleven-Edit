@@ -59,10 +59,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Splash window — main window renderer drives progress/gate state; the
   // splash window itself listens for these and relays button clicks back.
   splashProgress:      (data)       => ipcRenderer.send('splash-progress', data),
-  splashShowGate:      ()           => ipcRenderer.send('splash-show-gate'),
+  // data is optional — {reason:'firmware', detail:'...'} for the firmware
+  // mismatch gate (2026-08-28), omitted for the original "no hardware found"
+  // gate so splash.html can tell the two apart.
+  splashShowGate:      (data)       => ipcRenderer.send('splash-show-gate', data),
   splashHideGate:      ()           => ipcRenderer.send('splash-hide-gate'),
   onSplashProgress:    (cb)         => ipcRenderer.on('splash-progress', (e, data) => cb(data)),
-  onSplashShowGate:    (cb)         => ipcRenderer.on('splash-show-gate', () => cb()),
+  onSplashShowGate:    (cb)         => ipcRenderer.on('splash-show-gate', (e, data) => cb(data)),
   onSplashHideGate:    (cb)         => ipcRenderer.on('splash-hide-gate', () => cb()),
   sendStartupRetryClick: ()         => ipcRenderer.send('startup-retry-click'),
   onStartupRetryClick: (cb)         => ipcRenderer.on('startup-retry-click', () => cb()),

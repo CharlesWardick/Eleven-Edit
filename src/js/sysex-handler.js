@@ -21,6 +21,11 @@ var HANDLE_RESYNC_COOLDOWN  = 2000;   // ms between resync attempts
 
 async function parseSysEx(data) {
   if (data.length < 6) return;
+  // MIDI Universal SysEx Identity Reply (2026-08-28, firmware check) — a
+  // completely different prefix (F0 7E, not Avid's F0 13 0B), so it has
+  // to be caught before the Avid-only guard below would otherwise
+  // silently drop it.
+  if (data[0] === 0xF0 && data[1] === 0x7E) return handleIdentityReply(data);
   if (data[0] !== 0xF0 || data[1] !== 0x13 || data[2] !== 0x0B ||
       (data[3] !== 0x0F && data[3] !== 0x0E)) return;
 
@@ -329,6 +334,34 @@ function handleSaveArm(data) {
     saveSequenceTimer = null;
     appLog('Save sequence timeout — reset');
   }, 5000);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MIDI UNIVERSAL SYSEX IDENTITY REPLY — firmware check (2026-08-28)
+// F0 7E <deviceId> 06 02 <mfrId> <family LSB><family MSB>
+// <member LSB><member MSB> <software revision, 4 bytes> F7
+// Confirmed via a cold-start Wireshark capture: the software-revision
+// bytes are plain ASCII spelling out the build number ("0157" = Build
+// 0.1.5.7) — a genuine, standard MIDI mechanism entirely separate from
+// Avid's own proprietary 13 0B 0F command set, which is why it had never
+// been noticed in three unknown-command hunts before this one. See
+// HARDWARE SAFETY / checkInitialPopulateReady (transport.js) for why
+// this gates the startup reveal.
+// ════════════════════════════════════════════════════════════════════
+function handleIdentityReply(data) {
+  try {
+    if (data.length < 9 || data[3] !== 0x06 || data[4] !== 0x02) return;
+    const revBytes = data.slice(data.length - 5, data.length - 1); // 4 bytes before F7
+    const revString = Array.from(revBytes).map(b => String.fromCharCode(b)).join('');
+    firmwareVersionSeen = revString;
+    firmwareOk = (revString === EXPECTED_FIRMWARE_BUILD);
+    firmwareCheckDone = true;
+    clearTimeout(firmwareCheckTimer);
+    appLog('Firmware identity reply: build "' + revString + '"' +
+           (firmwareOk ? ' (matches expected ' + EXPECTED_FIRMWARE_BUILD + ')'
+                       : ' — DOES NOT MATCH expected ' + EXPECTED_FIRMWARE_BUILD));
+    if (typeof checkInitialPopulateReady === 'function') checkInitialPopulateReady();
+  } catch(e) { appLog('handleIdentityReply error: ' + e.message); }
 }
 
 // ════════════════════════════════════════════════════════════════════

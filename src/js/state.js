@@ -199,6 +199,24 @@ let initialChainMapDone = false;
 let initialNavPullDone  = false;
 let appRevealed         = false;
 
+// Firmware identity check (2026-08-28) — a standard MIDI Universal SysEx
+// Identity Request/Reply, confirmed via a cold-start Wireshark capture to
+// report the firmware build as plain ASCII in its last 4 bytes ("0157" =
+// Build 0.1.5.7, the only firmware Eleven Edit has ever been built/tested
+// against). Gates the startup reveal alongside the chain-map/nav-pull
+// checks — HARDWARE SAFETY, not cosmetics: CMD 0x37 (To Amp Source) is
+// confirmed to brick the rack on assert, and this app has no way to know
+// what an untested older firmware's memory layout looks like for any
+// command it sends. FAILS CLOSED: no reply within the timeout, or any
+// reply that doesn't match exactly, blocks the reveal — see
+// checkInitialPopulateReady/armFirmwareCheckTimeout (transport.js).
+const EXPECTED_FIRMWARE_BUILD    = '0157';
+const FIRMWARE_CHECK_TIMEOUT_MS  = 4000;
+let firmwareCheckDone   = false;
+let firmwareVersionSeen = null;   // the ASCII string actually reported, or null if no reply arrived
+let firmwareOk          = false;
+let firmwareCheckTimer  = null;
+
 let pendingManualCapture = false;
 
 // Stereo/Mono state — null=unknown, true=Mono, false=Stereo

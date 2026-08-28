@@ -2487,6 +2487,19 @@ function showStartupGate() {
   appLog('Startup gate: rack not found within grace period — blocking');
   if (window.electronAPI) window.electronAPI.splashShowGate();
 }
+// Firmware mismatch gate (2026-08-28) — see HARDWARE SAFETY / EXPECTED_
+// FIRMWARE_BUILD (state.js) and checkInitialPopulateReady (transport.js).
+// No hide function: unlike the no-hardware gate, there's no "Try Again"
+// path that could plausibly resolve this — the rack's firmware doesn't
+// change by rescanning — so this is a one-way block for the session.
+function showFirmwareGate(versionSeen) {
+  appLog('Firmware gate: build ' + (versionSeen || '(no reply)') +
+         ' — does not match expected ' + EXPECTED_FIRMWARE_BUILD + ' — blocking');
+  if (window.electronAPI) window.electronAPI.splashShowGate({
+    reason: 'firmware',
+    detail: versionSeen ? ('reported build "' + versionSeen + '"') : 'that did not respond to the version check'
+  });
+}
 function hideStartupGate() {
   if (window.electronAPI) window.electronAPI.splashHideGate();
 }
