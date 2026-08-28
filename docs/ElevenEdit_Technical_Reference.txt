@@ -3224,15 +3224,24 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
       Reply:  F0 13 0B 0F 12 04 [space] [slot] [name] 00 F7
     space = 0x00 user patches, 0x01 factory patches (only two valid values
     — NOT a bank number). slot = the FULL raw slot 0-103 within that space
-    (NOT slot%4). This is a DIFFERENT addressing scheme from the SAVE
-    protocol's CMD 0x04 write form (bank=floor(slot/4), num=slot%4, Sec
-    15) — the first version of this feature wrongly reused that scheme,
-    which happened to look correct for A1-A4 only (both schemes agree for
-    slot 0-3) then broke immediately after: slot 4 (B1) under the wrong
-    scheme sent bytes (1,0), read by the hardware as [space=1 FACTORY,
-    slot=0] = factory a1, and bank 2+ isn't a valid space value at all
-    (no reply, matching the blank C1-onward Charlie originally saw). The
-    name DECODE itself (offset 8 to the null terminator) was correct from
+    (NOT slot%4). At the time this bug was found (2026-08-03), this was
+    believed to be a DIFFERENT addressing scheme from the SAVE protocol's
+    CMD 0x04 write form, which was then believed to be bank=floor(slot/4),
+    num=slot%4 — the first version of THIS feature (name query) wrongly
+    reused that believed scheme, which happened to look correct for A1-A4
+    only (both schemes agree for slot 0-3) then broke immediately after:
+    slot 4 (B1) under the wrong scheme sent bytes (1,0), read by the
+    hardware as [space=1 FACTORY, slot=0] = factory a1, and bank 2+ isn't
+    a valid space value at all (no reply, matching the blank C1-onward
+    Charlie originally saw). CORRECTION (2026-08-11, see Sec 15): the
+    SAVE protocol's own CMD 0x04 write form turned out to use the SAME
+    [space/0x00][raw_slot] addressing as this read form, NOT bank/num —
+    confirmed via a live capture of Avid's own editor saving to Z4
+    (raw_slot=0x67), bytes F0 13 0B 0F 00 04 00 67 [name] 00 F7. So the
+    two forms were never actually different schemes; the save side's
+    bank/num belief was simply wrong and got fixed 8 days after this
+    entry was written. See Sec 15 for the full incident. The name DECODE
+    itself (offset 8 to the null terminator) was correct from
     the start. Factory patches (a1-z4) are deliberately never shown —
     Charlie's call, this app only tracks user A1-Z4.
   LIVE TRACKING, no rescan ever needed on open: patchNameCache (state.js)
