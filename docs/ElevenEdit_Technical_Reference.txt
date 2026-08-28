@@ -660,6 +660,18 @@ CMD 0x02 — Current Rig Number. Send selects a slot; broadcast/RESP reports
                                           (A1=0x00, A2=0x01, D4=0x0F)
   The hardware echoes the requested slot in both the 0x03 and 0x02
   announcements. Verified on sequential navigation and on non-adjacent jumps.
+  BROADCAST FORM — SPACE + RAW SLOT (CONFIRMED 2026-08-28, capture
+  AE_Patch_Nav_Z3_to_a2_and_back.pcapng): the unsolicited slot-confirm the
+  rack sends on every landing is
+      F0 13 0B 0F 02 02 [space] [slot] F7
+  data[6] = space (0x00 = user A1-Z4, 0x01 = factory a1-z4); data[7] =
+  raw slot 0-103 (0x00-0x67) WITHIN that space — NOT a bank/num split.
+  Decoded live from a Z3->Z4->a1->a2->a1->Z4->Z3 walk; the six arrival
+  broadcasts read 00 67 (Z4), 01 00 (a1), 01 01 (a2), 01 00 (a1), 00 67
+  (Z4), 00 66 (Z3) — matching the nav exactly. Same space+raw-slot
+  convention as CMD 0x04's name query (Sec 15). Eleven Edit maps this to
+  a unified 0-207 internal index (0-103 user, 104-207 factory). This
+  RETRACTS the earlier "commit-echo bank/num" reading of these two bytes.
   *** DO NOT USE MIDI PROGRAM CHANGE (C0 nn) FOR NAVIGATION. *** It works,
   but it triggers the rack's own front-panel recall behaviour ON TOP OF the
   load. Avid never sends a Program Change. See Section 20.
@@ -753,6 +765,24 @@ Startup commands seen only in Avid editor USB capture (purpose unknown,
 not required by Eleven Edit): 0x08, 0x0A, 0x35, 0x39.
   (0x3A and 0x3C were formerly on this list; both are now identified —
   0x3A = To Amp Source query, 0x3C = FX Loop mode. See above.)
+
+FIRMWARE IDENTITY — standard MIDI Universal SysEx (CONFIRMED 2026-08-28,
+capture Avid_Startup_With_Rack_On.pcapng). Not an Avid 13 0B 0F command; a
+generic MIDI Identity Request/Reply, sent once on first connect.
+    Request:  F0 7E 7F 06 01 F7
+    Reply:    F0 7E 0F 06 02 13 0B 00 01 00 [b0 b1 b2 b3] F7
+  7E = Universal Non-Realtime; 06 01 = Identity Request, 06 02 = Reply;
+  13 0B = Avid manufacturer ID (the same 13 0B that prefixes every Avid
+  message). The last four bytes before F7 are the firmware build as literal
+  ASCII — observed 30 31 35 37 = "0157" = Version 2.0.1 Build 0.1.5.7.
+  Eleven Edit's startup firmware gate (2026-08-28) sends this request and
+  fails closed unless the reply reads exactly "0157"; EXPECTED_FIRMWARE_
+  BUILD (state.js) is the single source for that constant. Entirely separate
+  from Avid's 13 0B 0F command set.
+
+CMD 0x35 / CMD 0x39 — confirmed to EXIST in the startup capture, payload-
+less (F0 13 0B 0F 01 35 F7 and F0 13 0B 0F 01 39 F7), purpose still unknown.
+Eleven Edit neither sends nor needs them.
 
 
 ===================================================================
@@ -3242,8 +3272,10 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
     bank/num belief was simply wrong and got fixed 8 days after this
     entry was written. See Sec 15 for the full incident. The name DECODE
     itself (offset 8 to the null terminator) was correct from
-    the start. Factory patches (a1-z4) are deliberately never shown —
-    Charlie's call, this app only tracks user A1-Z4.
+    the start. Factory patches (a1-z4) are now fully navigable, jump-
+    listable, and safe-savable as of 2026-08-28 (factory patch
+    navigation feature) — this RETRACTS the earlier "deliberately never
+    shown, user A1-Z4 only" call.
   LIVE TRACKING, no rescan ever needed on open: patchNameCache (state.js)
   is SESSION-ONLY, never persisted to settings.json — a stale name from a
   session where the app wasn't running to see a rename or a whole-bank
