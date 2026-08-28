@@ -2247,13 +2247,17 @@ window.addEventListener('load', function() {
     // Also wire new bank nav buttons
     document.getElementById('btn-prev-bank').addEventListener('click', function() {
       if (typeof currentSlot !== 'undefined') {
+        // Bank size (4) divides evenly into both the user and factory
+        // ranges (104 slots each), so bank boundaries stay aligned straight
+        // across the Z4/a1 seam on the unified index — no special-casing
+        // needed at the boundary, same as plain step nav.
         var target = Math.max(0, currentSlot - 4);
         if (typeof goToSlot === 'function') goToSlot(target);
       }
     });
     document.getElementById('btn-next-bank').addEventListener('click', function() {
       if (typeof currentSlot !== 'undefined') {
-        var target = Math.min(103, currentSlot + 4);
+        var target = Math.min(MAX_NAV_SLOT, currentSlot + 4);
         if (typeof goToSlot === 'function') goToSlot(target);
       }
     });
