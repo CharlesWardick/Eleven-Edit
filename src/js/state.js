@@ -210,7 +210,7 @@ let appRevealed         = false;
 // command it sends. FAILS CLOSED: no reply within the timeout, or any
 // reply that doesn't match exactly, blocks the reveal — see
 // checkInitialPopulateReady/armFirmwareCheckTimeout (transport.js).
-const EXPECTED_FIRMWARE_BUILD    = '9999';   // TEMPORARY 2026-08-28 — deliberately wrong, to test the mismatch gate. REVERT to '0157' after Charlie confirms it blocks correctly.
+const EXPECTED_FIRMWARE_BUILD    = '0157';
 const FIRMWARE_CHECK_TIMEOUT_MS  = 4000;
 let firmwareCheckDone   = false;
 let firmwareVersionSeen = null;   // the ASCII string actually reported, or null if no reply arrived

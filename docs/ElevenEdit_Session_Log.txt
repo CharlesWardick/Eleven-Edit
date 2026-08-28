@@ -39,6 +39,39 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
+STATUS:      confirmed — TESTED LIVE
+AREA:        Firmware identity check / startup gate — REAL BUILD, test
+              value reverted. state.js EXPECTED_FIRMWARE_BUILD
+FINDING:     Charlie confirmed 1.3.52's deliberate-mismatch test build
+              (screenshot): gate blocked correctly, message read "This
+              system reported back firmware build "0.1.5.7." Eleven Edit
+              was built and tested specifically for firmware Version
+              2.0.1, Build 9.9.9.9. Running against unverified firmware is
+              not supported. Click Quit to close." — exactly right, both
+              the block behaviour and the corrected wording from the prior
+              entry. Noted the version tag visually overlaps the Quit
+              button in the bottom corner (cosmetic only, "good enough,"
+              not asked to be fixed).
+FIX:          EXPECTED_FIRMWARE_BUILD reverted from the temporary '9999'
+              back to the real '0157' — this build is real and testable
+              against actual hardware again, not a deliberate-fail test.
+EVIDENCE:     One-line diff, state.js. Passes node --check. Version
+              bumped 1.3.52 -> 1.3.53 (package.json).
+CONFLICTS:    none
+NEXT:         TESTED LIVE (Charlie, 2026-08-28) — the mismatch/block path
+              is now confirmed working end to end (message, Quit-only
+              button, no false Try Again offered). Still needs one more
+              confirmation once this real build (1.3.53) is running: that
+              NORMAL startup on Charlie's known-good firmware reaches the
+              main window without the gate firing (the earlier 1.3.50 log
+              entry flagged this as the CRITICAL untested case — a false
+              positive here would make the app unusable). Not yet folded
+              into Primer/Tech Ref masters — waits for a wrap signal per
+              HOW UPDATES WORK.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
 STATUS:      TEMPORARY TEST BUILD — DO NOT MERGE/RELEASE AS-IS
               (still EXPECTED_FIRMWARE_BUILD='9999' from the prior entry)
 AREA:        Firmware gate message wording — ui.js showFirmwareGate,
