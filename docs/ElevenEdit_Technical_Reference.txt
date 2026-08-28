@@ -1445,6 +1445,29 @@ anywhere:
   there — followed by echoes of Steps 3, 2 (now dirty-flag CLEARED for the
   target), and 4 (slot confirm) in that order.
 
+*** HARDWARE SAFETY — raw_slot MUST STAY 0-103 (CONFIRMED, 2026-08-28). ***
+Sending this save sequence with raw_slot outside 0-103 — e.g. the raw
+unified slot index Eleven Edit uses internally for factory space
+(104-207, see Sec on factory patch navigation) — does NOT fail cleanly.
+Charlie confirmed live: while on a factory patch (post the 2026-08-28
+CMD 0x02 decode fix, so currentSlot correctly read >103), Save to Rack
+sent that raw value directly as Step 3/4's slot byte, BEFORE the
+translate-to-user-slot guard (defaultRackSaveTarget, index.html) existed.
+The name update PARTIALLY TOOK — briefly visible on the hardware in the
+factory slot — but further interaction with the unit caused a BSOD.
+A second attempt (name-only, no further interaction) appeared to "stick"
+immediately after saving, but reading back the slot after a nav-away-and-
+back showed the ORIGINAL factory name — the write did not actually
+persist, it just looked like it had until the unit's next real read.
+NEVER send this sequence with raw_slot > 0x67 (103). Eleven Edit now
+guards this two ways: saveCurrentPatchToSlot (capture-scan.js) refuses
+outright if ever called with a slot past MAX_SLOT, and Save to Rack's
+default target is translated to the corresponding USER slot before this
+sequence is ever built (defaultRackSaveTarget, Stage 4, 2026-08-28) — see
+Session Log for the full incident. Same danger class as CMD 0x37 (Sec 18)
+in that an out-of-range/invalid send corrupts state rather than failing
+safely, though via a different mechanism and command.
+
 RENAME: Step 1 (CMD 0x05) IS the rename. Passing any name string renames
 the patch in hardware memory before committing. saveCurrentPatchToSlot()
 in capture-scan.js accepts an optional nameOverride param; if supplied it
@@ -2124,6 +2147,12 @@ CHAIN / DANGER:
     send it. This is unique to 0x37: asserts elsewhere (bad-patch-format, panel
     oddities) recover with nav-away/back. CMD 0x36 volume is NOT implicated.
     Always query with CMD 0x3A, wait for response, then send CMD 0x37.
+  Sending the SAVE sequence (CMD 0x04 write form, Sec 15) with raw_slot
+    outside 0-103 — CONFIRMED 2026-08-28: partial write (name briefly took,
+    did not actually persist) followed by a BSOD on further interaction.
+    Eleven Edit now guards this two ways (defaultRackSaveTarget's
+    translate-to-user-slot default, and saveCurrentPatchToSlot's outright
+    refusal above MAX_SLOT) — see Sec 15 for the full writeup.
 
 
 ===================================================================

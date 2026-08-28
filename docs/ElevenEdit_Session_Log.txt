@@ -39,6 +39,55 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Technical_Reference.txt Sec 15 + CHAIN/
+              DANGER catalog] — confirmed, not provisional
+AREA:        HARDWARE SAFETY — SAVE sequence with an out-of-range slot
+              (CMD 0x04 write form) confirmed to corrupt hardware state
+FINDING:     Charlie live-confirmed a real, serious hardware danger:
+              sometime between Stage 1 (currentSlot decode fix) and Stage
+              4 (before the save guard existed), he did Save to Rack while
+              on a factory patch. currentSlot correctly read as factory
+              (>103) at that point, but Save to Rack still defaulted
+              straight to currentSlot and sent that raw value directly as
+              the save sequence's slot byte — no translation, no
+              boundary check. RESULT: the name update partially/visibly
+              took on hardware (briefly shown in the factory slot), but a
+              second test (name-only save, then nav-away-and-back) showed
+              the write had NOT actually persisted — the original factory
+              name was still there. Further interaction with the unit
+              after the first attempt caused a BSOD. Per Charlie: "I
+              guess what I was doing was somehow writing back the name to
+              a normally unreachable or unwriteable section of fw or
+              memory and it seems to work but further fiddling make it
+              crash." This is now closed by Stage 4 (already shipped,
+              1.3.55) two independent ways — see that stage's own log
+              entry — but the finding itself is permanent, hardware-level
+              knowledge that belongs in the masters immediately, per the
+              Primer's own "fold immediately, hardware-safety item"
+              exception, not held for a wrap.
+FOLDED TO:    ElevenEdit_Technical_Reference.txt Sec 15 (SAVE PROTOCOL) —
+              new *** HARDWARE SAFETY *** block right after the
+              raw_slot=0-103 statement, spelling out the confirmed
+              partial-write/BSOD behaviour and cross-referencing both
+              guards. Also added a matching one-line pointer in the
+              existing CHAIN/DANGER "do not do X" catalog (Sec 22-ish,
+              same neighbourhood as the CMD 0x37 bricking entry it's
+              modeled on) so a future session scanning that list for
+              known dangers finds this one too.
+EVIDENCE:     Charlie's own live test, described in conversation (no
+              capture — the interesting bytes were the SAME save sequence
+              already fully documented in Sec 15, just with an
+              out-of-range raw_slot; the new information is the hardware
+              BEHAVIOUR on receiving it, not new protocol bytes).
+CONFLICTS:    none — this is new information, not a correction to
+              anything previously documented.
+NEXT:         None — this is now permanent, confirmed hardware-safety
+              documentation. Nothing further to test; Stage 4's own guards
+              are what prevent recurrence going forward.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
 STATUS:      provisional — NOT YET TESTED LIVE
 AREA:        Stage 4 (final stage) — Save-to-Rack factory guard —
               index.html, capture-scan.js
