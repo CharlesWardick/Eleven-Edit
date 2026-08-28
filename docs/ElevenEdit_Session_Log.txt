@@ -39,6 +39,55 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
+STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        Stage 3 auto-advance — directional roll range + colour-coded
+              picker options — patch-nav.js
+FINDING:     Charlie confirmed Stage 3 (auto-advance across the factory
+              boundary) already worked from Stage 1's plumbing alone — no
+              code needed for the Z2->a2 direction. But Z2->A2 the OTHER
+              way started immediately at A2 instead of walking
+              z2,z3,z4,A1,A2 as intended. ROOT CAUSE: autoStep/startAuto/
+              updateRangeLabel all used Math.min(from,to)/Math.max(from,to)
+              to turn FROM/TO into a lo/hi numeric range — invisible with
+              an all-user range (people naturally pick the lower letter as
+              FROM anyway) but wrong now that factory space (104-207) sits
+              numerically ABOVE all of user space (0-103): FROM=z2(205),
+              TO=A2(1) silently normalized to lo=A2,hi=z2, discarding
+              which one was actually typed as the start. Charlie correctly
+              recalled this is the same "always runs low to high" shape as
+              a pre-existing quirk in the original user-only code, just
+              never visible before because the numeric range never
+              crossed a a "reversal" the letters didn't already imply.
+FIX:          FROM/TO reinterpreted as a DIRECTIONAL CIRCULAR walk instead
+              of a numeric min/max range. New slotInRollRange(slot,from,to)
+              helper replaces the old lo<=slot<=hi check with one that
+              wraps through the top when from>to. autoStep now steps
+              current+1 (wrapping 207->0) until it hits `to`, then jumps
+              back to `from` — same result as before for the normal
+              from<=to case, correctly walks the intended direction for
+              from>to. updateRangeLabel/startAuto's status text now show
+              FROM — TO in the order actually selected, not normalized.
+              ALSO (Charlie's request, same conversation): the FROM/TO
+              picker options are now colour-coded — factory (a1-z4)
+              options render in KNOB_COLORS.blue, matching the accent
+              already used for Parametric EQ's HF band, so the two ranges
+              read as visually distinct in what would otherwise be one
+              flat alphabetical list with no visual seam at Z4/a1.
+EVIDENCE:     JS-only diff, patch-nav.js (populateRangeSelects, autoStep,
+              startAuto, updateRangeLabel). Passes node --check. Version
+              bumped 1.3.53 -> 1.3.54 (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) z2->A2 now
+              walks z2,z3,z4,A1,A2 and loops back to z2 (the reported
+              case), (b) the previously-working z2->a2 direction and any
+              plain all-user range (e.g. A1-Z4 default) are unaffected,
+              (c) Pause/Stop/Resume still behave correctly mid-roll in
+              both directions, (d) the FROM/TO dropdown options visibly
+              show factory entries in a different colour.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
 STATUS:      confirmed — TESTED LIVE
 AREA:        Firmware identity check / startup gate — REAL BUILD, test
               value reverted. state.js EXPECTED_FIRMWARE_BUILD

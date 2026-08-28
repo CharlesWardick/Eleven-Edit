@@ -40,6 +40,13 @@ function populateRangeSelects() {
     for (let i = 0; i <= MAX_NAV_SLOT; i++) {
       const opt = document.createElement('option');
       opt.value = i; opt.textContent = slotLabel(i);
+      // User vs factory options colour-coded (2026-08-28, Charlie's
+      // request) so the two ranges are visually distinct in a plain
+      // alphabetical dropdown that otherwise gives no hint A-Z stops and
+      // a-z starts. KNOB_COLORS.blue matches the accent already used
+      // elsewhere (Parametric EQ's HF band) rather than inventing a new
+      // colour just for this.
+      if (i > MAX_SLOT) opt.style.color = (typeof KNOB_COLORS !== 'undefined') ? KNOB_COLORS.blue : '#3f8fe0';
       sel.appendChild(opt);
     }
     // Default range stays USER-only (A1-Z4) — factory browsing/auto-advance
@@ -52,10 +59,22 @@ function populateRangeSelects() {
 function getRangeFrom() { return parseInt(document.getElementById('range-from').value); }
 function getRangeTo()   { return parseInt(document.getElementById('range-to').value);   }
 
+// 2026-08-28: FROM/TO is a DIRECTIONAL circular walk, not a numeric
+// min/max range — was Math.min/max before, which silently normalized
+// "lower number first" (invisible with an all-user range, since people
+// naturally pick the lower letter as FROM anyway) but broke once factory
+// space (104-207) started sitting numerically ABOVE all of user space
+// (0-103): picking FROM=z2, TO=A2 meant to walk z2->z3->z4->A1->A2, but
+// min/max silently flipped it to start at A2. See autoStep/startAuto,
+// both now directional; slotInRollRange replaces the old lo<=slot<=hi
+// check with a circular one that wraps through the top when from>to.
+function slotInRollRange(slot, from, to) {
+  if (from <= to) return slot >= from && slot <= to;
+  return slot >= from || slot <= to;
+}
+
 function updateRangeLabel() {
-  const lo = Math.min(getRangeFrom(), getRangeTo());
-  const hi = Math.max(getRangeFrom(), getRangeTo());
-  document.getElementById('range-active').textContent = slotLabel(lo) + ' — ' + slotLabel(hi);
+  document.getElementById('range-active').textContent = slotLabel(getRangeFrom()) + ' — ' + slotLabel(getRangeTo());
 }
 
 document.getElementById('range-from').addEventListener('change', updateRangeLabel);
@@ -117,10 +136,9 @@ window.addEventListener('keydown', e => {
 function getInterval() { return parseInt(document.getElementById('interval-select').value) * 1000; }
 
 function autoStep() {
-  const lo = Math.min(getRangeFrom(), getRangeTo());
-  const hi = Math.max(getRangeFrom(), getRangeTo());
-  let next = currentSlot + 1;
-  if (next > hi) next = lo;
+  const from = getRangeFrom(), to = getRangeTo();
+  const next = (currentSlot === to) ? from
+             : (currentSlot >= MAX_NAV_SLOT ? 0 : currentSlot + 1);
   goToSlot(next);
 }
 
@@ -146,11 +164,10 @@ function startProgressRAF() {
 
 function startAuto() {
   if (!midiOutName) { setStatus('Select primary output first'); return; }
-  const lo = Math.min(getRangeFrom(), getRangeTo());
-  const hi = Math.max(getRangeFrom(), getRangeTo());
+  const from = getRangeFrom(), to = getRangeTo();
   // After Stop (or at launch), always jump to FROM regardless of current slot.
   // After Pause/Resume, currentSlot is left alone — Resume continues from where paused.
-  if (wasStopped || currentSlot < lo || currentSlot > hi) goToSlot(lo);
+  if (wasStopped || !slotInRollRange(currentSlot, from, to)) goToSlot(from);
   wasStopped = false;
   autoElapsed = 0; autoPaused = false; autoStartTime = performance.now();
   scheduleNext(); startProgressRAF();
@@ -159,8 +176,8 @@ function startAuto() {
   document.getElementById('btn-start').textContent = '▶ RUNNING';
   document.getElementById('btn-pause').disabled = false;
   document.getElementById('btn-stop').disabled  = false;
-  setStatus('Rolling ' + slotLabel(lo) + '→' + slotLabel(hi) + ' every ' + (getInterval()/1000) + 's');
-  appLog('Auto-advance started: ' + slotLabel(lo) + '→' + slotLabel(hi));
+  setStatus('Rolling ' + slotLabel(from) + '→' + slotLabel(to) + ' every ' + (getInterval()/1000) + 's');
+  appLog('Auto-advance started: ' + slotLabel(from) + '→' + slotLabel(to));
 }
 
 function togglePause() {
