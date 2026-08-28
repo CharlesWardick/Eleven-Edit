@@ -2516,6 +2516,20 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
   // carry over into an unrelated one.
   var saveTargetSlot = null;
 
+  // Save-to-Rack's default target when nothing's been explicitly picked
+  // (2026-08-28, Stage 4) — a factory-loaded patch has no legal direct-
+  // write address, so the default can't just be currentSlot the way it
+  // always was for user patches. Translates to the SAME alphanumeric
+  // address in user space instead (factory c4 -> user C4, Charlie's own
+  // call) — same rawSlot number, just reinterpreted as space=0. Still
+  // fully redirectable via the slot-label picker either way.
+  function defaultRackSaveTarget() {
+    if (currentSlot > MAX_SLOT && typeof slotToSpaceRaw === 'function') {
+      return slotToSpaceRaw(currentSlot).rawSlot;
+    }
+    return currentSlot;
+  }
+
   function updateSlotLabel(slot) {
     var slotLbl = document.getElementById('rack-save-slot-label');
     if (slotLbl) slotLbl.textContent = slotLabel(slot);
@@ -2543,7 +2557,7 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
     input.value = (typeof currentPatchName !== 'undefined' ? currentPatchName : '') || '';
     var slotLine = document.querySelector('.rack-save-slot-line');
     if (slotLine) slotLine.style.display = action === 'rack' ? '' : 'none';
-    if (action === 'rack') updateSlotLabel(currentSlot);
+    if (action === 'rack') updateSlotLabel(defaultRackSaveTarget());
     modal.classList.add('open');
     setTimeout(function() { input.focus(); input.select(); }, 50);
   }
@@ -2585,7 +2599,7 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
     if (!name) { input.focus(); return; }
     modal.classList.remove('open');
     if (saveAction === 'rack') {
-      var targetSlot = (saveTargetSlot !== null) ? saveTargetSlot : currentSlot;
+      var targetSlot = (saveTargetSlot !== null) ? saveTargetSlot : defaultRackSaveTarget();
       if (typeof saveToRackAndDisk === 'function') saveToRackAndDisk(name, targetSlot);
     } else {
       // Disk only — update name then capture

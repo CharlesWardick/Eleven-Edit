@@ -40,6 +40,62 @@ ENTRIES (newest first)
 -------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        Stage 4 (final stage) — Save-to-Rack factory guard —
+              index.html, capture-scan.js
+FINDING:     Completes the 4-stage factory-patch plan agreed 2026-08-27:
+              Save to Disk needed no change (slot-agnostic, as agreed).
+              Save to Rack, when the loaded patch is factory, must never
+              default to writing at the current (illegal) factory address
+              — found the real risk point in doRackSave's confirm handler:
+              `var targetSlot = (saveTargetSlot !== null) ? saveTargetSlot
+              : currentSlot;` — if a user opened Save to Rack on a factory
+              patch and just clicked Save without redirecting via the
+              picker, this would have sent a write to a factory slot with
+              no defined hardware behaviour.
+DESIGN:       New defaultRackSaveTarget() (index.html) is the ONE place
+              that decides the default target: translates a factory
+              currentSlot to the SAME alphanumeric user address (c4 -> C4,
+              Charlie's own call from 2026-08-27) via slotToSpaceRaw's
+              rawSlot, else just currentSlot as always. Used in BOTH
+              openSaveModal (what the slot label shows before you touch
+              anything) and doRackSave (what actually gets sent) — one
+              function, not two copies that could drift apart. The
+              picker's own user-only lock (openSlotPicker forcing
+              matrixSpace=0, Stage 2) still covers the "redirected to a
+              different slot" path, unchanged. updateSlotLabel's existing
+              "currently: X" heads-up naturally fires for this new default
+              too (translated target always differs numerically from a
+              factory currentSlot), which is exactly the right warning to
+              show.
+              HARDWARE SAFETY BACKSTOP: saveCurrentPatchToSlot
+              (capture-scan.js) now refuses outright (logs + returns, no
+              write sent) if ever called with slot > MAX_SLOT, regardless
+              of how it got called — a last line of defense if the UI-side
+              logic above is ever wrong or bypassed, same "refuse rather
+              than guess" pattern already used for Amp Out (no real value
+              received yet) elsewhere in this file.
+EVIDENCE:     JS/HTML diff, index.html + capture-scan.js. Both pass
+              node --check (index.html's inline script extracted and
+              checked separately). Version bumped 1.3.54 -> 1.3.55
+              (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE — completes the whole 4-stage factory-
+              patch plan pending this final live confirmation. Charlie to
+              confirm: (a) opening Save to Rack while on a factory patch
+              shows the translated user slot pre-filled (with the
+              "currently: X" warning), not the factory slot itself, (b)
+              clicking Save without redirecting actually writes to that
+              translated user slot and NOT the factory address, (c) the
+              slot-label picker still redirects to any other user slot
+              exactly as before, (d) Save to Disk is completely unaffected
+              on a factory patch. Once this stage is confirmed, all four
+              stages of the factory-patch nav feature are done and this
+              would be a natural point to consider a Primer/Tech Ref wrap.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      provisional — NOT YET TESTED LIVE
 AREA:        Stage 3 auto-advance — directional roll range + colour-coded
               picker options — patch-nav.js
 FINDING:     Charlie confirmed Stage 3 (auto-advance across the factory

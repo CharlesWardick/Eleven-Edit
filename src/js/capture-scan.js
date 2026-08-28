@@ -269,6 +269,18 @@ async function saveCurrentPatchToSlot(nameOverride, targetSlot) {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
   const name = ((nameOverride || currentPatchName || 'Untitled').substring(0, 16)).trim();
   const slot = (targetSlot !== undefined && targetSlot !== null) ? targetSlot : currentSlot;
+  // HARDWARE SAFETY BACKSTOP (2026-08-28, Stage 4) — factory patches
+  // (a1-z4) have no legal direct-write address at all; the save modal is
+  // supposed to always translate/redirect a factory-loaded save to a real
+  // user slot before this ever runs (see defaultRackSaveTarget, index.html,
+  // and openSlotPicker forcing user-only, Stage 2). This refusal is the
+  // last line of defense if that upstream logic is ever wrong or bypassed
+  // — refuse rather than send a write with no defined hardware behaviour.
+  if (typeof MAX_SLOT !== 'undefined' && slot > MAX_SLOT) {
+    appLog('Save to Rack: refused — target slot ' + slot + ' (' + slotLabel(slot) + ') is factory space, not writable');
+    setStatus('Cannot save to a factory slot — pick a user slot (A1-Z4)');
+    return;
+  }
   // Every write in this function addresses the target by RAW SLOT NUMBER
   // (0-103) — no bank/num split anywhere (see the retraction note on
   // Step 3 below for why that used to be wrong for one of these).
