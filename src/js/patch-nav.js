@@ -12,11 +12,18 @@ async function sendPC(slot) {
   var hex, how;
 
   if (USE_SYSEX_RECALL) {
-    // Absolute-slot recall, as used by the Avid editor.
-    hex = 'F0 13 0B 0F 00 02 00 ' + hh(slot) + ' F7';
+    // Absolute-slot recall, as used by the Avid editor. The byte before the
+    // raw slot is the space flag (0=user A1-Z4, 1=factory a1-z4, confirmed
+    // 2026-08-28 via capture) — was hardcoded 0x00 before factory patches
+    // were addressable at all.
+    const sr = slotToSpaceRaw(slot);
+    hex = 'F0 13 0B 0F 00 02 ' + hh(sr.space) + ' ' + hh(sr.rawSlot) + ' F7';
     how = 'SYSEX recall';
   } else {
-    hex = 'C0 ' + hh(slot);
+    // Program Change is 7-bit (0-127) and can't address the full 0-207
+    // range — this fallback predates factory-patch support and was never
+    // extended to it; USE_SYSEX_RECALL stays true for anything past Z4.
+    hex = 'C0 ' + hh(Math.min(slot, 127));
     how = 'PC';
   }
 
@@ -30,11 +37,13 @@ function populateRangeSelects() {
   ['range-from', 'range-to'].forEach((id, idx) => {
     const sel = document.getElementById(id);
     sel.innerHTML = '';
-    for (let i = 0; i <= MAX_SLOT; i++) {
+    for (let i = 0; i <= MAX_NAV_SLOT; i++) {
       const opt = document.createElement('option');
       opt.value = i; opt.textContent = slotLabel(i);
       sel.appendChild(opt);
     }
+    // Default range stays USER-only (A1-Z4) — factory browsing/auto-advance
+    // is opt-in via these same selects, not the out-of-the-box default.
     sel.value = idx === 0 ? 0 : MAX_SLOT;
   });
   updateRangeLabel();

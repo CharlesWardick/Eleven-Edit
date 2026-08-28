@@ -329,11 +329,17 @@ function handleSaveArm(data) {
 // ════════════════════════════════════════════════════════════════════
 function handleSlotConfirm(data) {
   if (data.length < 8) return;
-  // Navigation broadcasts: data[6]=0x00, data[7]=raw slot number.
-  // Commit echoes (from our own Save): data[6]=bank, data[7]=num,
-  // which needs decoding as slot = bank*4 + num. Both formats agree
-  // for bank A (data[6]=0), so this is safe to apply unconditionally.
-  const confirmed = data[6] > 0 ? (data[6] * 4 + data[7]) : data[7];
+  // data[6] = space (0=user A1-Z4, 1=factory a1-z4), data[7] = raw slot
+  // 0-103 within that space — confirmed 2026-08-28 via a Wireshark capture
+  // of the Avid Editor crossing Z4->a1->a2->back (Session Log). RETRACTS
+  // the earlier "data[6]=bank, data[7]=num, slot=bank*4+num for a save
+  // commit echo" theory: that was never actually confirmed outside bank A,
+  // where it's indistinguishable from the space+slot reading (space is
+  // always 0 there either way) — the same kind of untested-outside-bank-A
+  // guess that caused the CMD 0x04 addressing bug (Sec 24, 2026-08-03).
+  // If a save-commit echo on a non-A user bank ever mis-navigates, this is
+  // the first place to check.
+  const confirmed = spaceRawToSlot(data[6], data[7]);
   if (confirmed !== currentSlot) {
     currentSlot = confirmed;
     const el = document.getElementById('slot-display');

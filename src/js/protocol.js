@@ -29,8 +29,32 @@ window.addEventListener('unhandledrejection', e => {
 // ════════════════════════════════════════════════════════════════════
 const BANKS    = ['A','B','C','D','E','F','G','H','I','J','K','L','M',
                   'N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
-const MAX_SLOT = 103;
+const MAX_SLOT = 103;   // last USER slot (A1-Z4) — keep as-is; export/import,
+                        // the save picker, and slotNumFromLabel are all
+                        // deliberately user-only and stay scoped to this.
+// Factory patches (2026-08-28, confirmed via Wireshark capture, see Session
+// Log): the recall/slot-confirm wire protocol addresses user and factory
+// patches as two independent 0-103 ranges selected by a "space" byte
+// (0=user, 1=factory), the same convention already confirmed for the CMD
+// 0x04 name-query command. Rather than thread a separate space flag through
+// every nav/roller/jump-list call site, the app represents both ranges as
+// ONE continuous slot index 0-207 (0-103 = A1-Z4, 104-207 = a1-z4) and only
+// translates to/from the wire's space+rawSlot pair at the two edges that
+// actually build or decode a SysEx message (sendPC in patch-nav.js,
+// handleSlotConfirm in sysex-handler.js). Everything else — range pickers,
+// wrap/step math, the Jump List, display labels — just treats it as a
+// bigger slot range, unchanged in shape from before.
+const MAX_NAV_SLOT = 207;
 const CC_TUNER = 69;
+
+// slot 0-207 -> {space, rawSlot 0-103} for building/decoding factory-aware
+// SysEx messages. space=0 user, space=1 factory.
+function slotToSpaceRaw(slot) {
+  return slot > MAX_SLOT ? { space: 1, rawSlot: slot - (MAX_SLOT + 1) } : { space: 0, rawSlot: slot };
+}
+function spaceRawToSlot(space, rawSlot) {
+  return space > 0 ? (MAX_SLOT + 1) + rawSlot : rawSlot;
+}
 
 // Inverse of slotLabel (ui.js) — "C2" -> 9. Used by Import Rigs (2026-08-10)
 // to turn a bank XML's <bank> label back into a raw slot number. Returns

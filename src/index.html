@@ -2219,9 +2219,15 @@ function closeSlotMatrix() {
 var BANKS_P5 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 function updateNavDisplay(slot) {
-  var bank  = Math.floor(slot / 4);
-  var patch = (slot % 4) + 1;
+  // Was raw bank=floor(slot/4) on the unified index directly — broke past
+  // Z4 (e.g. a1=104 gave bank 26, an out-of-range BANKS_P5 lookup, "?1"),
+  // the same bug as handleSlotConfirm's old decode. Route through the same
+  // space/rawSlot split (protocol.js) instead of a second copy of the math.
+  var sr = (typeof slotToSpaceRaw === 'function') ? slotToSpaceRaw(slot) : {space:0, rawSlot:slot};
+  var bank  = Math.floor(sr.rawSlot / 4);
+  var patch = (sr.rawSlot % 4) + 1;
   var bankLetter = BANKS_P5[bank] || '?';
+  if (sr.space > 0) bankLetter = bankLetter.toLowerCase();
   document.getElementById('nav-bank-slot').textContent  = bankLetter;
   document.getElementById('nav-patch-slot').textContent = patch;
   document.getElementById('slot-display').textContent   = bankLetter + patch;

@@ -2382,8 +2382,11 @@ function setGateControlsEnabled(enabled) {
 // CC, PC, and SysEx in both directions via ElevenRackBridge.jar.
 // ════════════════════════════════════════════════════════════════════
 function slotLabel(slot) {
-  if (slot < 0 || slot > MAX_SLOT) return '??';
-  return BANKS[Math.floor(slot / 4)] + ((slot % 4) + 1);
+  if (slot < 0 || slot > MAX_NAV_SLOT) return '??';
+  const sr = slotToSpaceRaw(slot);
+  const letter = BANKS[Math.floor(sr.rawSlot / 4)];
+  const label = letter + ((sr.rawSlot % 4) + 1);
+  return sr.space > 0 ? label.toLowerCase() : label;
 }
 
 function updateDisplay(slot) {
