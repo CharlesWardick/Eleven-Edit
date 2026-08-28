@@ -94,13 +94,18 @@
       // offering that button would just invite a repeat of the same
       // block. Quit is the only real option until Eleven Edit is
       // confirmed against whatever firmware this unit is running.
-      gateMsg.innerHTML = 'This Eleven Rack is reporting firmware ' +
-        (data.detail || 'that could not be confirmed') +
-        ', not the only firmware Eleven Edit has been built and tested ' +
-        'against (build 0157).<br><br>Some commands this app sends have ' +
-        'previously bricked test hardware on the confirmed firmware (a ' +
-        'full factory reset was required) — running against unverified ' +
-        'firmware is not safe to guess at.<br><br>Click Quit to close.';
+      // reportedBuild/expectedBuild come pre-formatted ("0.1.5.7") from
+      // showFirmwareGate (ui.js) rather than hardcoded here, so this
+      // text can never drift out of sync with the actual comparison
+      // value in state.js.
+      var reportedLine = data.reportedBuild
+        ? 'This system reported back firmware build "' + data.reportedBuild + '."'
+        : 'This system did not respond to the firmware version check.';
+      gateMsg.innerHTML = reportedLine +
+        '<br><br>Eleven Edit was built and tested specifically for ' +
+        'firmware Version 2.0.1, Build ' + data.expectedBuild + '.' +
+        '<br><br>Running against unverified firmware is not supported.' +
+        '<br><br>Click Quit to close.';
       retryBtn.style.display = 'none';
     } else {
       gateMsg.innerHTML = 'Unable to locate Eleven Rack. Make sure Eleven Rack is connected and turned on.<br>Click Try Again to rescan. Click Quit to close.';

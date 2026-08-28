@@ -2492,12 +2492,16 @@ function showStartupGate() {
 // No hide function: unlike the no-hardware gate, there's no "Try Again"
 // path that could plausibly resolve this — the rack's firmware doesn't
 // change by rescanning — so this is a one-way block for the session.
+// "0157" -> "0.1.5.7", matching how Charlie/Avid write the build number.
+function dotBuild(s) { return s ? s.split('').join('.') : s; }
+
 function showFirmwareGate(versionSeen) {
   appLog('Firmware gate: build ' + (versionSeen || '(no reply)') +
          ' — does not match expected ' + EXPECTED_FIRMWARE_BUILD + ' — blocking');
   if (window.electronAPI) window.electronAPI.splashShowGate({
     reason: 'firmware',
-    detail: versionSeen ? ('reported build "' + versionSeen + '"') : 'that did not respond to the version check'
+    reportedBuild: versionSeen ? dotBuild(versionSeen) : null,
+    expectedBuild: dotBuild(EXPECTED_FIRMWARE_BUILD)
   });
 }
 function hideStartupGate() {
