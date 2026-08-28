@@ -1015,13 +1015,15 @@
     </div>
   </div>
 
-  <!-- Patch name — click LEFT half for the slot-id Jump List, RIGHT half
-       for the same list by patch NAME (2026-08-03; split added since this
-       was previously one undiscoverable click target with no visible
-       affordance beyond the hand cursor). -->
+  <!-- Patch name — click LEFT half for the USER (A1-Z4) Jump List, RIGHT
+       half for the FACTORY (a1-z4, read-only) Jump List (2026-08-28 —
+       the left/right split existed before for a "by slot"/"by name" view
+       that was later dropped 2026-08-11; reused here for user/factory
+       instead, since both halves need a real reason to differ again now
+       that factory patches are navigable). -->
   <div id="patch-name-box">
     <span id="patch-name">—</span>
-    <span class="hint">◀ jump by slot · jump by name ▶</span>
+    <span class="hint">◀ user patches · factory patches ▶</span>
   </div>
   <!-- Hidden elements kept for JS compatibility -->
   <span id="slot-display" style="display:none;">A1</span>
@@ -1791,7 +1793,7 @@
   </div>
   <div id="matrix-scroll">
     <table id="matrix-name-table"></table>
-    <div style="font-size:10px;color:#666;font-style:italic;margin-top:8px;">User patches A1–Z4 (104 slots)</div>
+    <div id="matrix-scope-note" style="font-size:10px;color:#666;font-style:italic;margin-top:8px;">User patches A1–Z4 (104 slots)</div>
   </div>
 </div>
 
@@ -2157,16 +2159,23 @@ document.getElementById('btn-fxhost-close').addEventListener('click', function()
   if (typeof closeFxHostPanel === 'function') closeFxHostPanel();
 });
 
-// Patch name box click = open the Jump List (2026-08-03; simplified
-// 2026-08-11 when the "by slot" compact view was dropped — either half of
-// the box now opens the same single "by name" table, click again to close).
-document.getElementById('patch-name-box').addEventListener('click', function() {
+// Patch name box: LEFT half opens the USER Jump List, RIGHT half opens
+// FACTORY (2026-08-28 — see markup comment above). Click again on either
+// half closes it, matching the old single-target behaviour.
+function openJumpList(space) {
   var m = document.getElementById('slot-matrix');
   if (m.classList.contains('open')) { closeSlotMatrix(); return; }
-  document.querySelector('.matrix-title').textContent = 'PATCH NAMES — click to jump';
+  matrixSpace = space;
+  setMatrixScopeText(space === 1 ? 'FACTORY — click to jump' : 'PATCH NAMES — click to jump');
   refreshMatrixCells();
   if (typeof currentSlot !== 'undefined') updateMatrixHighlight(currentSlot);
   m.classList.add('open');
+}
+document.getElementById('patch-name-box').addEventListener('click', function(e) {
+  var box = document.getElementById('patch-name-box');
+  var r = box.getBoundingClientRect();
+  var leftHalf = (e.clientX - r.left) < (r.width / 2);
+  openJumpList(leftHalf ? 0 : 1);
 });
 
 document.getElementById('matrix-close-btn').addEventListener('click', closeSlotMatrix);
@@ -2189,10 +2198,25 @@ document.addEventListener('click', function(e) {
 // ════════════════════════════════════════════════════════════════════
 var matrixPickerResolve = null;
 
+// Sets both the header title and the footer scope note together — one
+// call site instead of two, so the two never drift out of sync.
+function setMatrixScopeText(title) {
+  document.querySelector('.matrix-title').textContent = title;
+  var note = document.getElementById('matrix-scope-note');
+  if (note) note.textContent = matrixSpace === 1
+    ? 'Factory patches a1–z4 (104 slots, read-only — cannot be saved to directly)'
+    : 'User patches A1–Z4 (104 slots)';
+}
+
 function openSlotPicker() {
   return new Promise(function(resolve) {
     matrixPickerResolve = resolve;
-    document.querySelector('.matrix-title').textContent = 'PICK A SLOT';
+    // Save-to-rack can ONLY ever write into user space — force it here
+    // regardless of whichever side of the Jump List was last browsed, so a
+    // factory-space browse never leaves the picker in a state where a
+    // click could resolve to an illegal (unwritable) factory slot.
+    matrixSpace = 0;
+    setMatrixScopeText('PICK A SLOT');
     refreshMatrixCells();
     if (typeof currentSlot !== 'undefined') updateMatrixHighlight(currentSlot);
     document.getElementById('slot-matrix').classList.add('open');
@@ -2217,6 +2241,13 @@ function closeSlotMatrix() {
 // This block mirrors those writes to the new visible elements.
 // ════════════════════════════════════════════════════════════════════
 var BANKS_P5 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+// Which half of the Jump List overlay is currently showing: 0=user
+// (A1-Z4), 1=factory (a1-z4). The grid's cells are built ONCE with a
+// fixed bank-position 0-103 (dataset.rawSlot); this flag is what turns
+// that fixed position into an actual unified slot (protocol.js
+// spaceRawToSlot) at refresh/click time, so the same 104 DOM cells serve
+// both views instead of building two grids.
+var matrixSpace = 0;
 
 function updateNavDisplay(slot) {
   // Was raw bank=floor(slot/4) on the unified index directly — broke past
@@ -2304,26 +2335,29 @@ window.addEventListener('load', function() {
     var row = document.createElement('tr');
     var rowLbl = document.createElement('td');
     rowLbl.className = 'row-label';
+    rowLbl.dataset.bankIdx = b;
     rowLbl.textContent = BANKS_P5[b];
     row.appendChild(rowLbl);
     for (var p2 = 0; p2 < 4; p2++) {
-      var slot = b * 4 + p2;
+      var rawSlot = b * 4 + p2;
       var td = document.createElement('td');
       td.className = 'matrix-name-cell';
-      td.dataset.slot = slot;
+      td.dataset.rawSlot = rawSlot;
       td.textContent = '—';
-      td.title = BANKS_P5[b] + (p2 + 1); // hover = slot ID, since the cell itself omits it
-      td.addEventListener('click', (function(s) { return function() {
+      // title (hover = slot ID) is set live in refreshMatrixCells, since
+      // it depends on matrixSpace (upper/lower case) not just position.
+      td.addEventListener('click', (function(raw) { return function() {
+        var unified = spaceRawToSlot(matrixSpace, raw);
         if (matrixPickerResolve) {
           var resolve = matrixPickerResolve;
           matrixPickerResolve = null;
           document.getElementById('slot-matrix').classList.remove('open');
-          resolve(s);
+          resolve(unified);
           return;
         }
         document.getElementById('slot-matrix').classList.remove('open');
-        if (typeof goToSlot === 'function') goToSlot(s);
-      }; })(slot));
+        if (typeof goToSlot === 'function') goToSlot(unified);
+      }; })(rawSlot));
       row.appendChild(td);
     }
     tbody.appendChild(row);
@@ -2331,30 +2365,44 @@ window.addEventListener('load', function() {
   table.appendChild(tbody);
 })();
 
-// Update matrix current-slot highlight whenever nav changes.
+// Update matrix current-slot highlight whenever nav changes. A cell only
+// rings if it's showing the SAME space as currentSlot — e.g. browsing
+// factory while a user patch is loaded shows no ring, which is correct:
+// there's no equivalent factory cell for a user patch to point at.
 function updateMatrixHighlight(slot) {
   document.querySelectorAll('.matrix-name-cell').forEach(function(c) {
-    c.classList.toggle('current', parseInt(c.dataset.slot) === slot);
+    var unified = spaceRawToSlot(matrixSpace, parseInt(c.dataset.rawSlot));
+    c.classList.toggle('current', unified === slot);
   });
 }
 
-// Repaints every cell's name from patchNameCache (state.js) — called
-// whenever the overlay opens (jump mode or picker mode alike).
+// Repaints every cell's name (from patchNameCache, state.js) AND title
+// (hover = slot ID) AND the row-letter case, all keyed off matrixSpace —
+// called whenever the overlay opens (jump mode or picker mode alike) or
+// the user/factory side is switched.
 function refreshMatrixCells() {
+  document.querySelectorAll('.row-label').forEach(function(rl) {
+    var letter = BANKS_P5[parseInt(rl.dataset.bankIdx)];
+    rl.textContent = matrixSpace === 1 ? letter.toLowerCase() : letter;
+  });
   document.querySelectorAll('.matrix-name-cell').forEach(function(c) {
-    var slot = parseInt(c.dataset.slot);
-    var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
+    var raw = parseInt(c.dataset.rawSlot);
+    var unified = spaceRawToSlot(matrixSpace, raw);
+    var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[unified] : undefined;
     c.textContent = (nm && nm.length) ? nm : '—';
+    c.title = (typeof slotLabel === 'function') ? slotLabel(unified) : '';
   });
 }
 
 // Called live as individual name replies/saves land (handlePatchNameEnumReply,
 // sysex-handler.js; saveCurrentPatchToSlot, capture-scan.js) — a no-op
-// unless the overlay is actually open right now, same reasoning as
-// renderChainRow skipping a repaint mid-drag elsewhere in this app.
+// unless the overlay is actually open AND currently showing the space that
+// slot belongs to (the cell for the other space isn't on screen to update).
 function refreshNamedMatrixSlot(slot) {
   if (!document.getElementById('slot-matrix').classList.contains('open')) return;
-  var cell = document.querySelector('.matrix-name-cell[data-slot="' + slot + '"]');
+  var sr = slotToSpaceRaw(slot);
+  if (sr.space !== matrixSpace) return;
+  var cell = document.querySelector('.matrix-name-cell[data-raw-slot="' + sr.rawSlot + '"]');
   if (!cell) return;
   var nm = (typeof patchNameCache !== 'undefined') ? patchNameCache[slot] : undefined;
   cell.textContent = (nm && nm.length) ? nm : '—';

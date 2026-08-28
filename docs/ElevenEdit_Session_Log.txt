@@ -39,6 +39,63 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
+STATUS:      provisional — NOT YET TESTED LIVE
+AREA:        Jump List Stage 2 — user/factory click zones + factory name
+              scan — index.html, capture-scan.js, sysex-handler.js
+FINDING:     Charlie approved Stage 2: the patch-name box's left/right
+              click zones (previously both halves opened the identical
+              "by name" table, a leftover from a "by slot"/"by name" split
+              dropped 2026-08-11) now open the SAME Jump List overlay
+              scoped to a different space — left=user (A1-Z4), right=
+              factory (a1-z4).
+DESIGN:       The grid's 104 DOM cells are built ONCE, same as before, but
+              now hold a fixed bank-POSITION (dataset.rawSlot 0-103)
+              instead of a baked-in absolute slot. A new `matrixSpace`
+              flag (0=user,1=factory) plus protocol.js's spaceRawToSlot
+              turns that position into the actual unified slot at
+              refresh/click time — refreshMatrixCells() repaints names,
+              hover titles, AND row-letter case (A-Z vs a-z) together so
+              they can never drift out of sync with each other.
+              openJumpList(space) is the one function both click zones
+              call. openSlotPicker() (Save-to-Rack's "pick a slot" reuse
+              of this same overlay) explicitly forces matrixSpace=0 on
+              every open, regardless of whichever side was last browsed —
+              the one place this MUST be airtight, since a factory slot
+              is not a legal save target (Stage 4 will build the rest of
+              that guard, but this piece belongs here so the picker is
+              never even capable of offering an illegal slot in the
+              meantime).
+FACTORY NAMES: RETRACTS the 2026-08-03 "this app only tracks user A1-Z4,
+              factory deliberately never shown" call — a factory Jump List
+              with every cell reading "—" would be pointless. scanPatchNames
+              (capture-scan.js) now also queries all 104 factory slots
+              (space=1) after the existing user scan, doubling the
+              connect-time name scan from 104 to 208 read-only queries.
+              handlePatchNameEnumReply (sysex-handler.js) no longer drops
+              space=0x01 replies — stores them in the same patchNameCache
+              at their unified index (spaceRawToSlot), alongside user
+              names.
+EVIDENCE:     JS/HTML-only diff. All touched files pass `node --check`
+              (index.html's inline script extracted and checked
+              separately, same method as prior stages). Version bumped
+              1.3.48 -> 1.3.49 (package.json).
+CONFLICTS:    none — see FACTORY NAMES above for the one explicit
+              retraction of prior documented behaviour.
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) left/right
+              click zones open the correct side with correct-case row
+              letters and real factory names (not just "—" — the doubled
+              scan takes noticeably longer on connect, worth watching for
+              timeout/flood issues at 104 extra queries), (b) the current-
+              patch ring behaves as expected (lit only when browsing
+              whichever space you're actually on), (c) Save-to-Rack's
+              slot picker ALWAYS shows user A1-Z4 even when opened right
+              after browsing the factory side of the Jump List — this is
+              the one guarantee that must hold before Stage 4 can build on
+              top of it.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
 STATUS:      provisional — deferred idea, not designed or built
 AREA:        Nav display — direct type-to-jump on the bank/patch boxes
 FINDING:     Charlie floated typing directly into the nav display's bank-

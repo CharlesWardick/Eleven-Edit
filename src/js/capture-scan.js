@@ -146,14 +146,22 @@ const NAME_SCAN_GAP_MS = 20;   // ms between queries — read-only, can be brisk
 async function scanPatchNames() {
   if (patchNameScanInProgress || !bridgeMidiReady) return;
   patchNameScanInProgress = true;
-  appLog('Patch name scan (Jump List) started — 104 slots, read-only');
+  appLog('Patch name scan (Jump List) started — 208 slots (user + factory), read-only');
   for (let slot = 0; slot <= 103; slot++) {
     if (!bridgeMidiReady) break;   // dropped mid-scan — stop, don't flood a dead socket
-    sendPatchNameQuery(slot);   // spaceIdx defaults to 0 (user) — see sendPatchNameQuery, transport.js
+    sendPatchNameQuery(slot, 0);
+    await new Promise(r => setTimeout(r, NAME_SCAN_GAP_MS));
+  }
+  // Factory names (2026-08-28) — added once the Jump List got a real
+  // factory-side view (Stage 2); before that a factory scan would have
+  // populated a cache nothing ever read. Same query, spaceIdx=1.
+  for (let rawSlot = 0; rawSlot <= 103; rawSlot++) {
+    if (!bridgeMidiReady) break;
+    sendPatchNameQuery(rawSlot, 1);
     await new Promise(r => setTimeout(r, NAME_SCAN_GAP_MS));
   }
   patchNameScanInProgress = false;
-  appLog('Patch name scan: all 104 requests sent (replies arrive asynchronously)');
+  appLog('Patch name scan: all 208 requests sent (replies arrive asynchronously)');
 }
 
 // Called immediately on a confirmed slot change, before the REQU responses

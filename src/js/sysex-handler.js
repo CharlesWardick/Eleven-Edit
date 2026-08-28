@@ -297,9 +297,16 @@ function handleCmd04(data) {
 // space/slot math was wrong.
 function handlePatchNameEnumReply(data) {
   try {
-    const space = data[6], slot = data[7];
-    if (space !== 0x00) return;   // factory patch — this app only tracks user A1-Z4 (Charlie's call)
-    if (slot < 0 || slot > 103) return;
+    const space = data[6], rawSlot = data[7];
+    if (space !== 0x00 && space !== 0x01) return;
+    if (rawSlot < 0 || rawSlot > 103) return;
+    // Factory names (2026-08-28) — RETRACTS the earlier "this app only
+    // tracks user A1-Z4, factory deliberately never shown" call
+    // (2026-08-03 Primer entry): now that factory patches are navigable
+    // (Stage 1) and have their own Jump List side (Stage 2), a blank
+    // factory grid would be pointless. Stored at the unified slot index
+    // (protocol.js spaceRawToSlot) alongside user names in the same cache.
+    const slot = spaceRawToSlot(space, rawSlot);
     let end = 8;
     while (end < data.length && data[end] !== 0x00) end++;
     const name = Array.from(data.slice(8, end)).map(b => String.fromCharCode(b)).join('').trim();
