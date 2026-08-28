@@ -39,8 +39,7 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      confirmed — TESTED LIVE (except the one CSS tweak below,
-              provisional pending re-check)
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Click-to-rename + Jump List hint — final polish pass
 FINDING:     Charlie confirmed 1.3.57's fixes: click-to-rename works well
               enough (no crash, Escape/blur clean), and the renamed value
@@ -73,7 +72,7 @@ NEXT:         Charlie to confirm the hint reads clearly now. If the boxed
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Click-to-rename crash + hint still invisible — index.html,
               ui.js (follow-up to the 1.3.56 entry)
 FINDING:     Charlie hit an uncaught error typing a 16-char name and
@@ -120,7 +119,7 @@ NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) the hint text
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Jump List UX polish + click-to-rename — index.html, ui.js,
               sysex-handler.js
 FINDING:     Stage 4 confirmed working live (Charlie: "could not seem to
@@ -236,7 +235,7 @@ NEXT:         None — this is now permanent, confirmed hardware-safety
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Stage 4 (final stage) — Save-to-Rack factory guard —
               index.html, capture-scan.js
 FINDING:     Completes the 4-stage factory-patch plan agreed 2026-08-27:
@@ -292,7 +291,7 @@ NEXT:         NOT YET TESTED LIVE — completes the whole 4-stage factory-
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Stage 3 auto-advance — directional roll range + colour-coded
               picker options — patch-nav.js
 FINDING:     Charlie confirmed Stage 3 (auto-advance across the factory
@@ -341,7 +340,7 @@ NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) z2->A2 now
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      confirmed — TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Firmware identity check / startup gate — REAL BUILD, test
               value reverted. state.js EXPECTED_FIRMWARE_BUILD
 FINDING:     Charlie confirmed 1.3.52's deliberate-mismatch test build
@@ -371,8 +370,7 @@ NEXT:         TESTED LIVE (Charlie, 2026-08-28) — ALL THREE startup paths
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      TEMPORARY TEST BUILD — DO NOT MERGE/RELEASE AS-IS
-              (still EXPECTED_FIRMWARE_BUILD='9999' from the prior entry)
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Firmware gate message wording — ui.js showFirmwareGate,
               src/splash.html
 FINDING:     Charlie confirmed the gate itself blocks correctly (screenshot
@@ -412,7 +410,7 @@ NEXT:         Charlie to confirm the reworded gate message reads
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      TEMPORARY TEST BUILD — DO NOT MERGE/RELEASE AS-IS
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Firmware gate deliberate-mismatch test — state.js
               EXPECTED_FIRMWARE_BUILD
 FINDING:     No-hardware gate regression-checked clean first (rack off ->
@@ -438,7 +436,7 @@ NEXT:         Charlie to build 1.3.51, confirm the app now blocks on
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Firmware identity check / startup gate — state.js, transport.js,
               sysex-handler.js, ui.js, main.js, preload.js, src/splash.html
 FINDING:     Charlie asked for a hard startup gate so nobody runs Eleven
@@ -510,7 +508,7 @@ NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) normal startup
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Jump List Stage 2 — user/factory click zones + factory name
               scan — index.html, capture-scan.js, sysex-handler.js
 FINDING:     Charlie approved Stage 2: the patch-name box's left/right
@@ -567,7 +565,7 @@ NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) left/right
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — deferred idea, not designed or built
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Nav display — direct type-to-jump on the bank/patch boxes
 FINDING:     Charlie floated typing directly into the nav display's bank-
               letter/patch-number boxes to jump, but on reflection ruled
@@ -586,7 +584,7 @@ NEXT:         Not scheduled. Revisit only if Charlie asks for it again.
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        BNK</>◀ never wrapped at the ends of the range — index.html
               btn-prev-bank/btn-next-bank handlers
 FINDING:     Live-tested follow-up: after the stepNav wrap fix (PCH>/PCH<
@@ -616,7 +614,7 @@ NEXT:         NOT YET TESTED LIVE. Charlie to confirm BNK◀ from A1 lands
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Manual step nav (PCH>/PCH<, arrow keys) wrongly clamped to the
               Roll from/to range — patch-nav.js stepNav()
 FINDING:     Live-tested follow-up to Stage 1 (factory patch nav): Charlie
@@ -654,7 +652,7 @@ NEXT:         NOT YET TESTED LIVE. Charlie to confirm PCH>/PCH< now cross
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
-STATUS:      provisional — NOT YET TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Factory patch navigation, Stage 1 of 4 (nav / jump list /
               auto-advance / save) — protocol.js, ui.js, patch-nav.js,
               sysex-handler.js, index.html
@@ -742,7 +740,7 @@ NEXT:         NOT YET TESTED LIVE. Charlie to build and confirm: (a) the
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      confirmed — TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Knob rendering — value-arc round-cap blob at tiny values
              (drawKnob, src/js/ui.js) — applies to EVERY knob, reported on
              FX LOOP Mix
@@ -779,7 +777,7 @@ NEXT:        TESTED LIVE (Charlie, 2026-08-27) — confirmed fixed on FX
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      confirmed — TESTED LIVE
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Jump List / slot matrix current-patch highlight (src/index.html)
 FINDING:     Charlie asked for the current patch to be highlighted in the
              Jump List flyout — we already know the current slot before
@@ -813,7 +811,7 @@ NEXT:        TESTED LIVE (Charlie, 2026-08-27) — confirmed working, ring
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      confirmed
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        README.md Requirements section — docs only, no code/protocol touched
 FINDING:     Charlie asked for the README's Requirements TODO to be filled
              in with real values (OS support, Avid driver, Java) ahead of
@@ -839,7 +837,7 @@ NEXT:        Charlie to confirm the Requirements section reads accurately;
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      confirmed
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        About box Architecture section (src/index.html) + README.md —
              BRIDGE-INDEPENDENT, no hardware/protocol touched
 FINDING:     Charlie flagged "No iLok, no Avid software required" as
@@ -863,7 +861,7 @@ NEXT:        Charlie to confirm both read correctly.
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      confirmed
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
 FINDING:     Charlie flagged that "Protocol Research Credit"'s opening line
              ("No code from that project is used here...") had no
@@ -882,7 +880,7 @@ NEXT:        Charlie to confirm the reworded paragraph reads clearly.
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      confirmed
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
 FINDING:     Widened #about-box from max-width 560px to 680px, at Charlie's
              request, to reduce/eliminate line wraps and the scrollbar in
@@ -901,7 +899,7 @@ NEXT:        Charlie to build and confirm the wider box reads well and the
 
 -------------------------------------------------------------------
 DATE:        2026-08-27
-STATUS:      confirmed
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
 FINDING:     Reworded the "Protocol Research Credit" and "For The Community"
              body text per Charlie's brief (uploaded ABOUT_BOX_UPDATE.md).

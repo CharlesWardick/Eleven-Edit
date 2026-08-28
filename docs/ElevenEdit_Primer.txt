@@ -1,24 +1,29 @@
 ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
-Updated: 2026-08-27
+Updated: 2026-08-28
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: CHARLIE'S CALL (2026-08-11, still current 2026-08-27) —
+Status: CHARLIE'S CALL (2026-08-11, still current through 2026-08-28) —
 FEATURE-COMPLETE, pending only bugs/omissions found during his own
-several-days test period — exactly the mode this 2026-08-27 session ran
-in (six bug/polish items, none of them new features, all found by
-Charlie's own live testing or his own eyeballing of the hardware). He is
-now moving into release-side work: next up (his own words, end of this
-session) is picking Claude's brain on OPEN-SOURCE LICENSING for the
-project, then the installer-level disclaimer/EULA screen (confirmed
-straightforward: electron-builder's NSIS target takes a `license` file
-in its build config and shows the standard scroll+"I Agree" screen
-automatically — no code to write, just the file and a config line, not
-yet done). A NEW SESSION PICKING THIS UP: do not assume more features
-are wanted — read a fresh bug report/request on its own terms, but do not
-proactively suggest new work. The version is still 1.3.x on purpose
-(Charlie's own bump-every-session convention, Tech Ref/Primer HOW TO WORK
-WITH CHARLIE) — 1.0.0 is reserved for an actual public release, done by
-Charlie, not automatically.
+several-days test period. The 2026-08-27 session ran exactly in that
+mode (six bug/polish items, all found by Charlie's own live testing or
+eyeballing). 2026-08-28 was DIFFERENT — Charlie explicitly requested a
+real new feature (factory patch navigation, a 4-stage plan agreed with
+him before any code, see CURRENT APP STATE below) plus a hardware-safety
+startup gate, both his own asks, not proactively suggested. A NEW SESSION
+PICKING THIS UP: the "don't assume more features are wanted" caution
+still applies going forward from here — read a fresh bug report/request
+on its own terms, but do not proactively suggest new work; 2026-08-28
+was Charlie asking, not Claude offering. He is otherwise still moving
+into release-side work: next up (his own words, 2026-08-27) is picking
+Claude's brain on OPEN-SOURCE LICENSING for the project, then the
+installer-level disclaimer/EULA screen (confirmed straightforward:
+electron-builder's NSIS target takes a `license` file in its build
+config and shows the standard scroll+"I Agree" screen automatically —
+no code to write, just the file and a config line, not yet done). The
+version is still 1.3.x on purpose (Charlie's own bump-every-session
+convention, Tech Ref/Primer HOW TO WORK WITH CHARLIE) — 1.0.0 is
+reserved for an actual public release, done by Charlie, not
+automatically. Current version as of this update: 1.3.58.
   2026-08-27 SESSION SUMMARY (full detail: Tech Ref Sec 24 Change Log
   2026-08-27 entry, Session Log 2026-08-27 entries 1-7) — six items, ALL
   TESTED LIVE, ALL CONFIRMED, zero open threads: knob visual redesign
@@ -477,6 +482,110 @@ HOW "TESTED" WORKS HERE — READ BEFORE WRITING ANY STATUS
   tag's load order at HTML parse time (Tech Ref Sec 24, 2026-08-03 entry),
   confirmed clean across repeated cold starts, not just one green run.)
 Build: electron-builder --win --x64 -> EXE.
+
+2026-08-27/28 — ABOUT BOX, DOCS, KNOB FIX, AND FACTORY PATCH SUPPORT
+(4-stage feature) — ALL TESTED LIVE unless noted. Two-day session, Claude
+Code (web), picking up straight from Charlie's 2026-08-27 open-source-prep
+request.
+  ABOUT BOX / DOCS (2026-08-27, TESTED LIVE): reworded Protocol Research
+  Credit and For The Community sections for the MIT-license release
+  (Charlie's brief), widened the About box 560px->680px to kill wrap/
+  scrollbar, fixed a dangling-antecedent sentence and the inaccurate "no
+  Avid software required" Architecture claim (Avid USB driver IS required
+  — corrected in the About box and README). README Requirements section
+  filled in (Windows 10/11 only — confirmed platform matrix already in
+  this Primer; macOS/Linux unsupported and explicitly a hoped-for post-
+  open-source community port, not attempted; Avid driver v1.1.12; JRE 21+).
+  Jump List current-patch highlight (updateMatrixHighlight) was fully
+  built and styled but never actually called — wired in, TESTED LIVE.
+  Knob rendering bug: the value arc's round line-cap produced a solid
+  blob outside the ring at very small values (swept angle shorter than
+  the cap's own width) — fixed with a geometric threshold (radius-
+  relative, not per-knob-size-specific) switching to a flat cap only for
+  tiny slivers. TESTED LIVE on FX Loop Mix.
+  FACTORY PATCH NAVIGATION (2026-08-28, 4 stages, all TESTED LIVE) — the
+  app can now navigate, jump-list, auto-advance through, and safely save
+  from the Eleven Rack's 104 read-only factory patches (a1-z4), not just
+  the 104 user patches (A1-Z4) it handled before. Root confirmation: a
+  Wireshark capture (Charlie's, Z3->Z4->a1->a2->a1->Z4->Z3) showed the
+  CMD 0x02 slot-confirm broadcast's data[6]/data[7] are a space flag
+  (0=user,1=factory) + raw slot 0-103 — the same convention already known
+  for CMD 0x04 name-query, previously undecoded for CMD 0x02 and RETRACTS
+  the old "commit-echo bank/num" theory (see Tech Ref Sec 15).
+    Stage 1 — unified 0-207 slot index (protocol.js MAX_NAV_SLOT,
+    slotToSpaceRaw/spaceRawToSlot) instead of threading a space flag
+    through every call site; fixed handleSlotConfirm's decode and
+    sendPC's recall command; extended slotLabel/updateNavDisplay to
+    a1-z4. Two follow-on fixes found by live testing: manual step-nav
+    (PCH>/<) was wrongly clamped to the Roll from/to range instead of the
+    full 0-207 span; bank-step buttons (BNK>/<) never wrapped at either
+    end (A1<->z1, position-preserving, matching BNK's own already-correct
+    "keep slot position, change bank" rule).
+    Stage 2 — Jump List left/right click zones (left=user, right=
+    factory), same 104-cell grid reused via a matrixSpace flag rather
+    than building two grids. Factory patch names now scanned too (space=1
+    CMD 0x04 queries after the existing user scan) — RETRACTS the
+    2026-08-03 "factory deliberately never shown" call, since a factory
+    Jump List with every cell blank would be pointless. Save-to-Rack's
+    slot picker forces user-only (matrixSpace=0) on every open regardless
+    of which side was last browsed — the one guarantee Stage 4 depends on.
+    Stage 3 — auto-advance across the boundary worked from Stage 1's
+    plumbing alone with zero code changes for one direction; the other
+    direction (FROM numerically greater than TO, e.g. z2->A2) exposed a
+    pre-existing "always silently normalizes to low-to-high" quirk (old
+    Math.min/max range math) that was invisible in the old all-user range
+    and became visible once factory space (104-207) sits numerically
+    above all of user space. Fixed: FROM/TO reinterpreted as a
+    directional circular walk. Range pickers colour-code factory options.
+    Stage 4 — Save-to-Rack's default target, when the loaded patch is
+    factory, translates to the SAME alphanumeric user slot (c4->C4) via
+    one shared function (defaultRackSaveTarget) used both for the
+    default display AND the actual save target, so they can't drift
+    apart; saveCurrentPatchToSlot also refuses outright above MAX_SLOT as
+    a hardware-safety backstop.
+  *** HARDWARE SAFETY, CONFIRMED LIVE — SAVE TO AN OUT-OF-RANGE SLOT
+  CORRUPTS STATE. *** Before Stage 4's guard existed (but after Stage 1's
+  decode fix), Charlie saved to a factory-loaded patch's own (illegal)
+  address: the name partially/visibly updated on hardware but did NOT
+  actually persist (reverted on nav-away-and-back), and further
+  interaction with the unit caused a BSOD. Full writeup: Tech Ref Sec 15
+  HARDWARE SAFETY block and the CHAIN/DANGER catalog entry (both added
+  2026-08-28) — same danger class as CMD 0x37, different mechanism.
+  FIRMWARE IDENTITY CHECK / HARD STARTUP GATE (2026-08-28, TESTED LIVE,
+  all 3 startup paths — normal/no-hardware/mismatch): a genuine, standard
+  MIDI Universal SysEx Identity Request (F0 7E 7F 06 01 F7), found in a
+  cold-start capture, replies with the firmware build as literal ASCII in
+  its last 4 bytes ("0157" = Version 2.0.1 Build 0.1.5.7) — a completely
+  different, previously-unexamined mechanism from Avid's own 13 0B 0F
+  command set, unrelated to the still-undecoded CMD 0x35/0x39 (same
+  capture, confirmed to exist, purpose still unknown — see Tech Ref Sec 6).
+  Sent once on first connect; FAILS CLOSED — no reply within 4s, or any
+  reply that doesn't read "0157" exactly, blocks the main window from
+  ever revealing (reuses the existing no-hardware Try Again/Quit splash
+  gate, with Try Again hidden for this specific case since rescanning
+  can't fix a firmware mismatch). EXPECTED_FIRMWARE_BUILD (state.js) is
+  the one comparison constant everything else derives its displayed
+  values from — never hardcode the build string a second place.
+  JUMP LIST CLICK-TO-RENAME (2026-08-28, TESTED LIVE): clicking the
+  patch name (not the rest of the box, which stays the Jump List's
+  click target — delegated on the box via e.target.id, since rename's
+  own commit/cancel replaces the name span with a fresh element each
+  time, silently breaking any listener bound directly to the old node)
+  swaps it for an editable field (16-char max). Enter/blur commits
+  locally (updates currentPatchName, lights the SAVE dirty latch via the
+  existing markPatchDirty()) and sends NOTHING to hardware until Save is
+  actually chosen — Escape cancels. Found and fixed a real crash along
+  the way (removing a focused element fires 'blur' on it synchronously,
+  so Enter's own commit() was re-triggering itself on an already-detached
+  node) via an idempotent _settled guard shared with updateDisplay's own
+  forced-cancel path (a nav landing mid-edit). Also fixed the Jump List's
+  "< user patches * factory patches >" hint being invisible — TWO layers
+  of ancestor overflow:hidden (the box's own text-ellipsis clipping, then
+  #topbar's fixed-height clipping) were both clipping it; resolved by
+  moving it into normal document flow instead of chasing a third
+  ancestor if one ever gets added upstream.
+  See docs/ElevenEdit_Session_Log.txt (now [FOLDED IN] here) for the
+  full blow-by-blow, including retracted theories and exact evidence.
 
 7/31/2026 — FX1 EFFECT PANEL, SEVEN MORE MODELS (Phase 14 continued) —
   Flanger, Graphic EQ, Gray Compressor, MultiChorus, Orange Phaser, Roto
