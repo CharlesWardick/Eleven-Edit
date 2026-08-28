@@ -39,6 +39,25 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-28
+STATUS:      provisional — deferred idea, not designed or built
+AREA:        Nav display — direct type-to-jump on the bank/patch boxes
+FINDING:     Charlie floated typing directly into the nav display's bank-
+              letter/patch-number boxes to jump, but on reflection ruled
+              out the two-separate-boxes version himself: entering bank
+              then patch (or vice versa) as two edits is no faster than
+              opening the Jump List once. What WOULD be worth building
+              later is different and smaller: ONE combined field where you
+              type e.g. "C1" (or "c1" for factory) and hit Enter to jump —
+              not attempted or designed today, just captured so it isn't
+              lost. Would reuse Stage 1's slotToSpaceRaw/goToSlot plumbing
+              if picked up.
+EVIDENCE:     Conversation only, no code.
+CONFLICTS:    none
+NEXT:         Not scheduled. Revisit only if Charlie asks for it again.
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+DATE:        2026-08-28
 STATUS:      provisional — NOT YET TESTED LIVE
 AREA:        BNK</>◀ never wrapped at the ends of the range — index.html
               btn-prev-bank/btn-next-bank handlers
