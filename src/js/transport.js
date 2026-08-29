@@ -767,21 +767,36 @@ function sendCabBypass(isActive) {
 // those nine stayed 'unknown' forever and their clicks were silently ignored.
 // Called once after each chain map, which covers patch load, stereo/mono
 // toggle and reorder — all the events that can invalidate handles.
-function requestAllBypass() {
+// PACED (2026-08-29) — was a synchronous forEach firing all 11+ queries in
+// one zero-delay burst. Same unthrottled-flood shape as the pre-existing
+// knob-write flood that needed queueKnobSend's 60ms throttle (this file's
+// own history — a flood here could desync the amp handle and freeze
+// knobs). requestAllBypass runs right after EVERY chain-map refresh,
+// including the one immediately after every Save (post-save handle
+// reassignment) — i.e. right on top of whatever traffic a block/model
+// edit just put in flight. Prime suspect (not yet proven, see session log
+// 2026-08-29 "timing and flood" entry) for the FX1/amp corruption Charlie
+// hit repeatedly the same day. Paced with the same NAV_QUERY_GAP already
+// used for every other post-nav query burst (requestPatchStateAfterNav,
+// this file) rather than inventing a new interval.
+async function requestAllBypass() {
   if (!bridgeMidiReady) return;
   if (!currentChain.length) { appLog('requestAllBypass: no chain map yet'); return; }
   let n = 0;
-  currentChain.forEach(blk => {
+  for (const blk of currentChain) {
     const hh = blk.handle.toString(16).padStart(2,'0').toUpperCase();
     if (blk.slotId === SLOT_AMP) {
       sendHex('F0 13 0B 0F 01 11 ' + hh + ' 06 F7');   // amp
+      await sleep(NAV_QUERY_GAP);
       sendHex('F0 13 0B 0F 01 11 ' + hh + ' 14 F7');   // cab
+      await sleep(NAV_QUERY_GAP);
       n += 2;
     } else {
       sendHex('F0 13 0B 0F 01 11 ' + hh + ' 01 F7');   // block bypass
+      await sleep(NAV_QUERY_GAP);
       n += 1;
     }
-  });
+  }
   appLog('requestAllBypass: queried ' + n + ' bypass flags across ' + currentChain.length + ' blocks');
 }
 

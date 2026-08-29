@@ -339,6 +339,51 @@ NEXT:        CHARLIE: run the narrower capture (FX1 bypass toggles + model
              risks the same "two failed fixes" trap the Primer warns about.
 
 -------------------------------------------------------------------
+DATE:        2026-08-29 (sixth round, same day)
+STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — Charlie's
+             own instinct ("could this be the timing/flood gotcha again"),
+             not a fresh capture — going in alongside the narrower-capture
+             ask above, not instead of it.
+AREA:        Unpaced query bursts — requestAllBypass (transport.js),
+             requestFxHostParams (fx-transport.js)
+FINDING:     Both fire their entire query list (11+ and up to 15
+             respectively) in one synchronous burst with ZERO delay between
+             sends — no pacing at all, unlike every other query burst in
+             the app (requestPatchStateAfterNav and friends, transport.js,
+             all paced with NAV_QUERY_GAP=15ms). Same shape as the
+             pre-existing, already-fixed "knob-write flood" bug (Primer:
+             unthrottled knob/slider writes could desync the amp handle and
+             freeze knobs — fixed by queueKnobSend's 60ms throttle).
+             requestAllBypass runs right after EVERY chain-map refresh,
+             including the one immediately after every Save — i.e. right on
+             top of whatever traffic a block/model edit just put in flight.
+             requestFxHostParams fires every time an FX-host panel opens,
+             reopens, or gets refreshed after a chain-map change — Charlie
+             was opening/reopening FX1's panel repeatedly right before the
+             FX1/amp corruption bug hit the same day (session log entry
+             above). NOT proven causal — the log has a blind ~66s gap
+             around the actual corruption moment (no full bulk readback in
+             that window) so this can't be confirmed from log evidence
+             alone, only judged plausible from pattern-matching this
+             project's own history of exactly this failure mode.
+CONFLICTS:   none.
+FIX APPLIED: both functions converted to async and paced with the existing
+             NAV_QUERY_GAP interval (15ms) between each sendHex call — the
+             same interval already used everywhere else, not a new one
+             invented for this. No call site needed changes (both were
+             already fire-and-forget). Version bumped 1.3.63 -> 1.3.64.
+NEXT:        CHARLIE TO TEST LIVE: repeat the FX1 bypass-toggle +
+             model-change + Save sequence that triggered the corruption
+             before, see if it still happens with these two bursts paced.
+             This does NOT replace the narrower isolated capture (FX1
+             toggle + model change, NO save) requested in the prior entry —
+             if the corruption still happens with pacing in place AND with
+             no save involved at all, that clears requestAllBypass/
+             requestFxHostParams as suspects and points squarely back at
+             sendFxHostModelChange or real hardware DSP-reallocation
+             behavior outside this app's control.
+
+-------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Click-to-rename + Jump List hint — final polish pass

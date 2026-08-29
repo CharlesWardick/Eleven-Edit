@@ -449,7 +449,15 @@ function sendFxHostModelChange(slotId, newMid) {
 }
 
 // Query all knob params for the given slot's current model from hardware.
-function requestFxHostParams(slotId) {
+// PACED (2026-08-29) — was a synchronous forEach, up to 15 queries fired in
+// one zero-delay burst every time an FX-host panel opens/reopens or gets
+// refreshed after a chain-map change (refreshFxHostPanelAfterChainMap).
+// Same unpaced-flood shape flagged in requestAllBypass (transport.js, see
+// its own comment) — Charlie was opening/reopening FX1's panel repeatedly
+// right before hitting the FX1/amp corruption bug the same day. Paced with
+// the same NAV_QUERY_GAP interval used everywhere else in this app for a
+// query burst, not a new one invented here.
+async function requestFxHostParams(slotId) {
   if (!bridgeMidiReady) return;
   const blk = currentChain.find(b => b.slotId === slotId);
   if (!blk) { appLog('requestFxHostParams: no block in chain for slot=0x' + slotId.toString(16).padStart(2,'0')); return; }
@@ -460,9 +468,10 @@ function requestFxHostParams(slotId) {
     return;
   }
   const hh = blk.handle.toString(16).padStart(2,'0').toUpperCase();
-  model.paramLos.forEach(function(lo) {
+  for (const lo of model.paramLos) {
     sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
-  });
+    await sleep(NAV_QUERY_GAP);
+  }
   appLog('requestFxHostParams: ' + model.paramLos.length + ' params for ' + model.name + ' handle=0x' + hh);
 }
 
