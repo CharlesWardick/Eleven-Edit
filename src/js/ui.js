@@ -868,14 +868,25 @@ function updateCabMicReadouts(cabMic) {
   // Cab bypass comes from the TFX key sldJ, so it is known at patch load.
   // Amp bypass has no TFX key and arrives as null here — it is resolved by
   // requestAllBypass() once the chain map gives us handles. Show it as
-  // unknown until then rather than guessing.
+  // unknown only until THAT first resolves it — a later body decode (any
+  // bulk readback: manual capture, nav, disk-capture-after-save) must NOT
+  // stomp an already-known value back to undefined just because this
+  // particular decode has nothing to say about it. Found 2026-08-29: the
+  // unconditional overwrite here was re-breaking the AMP chain-row button
+  // (back to "state unknown yet, ignoring click") every time immediately
+  // after a Save-to-Rack's own post-save requestAllBypass had just correctly
+  // resolved it — saveToRackAndDisk's trailing manual-capture pull (isSave
+  // false, just a disk-capture readback) re-decodes the body and used to
+  // wipe blockBypass[SLOT_AMP] straight back to undefined. cabBypassActive
+  // already had this right (guarded above); this mirrors that guard.
   if (cabMic.cabActive !== null && cabMic.cabActive !== undefined) {
     cabBypassActive = cabMic.cabActive;
   }
-  updateCabBypassDisplay(cabMic.cabActive);
-  blockBypass[SLOT_AMP] = (cabMic.ampActive === null || cabMic.ampActive === undefined)
-    ? undefined : cabMic.ampActive;
-  updateAmpBypassDisplay(cabMic.ampActive);
+  updateCabBypassDisplay(cabMic.cabActive !== null && cabMic.cabActive !== undefined ? cabMic.cabActive : cabBypassActive);
+  if (cabMic.ampActive !== null && cabMic.ampActive !== undefined) {
+    blockBypass[SLOT_AMP] = cabMic.ampActive;
+  }
+  updateAmpBypassDisplay(blockBypass[SLOT_AMP]);
 }
 
 function updateMonoIndicator(isMono) {
