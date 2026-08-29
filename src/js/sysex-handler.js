@@ -292,15 +292,28 @@ async function handleBulkTfxData(data, cmd) {
 // ════════════════════════════════════════════════════════════════════
 // CMD 0x04 — Save slot/name confirmation
 // ════════════════════════════════════════════════════════════════════
-// CMD 0x04 carries TWO different things depending on what triggered it:
+// CMD 0x04 carries THREE different things depending on what triggered it,
+// not two as originally assumed:
 //   - the save-sequence "arm" broadcast (short — data[7]=raw armed slot,
-//     no embedded name) — existing, confirmed behaviour, handleSaveArm.
-//   - a patch-name query reply (Jump List "by name" scan, 2026-08-03 —
-//     [bank][num][name][00], so it always carries at least one ASCII byte
-//     plus a null terminator past data[7]) — new, handlePatchNameEnumReply.
-// Distinguished by length rather than dir, since the save-arm broadcast's
-// dir byte was never confirmed distinct from a query reply's — length is
-// the one difference both formats are documented to actually have.
+//     no embedded name) — handleSaveArm. Never actually confirmed against a
+//     real front-panel save (see below) — may be a bank-load-only signal.
+//   - a patch-name query reply / our own bank-index write's echo (Jump List
+//     "by name" scan, our own Save-to-Rack step 3) — [00][slot][name][00],
+//     ends right after ONE null terminator — handlePatchNameEnumReply.
+//   - a REAL HARDWARE FRONT-PANEL SAVE confirmation — found 2026-08-29
+//     (Charlie: two live front-panel save presses, TFX auto-capture never
+//     fired either time). Wire-identical to the name-reply format for its
+//     first bytes ([00][slot][name]) but padded well past the name's null
+//     terminator (~41 bytes total for "Driftwood Purple" vs 26 for the
+//     plain echo/scan-reply of the identical name) — presumably a fuller
+//     "slot committed" structure, not just a name echo. The original
+//     length>10-vs-short split completely missed this: a real hardware
+//     save's CMD 0x04 is LONG (has a name), same bucket as a name reply,
+//     so handleSaveArm was never reached by an actual front-panel save —
+//     hardware-save auto-capture may never have worked via this signal in
+//     the app's history. Distinguish by how much padding follows the name's
+//     null terminator: a plain echo/scan-reply ends within a byte or two of
+//     it; a real save pads much further out.
 function handleCmd04(data) {
   if (data.length > 10) return handlePatchNameEnumReply(data);
   return handleSaveArm(data);
@@ -332,6 +345,17 @@ function handlePatchNameEnumReply(data) {
     patchNameCache[slot] = name;
     appLog('Patch name scan: ' + slotLabel(slot) + ' = "' + name + '"');
     if (typeof refreshNamedMatrixSlot === 'function') refreshNamedMatrixSlot(slot);
+    // REAL HARDWARE FRONT-PANEL SAVE detection (found 2026-08-29) — a plain
+    // name echo/scan-reply ends within a byte or two of the terminator
+    // found above (just the terminator + F7). A genuine front-panel save's
+    // CMD 0x04 pads well past it (~15+ extra bytes, confirmed against a
+    // live capture of two real hardware save presses). Only a real save
+    // (not a name query) should arm the save sequence — space must be user
+    // (0x00): hardware saves are never a factory address (see HARDWARE
+    // SAFETY, Tech Ref Sec 15).
+    if (space === 0x00 && (data.length - end) > 4) {
+      armSaveSequence(rawSlot, 'CMD 0x04 broadcast (padded/hardware save)', true);
+    }
   } catch(e) { appLog('handlePatchNameEnumReply error: ' + e.message); }
 }
 

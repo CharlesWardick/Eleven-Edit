@@ -223,6 +223,80 @@ NEXT:        CHARLIE TO TEST LIVE: (a) Save to Rack produces exactly ONE
              independent of Save.
 
 -------------------------------------------------------------------
+DATE:        2026-08-29 (fourth round, same day)
+STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — needs a
+             Wireshark capture to nail the exact wire format with certainty,
+             this fix is a best-effort heuristic from ONE live sample
+CONFIRMED:   (a) and (b) from the prior entry's NEXT — Save to Rack now
+             produces exactly one file (plain name); Save to Disk produces
+             one file (plain name, incremented on a genuine name conflict —
+             confirmed correct by Charlie). (d) not yet retested — Charlie
+             moved on to testing (c) and found it broken before circling
+             back to the FX1 model-change repro.
+AREA:        Hardware front-panel save detection — handleCmd04 /
+             handlePatchNameEnumReply (sysex-handler.js)
+FINDING:     (c) FAILED — Charlie pressed the real front-panel SAVE button
+             twice; NEITHER produced a TFX file. Root cause: the original
+             CMD 0x04 discrimination (Primer/code comment, long-standing,
+             predates this session) assumed a real hardware save's arm
+             broadcast is SHORT (<=10 bytes, no name) and only a name-query
+             reply is long (>10 bytes, has a name) — so handleCmd04 routed
+             anything long straight to handlePatchNameEnumReply, never to
+             handleSaveArm. Charlie's live capture shows this assumption is
+             WRONG: a genuine front-panel save's CMD 0x04 broadcast DOES
+             carry the embedded name (same [00][slot][name] shape as a name
+             reply) — so it always landed in the "long" bucket and NEVER
+             reached the save-arm logic. This may mean hardware-save
+             auto-capture has never actually worked via this code path in
+             the app's history (Charlie's original "the bug has been there
+             a very long time" framing, though this is a different specific
+             mechanism than the chain/bypass bug fixed earlier today).
+             The two formats ARE distinguishable, just not by overall
+             length>10: a plain name-echo/scan-reply always ends exactly 2
+             bytes after its name's null terminator (terminator + F7,
+             constant regardless of name length: total length = 10 +
+             nameLength, algebraically, confirmed against 2 independent
+             26-byte and 24-byte real examples in earlier logs). A real
+             hardware save's CMD 0x04 pads much further past the
+             terminator — ~41 bytes total for the same 16-char name
+             "Driftwood Purple" vs. 26 for a plain echo of the identical
+             name — presumably a fuller "slot committed" structure with
+             reserved/status bytes beyond just the name.
+EVIDENCE:    session-2026-08-29-081455.log, 08:15:53 (Charlie's first real
+             front-panel save press): "IN BRIDGE [41b] F0 13 0B 0F 02 04 00
+             0B 44 72 69 66 74 77 6F 6F 64 20 50 75 72 70 6C 65 00 00 00 00
+             00 00 00 00 00 00 00 00 00 00 00 00 00" — routed to
+             handlePatchNameEnumReply (just logged "Patch name scan: C4 =
+             ..."), never armed anything, so the following "Bulk data: ...
+             isSave=false" (line 1833) skipped the whole capture-to-disk
+             path. Same shape repeated at 08:16:31 (Charlie's second press),
+             same result — no file either time.
+CONFLICTS:   Retracts the "existing, confirmed behaviour" framing on
+             handleSaveArm/the short-form arm broadcast in the comment
+             added earlier today (armSaveSequence) — it was never actually
+             confirmed against live hardware-save traffic, only assumed
+             from older documentation. Tech Ref's CMD 0x04 section needs a
+             pass at wrap to reflect this.
+FIX APPLIED: handlePatchNameEnumReply (sysex-handler.js) now checks the
+             padding past the name's null terminator: if space is user
+             (0x00) and more than ~4 bytes follow the terminator, treat it
+             as a real hardware save too and call armSaveSequence(rawSlot,
+             ..., true) in addition to the normal name-cache update (which
+             still runs regardless — the name is genuinely correct either
+             way). handleSaveArm/the short-form path is left in place
+             untouched in case it's real for something else (e.g. a
+             bank-load-only signal, per the existing chain/save-vs-nav
+             comment) — this is additive, not a replacement.
+NEXT:        CHARLIE TO TEST LIVE: press the real front-panel SAVE button
+             and confirm a "_manual"-suffixed TFX now appears, then continue
+             to (d) — the Save-to-Rack-then-model-change repro, still not
+             retested. If a real save STILL produces no file, the 4-byte
+             padding threshold or the space/slot parse itself needs a fresh
+             Wireshark capture rather than another guess — flag that
+             explicitly rather than iterating blind a third time on this
+             one signal.
+
+-------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Click-to-rename + Jump List hint — final polish pass
