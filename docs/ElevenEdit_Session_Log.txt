@@ -39,7 +39,7 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-29
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE — Charlie's
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE — Charlie's
              build/test step still pending)
 AREA:        Save (Rack + Disk) / chain row bypass state / block handles —
              saveSequenceDetected (sysex-handler.js) / saveCurrentPatchToSlot
@@ -103,7 +103,7 @@ NEXT:        CHARLIE TO TEST LIVE: Save to Rack (and Save to Disk) repeatedly,
 
 -------------------------------------------------------------------
 DATE:        2026-08-29 (follow-up, same day)
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE)
 AREA:        AMP chain-row bypass state — updateCabMicReadouts (ui.js)
 FINDING:     The isSave-arming fix above (armSaveSequence) was confirmed
              correctly detecting the software save this time (log shows
@@ -152,7 +152,7 @@ NEXT:        CHARLIE TO TEST LIVE, same protocol as above: Save to Rack,
 
 -------------------------------------------------------------------
 DATE:        2026-08-29 (third round, same day)
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE)
 AREA:        Save to Rack / Save to Disk / hardware save — file naming and
              extra hardware traffic — capture-scan.js, sysex-handler.js,
              state.js
@@ -224,7 +224,7 @@ NEXT:        CHARLIE TO TEST LIVE: (a) Save to Rack produces exactly ONE
 
 -------------------------------------------------------------------
 DATE:        2026-08-29 (fourth round, same day)
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — needs a
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — needs a
              Wireshark capture to nail the exact wire format with certainty,
              this fix is a best-effort heuristic from ONE live sample
 CONFIRMED:   (a) and (b) from the prior entry's NEXT — Save to Rack now
@@ -298,7 +298,7 @@ NEXT:        CHARLIE TO TEST LIVE: press the real front-panel SAVE button
 
 -------------------------------------------------------------------
 DATE:        2026-08-29 (fifth round, same day)
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — Save to
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — Save to
              Rack (c) confirmed by Charlie: hardware save now correctly
              produces "_manual", Save to Disk correct, no FX1 anomaly
              immediately after either. Save to Rack itself was overwriting
@@ -340,7 +340,7 @@ NEXT:        CHARLIE: run the narrower capture (FX1 bypass toggles + model
 
 -------------------------------------------------------------------
 DATE:        2026-08-29 (sixth round, same day)
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — Charlie's
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — Charlie's
              own instinct ("could this be the timing/flood gotcha again"),
              not a fresh capture — going in alongside the narrower-capture
              ask above, not instead of it.
@@ -385,7 +385,7 @@ NEXT:        CHARLIE TO TEST LIVE: repeat the FX1 bypass-toggle +
 
 -------------------------------------------------------------------
 DATE:        2026-08-29 (seventh round, same day)
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE)
 AREA:        Post-save chain-map refresh missing a settle delay
              (sysex-handler.js isSave branch) + a real regression in the
              1.3.64 pacing fix (requestAllBypass/requestFxHostParams
@@ -447,7 +447,7 @@ NEXT:        CHARLIE TO TEST LIVE: repeat the exact same-slot Save to Rack
 
 -------------------------------------------------------------------
 DATE:        2026-08-29 (ninth round, same day)
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — strongest
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — strongest
              lead of the whole investigation: a concrete, byte-level
              difference between this app and the Avid Editor, visible in
              both captures, not another guess.
@@ -523,7 +523,7 @@ DATE:        2026-08-29 (eighth round, same day) — 1.3.65's settle-delay fix
              save and the FX1 model change and it still corrupted the amp,
              which rules out a stale-read/settle-timing cause — waiting
              longer makes no difference, so it isn't a race.
-STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — this
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — this
              round doesn't fix the underlying corruption (still not
              understood), it closes a separate, confirmed real gap found
              via a Wireshark comparison against the Avid Editor.

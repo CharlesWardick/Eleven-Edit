@@ -3119,6 +3119,86 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
 
+2026-08-29 (MAJOR BUGFIX SESSION — the "save corrupts the chain / amp"
+  hunt, ALL TESTED LIVE and confirmed by Charlie, versions 1.3.59->1.3.67,
+  full blow-by-blow with every retracted theory in the Session Log
+  2026-08-29 entries). One user-visible defect, long-standing (present as
+  far back as v1.3.31), only surfaced once release-side testing exercised
+  save + chain edits back-to-back in the real world: after a Save to Rack
+  to the CURRENTLY-LOADED slot, the next FX-host model change (e.g.
+  Parametric EQ -> Graphic EQ) silently changed the AMP model on hardware
+  and left the chain row unresponsive. ROOT CAUSE (found via a byte-level
+  Wireshark diff against the Avid Editor doing the identical sequence with
+  no corruption): this app reacted to the dirty-flag bulk broadcast in the
+  MIDDLE of its own 4-step software save (name/dirty/bank-index/commit) by
+  firing a chain-map re-read + a bypass/param query flood BETWEEN the dirty
+  write (step 2) and the commit (step 4). Avid sends all four save commands
+  first and only queries AFTER the commit. That mid-transaction poking left
+  the rack in a state where the next full chain rewrite corrupted the amp.
+  A DIFFERENT-slot save never showed it because its commit navigates away
+  and the resulting nav pull reloads the buffer fresh afterward; a
+  same-slot commit does not navigate (handleSlotConfirm's slot-changed
+  guard never fires) so nothing reloads.
+  FIX: the post-save chain-map refresh for a SOFTWARE save now runs in
+  saveCurrentPatchToSlot (capture-scan.js) AFTER the commit, with a
+  NAV_RECALL_SETTLE delay — matching Avid's ordering exactly. The immediate
+  react-to-broadcast re-read in handleBulkTfxData's isSave branch
+  (sysex-handler.js) is now gated to a HARDWARE front-panel save only
+  (the hardware committed before broadcasting, so it isn't mid-transaction
+  there). Distinguished by saveSequenceIsHardware (state.js), set by
+  armSaveSequence's 3rd arg.
+  SEPARATE REAL BUGS FOUND AND FIXED THE SAME SESSION (each stands alone):
+  (1) SOFTWARE SAVE WAS NEVER DETECTED AS A SAVE — handleBulkTfxData's
+  isSave gate is armed by saveSequenceDetected, which only handleSaveArm
+  (an incoming CMD 0x04 broadcast) set. A software save never receives that
+  broadcast (its only CMD 0x04 is the long name-bearing echo of its own
+  bank-index write, correctly routed to handlePatchNameEnumReply), so its
+  bulk broadcast fell through to the "not a save" branch and skipped the
+  post-save chain/bypass refresh entirely — the original "chain row dead
+  after Save" report. FIX: saveCurrentPatchToSlot now calls armSaveSequence
+  for its own target slot before sending. (2) HARDWARE FRONT-PANEL SAVE
+  NEVER PRODUCED A TFX — the CMD 0x04 dispatch assumed a real hardware
+  save's arm broadcast is SHORT/nameless and anything long is a name reply;
+  a live capture proved a genuine front-panel save's CMD 0x04 DOES carry
+  the name (same shape as a name reply) but is padded well past the name's
+  null terminator (~41b vs 26b for the same 16-char name). handleCmd04's
+  length>10 split routed it to the name handler and never armed a save, so
+  hardware-save auto-capture may never have worked in the app's history.
+  FIX: handlePatchNameEnumReply now also arms a save (and captures) when a
+  user-space entry is padded >4 bytes past the terminator. (3) AMP
+  chain-row bypass state was reset to "unknown" (dead button) by any
+  post-save body re-decode, because ampActive is always null in a body
+  decode (no TFX key) — updateCabMicReadouts (ui.js) now only overwrites
+  blockBypass[SLOT_AMP] when the decode actually carries a value, mirroring
+  the guard cabBypassActive already had. (4) Save to Rack was overwriting
+  its TFX on repeat saves instead of incrementing (regression from the
+  naming-swap) — incrementIfExists now passed on all save paths.
+  BEHAVIOUR CHANGES CHARLIE ASKED FOR (Avid-style A/B/C save simplification):
+  Save to Rack = rack commit only, one file, plain patch name (dropped a
+  needless second SEND_PATCH pull that made a duplicate file). Save to Disk
+  = one file, plain name. Hardware front-panel save = auto-captured with a
+  "_manual" suffix (the suffix now marks a hardware save specifically — it
+  was backwards before). AMP SELECT (CMD 0x11 paramLo 0x0F) is now
+  re-queried on every chain-map refresh (requestAllBypass, transport.js),
+  matching Avid — the app previously never re-checked amp identity after
+  the one-time startup readback, so a real amp change (front panel, or the
+  corruption above) went unnoticed by the display; this is also what made
+  the corruption visible in the app's own log.
+  SAVE-TO-RACK AUDIO GLITCH is EXPECTED, not a bug: the commit (CMD 0x02)
+  is a slot-select, so even a same-slot save re-instantiates the rig into
+  the live buffer — the same DSP reload (and same audible blip) as a normal
+  patch recall or a front-panel save-to-different-slot. Save to Disk (a pure
+  read) has no glitch; a glitch THERE would be the real red flag.
+  PACING (afc34f8): requestAllBypass/requestFxHostParams were spaced with
+  NAV_QUERY_GAP + serialized via a shared runPacedBurst queue while chasing
+  a flood/timing theory that turned out NOT to be the cause. Kept as
+  low-risk defensive robustness consistent with the queueKnobSend throttle,
+  flagged as optional/removable (Session Log 2026-08-29). RETRACTED THEORIES
+  from this hunt, do not re-chase: a missing settle-delay/timing race
+  (Charlie waited 36s, still broke); the query flood itself; and the
+  "handleSaveArm short-broadcast is confirmed behaviour" claim (never
+  actually verified against live hardware-save traffic — see item 2).
+
 2026-08-27 (knob restyle, To Amp endpoint fix, Delay Expanded scaling x2,
   chain row selection ring + caret removal, Speaker Breakup baseline tick
   — all TESTED LIVE, full detail in Session Log 2026-08-27 entries 1-7)

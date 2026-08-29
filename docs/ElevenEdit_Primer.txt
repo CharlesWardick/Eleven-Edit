@@ -2,11 +2,14 @@ ELEVEN EDIT — PROJECT PRIMER
 ===================================================================
 Updated: 2026-08-28
 Author: Charles Wardick (charles.wardick@gmail.com)
-Status: CHARLIE'S CALL (2026-08-11, still current through 2026-08-28) —
+Status: CHARLIE'S CALL (2026-08-11, still current through 2026-08-29) —
 FEATURE-COMPLETE, pending only bugs/omissions found during his own
-several-days test period. The 2026-08-27 session ran exactly in that
-mode (six bug/polish items, all found by Charlie's own live testing or
-eyeballing). 2026-08-28 was DIFFERENT — Charlie explicitly requested a
+several-days test period. The 2026-08-27 AND 2026-08-29 sessions both ran
+exactly in that mode — release-side bug testing turning up real defects,
+not new features. 2026-08-29 was a MAJOR BUGFIX session (a long-standing
+save/chain-corruption bug, see CURRENT APP STATE below); the 2026-08-27
+session ran the same way (six bug/polish items, all found by Charlie's own
+live testing or eyeballing). 2026-08-28 was DIFFERENT — Charlie explicitly requested a
 real new feature (factory patch navigation, a 4-stage plan agreed with
 him before any code, see CURRENT APP STATE below) plus a hardware-safety
 startup gate, both his own asks, not proactively suggested. A NEW SESSION
@@ -23,7 +26,31 @@ no code to write, just the file and a config line, not yet done). The
 version is still 1.3.x on purpose (Charlie's own bump-every-session
 convention, Tech Ref/Primer HOW TO WORK WITH CHARLIE) — 1.0.0 is
 reserved for an actual public release, done by Charlie, not
-automatically. Current version as of this update: 1.3.58.
+automatically. Current version as of this update: 1.3.67.
+  2026-08-29 SESSION SUMMARY (MAJOR BUGFIX — full detail: Tech Ref Sec 24
+  Change Log 2026-08-29 entry, Session Log 2026-08-29 entries) — ALL TESTED
+  LIVE AND CONFIRMED by Charlie across repeated runs. Fixed a long-standing
+  defect (present back to at least v1.3.31, only exposed once release-side
+  testing chained save + block edits back-to-back): a Save to Rack to the
+  currently-loaded slot, followed by an FX-host model change, silently
+  changed the AMP model on hardware and killed the chain row. Root cause,
+  nailed by a byte-level Wireshark diff against the Avid Editor: this app
+  was injecting a chain-map re-read + query flood into the MIDDLE of its
+  own save transaction (between the dirty-flag and the commit); Avid queries
+  only AFTER the commit. Fix moved the software-save post-commit refresh to
+  match Avid's ordering. Four separate real bugs fell out of the same hunt
+  and were fixed too: software saves were never detected as saves (no
+  post-save refresh at all); hardware front-panel saves never produced a
+  TFX file (CMD 0x04 arm-broadcast mis-detection — likely never worked in
+  the app's history); the AMP chain-row button went dead after any save;
+  and Save to Rack overwrote its TFX instead of incrementing. Save flow was
+  also simplified to Avid's A/B/C model at Charlie's request (Save to Rack
+  = one file/commit only; Save to Disk = one file; hardware save =
+  "_manual" auto-capture), and AMP select is now re-queried on every
+  chain-map refresh like Avid. The Save-to-Rack audio blip is EXPECTED (the
+  commit is a slot-select = a real rig reload), not a bug. See the Tech Ref
+  entry for the full list including retracted theories and the one optional
+  bit of defensive pacing left in.
   2026-08-27 SESSION SUMMARY (full detail: Tech Ref Sec 24 Change Log
   2026-08-27 entry, Session Log 2026-08-27 entries 1-7) — six items, ALL
   TESTED LIVE, ALL CONFIRMED, zero open threads: knob visual redesign
