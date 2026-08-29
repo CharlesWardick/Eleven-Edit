@@ -145,9 +145,12 @@ async function handleBulkTfxData(data, cmd) {
   }
 
   if (isSave) {
-    // ── HARDWARE SAVE: capture TFX to disk ──
+    // ── SAVE (hardware front-panel OR software Save to Rack — see
+    // armSaveSequence): capture TFX to disk ──
+    const isHardwareSave = saveSequenceIsHardware;
     saveSequenceDetected = false;
     saveSequenceSlot = -1;
+    saveSequenceIsHardware = false;
     if (saveSequenceTimer) { clearTimeout(saveSequenceTimer); saveSequenceTimer = null; }
 
     captureCount++;
@@ -193,9 +196,17 @@ async function handleBulkTfxData(data, cmd) {
       appLog('Post-save: re-reading chain map to refresh reassigned block handles');
       sendHex(REQU_CHAIN_MAP);
     }
-    const captureName = (currentPatchName || 'patch').replace(/[\\/:*?"<>|]/g, '_').substring(0,24);
+    // 2026-08-29 (Charlie's call, scaling Save back to Avid's simple A/B/C
+    // model): this branch is now reached by BOTH a real hardware
+    // front-panel save AND a software Save to Rack (armSaveSequence is
+    // called from both places — see its own comment). Only the hardware
+    // case gets the "_manual" suffix; Save to Rack's own free capture (this
+    // is the SAME capture, not a second pull) gets the plain name. Save to
+    // Disk is unrelated to this branch entirely (pendingManualCapture below).
+    const captureName = (currentPatchName || 'patch').replace(/[\\/:*?"<>|]/g, '_').substring(0,24)
+      + (isHardwareSave ? '_manual' : '');
     try {
-      const result = await window.electronAPI.saveTfx(captureName, payload);
+      const result = await window.electronAPI.saveTfx(captureName, payload, isHardwareSave ? { incrementIfExists: true } : undefined);
       if (result && result.ok) {
         document.getElementById('capture-info').innerHTML =
           'Captures this session: <span>' + captureCount + '</span> — last: ' + result.filename;
@@ -245,13 +256,16 @@ async function handleBulkTfxData(data, cmd) {
       appLog('Bulk response for slot ' + slotNum + ' ignored — stale (currentSlot now ' + currentSlot + ')');
     }
 
-    // Manual "Capture Current Patch Now" — save this pull to disk even
-    // though it's not a hardware-detected save, so two controlled
-    // captures (e.g. gate thresh at two different settings) can be
-    // diffed byte-for-byte to find where that value lives in the file.
+    // Manual "Capture Current Patch Now" / Save to Disk — save this pull to
+    // disk even though it's not a hardware-detected save. 2026-08-29
+    // (Charlie's A/B/C save simplification): plain name now, no "_manual"
+    // suffix — that suffix moved to mark a real hardware front-panel save
+    // instead (see the isSave branch above). This branch is reached by the
+    // debug "Capture Current Patch" button and by Save to Disk, both
+    // deliberate, user-named pulls, not a hardware event.
     if (pendingManualCapture) {
       pendingManualCapture = false;
-      const captureName = (currentPatchName || 'patch').replace(/[\\/:*?"<>|]/g, '_').substring(0,24) + '_manual';
+      const captureName = (currentPatchName || 'patch').replace(/[\\/:*?"<>|]/g, '_').substring(0,24);
       try {
         const result = await window.electronAPI.saveTfx(captureName, payload, { incrementIfExists: true });
         if (result && result.ok) {
@@ -323,7 +337,7 @@ function handlePatchNameEnumReply(data) {
 
 function handleSaveArm(data) {
   if (data.length < 8) return;
-  armSaveSequence(data[7], 'CMD 0x04 broadcast');
+  armSaveSequence(data[7], 'CMD 0x04 broadcast', true);
 }
 
 // Shared arming logic — sets the window that lets the NEXT matching bulk
@@ -344,14 +358,16 @@ function handleSaveArm(data) {
 // survive a hardware handle-reassignment because nothing ever refreshed
 // them. Fix: saveCurrentPatchToSlot arms this directly for its own target
 // slot before it sends anything, so ITS bulk broadcast is recognized too.
-function armSaveSequence(armed_slot, source) {
+function armSaveSequence(armed_slot, source, isHardware) {
   appLog((source || 'software save') + ' — arming save sequence for slot ' + armed_slot + ' (' + slotLabel(armed_slot) + ')');
   saveSequenceDetected = true;
   saveSequenceSlot = armed_slot;
+  saveSequenceIsHardware = !!isHardware;
   if (saveSequenceTimer) clearTimeout(saveSequenceTimer);
   saveSequenceTimer = setTimeout(function() {
     saveSequenceDetected = false;
     saveSequenceSlot = -1;
+    saveSequenceIsHardware = false;
     saveSequenceTimer = null;
     appLog('Save sequence timeout — reset');
   }, 5000);

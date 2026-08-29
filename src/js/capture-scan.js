@@ -347,11 +347,19 @@ async function saveCurrentPatchToSlot(nameOverride, targetSlot) {
   appLog('Save commit sent for ' + slotLabel(slot));
 }
 
-// Save to Rack + auto-capture TFX to disk in one operation.
-// Commits to current slot (or targetSlot, if a different slot was picked —
-// 2026-08-11) with the supplied name, then pulls SEND_PATCH back from
-// hardware and writes it to the captures folder. The name update happens
-// before capture so the TFX filename matches the slot.
+// Save to Rack — commit ONLY (2026-08-29 simplification, Charlie's call).
+// Used to also pull SEND_PATCH back and write a second, separately-named
+// TFX to disk right after the commit ("Save to Rack produces two files,
+// and I only asked for one" — Charlie, 2026-08-29). That extra pull bought
+// nothing: the commit's own mid-sequence bulk broadcast is already decoded
+// and written to disk for free by handleBulkTfxData's isSave branch
+// (sysex-handler.js) — no second hardware round-trip needed to get a TFX
+// out of a rack save. Dropping it also removes one more chunk of post-save
+// async traffic sitting in flight right when Charlie's next click lands,
+// which was suspected (not confirmed) as a contributor to the chain-row
+// corruption bug investigated the same day. Save to Disk (captureCurrentPatchNow,
+// wired directly to its own dropdown item, index.html) is what still does a
+// deliberate on-demand pull — this function no longer needs to.
 async function saveToRackAndDisk(name, targetSlot) {
   await saveCurrentPatchToSlot(name, targetSlot);
   // A rack commit makes the slot match the buffer, so the current values ARE
@@ -361,10 +369,6 @@ async function saveToRackAndDisk(name, targetSlot) {
   if (typeof captureKnobBaselines === 'function') captureKnobBaselines();  // main knobs -> amber
   if (typeof clearFxBaselines === 'function') { clearFxBaselines(); rebaselineOpenFxPanel(); }
   if (typeof clearPatchDirty === 'function') clearPatchDirty();   // saved = clean
-  // Short settle before pulling SEND_PATCH — hardware needs to finish
-  // the commit sequence before we read back what is now in the slot.
-  await sleep(500);
-  captureCurrentPatchNow();
 }
 
 document.getElementById('btn-load-tfx').addEventListener('click', loadTfxFromDisk);

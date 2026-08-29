@@ -151,6 +151,13 @@ let toneRowLocked = true;
 let saveSequenceDetected = false;
 let saveSequenceSlot     = -1;
 let saveSequenceTimer    = null;
+// true when armed by a real hardware front-panel save (handleSaveArm),
+// false when armed by our own software Save to Rack (armSaveSequence
+// called directly from saveCurrentPatchToSlot, capture-scan.js). Both take
+// the same isSave recovery path in handleBulkTfxData, but the auto-TFX
+// filename (2026-08-29, Charlie's A/B/C save simplification) depends on
+// which one it was — only the hardware case gets the "_manual" suffix.
+let saveSequenceIsHardware = false;
 
 // Bulk state
 let captureCount = 0;

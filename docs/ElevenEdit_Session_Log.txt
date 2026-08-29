@@ -151,6 +151,78 @@ NEXT:        CHARLIE TO TEST LIVE, same protocol as above: Save to Rack,
              separately confirmed yet as of this log.
 
 -------------------------------------------------------------------
+DATE:        2026-08-29 (third round, same day)
+STATUS:      provisional (code fix written, NOT YET TESTED LIVE)
+AREA:        Save to Rack / Save to Disk / hardware save — file naming and
+             extra hardware traffic — capture-scan.js, sysex-handler.js,
+             state.js
+FINDING:     Both fixes above DID work (confirmed by comparing bypass state
+             before a save vs. immediately after — exact match across all
+             10 blocks, first time this round-trip). But Charlie then hit a
+             THIRD, separate issue on the same save: changing FX1's host
+             model (Parametric EQ -> Graphic EQ) right after a Save to Rack
+             flipped 5 unrelated blocks (WAH/FX2/VOL/MOD/DELAY) from
+             bypassed to active on real hardware (confirmed independently
+             over the wire, not a decode bug). Charlie's diagnosis, and the
+             one acted on here: this only happens after a save because
+             Save to Rack was never actually ONE action — saveToRackAndDisk
+             committed to the rack AND THEN did a second, separate
+             REQU_SEND_PATCH pull just to write a second TFX
+             (name_manual.tfx) to disk, on top of the first TFX
+             (plain name.tfx) the commit's own natural bulk broadcast
+             already produced for free. Two hardware round-trips and extra
+             async state in flight right when Charlie's next action landed,
+             vs. zero for an ordinary block/model edit — a plausible
+             contributor to the cross-talk, per Charlie: "any patch or
+             block manipulations... never cause other things to happen."
+             Separately, the "_manual" suffix logic was backwards from
+             Charlie's own mental model of how this was originally built
+             (matching Avid's simpler per-action save behaviour): he expected
+             a hardware front-panel save to be the one marked "_manual" (an
+             unprompted, out-of-band capture), and both software actions
+             (Save to Rack, Save to Disk) to write the plain name — the code
+             had it exactly reversed.
+EVIDENCE:    session-2026-08-29-072932.log — bypass state matched exactly
+             pre/post-save (see prior entry), then diverged only after the
+             FX-host model-change chain-array rewrite (sendFxHostModelChange,
+             fx-transport.js, unrelated/unmodified code) that followed. Save
+             to Rack in that log produced BOTH "Driftwood Purple.tfx" (free,
+             from the isSave branch) and "Driftwood Purple_manual.tfx" (the
+             extra pull) from one click.
+CONFLICTS:   none — Tech Ref Sec 15/17 area doc text describing Save to
+             Rack/Disk/hardware-save naming will need a pass at wrap to
+             match the corrected behavior once this is confirmed live.
+FIX APPLIED: (1) capture-scan.js saveToRackAndDisk — removed the trailing
+             sleep(500)+captureCurrentPatchNow() pull entirely. Save to Rack
+             is now commit-only, matching Avid's simpler per-action model
+             (Charlie: "scale it back to basics"). (2) state.js — added
+             saveSequenceIsHardware, set by armSaveSequence's new 3rd param
+             (sysex-handler.js: handleSaveArm passes true, the software-save
+             call in saveCurrentPatchToSlot passes nothing/false). (3)
+             sysex-handler.js — the isSave branch (now reached by BOTH a
+             real hardware save AND software Save to Rack, since both arm
+             the same sequence) picks the "_manual" suffix only when
+             saveSequenceIsHardware was true; the pendingManualCapture
+             branch (Save to Disk + the debug "Capture Current Patch"
+             button) dropped its "_manual" suffix — both are deliberate,
+             user-named/user-triggered pulls now, not hardware events.
+             Result: Save to Rack -> plain name.tfx (one file, one hardware
+             round-trip). Save to Disk -> plain name.tfx (unchanged
+             round-trip, just the suffix dropped). Hardware front-panel
+             save -> name_manual.tfx. Version bumped 1.3.60 -> 1.3.61.
+NEXT:        CHARLIE TO TEST LIVE: (a) Save to Rack produces exactly ONE
+             file, plain name, no "_manual". (b) Save to Disk produces one
+             file, plain name. (c) a real front-panel hardware save still
+             auto-captures, now named "_manual". (d) THE KEY RETEST: repeat
+             the earlier repro — Save to Rack, then open an FX-host panel
+             and change its model — and confirm the OTHER blocks no longer
+             flip active/bypassed as a side effect now that Save to Rack is
+             single-action. If the cross-talk still happens with only ONE
+             hardware round-trip in flight, the model-change mechanism
+             itself (sendFxHostModelChange) is the next place to dig,
+             independent of Save.
+
+-------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Click-to-rename + Jump List hint — final polish pass
