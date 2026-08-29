@@ -446,6 +446,82 @@ NEXT:        CHARLIE TO TEST LIVE: repeat the exact same-slot Save to Rack
              investigation.
 
 -------------------------------------------------------------------
+DATE:        2026-08-29 (eighth round, same day) — 1.3.65's settle-delay fix
+             DID NOT WORK: Charlie retested with a 36-second gap between
+             save and the FX1 model change and it still corrupted the amp,
+             which rules out a stale-read/settle-timing cause — waiting
+             longer makes no difference, so it isn't a race.
+STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — this
+             round doesn't fix the underlying corruption (still not
+             understood), it closes a separate, confirmed real gap found
+             via a Wireshark comparison against the Avid Editor.
+AREA:        Amp-select never re-verified after a chain-map refresh —
+             requestAllBypass (transport.js)
+FINDING:     Charlie captured a clean Wireshark trace of the Avid Editor
+             doing the IDENTICAL sequence (Save to Rack to the same slot,
+             then FX1 model change Parametric EQ <-> Graphic EQ) with NO
+             corruption. Decoded it (wrote a pure-Python pcapng + USB-MIDI
+             CIN reassembler, no tshark/scapy available in-session) and
+             diffed it against this app's equivalent traffic:
+               - Avid's own CMD 0x21 model-change WRITE is byte-for-byte
+                 structurally identical to sendFxHostModelChange's — not a
+                 malformed-write bug.
+               - Avid ALSO saves to the same slot first — that alone isn't
+                 what protects it.
+               - The amp select value (CMD 0x11 paramLo 0x0F) never once
+                 changed across Avid's whole capture — confirmed by
+                 checking every amp-select query/reply in the trace
+                 (before save, after save, before model change, after
+                 model change): always 0x0B. So this is NOT unavoidable
+                 hardware behavior that happens regardless of which
+                 software drives it.
+               - Avid explicitly RE-QUERIES amp select (paramLo 0x0F) every
+                 single time the chain map changes — initial load, after
+                 the save, and again after the model change. This app's own
+                 log (67cc3df5) was grepped for every "Amp Select" line —
+                 found exactly ONE, at initial connect, and never again for
+                 the rest of the session. Confirmed real, standing gap:
+                 this app has literally no code path that would ever
+                 notice or update its display if the amp changed after the
+                 initial connect — matching Charlie's own observation that
+                 the amp visibly changes on the RACK'S OWN FRONT PANEL in
+                 this bug scenario but nothing arrives over the wire to
+                 update the app (whereas a manual front-panel amp change
+                 normally does broadcast and update the app fine).
+EVIDENCE:    f94123e7-AE_Save_to_Rack_then_FX1_changes..pcapng (Avid,
+             clean) vs. 67cc3df5-session20260829101823.log (this app,
+             corrupts — only one "Amp Select" line in the whole log).
+CONFLICTS:   none.
+FIX APPLIED: requestAllBypass (transport.js) now also queries paramLo 0x0F
+             (amp select) for the amp block, alongside its existing 0x06/
+             0x14 bypass queries — matching Avid's own proven behavior.
+             The reply handler (routeAmpBlockParam, sysex-handler.js)
+             already correctly updates currentAmpKey/display and re-fetches
+             amp params on a real change — nothing there needed to change.
+             This does NOT claim to fix the underlying corruption (still
+             not understood — settle delay didn't help, so it isn't purely
+             a timing/race issue) — it closes a real, separately-confirmed
+             gap, AND gives the next test run direct first-party evidence
+             (in this app's own log) of exactly when/whether the amp value
+             changes on hardware, the same visibility Avid's capture
+             already had. Version bumped 1.3.65 -> 1.3.66.
+NEXT:        CHARLIE TO TEST LIVE: repeat the same-slot Save to Rack + FX1
+             model-change sequence. Two distinct things to check now: (1)
+             does the app's display correctly follow the amp if/when it
+             changes (this fix), and (2) — more importantly — grep the new
+             log for "Amp Select readback" around the model-change moment:
+             does hardware actually broadcast a change (in which case we
+             have a real wire-level clue to keep digging with), or does
+             even an explicit query get no reply / an unchanged reply while
+             the front panel visibly shows something different (in which
+             case the front-panel display and the CMD 0x11 addressing may
+             be looking at two different things, which would be a genuinely
+             new and important clue)? A same-slot-vs-different-slot
+             Wireshark pair of THIS APP specifically (not Avid) failing and
+             succeeding would still be the most direct way to finally
+             settle this.
+
+-------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Click-to-rename + Jump List hint — final polish pass

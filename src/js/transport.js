@@ -797,7 +797,24 @@ async function requestAllBypassImpl() {
       await sleep(NAV_QUERY_GAP);
       sendHex('F0 13 0B 0F 01 11 ' + hh + ' 14 F7');   // cab
       await sleep(NAV_QUERY_GAP);
-      n += 2;
+      // AMP SELECT re-verify (paramLo 0x0F) — added 2026-08-29. Found via a
+      // Wireshark comparison against the Avid Editor doing the identical
+      // Save-to-Rack + FX-host-model-change sequence (Charlie's own
+      // capture): Avid re-queries paramLo 0x0F EVERY time the chain map
+      // refreshes (initial load, post-save, post-model-change) — this app
+      // never did, anywhere, at all, after the one-time startup readback.
+      // That's a real, confirmed gap regardless of what turns out to be
+      // causing the actual amp corruption Charlie's been chasing all day:
+      // he can SEE the amp change on the rack's own front panel when it
+      // happens, but this app had no code path that would ever notice or
+      // update its display to match, since it never asked again. Adding
+      // this both fixes that (a real bug on its own) and gives the next
+      // test run direct evidence, in OUR OWN log, of exactly when/whether
+      // the amp value actually changes on hardware — the same visibility
+      // Avid's own capture already had and this app didn't.
+      sendHex('F0 13 0B 0F 01 11 ' + hh + ' 0F F7');   // amp select
+      await sleep(NAV_QUERY_GAP);
+      n += 3;
     } else {
       sendHex('F0 13 0B 0F 01 11 ' + hh + ' 01 F7');   // block bypass
       await sleep(NAV_QUERY_GAP);
