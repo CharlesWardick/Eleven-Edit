@@ -678,6 +678,15 @@ CMD 0x02 — Current Rig Number. Send selects a slot; broadcast/RESP reports
 CMD 0x03 — Save Rig (commit to slot). Part of save sequence (Section 15). [SEND]
 CMD 0x04 — Rig Get/Set Name (address-based). Used in save; also a cheap
   names-only bank scan path. [SEND/RECV]
+  HARDWARE-SAVE ARM vs NAME REPLY (CONFIRMED 2026-08-29, live capture): a
+  genuine front-panel save's CMD 0x04 broadcast DOES carry the patch name
+  (same shape as a name reply), so length alone can't tell them apart — a
+  real save is padded well past the name's null terminator (~41 bytes vs
+  ~26 for a name reply of the same 16-char name). Distinguish by padding
+  beyond the terminator (>4 bytes = a save arm), NOT by total length. The
+  old "a hardware save's arm broadcast is SHORT/nameless" belief was wrong
+  and is retracted (Sec 24, 2026-08-29); it meant front-panel-save auto-
+  capture likely never worked before that fix.
 CMD 0x05 — Patch Name. Broadcast = null-terminated ASCII name; send = set
   current rig name (plain ASCII, no 7-bit encoding, no framing, max 16
   chars). [SEND/RECV]

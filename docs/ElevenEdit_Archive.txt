@@ -8083,9 +8083,1421 @@ NEXT:        Charlie to build 1.3.34+ and confirm live: tick appears at
              disappears/reappears correctly across a patch nav.
 -------------------------------------------------------------------
 
+
+===================================================================
+PART 13 — 2026-08-27 to 08-29 (drained from Session Log 2026-08-29):
+the 08-27 polish session, the 08-28 factory-nav / firmware-gate session,
+and the 08-29 major save/chain-corruption bugfix hunt (root cause + 4
+sub-bugs + save-flow simplification, full blow-by-blow with retracted
+theories).
+===================================================================
+Promoted into the masters (Primer / Tech Ref) and verified there, then
+moved here. Nothing below is needed for current work.
+
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
+FINDING:     Reworded the "Protocol Research Credit" and "For The Community"
+             body text per Charlie's brief (uploaded ABOUT_BOX_UPDATE.md).
+             Protocol Research Credit now states plainly that no Avid
+             software/source was used and the protocol was re-derived via
+             direct packet analysis, while still crediting Guillaume
+             Schmid/ElevenHack (2013) (link unchanged). For The Community
+             now cites the MIT License explicitly and adds a courtesy
+             (non-obligatory) request to keep Charles Wardick and Guillaume
+             Schmid named in credits if someone builds on Eleven Edit.
+             DESIGN & CONCEPT, ARCHITECTURE, STARTUP FLAGS, version display,
+             links, layout, and styling all left untouched, per the brief.
+             The optional footer license/trademark line from the brief was
+             NOT added (only requested "if asked").
+EVIDENCE:    Text-only diff, src/index.html (about-section blocks for the
+             two headings). Version bumped 1.3.37 -> 1.3.38 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to build and confirm the wording reads correctly in
+             the running app (BRIDGE-INDEPENDENT — testable without hardware,
+             per Primer's HOW "TESTED" WORKS HERE). No further action unless
+             he asks for the optional footer line or further wording changes.
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
+FINDING:     Widened #about-box from max-width 560px to 680px, at Charlie's
+             request, to reduce/eliminate line wraps and the scrollbar in
+             the (now longer) body text — a chosen value, not tied to any
+             platform standard. Only #about-box's own max-width changed;
+             the shared rule with #watchdog-box/#scan-box (padding, border,
+             base max-width 460px) is untouched since #about-box overrides
+             max-width separately. No layout/styling/link changes otherwise.
+EVIDENCE:    Text-only CSS diff, src/index.html line ~870. Version bumped
+             1.3.38 -> 1.3.39 (package.json). Not yet confirmed by Charlie
+             whether wraps/scrollbar are actually gone.
+CONFLICTS:   none
+NEXT:        Charlie to build and confirm the wider box reads well and the
+             scrollbar is gone; adjust further if still needed.
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        About box (src/index.html) — BRIDGE-INDEPENDENT, no hardware/protocol touched
+FINDING:     Charlie flagged that "Protocol Research Credit"'s opening line
+             ("No code from that project is used here...") had no
+             antecedent — the section's first sentence referenced "that
+             project" before naming ElevenHack, reading as dangling/unclear
+             about which entity (ElevenHack? Avid?) it meant. Reordered so
+             ElevenHack/Guillaume Schmid is named first, then "no code from
+             that project" clearly refers back to it, and the Avid
+             no-software-used statement is now its own distinct sentence.
+             Same facts as before, wording only.
+EVIDENCE:    Text-only diff, src/index.html Protocol Research Credit
+             paragraph. Version bumped 1.3.39 -> 1.3.40 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to confirm the reworded paragraph reads clearly.
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        About box Architecture section (src/index.html) + README.md —
+             BRIDGE-INDEPENDENT, no hardware/protocol touched
+FINDING:     Charlie flagged "No iLok, no Avid software required" as
+             factually wrong: the Avid USB driver (Avid software) IS
+             required, and a hardware rack must be connected, just to run
+             the app at all — you can't even open the About box otherwise.
+             "No Avid EDITOR required" is true but redundant (Eleven Edit
+             replacing that editor is the whole premise of the app).
+             Removed the line entirely from the About box Architecture
+             section. README.md had the identical claim in its opening
+             line (separate from its Acknowledgments section's "no Avid
+             software... was used" claim, which is about development-time
+             sourcing, not runtime requirements, and is accurate as-is) —
+             reworded to "No iLok and no Avid Eleven Rack Editor required —
+             just the Avid USB driver and a connected Eleven Rack."
+EVIDENCE:    Text-only diffs, src/index.html Architecture paragraph and
+             README.md line 4. Version bumped 1.3.40 -> 1.3.41 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to confirm both read correctly.
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        README.md Requirements section — docs only, no code/protocol touched
+FINDING:     Charlie asked for the README's Requirements TODO to be filled
+             in with real values (OS support, Avid driver, Java) ahead of
+             an eventual open-source release. Pulled from confirmed facts
+             already in the Primer (PLATFORM MATRIX, 7/21/2026) and Tech
+             Ref: Avid USB driver v1.1.12 confirmed working; Eleven Edit
+             itself runs on Windows 10 and Windows 11 (22H2 and 26H1, VM
+             and physical) — macOS/Linux have never been run or tested,
+             so listed as unsupported today, with a note that portability
+             is a hoped-for post-open-source community contribution, not
+             yet attempted in the codebase. Java: JRE 21 confirmed working
+             at runtime (bridge itself targets --release 8 for broad JRE
+             compatibility). Removed the two TODO comments in this section.
+EVIDENCE:    Text-only diff, README.md Requirements section. Cross-checked
+             against Primer's 7/21/2026 PLATFORM MATRIX and "Java: bridge
+             is Java 8 compatible... runtimes verified on 21, 25 and 26"
+             line. Version bumped 1.3.41 -> 1.3.42 (package.json).
+CONFLICTS:   none
+NEXT:        Charlie to confirm the Requirements section reads accurately;
+             Install/Build section below it still has its own TODOs
+             (release link, from-source steps) not addressed here.
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Jump List / slot matrix current-patch highlight (src/index.html)
+FINDING:     Charlie asked for the current patch to be highlighted in the
+             Jump List flyout — we already know the current slot before
+             opening it. Turned out to be nearly free: updateMatrixHighlight
+             (slot) (toggles a `.current` class per cell) and the matching
+             CSS (#matrix-name-table td.matrix-name-cell.current — amber
+             ring/fill matching the accent) already existed in the code but
+             were never called from anywhere, so the ring never appeared.
+             Wired it in three places: (1) the patch-name-box click handler
+             that opens the Jump List, (2) openSlotPicker() (the same
+             overlay reused for Save-to-different-slot), both call
+             updateMatrixHighlight(currentSlot) right after
+             refreshMatrixCells() and before the overlay opens; (3)
+             updateNavDisplay(slot) — called on every patch nav via the
+             updateDisplay monkey-patch — also calls it, so the ring stays
+             correct even if a nav somehow happens while the overlay is
+             open. All three are in the same top-level <script> block
+             (index.html ~1881-2759) as updateMatrixHighlight's own
+             definition, so function hoisting covers the call order; no
+             new globals, no new state.
+EVIDENCE:    Text/JS-only diff, src/index.html (three call sites, no CSS or
+             markup changes — the `.current` styling and the highlight
+             function were both already present, just dead code until now).
+             Version bumped 1.3.42 -> 1.3.43 (package.json).
+CONFLICTS:   none
+NEXT:        TESTED LIVE (Charlie, 2026-08-27) — confirmed working, ring
+             lands on the correct cell. Not yet folded into Primer/Tech
+             Ref masters — this waits for a wrap signal per HOW UPDATES
+             WORK, not automatic on a single pass.
+-------------------------------------------------------------------
+DATE:        2026-08-27
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Knob rendering — value-arc round-cap blob at tiny values
+             (drawKnob, src/js/ui.js) — applies to EVERY knob, reported on
+             FX LOOP Mix
+FINDING:     Charlie reported a round dot sitting outside the knob's ring
+             at very low values (e.g. FX Loop Mix at 1%), and that the dot
+             disappears once the value hits exactly 0 (knob turns red at
+             that point too, but the two are coincidental, not related).
+             ROOT CAUSE: the value arc is stroked with lineWidth 5 and
+             lineCap 'round'. At a small enough value, the swept angle is
+             shorter than the cap's own width, so the two end-caps overlap
+             almost entirely into a solid round blob instead of reading as
+             a short line segment — and because a round cap bulges
+             tangentially past its stroke's own endpoints, that blob can
+             sit partly outside the ring's normal silhouette. At value127
+             === 0 no arc is drawn at all (existing `if (value127 > 0)`
+             guard), which is why the dot vanishes there — not because red
+             fixes anything, just because nothing is drawn.
+FIX:         drawKnob (ui.js ~line 67) now computes minSweepForRoundCap =
+             5/(r-4) (the arc's own lineWidth as an angular width at this
+             radius) and uses lineCap 'butt' instead of 'round' only when
+             the swept angle is below that threshold; normal-sized arcs
+             are unaffected and still get the polished rounded-cap look.
+             Threshold is geometric (radius-relative), not a magic value
+             count, so it should hold for any knob canvas size, not just
+             FX Loop's.
+EVIDENCE:    JS-only diff, src/js/ui.js drawKnob(). Not yet visually
+             confirmed against a real drag to a low value on hardware.
+             Version bumped 1.3.43 -> 1.3.44 (package.json).
+CONFLICTS:   none
+NEXT:        TESTED LIVE (Charlie, 2026-08-27) — confirmed fixed on FX
+             Loop Mix. Not yet folded into Primer/Tech Ref masters — waits
+             for a wrap signal per HOW UPDATES WORK.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Factory patch navigation, Stage 1 of 4 (nav / jump list /
+              auto-advance / save) — protocol.js, ui.js, patch-nav.js,
+              sysex-handler.js, index.html
+FINDING:     Charlie wants the app able to navigate/audition the Eleven
+              Rack's 104 read-only factory patches (a1-z4), not just the
+              104 user patches (A1-Z4) it has handled until now. Confirmed
+              via a Wireshark capture Charlie made of the Avid Editor
+              stepping Z3->Z4->a1->a2->a1->Z4->Z3 (uploaded pcapng,
+              manually parsed here — pcapng/USBPcap framing + USB-MIDI CIN
+              reassembly done by hand in Python, no tshark in-session, same
+              method as the 7/31 FX1 captures) that the CMD 0x02 slot-
+              confirm broadcast's data[6]/data[7] are a space flag
+              (0=user, 1=factory) + raw slot 0-103 — the SAME convention
+              already confirmed for the CMD 0x04 name-query command, not a
+              bank/num pair as the code assumed.
+DESIGN:       Rather than thread a separate "space" flag through every nav/
+              roller/jump-list call site, the app now represents the full
+              range as ONE continuous slot index 0-207 (0-103=A1-Z4,
+              104-207=a1-z4, protocol.js MAX_NAV_SLOT). Two new helpers,
+              slotToSpaceRaw()/spaceRawToSlot() (protocol.js), are the ONLY
+              places that convert to/from the wire's space+rawSlot pair —
+              everywhere else (range pickers, wrap/step math, display)
+              just treats it as a bigger slot range, unchanged in shape.
+              MAX_SLOT (103, user-only) is UNTOUCHED and still used exactly
+              as before by bank-transfer.js (Export/Import All Rigs),
+              slotNumFromLabel, and the save-to-rack picker — none of
+              those are in scope for factory patches and none were
+              touched.
+FIX:          (1) sendPC (patch-nav.js) builds the recall command's space
+              byte from the unified slot instead of a hardcoded 0x00. (2)
+              handleSlotConfirm (sysex-handler.js) decodes data[6]/data[7]
+              via the confirmed space+rawSlot formula — this RETRACTS the
+              prior "commit echo: data[6]=bank,data[7]=num" theory, which
+              turns out to have been indistinguishable from the space+slot
+              reading for bank A (space=0 either way) and was apparently
+              never actually confirmed for a non-A bank — same shape of
+              bug as the CMD 0x04 addressing bug from 2026-08-03 (Sec 24).
+              Flagged in-code as the first place to check if a save-commit
+              echo on a non-A user bank ever mis-navigates. (3) slotLabel
+              (ui.js) and updateNavDisplay (index.html, which had its own
+              SEPARATE bank/letter computation duplicating slotLabel's —
+              same bug independently) both now emit lowercase a1-z4 past
+              Z4 instead of an out-of-range "?1". (4) populateRangeSelects
+              (patch-nav.js) offers the full 0-207 range in the roller's
+              from/to pickers; default selection is unchanged (still
+              A1-Z4) so nothing changes unless a user deliberately expands
+              the range into factory territory.
+NOT DONE YET: Jump List left/right click zones (Stage 2), auto-advance
+              range-picker LIVE testing (Stage 3 — the plumbing exists
+              from this stage, and is already reachable/testable today via
+              the roller's existing "Roll from/to" pickers, which now list
+              the full 0-207 range — just not wired to any factory-aware
+              UI beyond that), Save-to-Rack factory guard (Stage 4).
+              CORRECTION (same day): the ◀BNK/BNK▶ whole-bank-step buttons
+              were initially left user-only (clamped to MAX_SLOT) on the
+              assumption they were a separate feature from "patch nav" —
+              Charlie's own framing ("nav is nav") corrected this; there
+              was never a real reason to split them. Fixed same session:
+              btn-next-bank's clamp changed from hardcoded 103 to
+              MAX_NAV_SLOT (index.html). Bank size (4) divides evenly into
+              both the 104-slot user and factory ranges, so bank
+              boundaries stay aligned straight across the Z4/a1 seam on
+              the unified index with no special-casing needed — same
+              free-of-charge payoff as step nav's wrap logic.
+EVIDENCE:     JS/HTML-only diff. All four touched files pass `node --check`.
+              Version bumped 1.3.44 -> 1.3.46 (package.json, two bumps this
+              session — 1.3.45 then this bank-button correction). Wireshark
+              capture reasoning: raw (data[6],data[7]) pairs 00/0x67,
+              01/0x00, 01/0x01, 01/0x00, 00/0x67, 00/0x66 decoded exactly
+              as Z4, a1, a2, a1, Z4, Z3 — matching Charlie's stated test
+              protocol precisely, with the OLD formula instead producing
+              B1/B2/B1 for the factory steps (matching what Charlie
+              observed live on hardware) and Z4/Z3 unchanged for user
+              steps (also matching what he observed).
+CONFLICTS:    none — retracts the CMD 0x02 "commit echo bank/num" theory
+              per FIX(2) above; nothing else changes.
+NEXT:         NOT YET TESTED LIVE. Charlie to build and confirm: (a) the
+              basic nav display now reads a1-z4 correctly when driven from
+              hardware broadcasts (front panel wheel past Z4), (b) our own
+              goToSlot() can actually recall a factory patch by unified
+              index once a way to reach one exists (Stage 2/3 UI), (c) no
+              regression on plain user-space nav/save, especially a save
+              commit on a non-A bank per the FIX(2) retraction note above.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Manual step nav (PCH>/PCH<, arrow keys) wrongly clamped to the
+              Roll from/to range — patch-nav.js stepNav()
+FINDING:     Live-tested follow-up to Stage 1 (factory patch nav): Charlie
+              reported PCH> from Z4 landed on A1 (not a1), and PCH> from a4
+              (reached via BNK>, confirmed correct — bank-step deliberately
+              preserves slot-within-bank position across a bank change,
+              not a bug) also landed on A1 instead of b1. ROOT CAUSE:
+              stepNav (used by both the manual Prev/Next buttons/arrow
+              keys AND shared, pre-dating today, by autoStep's timed
+              auto-advance loop) wraps within getRangeFrom()/getRangeTo()
+              — the Roll from/to pickers, which default to 0-103 (user
+              only). That range exists to bound the TIMED auto-advance
+              loop; manual single-stepping had no business sharing it, but
+              did. So PCH> would silently snap back to A1 the instant you
+              were anywhere the roll range didn't cover — including a4,
+              reached validly via BNK>, which is outside the default
+              range entirely.
+FIX:          stepNav decoupled from the Roll from/to pickers — now wraps
+              across the full 0-MAX_NAV_SLOT (207) range unconditionally,
+              independent of whatever the roller's range is set to.
+              autoStep/startAuto (the actual timed loop) are UNCHANGED and
+              still respect the Roll from/to pickers exactly as before —
+              that was always their correct job, just wrongly shared with
+              manual stepping.
+EVIDENCE:     JS-only diff, patch-nav.js stepNav(). Passes `node --check`.
+              Version bumped 1.3.46 -> 1.3.47 (package.json). Diagnosis
+              derived from Charlie's two reported cases (Z4->A1, a4->A1)
+              both matching the shared-range-clamp math exactly; not yet
+              re-tested live after the fix.
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm PCH>/PCH< now cross
+              Z4<->a1 and wrap z4<->A1 at the true ends, with auto-advance
+              still respecting the Roll from/to range unchanged.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        BNK</>◀ never wrapped at the ends of the range — index.html
+              btn-prev-bank/btn-next-bank handlers
+FINDING:     Live-tested follow-up: after the stepNav wrap fix (PCH>/PCH<
+              now correctly wraps z4<->A1, confirmed working by Charlie),
+              he found BNK◀ from A1 did nothing at all — it was still a
+              dead Math.max(0,...) clamp, never wired to wrap like PCH now
+              does. BNK> was ALSO only a clamp (Math.min(MAX_NAV_SLOT,...))
+              rather than a true wrap, it just wasn't noticed because
+              MAX_NAV_SLOT (207) IS z4, so clamping there looks correct by
+              coincidence.
+FIX:          Both handlers now wrap around the full 0-207 range using the
+              same position-in-bank-preserving rule BNK> already had
+              (confirmed correct behaviour, 2026-08-28 earlier today): +4/
+              -4 with modulo wraparound at the ends, so A1 (bank position
+              1) wraps to z1 (position 1 of the last bank), NOT z4 (a
+              different bank position) — confirmed as the wanted target
+              directly by Charlie mid-fix, not assumed.
+EVIDENCE:     HTML/JS-only diff, index.html bank-button handlers. Passes
+              node --check on the extracted inline script. Version bumped
+              1.3.47 -> 1.3.48 (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm BNK◀ from A1 lands
+              on z1, and BNK> from z4 wraps back to A1, with mid-range
+              bank stepping (e.g. Z4->a4, already confirmed working)
+              unaffected.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Nav display — direct type-to-jump on the bank/patch boxes
+FINDING:     Charlie floated typing directly into the nav display's bank-
+              letter/patch-number boxes to jump, but on reflection ruled
+              out the two-separate-boxes version himself: entering bank
+              then patch (or vice versa) as two edits is no faster than
+              opening the Jump List once. What WOULD be worth building
+              later is different and smaller: ONE combined field where you
+              type e.g. "C1" (or "c1" for factory) and hit Enter to jump —
+              not attempted or designed today, just captured so it isn't
+              lost. Would reuse Stage 1's slotToSpaceRaw/goToSlot plumbing
+              if picked up.
+EVIDENCE:     Conversation only, no code.
+CONFLICTS:    none
+NEXT:         Not scheduled. Revisit only if Charlie asks for it again.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Jump List Stage 2 — user/factory click zones + factory name
+              scan — index.html, capture-scan.js, sysex-handler.js
+FINDING:     Charlie approved Stage 2: the patch-name box's left/right
+              click zones (previously both halves opened the identical
+              "by name" table, a leftover from a "by slot"/"by name" split
+              dropped 2026-08-11) now open the SAME Jump List overlay
+              scoped to a different space — left=user (A1-Z4), right=
+              factory (a1-z4).
+DESIGN:       The grid's 104 DOM cells are built ONCE, same as before, but
+              now hold a fixed bank-POSITION (dataset.rawSlot 0-103)
+              instead of a baked-in absolute slot. A new `matrixSpace`
+              flag (0=user,1=factory) plus protocol.js's spaceRawToSlot
+              turns that position into the actual unified slot at
+              refresh/click time — refreshMatrixCells() repaints names,
+              hover titles, AND row-letter case (A-Z vs a-z) together so
+              they can never drift out of sync with each other.
+              openJumpList(space) is the one function both click zones
+              call. openSlotPicker() (Save-to-Rack's "pick a slot" reuse
+              of this same overlay) explicitly forces matrixSpace=0 on
+              every open, regardless of whichever side was last browsed —
+              the one place this MUST be airtight, since a factory slot
+              is not a legal save target (Stage 4 will build the rest of
+              that guard, but this piece belongs here so the picker is
+              never even capable of offering an illegal slot in the
+              meantime).
+FACTORY NAMES: RETRACTS the 2026-08-03 "this app only tracks user A1-Z4,
+              factory deliberately never shown" call — a factory Jump List
+              with every cell reading "—" would be pointless. scanPatchNames
+              (capture-scan.js) now also queries all 104 factory slots
+              (space=1) after the existing user scan, doubling the
+              connect-time name scan from 104 to 208 read-only queries.
+              handlePatchNameEnumReply (sysex-handler.js) no longer drops
+              space=0x01 replies — stores them in the same patchNameCache
+              at their unified index (spaceRawToSlot), alongside user
+              names.
+EVIDENCE:     JS/HTML-only diff. All touched files pass `node --check`
+              (index.html's inline script extracted and checked
+              separately, same method as prior stages). Version bumped
+              1.3.48 -> 1.3.49 (package.json).
+CONFLICTS:    none — see FACTORY NAMES above for the one explicit
+              retraction of prior documented behaviour.
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) left/right
+              click zones open the correct side with correct-case row
+              letters and real factory names (not just "—" — the doubled
+              scan takes noticeably longer on connect, worth watching for
+              timeout/flood issues at 104 extra queries), (b) the current-
+              patch ring behaves as expected (lit only when browsing
+              whichever space you're actually on), (c) Save-to-Rack's
+              slot picker ALWAYS shows user A1-Z4 even when opened right
+              after browsing the factory side of the Jump List — this is
+              the one guarantee that must hold before Stage 4 can build on
+              top of it.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Firmware identity check / startup gate — state.js, transport.js,
+              sysex-handler.js, ui.js, main.js, preload.js, src/splash.html
+FINDING:     Charlie asked for a hard startup gate so nobody runs Eleven
+              Edit against untested firmware — HARDWARE SAFETY, not
+              cosmetic: CMD 0x37 (To Amp Source) is confirmed to brick the
+              rack on assert (three separate incidents, full factory reset
+              each time), and this app has zero visibility into whether an
+              older firmware's memory layout is even compatible with any
+              command it sends.
+              Traced to a genuine, standard mechanism: a Wireshark capture
+              of the Avid Editor's cold-start (Charlie's capture,
+              "Avid_Startup_With_Rack_On.pcapng") showed a MIDI Universal
+              SysEx Identity Request/Reply (F0 7E 7F 06 01 F7 / F0 7E
+              <id> 06 02 <mfr> <family> <member> <4-byte revision> F7) —
+              a different prefix from Avid's own 13 0B 0F command set
+              entirely, which is why three separate "what does this
+              unknown command do" investigations never found it. The
+              4-byte revision field is plain ASCII: "0157" — Charlie's
+              firmware, Version 2.0.1 Build 0.1.5.7. Same capture also
+              turned up (but did not decode the meaning of) two of the
+              four long-documented startup-only unknowns, CMD 0x35 (reply
+              "02") and CMD 0x39 (reply "00") — Sec 6's "purpose unknown"
+              note — plus reconfirmed 0x08/0x0A are per-patch state, not
+              device info (their values tracked the loaded patch exactly
+              across the earlier Z3-a2 nav capture).
+DESIGN:       Sends the Identity Request once, only on the FIRST connect
+              of a session (same scope as the existing no-hardware gate —
+              a mid-session reconnect doesn't re-block, matching that
+              gate's own "mid-session drop is the status bar's job" rule).
+              FAILS CLOSED: checkInitialPopulateReady (transport.js) now
+              also requires firmwareCheckDone before revealing the main
+              window, and refuses to reveal at all if firmwareOk is false
+              — whether that's an exact-mismatch reply OR no reply within
+              FIRMWARE_CHECK_TIMEOUT_MS (4000ms, armFirmwareCheckTimeout).
+              No reply is treated exactly the same as a wrong reply, per
+              Charlie's own call ("assume it won't [start] if it doesn't
+              see the 0157") — a device that doesn't answer the check at
+              all is not a device we've confirmed is safe.
+              Reuses the EXISTING splash/gate machinery (the "can't find
+              hardware" Try Again/Quit modal) rather than building a
+              second one — extended splash-show-gate's IPC payload to
+              carry an optional {reason, detail}, so splash.html shows a
+              different explanatory message for a firmware mismatch and
+              hides the Try Again button entirely (rescanning can't fix a
+              firmware mismatch, so offering it would be actively
+              misleading — Quit is the only real option).
+EVIDENCE:     JS/HTML diff across 7 files, `node --check` clean on all
+              (main.js, preload.js, state.js, sysex-handler.js,
+              transport.js, ui.js, and splash.html's extracted inline
+              script). Version bumped 1.3.49 -> 1.3.50 (package.json).
+              Charlie's own literal words captured the intended fail
+              mode: "Best I can do for test the gate is to confirm the
+              program still starts and assume it won't if it doesn't see
+              the 0157."
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) normal startup
+              on his known-good firmware still reaches the main window
+              (the gate must NOT fire on the confirmed-working case,
+              CRITICAL — a false positive here would make the app
+              unusable), (b) appLog shows "Firmware identity reply: build
+              "0157" (matches expected 0157)" during that normal startup.
+              Testing the actual BLOCK path (b) requires either different
+              firmware (which Charlie has said he doesn't have access to)
+              or a deliberate temporary change to EXPECTED_FIRMWARE_BUILD
+              to force a mismatch — worth doing once, briefly, just to
+              confirm the gate message/Quit-only button actually render
+              correctly, then reverting.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Firmware gate deliberate-mismatch test — state.js
+              EXPECTED_FIRMWARE_BUILD
+FINDING:     No-hardware gate regression-checked clean first (rack off ->
+              Try Again shown; powered on -> Try Again -> normal start).
+              Charlie has no second unit/firmware to test the actual
+              mismatch path against, so per the plan noted in the previous
+              entry: EXPECTED_FIRMWARE_BUILD temporarily changed from
+              '0157' to '9999' (deliberately wrong) so his real hardware's
+              genuine "0157" reply fails the comparison on purpose, letting
+              him see the block screen/message/Quit-only button render for
+              real instead of just trusting the code path unexercised.
+EVIDENCE:     One-line diff, state.js. Passes node --check. Version bumped
+              1.3.50 -> 1.3.51 (package.json) — this build's ONLY purpose
+              is proving the block path fires and displays correctly.
+CONFLICTS:    none
+NEXT:         Charlie to build 1.3.51, confirm the app now blocks on
+              startup with the firmware-mismatch message and NO Try Again
+              button (Quit only), then report back — at which point
+              EXPECTED_FIRMWARE_BUILD reverts to '0157' immediately (next
+              entry/commit), and this exact build number should not be
+              treated as a real release.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Firmware gate message wording — ui.js showFirmwareGate,
+              src/splash.html
+FINDING:     Charlie confirmed the gate itself blocks correctly (screenshot
+              of the 1.3.51 build), but flagged the message: (1) a real
+              wording bug — "reporting firmware reported build..." (double
+              "report") from concatenating two overlapping template
+              fragments, (2) the "0157" shown was a value HARDCODED
+              separately in splash.html, disconnected from the actual
+              EXPECTED_FIRMWARE_BUILD comparison constant — it only looked
+              right by coincidence in this test, and would have silently
+              gone stale the next time that constant changes, (3) asked to
+              drop the "we bricked our own test hardware" justification
+              and replace with a plain "running against unverified
+              firmware is not supported" statement.
+FIX:          showFirmwareGate (ui.js) now passes reportedBuild/
+              expectedBuild as separate, pre-formatted fields ("0157" ->
+              "0.1.5.7" via new dotBuild() helper) instead of one
+              pre-assembled sentence fragment — splash.html builds the
+              final message from those two values, so the displayed build
+              number can never drift from the real comparison constant
+              again. New message: "This system reported back firmware
+              build "X." Eleven Edit was built and tested specifically for
+              firmware Version 2.0.1, Build Y. Running against unverified
+              firmware is not supported. Click Quit to close." — no
+              mention of the bricking history.
+EVIDENCE:     JS/HTML diff, ui.js + splash.html. Both pass node --check.
+              Version bumped 1.3.51 -> 1.3.52 (package.json). STILL a
+              deliberate-mismatch test build (EXPECTED_FIRMWARE_BUILD is
+              '9999', not '0157') — same as the prior entry, just with the
+              corrected message.
+CONFLICTS:    none
+NEXT:         Charlie to confirm the reworded gate message reads
+              correctly, THEN EXPECTED_FIRMWARE_BUILD reverts to '0157'
+              immediately after — this build number is still not a real
+              release.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Firmware identity check / startup gate — REAL BUILD, test
+              value reverted. state.js EXPECTED_FIRMWARE_BUILD
+FINDING:     Charlie confirmed 1.3.52's deliberate-mismatch test build
+              (screenshot): gate blocked correctly, message read "This
+              system reported back firmware build "0.1.5.7." Eleven Edit
+              was built and tested specifically for firmware Version
+              2.0.1, Build 9.9.9.9. Running against unverified firmware is
+              not supported. Click Quit to close." — exactly right, both
+              the block behaviour and the corrected wording from the prior
+              entry. Noted the version tag visually overlaps the Quit
+              button in the bottom corner (cosmetic only, "good enough,"
+              not asked to be fixed).
+FIX:          EXPECTED_FIRMWARE_BUILD reverted from the temporary '9999'
+              back to the real '0157' — this build is real and testable
+              against actual hardware again, not a deliberate-fail test.
+EVIDENCE:     One-line diff, state.js. Passes node --check. Version
+              bumped 1.3.52 -> 1.3.53 (package.json).
+CONFLICTS:    none
+NEXT:         TESTED LIVE (Charlie, 2026-08-28) — ALL THREE startup paths
+              now confirmed on 1.3.53: normal startup (known-good firmware
+              reaches the main window, the CRITICAL case flagged in the
+              1.3.50 entry), no-hardware Try Again/retry, and the firmware
+              mismatch block — none interfere with each other. Not yet
+              folded into Primer/Tech Ref masters — waits for a wrap
+              signal per HOW UPDATES WORK.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Stage 3 auto-advance — directional roll range + colour-coded
+              picker options — patch-nav.js
+FINDING:     Charlie confirmed Stage 3 (auto-advance across the factory
+              boundary) already worked from Stage 1's plumbing alone — no
+              code needed for the Z2->a2 direction. But Z2->A2 the OTHER
+              way started immediately at A2 instead of walking
+              z2,z3,z4,A1,A2 as intended. ROOT CAUSE: autoStep/startAuto/
+              updateRangeLabel all used Math.min(from,to)/Math.max(from,to)
+              to turn FROM/TO into a lo/hi numeric range — invisible with
+              an all-user range (people naturally pick the lower letter as
+              FROM anyway) but wrong now that factory space (104-207) sits
+              numerically ABOVE all of user space (0-103): FROM=z2(205),
+              TO=A2(1) silently normalized to lo=A2,hi=z2, discarding
+              which one was actually typed as the start. Charlie correctly
+              recalled this is the same "always runs low to high" shape as
+              a pre-existing quirk in the original user-only code, just
+              never visible before because the numeric range never
+              crossed a a "reversal" the letters didn't already imply.
+FIX:          FROM/TO reinterpreted as a DIRECTIONAL CIRCULAR walk instead
+              of a numeric min/max range. New slotInRollRange(slot,from,to)
+              helper replaces the old lo<=slot<=hi check with one that
+              wraps through the top when from>to. autoStep now steps
+              current+1 (wrapping 207->0) until it hits `to`, then jumps
+              back to `from` — same result as before for the normal
+              from<=to case, correctly walks the intended direction for
+              from>to. updateRangeLabel/startAuto's status text now show
+              FROM — TO in the order actually selected, not normalized.
+              ALSO (Charlie's request, same conversation): the FROM/TO
+              picker options are now colour-coded — factory (a1-z4)
+              options render in KNOB_COLORS.blue, matching the accent
+              already used for Parametric EQ's HF band, so the two ranges
+              read as visually distinct in what would otherwise be one
+              flat alphabetical list with no visual seam at Z4/a1.
+EVIDENCE:     JS-only diff, patch-nav.js (populateRangeSelects, autoStep,
+              startAuto, updateRangeLabel). Passes node --check. Version
+              bumped 1.3.53 -> 1.3.54 (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) z2->A2 now
+              walks z2,z3,z4,A1,A2 and loops back to z2 (the reported
+              case), (b) the previously-working z2->a2 direction and any
+              plain all-user range (e.g. A1-Z4 default) are unaffected,
+              (c) Pause/Stop/Resume still behave correctly mid-roll in
+              both directions, (d) the FROM/TO dropdown options visibly
+              show factory entries in a different colour.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Stage 4 (final stage) — Save-to-Rack factory guard —
+              index.html, capture-scan.js
+FINDING:     Completes the 4-stage factory-patch plan agreed 2026-08-27:
+              Save to Disk needed no change (slot-agnostic, as agreed).
+              Save to Rack, when the loaded patch is factory, must never
+              default to writing at the current (illegal) factory address
+              — found the real risk point in doRackSave's confirm handler:
+              `var targetSlot = (saveTargetSlot !== null) ? saveTargetSlot
+              : currentSlot;` — if a user opened Save to Rack on a factory
+              patch and just clicked Save without redirecting via the
+              picker, this would have sent a write to a factory slot with
+              no defined hardware behaviour.
+DESIGN:       New defaultRackSaveTarget() (index.html) is the ONE place
+              that decides the default target: translates a factory
+              currentSlot to the SAME alphanumeric user address (c4 -> C4,
+              Charlie's own call from 2026-08-27) via slotToSpaceRaw's
+              rawSlot, else just currentSlot as always. Used in BOTH
+              openSaveModal (what the slot label shows before you touch
+              anything) and doRackSave (what actually gets sent) — one
+              function, not two copies that could drift apart. The
+              picker's own user-only lock (openSlotPicker forcing
+              matrixSpace=0, Stage 2) still covers the "redirected to a
+              different slot" path, unchanged. updateSlotLabel's existing
+              "currently: X" heads-up naturally fires for this new default
+              too (translated target always differs numerically from a
+              factory currentSlot), which is exactly the right warning to
+              show.
+              HARDWARE SAFETY BACKSTOP: saveCurrentPatchToSlot
+              (capture-scan.js) now refuses outright (logs + returns, no
+              write sent) if ever called with slot > MAX_SLOT, regardless
+              of how it got called — a last line of defense if the UI-side
+              logic above is ever wrong or bypassed, same "refuse rather
+              than guess" pattern already used for Amp Out (no real value
+              received yet) elsewhere in this file.
+EVIDENCE:     JS/HTML diff, index.html + capture-scan.js. Both pass
+              node --check (index.html's inline script extracted and
+              checked separately). Version bumped 1.3.54 -> 1.3.55
+              (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE — completes the whole 4-stage factory-
+              patch plan pending this final live confirmation. Charlie to
+              confirm: (a) opening Save to Rack while on a factory patch
+              shows the translated user slot pre-filled (with the
+              "currently: X" warning), not the factory slot itself, (b)
+              clicking Save without redirecting actually writes to that
+              translated user slot and NOT the factory address, (c) the
+              slot-label picker still redirects to any other user slot
+              exactly as before, (d) Save to Disk is completely unaffected
+              on a factory patch. Once this stage is confirmed, all four
+              stages of the factory-patch nav feature are done and this
+              would be a natural point to consider a Primer/Tech Ref wrap.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Technical_Reference.txt Sec 15 + CHAIN/
+              DANGER catalog] — confirmed, not provisional
+AREA:        HARDWARE SAFETY — SAVE sequence with an out-of-range slot
+              (CMD 0x04 write form) confirmed to corrupt hardware state
+FINDING:     Charlie live-confirmed a real, serious hardware danger:
+              sometime between Stage 1 (currentSlot decode fix) and Stage
+              4 (before the save guard existed), he did Save to Rack while
+              on a factory patch. currentSlot correctly read as factory
+              (>103) at that point, but Save to Rack still defaulted
+              straight to currentSlot and sent that raw value directly as
+              the save sequence's slot byte — no translation, no
+              boundary check. RESULT: the name update partially/visibly
+              took on hardware (briefly shown in the factory slot), but a
+              second test (name-only save, then nav-away-and-back) showed
+              the write had NOT actually persisted — the original factory
+              name was still there. Further interaction with the unit
+              after the first attempt caused a BSOD. Per Charlie: "I
+              guess what I was doing was somehow writing back the name to
+              a normally unreachable or unwriteable section of fw or
+              memory and it seems to work but further fiddling make it
+              crash." This is now closed by Stage 4 (already shipped,
+              1.3.55) two independent ways — see that stage's own log
+              entry — but the finding itself is permanent, hardware-level
+              knowledge that belongs in the masters immediately, per the
+              Primer's own "fold immediately, hardware-safety item"
+              exception, not held for a wrap.
+FOLDED TO:    ElevenEdit_Technical_Reference.txt Sec 15 (SAVE PROTOCOL) —
+              new *** HARDWARE SAFETY *** block right after the
+              raw_slot=0-103 statement, spelling out the confirmed
+              partial-write/BSOD behaviour and cross-referencing both
+              guards. Also added a matching one-line pointer in the
+              existing CHAIN/DANGER "do not do X" catalog (Sec 22-ish,
+              same neighbourhood as the CMD 0x37 bricking entry it's
+              modeled on) so a future session scanning that list for
+              known dangers finds this one too.
+EVIDENCE:     Charlie's own live test, described in conversation (no
+              capture — the interesting bytes were the SAME save sequence
+              already fully documented in Sec 15, just with an
+              out-of-range raw_slot; the new information is the hardware
+              BEHAVIOUR on receiving it, not new protocol bytes).
+CONFLICTS:    none — this is new information, not a correction to
+              anything previously documented.
+NEXT:         None — this is now permanent, confirmed hardware-safety
+              documentation. Nothing further to test; Stage 4's own guards
+              are what prevent recurrence going forward.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Jump List UX polish + click-to-rename — index.html, ui.js,
+              sysex-handler.js
+FINDING:     Stage 4 confirmed working live (Charlie: "could not seem to
+              break it"). Two follow-on requests from the same
+              conversation: (1) the Jump List's left/right click zones
+              (Stage 2) had no visible affordance beyond the hand cursor —
+              turned out the existing ".hint" text ("< user patches *
+              factory patches >") was ALREADY there in the markup but
+              silently invisible: #patch-name-box carried overflow:hidden
+              for its own text-ellipsis, which also clips its absolutely-
+              positioned .hint child (positioned outside the box's own
+              bounds) — a real rendering bug, not a missing feature. (2)
+              Charlie asked for clicking the patch NAME to be a real local
+              rename — same as any other realtime patch edit, marking the
+              SAVE dirty latch but sending nothing to hardware until Save
+              is actually chosen.
+FIX:          (1) Ellipsis truncation moved from #patch-name-box onto
+              #patch-name itself (display:inline-block, its own overflow/
+              ellipsis) — frees the box from needing overflow:hidden, so
+              .hint now actually renders below it. Also added a dotted-
+              underline hover cue on the name text itself, distinct from
+              the box's existing border-brighten hover, so the two click
+              targets read as different affordances.
+              (2) startPatchNameEdit() (index.html) swaps the name span
+              for a text input (maxlength 16, matching the hardware name
+              limit) on click; Enter/blur commits (updates currentPatchName,
+              calls markPatchDirty(), logs — no SysEx sent), Escape
+              cancels. The box's click handler is now ONE delegated
+              handler checking e.target.id, not two separate bindings —
+              rename's commit/cancel REPLACES the span with a fresh
+              element each time, which would silently break a listener
+              bound directly to the old node; delegation on the box
+              (which never gets replaced) survives that.
+              THREE REAL BUGS FOUND AND FIXED ALONG THE WAY, all from the
+              same root cause (existing code assuming #patch-name always
+              exists, which the new edit-mode breaks): updateDisplay
+              (ui.js) would have thrown on ANY nav that happened mid-edit
+              (front-panel wheel, auto-advance) — now null-guards AND
+              cancels any in-progress edit first, since a nav means the
+              edit no longer applies to what's loaded. handlePatchName
+              (sysex-handler.js, CMD 0x05 broadcast) would have both
+              crashed AND silently overwritten a pending local rename with
+              hardware's own value — now skips entirely while mid-edit,
+              same "broadcast must not fight an in-progress user action"
+              rule as R9 elsewhere in this codebase. The two existing
+              patch-name writers in capture-scan.js were already null-
+              guarded, no change needed there.
+EVIDENCE:     HTML/JS diff across index.html, ui.js, sysex-handler.js. All
+              pass node --check (index.html's inline script extracted and
+              checked separately, same method as prior stages). Version
+              bumped 1.3.55 -> 1.3.56 (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) the "< user *
+              factory >" hint is now actually visible below the name box,
+              (b) clicking the name text starts an editable field (dotted-
+              underline hover cue distinguishes it from the rest of the
+              box), Enter/blur commits locally and lights the SAVE button
+              green with no hardware traffic, Escape cancels cleanly, (c)
+              the renamed value is what Save to Rack proposes by default,
+              (d) a nav (front-panel wheel, or auto-advance) happening
+              mid-edit doesn't crash or leave a stuck input — the edit
+              should just quietly drop.
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Click-to-rename crash + hint still invisible — index.html,
+              ui.js (follow-up to the 1.3.56 entry)
+FINDING:     Charlie hit an uncaught error typing a 16-char name and
+              pressing Enter: "Failed to execute 'replaceWith' on
+              'Element': The node to be removed is no longer a child of
+              this node." ROOT CAUSE: removing a FOCUSED element from the
+              DOM fires 'blur' on it synchronously — so Enter's commit()
+              called input.replaceWith(span), which itself triggered the
+              same input's still-attached blur listener a moment later,
+              calling commit() a SECOND time on an already-detached node.
+              Also: the hint text was STILL invisible after the 1.3.56 CSS
+              fix — found a SECOND layer of the same problem: #topbar
+              itself carries height:64px + overflow:hidden (a fixed-height
+              toolbar), which clips the hint just as the box's own
+              overflow:hidden did before, one layer up.
+FIX:          (1) Rename's finish() is now idempotent via input._settled,
+              checked at the top and set BEFORE any DOM replacement — every
+              path (Enter, Escape, blur, and updateDisplay's forced-cancel
+              on a mid-edit nav) is now first-caller-wins, every later
+              call a no-op. updateDisplay (ui.js) also sets editEl._settled
+              = true before its OWN replaceWith, closing the same race from
+              the external nav-mid-edit path, not just the internal
+              Enter/blur one. (2) Rather than chase a THIRD ancestor that
+              might someday also clip an absolutely/negatively-positioned
+              child, .hint moved into NORMAL DOCUMENT FLOW, stacked under
+              the name via #patch-name-box's own new flex-column layout —
+              sidesteps ancestor overflow:hidden entirely instead of
+              fighting it one layer at a time. Confirmed it still fits:
+              topbar is 64px, the box's own content (padding+border+name
+              line+hint line) comes to well under that.
+EVIDENCE:     HTML/JS diff, index.html + ui.js. Both pass node --check.
+              Version bumped 1.3.56 -> 1.3.57 (package.json).
+CONFLICTS:    none
+NEXT:         NOT YET TESTED LIVE. Charlie to confirm: (a) the hint text
+              is now visible below the name AT ALL TIMES (not hover-gated
+              — it never was meant to be, worth confirming that's actually
+              what's wanted since he asked whether hover was the intended
+              mechanism), (b) typing a full 16-char name and pressing
+              Enter no longer throws, (c) Escape and clicking away (blur)
+              both still work cleanly, (d) a nav happening mid-edit still
+              drops the edit without incident (retest — this is now
+              covered by the same _settled guard as the crash fix).
+-------------------------------------------------------------------
+DATE:        2026-08-28
+STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
+AREA:        Click-to-rename + Jump List hint — final polish pass
+FINDING:     Charlie confirmed 1.3.57's fixes: click-to-rename works well
+              enough (no crash, Escape/blur clean), and the renamed value
+              correctly carries into the Save dialog and saves for real.
+              Noted rename does NOT update the name on hardware in
+              realtime the way a tone knob broadcasts live — explicitly
+              fine with Charlie ("you can't hear a name change"), matches
+              the design (local-only until Save, as asked). Remaining
+              complaint: the hint text ("< user patches * factory
+              patches >") was still too dark (#666) to read at its
+              necessarily-small size now that it sits in-flow under the
+              name.
+FIX:          .hint color changed from #666 to var(--text) (#d8d8d8,
+              the app's standard readable body-text colour, matching the
+              "old eyes, readable fonts" project value rather than pure
+              white). Name font itself is UNCHANGED (still 18px) — the
+              box is simply a bit taller now to fit the hint line, which
+              is likely what's reading as "the name got smaller" next to
+              the flanking BNK/PCH buttons; noted to Charlie, no separate
+              action taken since nothing about the name's own size
+              actually changed.
+EVIDENCE:     One-line CSS diff, index.html. Passes node --check (inline
+              script extracted). Version bumped 1.3.57 -> 1.3.58.
+CONFLICTS:    none
+NEXT:         Charlie to confirm the hint reads clearly now. If the boxed
+              layout still feels visually cramped next to BNK/PCH, that's
+              a separate ask to raise explicitly, not something inferred
+              from "the name got smaller."
+-------------------------------------------------------------------
+DATE:        2026-08-29 (eighth round, same day) — 1.3.65's settle-delay fix
+             DID NOT WORK: Charlie retested with a 36-second gap between
+             save and the FX1 model change and it still corrupted the amp,
+             which rules out a stale-read/settle-timing cause — waiting
+             longer makes no difference, so it isn't a race.
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — this
+             round doesn't fix the underlying corruption (still not
+             understood), it closes a separate, confirmed real gap found
+             via a Wireshark comparison against the Avid Editor.
+AREA:        Amp-select never re-verified after a chain-map refresh —
+             requestAllBypass (transport.js)
+FINDING:     Charlie captured a clean Wireshark trace of the Avid Editor
+             doing the IDENTICAL sequence (Save to Rack to the same slot,
+             then FX1 model change Parametric EQ <-> Graphic EQ) with NO
+             corruption. Decoded it (wrote a pure-Python pcapng + USB-MIDI
+             CIN reassembler, no tshark/scapy available in-session) and
+             diffed it against this app's equivalent traffic:
+               - Avid's own CMD 0x21 model-change WRITE is byte-for-byte
+                 structurally identical to sendFxHostModelChange's — not a
+                 malformed-write bug.
+               - Avid ALSO saves to the same slot first — that alone isn't
+                 what protects it.
+               - The amp select value (CMD 0x11 paramLo 0x0F) never once
+                 changed across Avid's whole capture — confirmed by
+                 checking every amp-select query/reply in the trace
+                 (before save, after save, before model change, after
+                 model change): always 0x0B. So this is NOT unavoidable
+                 hardware behavior that happens regardless of which
+                 software drives it.
+               - Avid explicitly RE-QUERIES amp select (paramLo 0x0F) every
+                 single time the chain map changes — initial load, after
+                 the save, and again after the model change. This app's own
+                 log (67cc3df5) was grepped for every "Amp Select" line —
+                 found exactly ONE, at initial connect, and never again for
+                 the rest of the session. Confirmed real, standing gap:
+                 this app has literally no code path that would ever
+                 notice or update its display if the amp changed after the
+                 initial connect — matching Charlie's own observation that
+                 the amp visibly changes on the RACK'S OWN FRONT PANEL in
+                 this bug scenario but nothing arrives over the wire to
+                 update the app (whereas a manual front-panel amp change
+                 normally does broadcast and update the app fine).
+EVIDENCE:    f94123e7-AE_Save_to_Rack_then_FX1_changes..pcapng (Avid,
+             clean) vs. 67cc3df5-session20260829101823.log (this app,
+             corrupts — only one "Amp Select" line in the whole log).
+CONFLICTS:   none.
+FIX APPLIED: requestAllBypass (transport.js) now also queries paramLo 0x0F
+             (amp select) for the amp block, alongside its existing 0x06/
+             0x14 bypass queries — matching Avid's own proven behavior.
+             The reply handler (routeAmpBlockParam, sysex-handler.js)
+             already correctly updates currentAmpKey/display and re-fetches
+             amp params on a real change — nothing there needed to change.
+             This does NOT claim to fix the underlying corruption (still
+             not understood — settle delay didn't help, so it isn't purely
+             a timing/race issue) — it closes a real, separately-confirmed
+             gap, AND gives the next test run direct first-party evidence
+             (in this app's own log) of exactly when/whether the amp value
+             changes on hardware, the same visibility Avid's capture
+             already had. Version bumped 1.3.65 -> 1.3.66.
+NEXT:        CHARLIE TO TEST LIVE: repeat the same-slot Save to Rack + FX1
+             model-change sequence. Two distinct things to check now: (1)
+             does the app's display correctly follow the amp if/when it
+             changes (this fix), and (2) — more importantly — grep the new
+             log for "Amp Select readback" around the model-change moment:
+             does hardware actually broadcast a change (in which case we
+             have a real wire-level clue to keep digging with), or does
+             even an explicit query get no reply / an unchanged reply while
+             the front panel visibly shows something different (in which
+             case the front-panel display and the CMD 0x11 addressing may
+             be looking at two different things, which would be a genuinely
+             new and important clue)? A same-slot-vs-different-slot
+             Wireshark pair of THIS APP specifically (not Avid) failing and
+             succeeding would still be the most direct way to finally
+             settle this.
+
+-------------------------------------------------------------------
+DATE:        2026-08-29 (ninth round, same day)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — strongest
+             lead of the whole investigation: a concrete, byte-level
+             difference between this app and the Avid Editor, visible in
+             both captures, not another guess.
+AREA:        Post-save query flood injected mid-save-transaction
+             (sysex-handler.js isSave branch -> moved to capture-scan.js
+             saveCurrentPatchToSlot, after the commit)
+FINDING:     1.3.66's amp-select re-query CONFIRMED the corruption in this
+             app's OWN log for the first time: model change at 10:28:01,
+             amp readback flips 0x0B Treadplate -> 0x23 DC Modern OD at
+             10:28:02, queried on the correct new handle. Real, not
+             inferred. Then answered Charlie's standing question ("if
+             same-slot and different-slot save do the same thing, why does
+             only same-slot break?") by actually byte-diffing the two:
+               - DIFFERENT-slot save (Z1, be90309a log): the commit
+                 navigates hardware to the new slot -> "Slot confirmed: 100
+                 (Z1)" -> full Nav pull -> hardware RELOADS the patch fresh
+                 into its live buffer. handleSlotConfirm's slot-changed
+                 guard fires.
+               - SAME-slot save (C4): commit says "go to C4" but already on
+                 C4 -> no slot change -> handleSlotConfirm does NOTHING ->
+                 no reload. Buffer keeps its post-save state.
+             BUT: Avid ALSO saves same-slot (confirmed in its pcapng) and
+             does NOT corrupt, so "same-slot leaves a dirty buffer" can't be
+             the whole story. Byte-diffed the two save SEQUENCES and found
+             the one thing this app does that Avid doesn't:
+               - Avid order: name (05) -> dirty (03) -> bank-index (04) ->
+                 COMMIT (02) -> THEN chain-map read (01 21) + param queries.
+                 All four save commands first, queries only after commit.
+               - This app: name (05) -> dirty (03) -> [the dirty write's
+                 bulk broadcast triggers the isSave branch, which
+                 IMMEDIATELY fires a chain-map read + bypass/amp/param query
+                 flood] -> bank-index (04) -> COMMIT (02). The re-read and
+                 flood are injected BETWEEN the dirty flag and the commit —
+                 into the middle of the hardware's own save transaction.
+                 Plainly visible in the 10:27:48 timestamps: "Post-save:
+                 re-reading chain map" and the CMD 0x11 queries all land
+                 before "Save commit sent".
+             This mid-transaction poking is the prime suspect for leaving
+             the hardware in the state where the NEXT chain rewrite (an
+             FX-host model change) corrupts the amp. Different-slot save
+             hides it because the post-commit navigation reloads the buffer
+             fresh afterward.
+EVIDENCE:    f94123e7 Avid pcapng (msgs 0-6,11: all 4 save cmds then commit
+             then queries) vs. b0b9794b log (10:27:48: re-read + queries
+             before "Save commit sent" at 10:27:49). Amp flip:
+             b0b9794b 10:28:01->10:28:02.
+CONFLICTS:   retracts 1.3.65's "missing settle delay" theory (settle didn't
+             help — Charlie waited 36s and it still broke) and 1.3.66's
+             amp-select re-query as a FIX (it was diagnostic, not a fix —
+             still correct to keep, it's what caught the flip in-log).
+FIX APPLIED: (1) sysex-handler.js isSave branch — the immediate post-save
+             chain-map re-read now runs ONLY for a hardware front-panel save
+             (saveSequenceIsHardware; the hardware already committed before
+             broadcasting, so it's not mid-transaction there). For a
+             software save it no longer fires here. (2) capture-scan.js
+             saveCurrentPatchToSlot — added a step 5 AFTER the commit
+             (CMD 0x02): settle, then REQU_CHAIN_MAP. This matches Avid's
+             ordering exactly (all four save commands, THEN the queries) and
+             still refreshes the reassigned handles a same-slot save needs.
+             Version bumped 1.3.66 -> 1.3.67.
+NEXT:        CHARLIE TO TEST LIVE: the same-slot Save to Rack + FX1
+             model-change sequence. If the amp no longer flips (watch the
+             new "Amp Select readback" line — it should stay Treadplate),
+             this ordering difference was the cause. If it STILL flips even
+             with queries moved after the commit, the next definitive step
+             is a Wireshark capture of THIS APP failing, to byte-diff
+             against the Avid clean capture already in hand and find any
+             remaining divergence.
+
+-------------------------------------------------------------------
+DATE:        2026-08-29 (seventh round, same day)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE)
+AREA:        Post-save chain-map refresh missing a settle delay
+             (sysex-handler.js isSave branch) + a real regression in the
+             1.3.64 pacing fix (requestAllBypass/requestFxHostParams
+             interleaving, transport.js/fx-transport.js)
+FINDING:     Charlie ran his own controlled test: Save to Rack targeting a
+             DIFFERENT slot (Z1) than the currently-loaded one, then FX1
+             model changes — NO corruption, clean throughout. This isolates
+             it precisely: only a SAME-slot save sets up the failure.
+             Root cause found: handleSlotConfirm (CMD 0x02 handler) only
+             runs its full, battle-tested resync (clearStaleReadoutsOnNav +
+             requestPatchStateAfterNav, which always waits NAV_RECALL_SETTLE
+             before querying anything) when the confirmed slot DIFFERS from
+             currentSlot. A different-slot save trips that guard (real slot
+             change) and gets the full, settled resync for free. A
+             same-slot save never trips it — confirmed===currentSlot,
+             guard skipped — leaving ONLY the isSave branch's own narrower
+             "Post-save: re-reading chain map" REQU_CHAIN_MAP resend, which
+             had NO settle delay before it at all, unlike every other
+             post-commit/post-nav re-read in the app. If hardware hasn't
+             finished reassigning handles yet when that resend goes out,
+             the chain-map reply (and therefore currentChain) can be
+             stale — and a subsequent FX-host model change builds its
+             10-block chain-array write from that stale currentChain,
+             embedding wrong handles for the other 9 blocks. Matches every
+             observation: same-slot only, right after save only, breaks
+             specifically at the model-change write.
+             SEPARATELY: while re-reading this code, found the 1.3.64
+             pacing fix has its own real bug — requestAllBypass and
+             requestFxHostParams are both now async/paced, but nothing
+             stops two from running AT THE SAME TIME if triggered around
+             the same event; their individual awaited sends round-robin on
+             the event loop and interleave on the wire (confirmed in
+             Charlie's f5c82674 log, lines ~2447-2472 — a bypass query and
+             an FX-host param query shuffled together mid-burst). Before
+             1.3.64 each burst was atomic/synchronous, so this never
+             happened; the pacing fix traded one hazard for a smaller,
+             different one.
+EVIDENCE:    be90309a-session20260829092822.log (different-slot save, Z1,
+             clean) vs. the prior several same-slot-save logs (all showed
+             the corruption or its precursor). f5c82674 log for the
+             interleaving.
+CONFLICTS:   none.
+FIX APPLIED: (1) sysex-handler.js isSave branch — added
+             `await sleep(NAV_RECALL_SETTLE)` before the post-save
+             REQU_CHAIN_MAP resend, matching what requestPatchStateAfterNav
+             already does for every other post-nav/post-recall re-read.
+             (2) transport.js — added a small shared serialization queue
+             (runPacedBurst/pacedBurstQueue) so paced bursts run one at a
+             time instead of interleaving; requestAllBypass and
+             requestFxHostParams (fx-transport.js) both now route through
+             it (renamed to *Impl internally, public name unchanged, no
+             call-site changes needed). Version bumped 1.3.64 -> 1.3.65.
+NEXT:        CHARLIE TO TEST LIVE: repeat the exact same-slot Save to Rack
+             + FX1 model-change sequence that broke before. If clean, this
+             is very likely the real fix. Keep the different-slot-save
+             comparison in mind as the control case either way — it's the
+             cleanest reproducible signal found so far in this whole
+             investigation.
+
+-------------------------------------------------------------------
+DATE:        2026-08-29 (sixth round, same day)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — Charlie's
+             own instinct ("could this be the timing/flood gotcha again"),
+             not a fresh capture — going in alongside the narrower-capture
+             ask above, not instead of it.
+AREA:        Unpaced query bursts — requestAllBypass (transport.js),
+             requestFxHostParams (fx-transport.js)
+FINDING:     Both fire their entire query list (11+ and up to 15
+             respectively) in one synchronous burst with ZERO delay between
+             sends — no pacing at all, unlike every other query burst in
+             the app (requestPatchStateAfterNav and friends, transport.js,
+             all paced with NAV_QUERY_GAP=15ms). Same shape as the
+             pre-existing, already-fixed "knob-write flood" bug (Primer:
+             unthrottled knob/slider writes could desync the amp handle and
+             freeze knobs — fixed by queueKnobSend's 60ms throttle).
+             requestAllBypass runs right after EVERY chain-map refresh,
+             including the one immediately after every Save — i.e. right on
+             top of whatever traffic a block/model edit just put in flight.
+             requestFxHostParams fires every time an FX-host panel opens,
+             reopens, or gets refreshed after a chain-map change — Charlie
+             was opening/reopening FX1's panel repeatedly right before the
+             FX1/amp corruption bug hit the same day (session log entry
+             above). NOT proven causal — the log has a blind ~66s gap
+             around the actual corruption moment (no full bulk readback in
+             that window) so this can't be confirmed from log evidence
+             alone, only judged plausible from pattern-matching this
+             project's own history of exactly this failure mode.
+CONFLICTS:   none.
+FIX APPLIED: both functions converted to async and paced with the existing
+             NAV_QUERY_GAP interval (15ms) between each sendHex call — the
+             same interval already used everywhere else, not a new one
+             invented for this. No call site needed changes (both were
+             already fire-and-forget). Version bumped 1.3.63 -> 1.3.64.
+NEXT:        CHARLIE TO TEST LIVE: repeat the FX1 bypass-toggle +
+             model-change + Save sequence that triggered the corruption
+             before, see if it still happens with these two bursts paced.
+             This does NOT replace the narrower isolated capture (FX1
+             toggle + model change, NO save) requested in the prior entry —
+             if the corruption still happens with pacing in place AND with
+             no save involved at all, that clears requestAllBypass/
+             requestFxHostParams as suspects and points squarely back at
+             sendFxHostModelChange or real hardware DSP-reallocation
+             behavior outside this app's control.
+
+-------------------------------------------------------------------
+DATE:        2026-08-29 (fifth round, same day)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — Save to
+             Rack (c) confirmed by Charlie: hardware save now correctly
+             produces "_manual", Save to Disk correct, no FX1 anomaly
+             immediately after either. Save to Rack itself was overwriting
+             on repeat saves instead of incrementing (regression from the
+             1.3.61 naming-swap commit — incrementIfExists was only passed
+             on the isHardwareSave branch). FIXED: sysex-handler.js's isSave
+             branch now passes { incrementIfExists: true } unconditionally.
+             Version bumped 1.3.62 -> 1.3.63.
+AREA:        FX1 chain-row corruption — NOT a save bug after all
+FINDING:     Charlie hit the chain-scrambling symptom again, but traced it
+             to BEFORE a Save to Rack this time, not after. The third Save
+             to Rack in this log (08:38:44) captured a bulk body of only
+             1104 bytes vs. the 1176 bytes every other capture of this same
+             patch showed all session — the amp had actually changed to
+             "DC Mod OD" (was "92 Treadplate Modern") and cab/mic values had
+             changed too. Save to Rack just committed what was ALREADY on
+             the rack at that point — it captured real corruption, it did
+             not cause it. The only actions between the last known-good
+             state and this save were repeated FX1 bypass toggles plus two
+             sendFxHostModelChange calls (Graphic EQ <-> Parametric EQ,
+             fx-transport.js, ~08:37:38). So the actual suspect is that
+             model-change/bypass-toggle combination corrupting real hardware
+             DSP allocation (up to and including which amp is loaded), not
+             Save at all. Charlie proposed a Wireshark capture; redirected
+             it toward a narrower target than a Save comparison: toggle FX1
+             bypass a few times then change its host model with NO save in
+             between, and watch whether amp/cab data on the wire changes
+             unprompted.
+EVIDENCE:    session-2026-08-29-082919.log lines ~3803-3999.
+CONFLICTS:   none.
+FIX APPLIED: none yet for the corruption itself — needs the capture above
+             before guessing at fx-transport.js. Only the increment
+             regression was fixed this round.
+NEXT:        CHARLIE: run the narrower capture (FX1 bypass toggles + model
+             change, no save) and share it. Do not touch sendFxHostModelChange
+             blind without that evidence — this smells like a real hardware
+             DSP-reallocation quirk, not a decode bug, and guessing at it
+             risks the same "two failed fixes" trap the Primer warns about.
+
+-------------------------------------------------------------------
+DATE:        2026-08-29 (fourth round, same day)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE) — needs a
+             Wireshark capture to nail the exact wire format with certainty,
+             this fix is a best-effort heuristic from ONE live sample
+CONFIRMED:   (a) and (b) from the prior entry's NEXT — Save to Rack now
+             produces exactly one file (plain name); Save to Disk produces
+             one file (plain name, incremented on a genuine name conflict —
+             confirmed correct by Charlie). (d) not yet retested — Charlie
+             moved on to testing (c) and found it broken before circling
+             back to the FX1 model-change repro.
+AREA:        Hardware front-panel save detection — handleCmd04 /
+             handlePatchNameEnumReply (sysex-handler.js)
+FINDING:     (c) FAILED — Charlie pressed the real front-panel SAVE button
+             twice; NEITHER produced a TFX file. Root cause: the original
+             CMD 0x04 discrimination (Primer/code comment, long-standing,
+             predates this session) assumed a real hardware save's arm
+             broadcast is SHORT (<=10 bytes, no name) and only a name-query
+             reply is long (>10 bytes, has a name) — so handleCmd04 routed
+             anything long straight to handlePatchNameEnumReply, never to
+             handleSaveArm. Charlie's live capture shows this assumption is
+             WRONG: a genuine front-panel save's CMD 0x04 broadcast DOES
+             carry the embedded name (same [00][slot][name] shape as a name
+             reply) — so it always landed in the "long" bucket and NEVER
+             reached the save-arm logic. This may mean hardware-save
+             auto-capture has never actually worked via this code path in
+             the app's history (Charlie's original "the bug has been there
+             a very long time" framing, though this is a different specific
+             mechanism than the chain/bypass bug fixed earlier today).
+             The two formats ARE distinguishable, just not by overall
+             length>10: a plain name-echo/scan-reply always ends exactly 2
+             bytes after its name's null terminator (terminator + F7,
+             constant regardless of name length: total length = 10 +
+             nameLength, algebraically, confirmed against 2 independent
+             26-byte and 24-byte real examples in earlier logs). A real
+             hardware save's CMD 0x04 pads much further past the
+             terminator — ~41 bytes total for the same 16-char name
+             "Driftwood Purple" vs. 26 for a plain echo of the identical
+             name — presumably a fuller "slot committed" structure with
+             reserved/status bytes beyond just the name.
+EVIDENCE:    session-2026-08-29-081455.log, 08:15:53 (Charlie's first real
+             front-panel save press): "IN BRIDGE [41b] F0 13 0B 0F 02 04 00
+             0B 44 72 69 66 74 77 6F 6F 64 20 50 75 72 70 6C 65 00 00 00 00
+             00 00 00 00 00 00 00 00 00 00 00 00 00" — routed to
+             handlePatchNameEnumReply (just logged "Patch name scan: C4 =
+             ..."), never armed anything, so the following "Bulk data: ...
+             isSave=false" (line 1833) skipped the whole capture-to-disk
+             path. Same shape repeated at 08:16:31 (Charlie's second press),
+             same result — no file either time.
+CONFLICTS:   Retracts the "existing, confirmed behaviour" framing on
+             handleSaveArm/the short-form arm broadcast in the comment
+             added earlier today (armSaveSequence) — it was never actually
+             confirmed against live hardware-save traffic, only assumed
+             from older documentation. Tech Ref's CMD 0x04 section needs a
+             pass at wrap to reflect this.
+FIX APPLIED: handlePatchNameEnumReply (sysex-handler.js) now checks the
+             padding past the name's null terminator: if space is user
+             (0x00) and more than ~4 bytes follow the terminator, treat it
+             as a real hardware save too and call armSaveSequence(rawSlot,
+             ..., true) in addition to the normal name-cache update (which
+             still runs regardless — the name is genuinely correct either
+             way). handleSaveArm/the short-form path is left in place
+             untouched in case it's real for something else (e.g. a
+             bank-load-only signal, per the existing chain/save-vs-nav
+             comment) — this is additive, not a replacement.
+NEXT:        CHARLIE TO TEST LIVE: press the real front-panel SAVE button
+             and confirm a "_manual"-suffixed TFX now appears, then continue
+             to (d) — the Save-to-Rack-then-model-change repro, still not
+             retested. If a real save STILL produces no file, the 4-byte
+             padding threshold or the space/slot parse itself needs a fresh
+             Wireshark capture rather than another guess — flag that
+             explicitly rather than iterating blind a third time on this
+             one signal.
+
+-------------------------------------------------------------------
+DATE:        2026-08-29 (third round, same day)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE)
+AREA:        Save to Rack / Save to Disk / hardware save — file naming and
+             extra hardware traffic — capture-scan.js, sysex-handler.js,
+             state.js
+FINDING:     Both fixes above DID work (confirmed by comparing bypass state
+             before a save vs. immediately after — exact match across all
+             10 blocks, first time this round-trip). But Charlie then hit a
+             THIRD, separate issue on the same save: changing FX1's host
+             model (Parametric EQ -> Graphic EQ) right after a Save to Rack
+             flipped 5 unrelated blocks (WAH/FX2/VOL/MOD/DELAY) from
+             bypassed to active on real hardware (confirmed independently
+             over the wire, not a decode bug). Charlie's diagnosis, and the
+             one acted on here: this only happens after a save because
+             Save to Rack was never actually ONE action — saveToRackAndDisk
+             committed to the rack AND THEN did a second, separate
+             REQU_SEND_PATCH pull just to write a second TFX
+             (name_manual.tfx) to disk, on top of the first TFX
+             (plain name.tfx) the commit's own natural bulk broadcast
+             already produced for free. Two hardware round-trips and extra
+             async state in flight right when Charlie's next action landed,
+             vs. zero for an ordinary block/model edit — a plausible
+             contributor to the cross-talk, per Charlie: "any patch or
+             block manipulations... never cause other things to happen."
+             Separately, the "_manual" suffix logic was backwards from
+             Charlie's own mental model of how this was originally built
+             (matching Avid's simpler per-action save behaviour): he expected
+             a hardware front-panel save to be the one marked "_manual" (an
+             unprompted, out-of-band capture), and both software actions
+             (Save to Rack, Save to Disk) to write the plain name — the code
+             had it exactly reversed.
+EVIDENCE:    session-2026-08-29-072932.log — bypass state matched exactly
+             pre/post-save (see prior entry), then diverged only after the
+             FX-host model-change chain-array rewrite (sendFxHostModelChange,
+             fx-transport.js, unrelated/unmodified code) that followed. Save
+             to Rack in that log produced BOTH "Driftwood Purple.tfx" (free,
+             from the isSave branch) and "Driftwood Purple_manual.tfx" (the
+             extra pull) from one click.
+CONFLICTS:   none — Tech Ref Sec 15/17 area doc text describing Save to
+             Rack/Disk/hardware-save naming will need a pass at wrap to
+             match the corrected behavior once this is confirmed live.
+FIX APPLIED: (1) capture-scan.js saveToRackAndDisk — removed the trailing
+             sleep(500)+captureCurrentPatchNow() pull entirely. Save to Rack
+             is now commit-only, matching Avid's simpler per-action model
+             (Charlie: "scale it back to basics"). (2) state.js — added
+             saveSequenceIsHardware, set by armSaveSequence's new 3rd param
+             (sysex-handler.js: handleSaveArm passes true, the software-save
+             call in saveCurrentPatchToSlot passes nothing/false). (3)
+             sysex-handler.js — the isSave branch (now reached by BOTH a
+             real hardware save AND software Save to Rack, since both arm
+             the same sequence) picks the "_manual" suffix only when
+             saveSequenceIsHardware was true; the pendingManualCapture
+             branch (Save to Disk + the debug "Capture Current Patch"
+             button) dropped its "_manual" suffix — both are deliberate,
+             user-named/user-triggered pulls now, not hardware events.
+             Result: Save to Rack -> plain name.tfx (one file, one hardware
+             round-trip). Save to Disk -> plain name.tfx (unchanged
+             round-trip, just the suffix dropped). Hardware front-panel
+             save -> name_manual.tfx. Version bumped 1.3.60 -> 1.3.61.
+NEXT:        CHARLIE TO TEST LIVE: (a) Save to Rack produces exactly ONE
+             file, plain name, no "_manual". (b) Save to Disk produces one
+             file, plain name. (c) a real front-panel hardware save still
+             auto-captures, now named "_manual". (d) THE KEY RETEST: repeat
+             the earlier repro — Save to Rack, then open an FX-host panel
+             and change its model — and confirm the OTHER blocks no longer
+             flip active/bypassed as a side effect now that Save to Rack is
+             single-action. If the cross-talk still happens with only ONE
+             hardware round-trip in flight, the model-change mechanism
+             itself (sendFxHostModelChange) is the next place to dig,
+             independent of Save.
+
+-------------------------------------------------------------------
+DATE:        2026-08-29 (follow-up, same day)
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE)
+AREA:        AMP chain-row bypass state — updateCabMicReadouts (ui.js)
+FINDING:     The isSave-arming fix above (armSaveSequence) was confirmed
+             correctly detecting the software save this time (log shows
+             "Software save — arming...", "isSave=true", "Post-save:
+             re-reading chain map...", "requestAllBypass...", and "Bypass:
+             AMP -> ACTIVE" all firing right after Save to Rack — the first
+             fix DID work). But Charlie still saw the AMP button go dead
+             ~26s later ("Amp bypass state unknown yet, ignoring click" at
+             07:24:05). Root cause #2, independent of the isSave gap:
+             updateCabMicReadouts (ui.js ~line 876, pre-existing code, not
+             something either save fix touched) unconditionally set
+             blockBypass[SLOT_AMP] = undefined whenever the TFX body decode's
+             ampActive comes back null — which it ALWAYS does, because amp
+             active/bypass has no TFX key and is never present in a body
+             decode (the comment directly above it already said as much —
+             the comment was right, the code below it didn't follow its own
+             logic). saveToRackAndDisk's own trailing step (a manual-capture
+             SEND_PATCH pull, done purely to write the .tfx to disk) reuses
+             this same body-decode/updateCabMicReadouts path with isSave
+             correctly false (it's not a hardware-state-changing event) —
+             but that path still clobbered the AMP state that
+             requestAllBypass had JUST correctly resolved moments earlier,
+             with nothing left afterward to fix it again. cabBypassActive
+             right next to it already had the correct guard (only overwrite
+             when the decode has a real value) — blockBypass[SLOT_AMP] did
+             not.
+EVIDENCE:    session-2026-08-29-072226.log: 07:23:39 "Bypass: AMP -> ACTIVE"
+             (correct, from post-save requestAllBypass) -> 07:23:40 "Bulk
+             data: ... isSave=false" (the saveToRackAndDisk disk-capture
+             pull, decodeCabMicValues ampActive=null as always) -> 07:24:05
+             "Amp bypass state unknown yet, ignoring click".
+CONFLICTS:   none.
+FIX APPLIED: ui.js updateCabMicReadouts — blockBypass[SLOT_AMP] (and the
+             display driven by it) now only gets overwritten when
+             cabMic.ampActive is a real (non-null/undefined) value, mirroring
+             the guard cabBypassActive already had; otherwise the existing
+             known value (and its display) is left alone instead of being
+             reset to unknown. Version bumped 1.3.59 -> 1.3.60.
+NEXT:        CHARLIE TO TEST LIVE, same protocol as above: Save to Rack,
+             wait past the trailing disk-capture pull, THEN click AMP and
+             confirm it's still responsive and correct — that's the exact
+             gap this fix closes. Also re-check the other reported symptoms
+             (chain blocks dead / multi-block cross-talk) since those should
+             already be addressed by the isSave fix above, but hadn't been
+             separately confirmed yet as of this log.
+
+-------------------------------------------------------------------
+DATE:        2026-08-29
+STATUS:      [FOLDED IN: Tech Ref Sec 24 Change Log 2026-08-29 + Primer CURRENT APP STATE 2026-08-29] - orig: provisional (code fix written, NOT YET TESTED LIVE — Charlie's
+             build/test step still pending)
+AREA:        Save (Rack + Disk) / chain row bypass state / block handles —
+             saveSequenceDetected (sysex-handler.js) / saveCurrentPatchToSlot
+             (capture-scan.js)
+FINDING:     Root cause of Charlie's "everything goes weird after ANY save"
+             bug report (chain blocks can't be enabled/disabled, AMP shows
+             wrong/dead state, some chain actions turn on multiple blocks) —
+             present since at least v1.3.31, reproduced from Charlie's
+             session-2026-08-29-070012.log. handleBulkTfxData's isSave check
+             (saveSequenceDetected && slotNum===saveSequenceSlot) is the ONLY
+             gate on running the post-save recovery block (REQU_CHAIN_MAP
+             resend + the requestAllBypass it triggers, which is what
+             refreshes stale block handles/bypass after the hardware
+             reassigns handles on a save — see the existing comment at
+             sysex-handler.js ~line 187). saveSequenceDetected is armed ONLY
+             by handleSaveArm, which fires on an INCOMING short CMD 0x04
+             broadcast (<=10 bytes, no embedded name) — the real shape of a
+             HARDWARE FRONT-PANEL save's arm signal. A SOFTWARE-initiated
+             save (saveCurrentPatchToSlot, i.e. the app's own Save to
+             Rack/Disk) never produces that broadcast — the only CMD 0x04
+             traffic it ever sees is the long, name-bearing echo of its own
+             step-3 bank-index write (>10 bytes), which handleCmd04 correctly
+             routes to handlePatchNameEnumReply instead, not handleSaveArm.
+             Net effect: saveSequenceDetected stayed false for the entire
+             life of every software-triggered save, so its bulk broadcast
+             (confirmed in the log arriving mid-sequence, BEFORE the actual
+             commit/CMD 0x02 write even goes out — apparently provoked by the
+             CMD 0x03 dirty-flag clear) always fell into the "NOT A SAVE"
+             branch and never refreshed the chain map / bypass state —
+             exactly matching every symptom reported.
+EVIDENCE:    Charlie's log, 07:02:32-33: "Bulk data: 1352b slot=11 (C4)
+             saveSeq=false saveSlot=-1 isSave=false" during a real "Saving
+             current patch to C4" sequence — contrast with a genuine chain-
+             map-triggering event (e.g. 07:00:14, 07:01:07, 07:01:42) where
+             "requestAllBypass: queried 11 bypass flags across 10 blocks"
+             always follows. No "Post-save: re-reading chain map..." line
+             (sysex-handler.js's isSave-only log) appears anywhere after the
+             07:02:32 save. Post-save (07:02:37 on), "Amp bypass state
+             unknown yet, ignoring click" and a burst of 8 identical
+             sendBypassWrite 0x78 ACTIVE calls (07:02:37-07:02:48) with no
+             matching confirm broadcasts — consistent with stale/unrefreshed
+             blockBypass and block handles after the hardware reassigned them
+             on save.
+CONFLICTS:   none — this is a gap, not a contradiction of a documented fact.
+FIX APPLIED: sysex-handler.js — extracted the arming logic out of
+             handleSaveArm into a shared armSaveSequence(slot, source)
+             function. capture-scan.js — saveCurrentPatchToSlot now calls
+             armSaveSequence(slot, 'Software save') itself, right before it
+             sends anything, so its OWN bulk broadcast (whenever it lands,
+             including the early one seen in the log) is correctly recognized
+             as isSave and runs the existing chain-map-refresh/bypass-requery
+             recovery. Version bumped 1.3.58 -> 1.3.59.
+NEXT:        CHARLIE TO TEST LIVE: Save to Rack (and Save to Disk) repeatedly,
+             back-to-back, then immediately try toggling several chain blocks
+             (incl. AMP) and confirm they respond correctly and show true
+             state, with no multi-block cross-talk. This is an
+             INTERMITTENT/cumulative-feeling bug per Charlie's report ("more
+             of these are being used more real world one after the other") —
+             per Primer's own rule, needs MORE THAN ONE clean pass before
+             being called TESTED LIVE, not just one green save/toggle cycle.
+
+-------------------------------------------------------------------
+
 ===================================================================
 END OF ARCHIVE
 ===================================================================
+
 
 
 
