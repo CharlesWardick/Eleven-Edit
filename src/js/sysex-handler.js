@@ -203,10 +203,15 @@ async function handleBulkTfxData(data, cmd) {
     // case gets the "_manual" suffix; Save to Rack's own free capture (this
     // is the SAME capture, not a second pull) gets the plain name. Save to
     // Disk is unrelated to this branch entirely (pendingManualCapture below).
+    // incrementIfExists on BOTH — a real save shouldn't silently clobber an
+    // earlier capture of the same name any more than Save to Disk or a
+    // hardware save does (found 2026-08-29: Save to Rack was overwriting
+    // on every repeat save while the other two paths correctly incremented
+    // — an oversight in the naming-swap fix, not an intentional split).
     const captureName = (currentPatchName || 'patch').replace(/[\\/:*?"<>|]/g, '_').substring(0,24)
       + (isHardwareSave ? '_manual' : '');
     try {
-      const result = await window.electronAPI.saveTfx(captureName, payload, isHardwareSave ? { incrementIfExists: true } : undefined);
+      const result = await window.electronAPI.saveTfx(captureName, payload, { incrementIfExists: true });
       if (result && result.ok) {
         document.getElementById('capture-info').innerHTML =
           'Captures this session: <span>' + captureCount + '</span> — last: ' + result.filename;

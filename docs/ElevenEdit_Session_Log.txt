@@ -297,6 +297,48 @@ NEXT:        CHARLIE TO TEST LIVE: press the real front-panel SAVE button
              one signal.
 
 -------------------------------------------------------------------
+DATE:        2026-08-29 (fifth round, same day)
+STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — Save to
+             Rack (c) confirmed by Charlie: hardware save now correctly
+             produces "_manual", Save to Disk correct, no FX1 anomaly
+             immediately after either. Save to Rack itself was overwriting
+             on repeat saves instead of incrementing (regression from the
+             1.3.61 naming-swap commit — incrementIfExists was only passed
+             on the isHardwareSave branch). FIXED: sysex-handler.js's isSave
+             branch now passes { incrementIfExists: true } unconditionally.
+             Version bumped 1.3.62 -> 1.3.63.
+AREA:        FX1 chain-row corruption — NOT a save bug after all
+FINDING:     Charlie hit the chain-scrambling symptom again, but traced it
+             to BEFORE a Save to Rack this time, not after. The third Save
+             to Rack in this log (08:38:44) captured a bulk body of only
+             1104 bytes vs. the 1176 bytes every other capture of this same
+             patch showed all session — the amp had actually changed to
+             "DC Mod OD" (was "92 Treadplate Modern") and cab/mic values had
+             changed too. Save to Rack just committed what was ALREADY on
+             the rack at that point — it captured real corruption, it did
+             not cause it. The only actions between the last known-good
+             state and this save were repeated FX1 bypass toggles plus two
+             sendFxHostModelChange calls (Graphic EQ <-> Parametric EQ,
+             fx-transport.js, ~08:37:38). So the actual suspect is that
+             model-change/bypass-toggle combination corrupting real hardware
+             DSP allocation (up to and including which amp is loaded), not
+             Save at all. Charlie proposed a Wireshark capture; redirected
+             it toward a narrower target than a Save comparison: toggle FX1
+             bypass a few times then change its host model with NO save in
+             between, and watch whether amp/cab data on the wire changes
+             unprompted.
+EVIDENCE:    session-2026-08-29-082919.log lines ~3803-3999.
+CONFLICTS:   none.
+FIX APPLIED: none yet for the corruption itself — needs the capture above
+             before guessing at fx-transport.js. Only the increment
+             regression was fixed this round.
+NEXT:        CHARLIE: run the narrower capture (FX1 bypass toggles + model
+             change, no save) and share it. Do not touch sendFxHostModelChange
+             blind without that evidence — this smells like a real hardware
+             DSP-reallocation quirk, not a decode bug, and guessing at it
+             risks the same "two failed fixes" trap the Primer warns about.
+
+-------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Click-to-rename + Jump List hint — final polish pass
