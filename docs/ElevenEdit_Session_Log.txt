@@ -39,7 +39,10 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-29
-STATUS:      provisional  (NOT YET TESTED LIVE — code changed, awaiting build)
+STATUS:      confirmed — TESTED LIVE (Charlie, 2026-08-29): "no brick and fully
+             functional to amp source." All source values worked; source moved
+             on the rack's own setting screen; no assert across the test. The
+             3x-brick command is fixed. (Ready to FOLD IN at wrap — see NEXT.)
 AREA:        To Amp Source / CMD 0x37 (3rd attempt — the brick command)
 FINDING:     Our CMD 0x37 send has ALWAYS carried one extra byte. The real
              message the Avid editor sends is 9 bytes:
@@ -83,13 +86,33 @@ CHANGES:     transport.js sendToAmpSource — dropped the 07 (now 9-byte bare
              the box growing taller (Charlie's call). ui.js — picker change
              listeners send sendToAmpSource(slot,val) bare; global, does not
              light SAVE. Version 1.3.67 -> 1.3.68.
-NEXT:        LIVE TEST, CAREFULLY — this is the 3x-brick command. Full bank
-             backup FIRST. Then one single source change, eyes on the rack:
-             expect the source to actually move (chain-row indicator shifts)
-             and NO assert. If clean, walk all four values on both amps. On
-             success, fold the corrected format into Tech Ref Sec 18 + Change
-             Log, flip the Primer lines, and discard the investigation brief.
-             If it still asserts/bricks: power-cycle, do NOT resend, report.
+NEXT (fold at wrap): corrected 9-byte CMD 0x37 into Tech Ref Sec 18 (replace
+             the "root cause unknown" + spurious-07 send form + the "must query
+             first" claim) and Sec 4/CMD-list 0x37 line; add a Change Log entry.
+             Primer: move To Amp source out of NOT YET IMPLEMENTED into WORKING;
+             soften the DO-NOT-RETRY 0x37 entry to "the brick cause was the
+             malformed extra byte, now fixed — the corrected 9-byte send is
+             confirmed safe, but keep respecting the command." Discard the
+             investigation brief (its job is done). NOT yet folded — waiting on
+             Charlie's wrap signal.
+
+OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
+  1. UI polish — the shrunk 56px To Amp knobs look undersized next to the
+     80px Gate/Volumes knobs. Options on the table: (a) revert To Amp knobs
+     to 80px and let that box grow taller with the two pickers in a sub-row
+     (uneven bottom edge in ROW 1); (b) keep 80px knobs, put the two pickers
+     in a small stacked column to the RIGHT of the knobs inside the box
+     (keeps height, widens the box); (c) relocate the To Amp group / re-anchor
+     the right frame to make proper room (Charlie's "move that entire panel"
+     idea). No decision yet.
+  2. EXTRA HW-ONLY SOURCE OPTIONS — the rack has source values Avid's editor
+     never exposed: "Rig Out No Cab" (a 5th source, wire val unknown — likely
+     0x04/0x05) and "RESO", which appears ONLY when the source is Amp Output
+     or Rig Out No Cab and is a SEPARATE universal toggle button on the HW
+     panel (its own command, not a 0x37 val). Avid apparently couldn't/didn't
+     implement these. Future capture target if Charlie wants them: grab the
+     HW panel setting these to get Rig Out No Cab's 0x37 val and RESO's own
+     command. Not needed for the core feature, which is complete.
 -------------------------------------------------------------------
 
 (No live provisional entries. All folded / resolved / closed entries
