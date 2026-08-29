@@ -38,6 +38,70 @@ ENTRIES (newest first)
 ===================================================================
 
 -------------------------------------------------------------------
+DATE:        2026-08-29
+STATUS:      provisional (code fix written, NOT YET TESTED LIVE — Charlie's
+             build/test step still pending)
+AREA:        Save (Rack + Disk) / chain row bypass state / block handles —
+             saveSequenceDetected (sysex-handler.js) / saveCurrentPatchToSlot
+             (capture-scan.js)
+FINDING:     Root cause of Charlie's "everything goes weird after ANY save"
+             bug report (chain blocks can't be enabled/disabled, AMP shows
+             wrong/dead state, some chain actions turn on multiple blocks) —
+             present since at least v1.3.31, reproduced from Charlie's
+             session-2026-08-29-070012.log. handleBulkTfxData's isSave check
+             (saveSequenceDetected && slotNum===saveSequenceSlot) is the ONLY
+             gate on running the post-save recovery block (REQU_CHAIN_MAP
+             resend + the requestAllBypass it triggers, which is what
+             refreshes stale block handles/bypass after the hardware
+             reassigns handles on a save — see the existing comment at
+             sysex-handler.js ~line 187). saveSequenceDetected is armed ONLY
+             by handleSaveArm, which fires on an INCOMING short CMD 0x04
+             broadcast (<=10 bytes, no embedded name) — the real shape of a
+             HARDWARE FRONT-PANEL save's arm signal. A SOFTWARE-initiated
+             save (saveCurrentPatchToSlot, i.e. the app's own Save to
+             Rack/Disk) never produces that broadcast — the only CMD 0x04
+             traffic it ever sees is the long, name-bearing echo of its own
+             step-3 bank-index write (>10 bytes), which handleCmd04 correctly
+             routes to handlePatchNameEnumReply instead, not handleSaveArm.
+             Net effect: saveSequenceDetected stayed false for the entire
+             life of every software-triggered save, so its bulk broadcast
+             (confirmed in the log arriving mid-sequence, BEFORE the actual
+             commit/CMD 0x02 write even goes out — apparently provoked by the
+             CMD 0x03 dirty-flag clear) always fell into the "NOT A SAVE"
+             branch and never refreshed the chain map / bypass state —
+             exactly matching every symptom reported.
+EVIDENCE:    Charlie's log, 07:02:32-33: "Bulk data: 1352b slot=11 (C4)
+             saveSeq=false saveSlot=-1 isSave=false" during a real "Saving
+             current patch to C4" sequence — contrast with a genuine chain-
+             map-triggering event (e.g. 07:00:14, 07:01:07, 07:01:42) where
+             "requestAllBypass: queried 11 bypass flags across 10 blocks"
+             always follows. No "Post-save: re-reading chain map..." line
+             (sysex-handler.js's isSave-only log) appears anywhere after the
+             07:02:32 save. Post-save (07:02:37 on), "Amp bypass state
+             unknown yet, ignoring click" and a burst of 8 identical
+             sendBypassWrite 0x78 ACTIVE calls (07:02:37-07:02:48) with no
+             matching confirm broadcasts — consistent with stale/unrefreshed
+             blockBypass and block handles after the hardware reassigned them
+             on save.
+CONFLICTS:   none — this is a gap, not a contradiction of a documented fact.
+FIX APPLIED: sysex-handler.js — extracted the arming logic out of
+             handleSaveArm into a shared armSaveSequence(slot, source)
+             function. capture-scan.js — saveCurrentPatchToSlot now calls
+             armSaveSequence(slot, 'Software save') itself, right before it
+             sends anything, so its OWN bulk broadcast (whenever it lands,
+             including the early one seen in the log) is correctly recognized
+             as isSave and runs the existing chain-map-refresh/bypass-requery
+             recovery. Version bumped 1.3.58 -> 1.3.59.
+NEXT:        CHARLIE TO TEST LIVE: Save to Rack (and Save to Disk) repeatedly,
+             back-to-back, then immediately try toggling several chain blocks
+             (incl. AMP) and confirm they respond correctly and show true
+             state, with no multi-block cross-talk. This is an
+             INTERMITTENT/cumulative-feeling bug per Charlie's report ("more
+             of these are being used more real world one after the other") —
+             per Primer's own rule, needs MORE THAN ONE clean pass before
+             being called TESTED LIVE, not just one green save/toggle cycle.
+
+-------------------------------------------------------------------
 DATE:        2026-08-28
 STATUS:      [FOLDED IN: ElevenEdit_Primer.txt CURRENT APP STATE, 2026-08-28 wrap entry]
 AREA:        Click-to-rename + Jump List hint — final polish pass

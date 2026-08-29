@@ -323,8 +323,29 @@ function handlePatchNameEnumReply(data) {
 
 function handleSaveArm(data) {
   if (data.length < 8) return;
-  const armed_slot = data[7];
-  appLog('CMD 0x04 — arming save sequence for slot ' + armed_slot + ' (' + slotLabel(armed_slot) + ')');
+  armSaveSequence(data[7], 'CMD 0x04 broadcast');
+}
+
+// Shared arming logic — sets the window that lets the NEXT matching bulk
+// broadcast (CMD 0x00, same slot) be treated as a save instead of an
+// ordinary nav/bank-load bulk (see handleBulkTfxData's isSave check above).
+// A real front-panel save arms itself via the hardware's own short CMD 0x04
+// broadcast (handleSaveArm). A SOFTWARE-initiated Save to Rack/Disk
+// (saveCurrentPatchToSlot, capture-scan.js) never receives that broadcast —
+// the only CMD 0x04 traffic it sees is the long, name-bearing echo of its
+// own bank-index write, which handleCmd04 correctly routes to
+// handlePatchNameEnumReply instead (it IS a name reply, not an arm signal).
+// Left alone, that meant every software save's own mid-save bulk broadcast
+// fell through to the "NOT A SAVE" branch, silently skipping the post-save
+// chain-map refresh + bypass requery that branch is responsible for —
+// exactly the "chain row dead after Save" bug (found 2026-08-29): stale
+// block handles and stale blockBypass entries (esp. AMP, which always
+// shows 'unknown' from a bulk decode alone — see updateCabMicReadouts)
+// survive a hardware handle-reassignment because nothing ever refreshed
+// them. Fix: saveCurrentPatchToSlot arms this directly for its own target
+// slot before it sends anything, so ITS bulk broadcast is recognized too.
+function armSaveSequence(armed_slot, source) {
+  appLog((source || 'software save') + ' — arming save sequence for slot ' + armed_slot + ' (' + slotLabel(armed_slot) + ')');
   saveSequenceDetected = true;
   saveSequenceSlot = armed_slot;
   if (saveSequenceTimer) clearTimeout(saveSequenceTimer);

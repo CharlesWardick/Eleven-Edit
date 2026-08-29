@@ -302,6 +302,16 @@ async function saveCurrentPatchToSlot(nameOverride, targetSlot) {
   appLog('Saving current patch to ' + slotLabel(slot) + ' as "' + name + '"');
   setStatus('Saving to ' + slotLabel(slot) + '...');
 
+  // Arm the save-sequence detector ourselves (sysex-handler.js) — a
+  // software-initiated save never receives the short hardware-only CMD 0x04
+  // arm broadcast a front-panel save does, so without this the bulk
+  // broadcast this save provokes (often arriving mid-sequence, before the
+  // commit step below even sends) is misread as an ordinary nav bulk and
+  // skips the post-save chain-map refresh + bypass requery, leaving the
+  // chain row's block handles/bypass state stale after every save (found
+  // 2026-08-29 — chain buttons dead / wrong state after Save to Rack/Disk).
+  if (typeof armSaveSequence === 'function') armSaveSequence(slot, 'Software save');
+
   // 1. Name write
   sendHex('F0 13 0B 0F 00 05 ' + nameHex + ' 00 F7');
   await sleep(150);
