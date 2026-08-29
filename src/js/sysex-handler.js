@@ -796,10 +796,12 @@ function handleToAmpSourceQueryResp(data) {
 // ════════════════════════════════════════════════════════════════════
 // CMD 0x37 — To Amp source broadcast
 // ════════════════════════════════════════════════════════════════════
-// Format: F0 13 0B 0F 02 37 07 [slot] [val] F7
+// Format: F0 13 0B 0F 02 37 [slot] [val] F7   (9 bytes — corrected 2026-08-29;
+// the old comment's extra 0x07 was USB-MIDI framing, see transport.js
+// sendToAmpSource). data[6]=slot, data[7]=val — this decode was already right.
 // slot: 0x00=ToAmp1, 0x01=ToAmp2.
 // val:  0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output.
-// Confirmed 7/17/2026 from Avid editor capture.
+// Fires on our own send's echo, and on front-panel / Avid-editor changes.
 function handleToAmpSourceBroadcast(data) {
   if (data.length < 9) return;
   const slot = data[6];

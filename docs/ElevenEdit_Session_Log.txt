@@ -37,6 +37,61 @@ NEXT:        what would confirm it, or what to do with it
 ENTRIES (newest first)
 ===================================================================
 
+-------------------------------------------------------------------
+DATE:        2026-08-29
+STATUS:      provisional  (NOT YET TESTED LIVE — code changed, awaiting build)
+AREA:        To Amp Source / CMD 0x37 (3rd attempt — the brick command)
+FINDING:     Our CMD 0x37 send has ALWAYS carried one extra byte. The real
+             message the Avid editor sends is 9 bytes:
+                 F0 13 0B 0F 00 37 [slot] [val] F7
+             We were sending 10:
+                 F0 13 0B 0F 00 37 07 [slot] [val] F7
+             The 0x07 is a USB-MIDI packet-framing byte (CIN header of the
+             final 4-byte packet, 0x07 = "SysEx ends, 3 data bytes"), misread
+             off the 7/17 capture as payload. Sending it shifts everything
+             over one: the rack reads slot=0x07 (invalid — only 0x00/0x01
+             exist). That single byte explains BOTH open mysteries — why the
+             source never moved (garbage slot) AND why it bricked (bad index
+             into a 2-entry ROUTING table = the "malformed routing" the
+             investigation brief hypothesised). Identical bug class to the
+             CMD 0x0D Stereo/Mono framing byte already fixed in code.
+             ALSO: the editor sends NO CMD 0x3A query before a change (six
+             changes, zero queries in the capture). The "must query first or
+             it asserts" rule was a side effect of the malformed write, not a
+             real prerequisite. Source is now sent bare, matching Avid.
+EVIDENCE:    93ee3c7d-To_Amp_Captures_Opus_Session.pcapng (USBPcap, Win10).
+             6 source changes, each an OUT + a HW echo. Decoded by hand in
+             Python (pcapng -> USB-MIDI CIN reassembly). Move 1 (ToAmp1->Amp
+             Input) OUT packets: 04 f0 13 0b | 04 0f 00 37 | 07 00 01 f7  ->
+             SysEx F0 13 0B 0F 00 37 00 01 F7 (slot=00 val=01). All six moves
+             decode to exactly the slot/val Charlie performed, in order. The
+             math is forced: 9 message bytes packetize to exactly the 12 data
+             bytes (3 USB packets) present; a real 10-byte message would need
+             16 bytes / 4 packets, which is NOT in the capture.
+CONFLICTS:   Tech Ref Sec 18 "TO AMP SOURCE (CMD 0x37)" send form (has the
+             spurious 07); Sec 4/CMD-list 0x37 line; the "must be preceded by
+             CMD 0x3A query" claim (Sec 18 + transport.js). Primer NOT YET
+             IMPLEMENTED "To Amp source" line and DO-NOT-RETRY 0x37 entry.
+             DO NOT fold any of these until Charlie confirms live.
+CHANGES:     transport.js sendToAmpSource — dropped the 07 (now 9-byte bare
+             send); query-first path (sendToAmpSourceQuery/Queried) marked
+             RETIRED/dormant, no longer called. sysex-handler.js 0x37
+             broadcast comment corrected (code already read data[6]/data[7],
+             i.e. was already right for 9-byte). index.html — two source
+             <select>s (#toamp1-src/#toamp2-src) re-added inside the To Amp
+             box; the two vol knobs shrunk 80->56px so the pickers fit without
+             the box growing taller (Charlie's call). ui.js — picker change
+             listeners send sendToAmpSource(slot,val) bare; global, does not
+             light SAVE. Version 1.3.67 -> 1.3.68.
+NEXT:        LIVE TEST, CAREFULLY — this is the 3x-brick command. Full bank
+             backup FIRST. Then one single source change, eyes on the rack:
+             expect the source to actually move (chain-row indicator shifts)
+             and NO assert. If clean, walk all four values on both amps. On
+             success, fold the corrected format into Tech Ref Sec 18 + Change
+             Log, flip the Primer lines, and discard the investigation brief.
+             If it still asserts/bricks: power-cycle, do NOT resend, report.
+-------------------------------------------------------------------
+
 (No live provisional entries. All folded / resolved / closed entries
 have been drained to the Archive — see the index below. Add new
 findings here as work resumes.)

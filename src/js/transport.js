@@ -593,10 +593,17 @@ function sendMute(channel, muted) {
 }
 
 // ── CMD 0x3A — To Amp source query. slot: 0x00=ToAmp1, 0x01=ToAmp2.
-// Avid editor always sends this REQU before changing the source via CMD 0x37.
-// Confirmed 7/17/2026 from Avid editor capture — skipping this caused HW assert.
+// RETIRED 2026-08-29 (dormant, not called by any active path). The 2026-08-29
+// ToAmp_Source capture shows the Avid editor sends NO CMD 0x3A before a source
+// change — six changes, zero queries. The old "must query first or it asserts"
+// belief was a side effect of the real bug: the malformed 0x37 (extra 0x07
+// framing byte, now fixed) was what asserted, not the missing query. Source is
+// now sent bare, matching Avid exactly. Left here in case a connect-time
+// "read current source" is ever wanted (would need a fresh 0x3A response
+// capture to confirm the true reply length — the 07 below is likely framing too).
 // Format: F0 13 0B 0F 01 3A [slot] F7
-// Response: F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7
+// Response (per 7/17 read, unverified against the framing correction):
+//   F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7
 function sendToAmpSourceQuery(slot) {
   const hex = 'F0 13 0B 0F 01 3A '
     + slot.toString(16).padStart(2,'0').toUpperCase() + ' F7';
@@ -618,12 +625,22 @@ function sendToAmpSourceQueried(slot, val) {
   sendToAmpSourceQuery(slot);
 }
 // val: 0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output.
-// Confirmed wire format 7/17/2026 from Avid editor capture (USB framing stripped):
-//   F0 13 0B 0F 00 37 07 [slot] [val] F7
-// Hardware echoes back with dir=0x02, same format.
-// Global setting — not per-patch, not in TFX body.
+// slot: 0x00=ToAmp1, 0x01=ToAmp2.
+// CORRECTED WIRE FORMAT (2026-08-29, ToAmp_Source capture, Opus session):
+//   F0 13 0B 0F 00 37 [slot] [val] F7          <- 9 bytes, what Avid sends
+// The old "F0 13 0B 0F 00 37 07 [slot] [val] F7" was WRONG: that 0x07 is a
+// USB-MIDI packet-framing byte (the CIN header on the final 4-byte packet,
+// 0x07 = "SysEx ends, 3 data bytes"), NOT part of the message. It was misread
+// off the 7/17 capture and baked in here. Sending it shifted every byte over —
+// the rack read slot=0x07 (out of range; only 0x00/0x01 exist), which is why
+// (a) the source never moved and (b) it bricked: a bad index into a 2-entry
+// ROUTING table. Exact same class of bug already fixed on CMD 0x0D Stereo/Mono
+// (see sendMonoStereo below — "the 0x04 / 0x06 bytes are USB-MIDI framing").
+// The Java bridge adds the USB-MIDI framing on the way out, so we send the
+// clean SysEx only. Hardware echoes back dir=0x02, same 9-byte layout.
+// Global setting — not per-patch, not in TFX body, does NOT light the SAVE latch.
 function sendToAmpSource(slot, val) {
-  const hex = 'F0 13 0B 0F 00 37 07 '
+  const hex = 'F0 13 0B 0F 00 37 '
     + slot.toString(16).padStart(2,'0').toUpperCase() + ' '
     + (val & 0x7F).toString(16).padStart(2,'0').toUpperCase() + ' F7';
   appLog('sendToAmpSource: slot=0x' + slot.toString(16).padStart(2,'0') + ' val=0x' + (val & 0x7F).toString(16).padStart(2,'0').toUpperCase());

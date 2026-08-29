@@ -2835,7 +2835,25 @@ var toAmp2Dragging = false;
 initKnob('toamp1-vol-wrap', 'toamp1-vol-val', valToAmpVol, function(v) { sendToAmpVolume(0x02, v); });
 initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valToAmpVol, function(v) { sendToAmpVolume(0x03, v); });
 
-// To Amp source dropdown listeners removed 7/17/2026 — dropdowns removed
-// from GUI pending full CMD 0x37 implementation. Code in transport.js and
-// sysex-handler.js preserved for future use.
+// To Amp source pickers (re-enabled 2026-08-29 with the corrected 9-byte
+// CMD 0x37, see transport.js sendToAmpSource). Sent BARE — no CMD 0x3A query
+// first — matching the Avid editor exactly (the 2026-08-29 capture shows it
+// queries nothing before a source change). Source is global, not per-patch, so
+// this must NOT light the SAVE latch: sendToAmpSource uses sendHex directly,
+// not sendPatchWrite, so it doesn't. The <select> sits inside #toampN-knob,
+// which setVolumeControlsEnabled() enables/disables on bridge connect, so the
+// picker is dead (pointer-events:none, dimmed) until the rack is live — no
+// separate enable wiring needed. The picker reflects confirmed state via the
+// CMD 0x37 broadcast handler (our own send's echo, or a front-panel/editor
+// change); it starts on the "— Src —" placeholder because there is no
+// connect-time source read (same limitation as the Input selector).
+[['toamp1-src', 0x00], ['toamp2-src', 0x01]].forEach(function(pair) {
+  var sel = document.getElementById(pair[0]);
+  if (!sel) return;
+  sel.addEventListener('change', function() {
+    var val = parseInt(sel.value, 10);
+    if (isNaN(val) || val < 0) return;
+    sendToAmpSource(pair[1], val);
+  });
+});
 
