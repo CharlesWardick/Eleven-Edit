@@ -446,6 +446,78 @@ NEXT:        CHARLIE TO TEST LIVE: repeat the exact same-slot Save to Rack
              investigation.
 
 -------------------------------------------------------------------
+DATE:        2026-08-29 (ninth round, same day)
+STATUS:      provisional (code fix written, NOT YET TESTED LIVE) — strongest
+             lead of the whole investigation: a concrete, byte-level
+             difference between this app and the Avid Editor, visible in
+             both captures, not another guess.
+AREA:        Post-save query flood injected mid-save-transaction
+             (sysex-handler.js isSave branch -> moved to capture-scan.js
+             saveCurrentPatchToSlot, after the commit)
+FINDING:     1.3.66's amp-select re-query CONFIRMED the corruption in this
+             app's OWN log for the first time: model change at 10:28:01,
+             amp readback flips 0x0B Treadplate -> 0x23 DC Modern OD at
+             10:28:02, queried on the correct new handle. Real, not
+             inferred. Then answered Charlie's standing question ("if
+             same-slot and different-slot save do the same thing, why does
+             only same-slot break?") by actually byte-diffing the two:
+               - DIFFERENT-slot save (Z1, be90309a log): the commit
+                 navigates hardware to the new slot -> "Slot confirmed: 100
+                 (Z1)" -> full Nav pull -> hardware RELOADS the patch fresh
+                 into its live buffer. handleSlotConfirm's slot-changed
+                 guard fires.
+               - SAME-slot save (C4): commit says "go to C4" but already on
+                 C4 -> no slot change -> handleSlotConfirm does NOTHING ->
+                 no reload. Buffer keeps its post-save state.
+             BUT: Avid ALSO saves same-slot (confirmed in its pcapng) and
+             does NOT corrupt, so "same-slot leaves a dirty buffer" can't be
+             the whole story. Byte-diffed the two save SEQUENCES and found
+             the one thing this app does that Avid doesn't:
+               - Avid order: name (05) -> dirty (03) -> bank-index (04) ->
+                 COMMIT (02) -> THEN chain-map read (01 21) + param queries.
+                 All four save commands first, queries only after commit.
+               - This app: name (05) -> dirty (03) -> [the dirty write's
+                 bulk broadcast triggers the isSave branch, which
+                 IMMEDIATELY fires a chain-map read + bypass/amp/param query
+                 flood] -> bank-index (04) -> COMMIT (02). The re-read and
+                 flood are injected BETWEEN the dirty flag and the commit —
+                 into the middle of the hardware's own save transaction.
+                 Plainly visible in the 10:27:48 timestamps: "Post-save:
+                 re-reading chain map" and the CMD 0x11 queries all land
+                 before "Save commit sent".
+             This mid-transaction poking is the prime suspect for leaving
+             the hardware in the state where the NEXT chain rewrite (an
+             FX-host model change) corrupts the amp. Different-slot save
+             hides it because the post-commit navigation reloads the buffer
+             fresh afterward.
+EVIDENCE:    f94123e7 Avid pcapng (msgs 0-6,11: all 4 save cmds then commit
+             then queries) vs. b0b9794b log (10:27:48: re-read + queries
+             before "Save commit sent" at 10:27:49). Amp flip:
+             b0b9794b 10:28:01->10:28:02.
+CONFLICTS:   retracts 1.3.65's "missing settle delay" theory (settle didn't
+             help — Charlie waited 36s and it still broke) and 1.3.66's
+             amp-select re-query as a FIX (it was diagnostic, not a fix —
+             still correct to keep, it's what caught the flip in-log).
+FIX APPLIED: (1) sysex-handler.js isSave branch — the immediate post-save
+             chain-map re-read now runs ONLY for a hardware front-panel save
+             (saveSequenceIsHardware; the hardware already committed before
+             broadcasting, so it's not mid-transaction there). For a
+             software save it no longer fires here. (2) capture-scan.js
+             saveCurrentPatchToSlot — added a step 5 AFTER the commit
+             (CMD 0x02): settle, then REQU_CHAIN_MAP. This matches Avid's
+             ordering exactly (all four save commands, THEN the queries) and
+             still refreshes the reassigned handles a same-slot save needs.
+             Version bumped 1.3.66 -> 1.3.67.
+NEXT:        CHARLIE TO TEST LIVE: the same-slot Save to Rack + FX1
+             model-change sequence. If the amp no longer flips (watch the
+             new "Amp Select readback" line — it should stay Treadplate),
+             this ordering difference was the cause. If it STILL flips even
+             with queries moved after the commit, the next definitive step
+             is a Wireshark capture of THIS APP failing, to byte-diff
+             against the Avid clean capture already in hand and find any
+             remaining divergence.
+
+-------------------------------------------------------------------
 DATE:        2026-08-29 (eighth round, same day) — 1.3.65's settle-delay fix
              DID NOT WORK: Charlie retested with a 36-second gap between
              save and the FX1 model change and it still corrupted the amp,

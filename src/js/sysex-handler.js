@@ -190,27 +190,34 @@ async function handleBulkTfxData(data, cmd) {
     // A save makes the rack re-instantiate the patch and REASSIGN block
     // handles, so currentParamHi (and the effect handles) are now stale —
     // SW knob writes would hit the old amp handle and appear dead until a HW
-    // knob turn triggers the self-heal. Re-read the chain map now to refresh
-    // all handles (and currentChain / bypass / effect panels) proactively.
-    // SETTLE DELAY (found 2026-08-29, Charlie's own isolating test — same-
-    // slot save corrupts the chain on the next FX-host model change,
-    // different-slot save never does): a save to a DIFFERENT slot gets
-    // bailed out by handleSlotConfirm's own full resync (clearStaleReadoutsOnNav
-    // + requestPatchStateAfterNav), which ALWAYS waits NAV_RECALL_SETTLE
-    // before querying anything — because the hardware genuinely needs that
-    // settle time to finish reinstantiating the patch. That resync only
-    // fires when the confirmed slot actually differs from currentSlot
-    // (handleSlotConfirm's own guard), so a same-slot save never gets it —
-    // this REQU_CHAIN_MAP was firing with NO settle delay at all, unlike
-    // every other post-commit/post-nav re-read in the app. If hardware
-    // hasn't finished reassigning handles yet, the reply this elicits (and
-    // therefore currentChain) can be stale, and an FX-host model change
-    // built from that stale chain writes wrong handles for the other 9
-    // blocks — a plausible mechanism for the corruption, not yet proven
-    // but matching every observation so far.
-    if (typeof REQU_CHAIN_MAP !== 'undefined') {
+    // knob turn triggers the self-heal. The chain map must be re-read to
+    // refresh all handles (and currentChain / bypass / effect panels).
+    //
+    // ORDERING FIX (2026-08-29 — the real one, from a byte-level Wireshark
+    // diff against the Avid Editor doing the identical same-slot Save +
+    // FX-host model change with NO corruption): this bulk broadcast is
+    // triggered by our OWN dirty-flag write (CMD 0x03, step 2 of the 4-step
+    // software save in saveCurrentPatchToSlot) — it arrives BEFORE the save
+    // commit (CMD 0x02, step 4) has even been sent. Firing a chain-map
+    // re-read + a bypass/amp/param query flood HERE injects all that traffic
+    // into the MIDDLE of the hardware's own save transaction, between the
+    // dirty flag and the commit. Avid never does this: it sends all four
+    // save commands cleanly and only queries AFTER the commit completes.
+    // That mid-transaction poking is the one concrete thing this app does
+    // that Avid does not, and is the prime suspect for leaving the hardware
+    // in the state where the NEXT chain rewrite (an FX-host model change)
+    // corrupts the amp — a different-slot save hides it only because its
+    // commit navigates away and the resulting nav pull reloads the buffer
+    // fresh afterward.
+    //
+    // So: for a SOFTWARE save, DON'T re-read here — saveCurrentPatchToSlot
+    // (capture-scan.js) now does it AFTER its commit, matching Avid's order.
+    // A HARDWARE front-panel save is different: the hardware ran its own
+    // transaction to completion and committed BEFORE broadcasting this, so
+    // reacting now is not mid-transaction and stays here.
+    if (isHardwareSave && typeof REQU_CHAIN_MAP !== 'undefined') {
       await sleep(NAV_RECALL_SETTLE);
-      appLog('Post-save: re-reading chain map to refresh reassigned block handles');
+      appLog('Post-save (hardware): re-reading chain map to refresh reassigned block handles');
       sendHex(REQU_CHAIN_MAP);
     }
     // 2026-08-29 (Charlie's call, scaling Save back to Avid's simple A/B/C

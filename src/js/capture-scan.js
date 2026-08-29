@@ -345,6 +345,25 @@ async function saveCurrentPatchToSlot(nameOverride, targetSlot) {
 
   setStatus('Saved to ' + slotLabel(slot));
   appLog('Save commit sent for ' + slotLabel(slot));
+
+  // 5. POST-COMMIT chain-map refresh — moved here (2026-08-29) from the
+  // isSave bulk-broadcast handler (sysex-handler.js). The handles the rack
+  // reassigns on a save still have to be re-read, but doing it in reaction
+  // to the mid-save bulk broadcast fired the read + a query flood BETWEEN
+  // step 2 (dirty) and this commit — i.e. into the middle of the hardware's
+  // save transaction, which the Avid Editor never does (byte-level Wireshark
+  // diff, 2026-08-29) and is the prime suspect for the same-slot-save +
+  // FX-model-change amp corruption. Firing it HERE, after the commit, with a
+  // settle delay, matches Avid's ordering: all four save commands first,
+  // then the queries. A same-slot commit does not navigate (no slot change,
+  // so handleSlotConfirm's own resync never runs), which is exactly why the
+  // re-read has to be driven explicitly here for that case; a different-slot
+  // commit navigates and gets its own nav pull on top, harmlessly.
+  if (typeof REQU_CHAIN_MAP !== 'undefined') {
+    await sleep(NAV_RECALL_SETTLE);
+    appLog('Post-save (software): re-reading chain map after commit');
+    sendHex(REQU_CHAIN_MAP);
+  }
 }
 
 // Save to Rack — commit ONLY (2026-08-29 simplification, Charlie's call).
