@@ -192,7 +192,24 @@ async function handleBulkTfxData(data, cmd) {
     // SW knob writes would hit the old amp handle and appear dead until a HW
     // knob turn triggers the self-heal. Re-read the chain map now to refresh
     // all handles (and currentChain / bypass / effect panels) proactively.
+    // SETTLE DELAY (found 2026-08-29, Charlie's own isolating test — same-
+    // slot save corrupts the chain on the next FX-host model change,
+    // different-slot save never does): a save to a DIFFERENT slot gets
+    // bailed out by handleSlotConfirm's own full resync (clearStaleReadoutsOnNav
+    // + requestPatchStateAfterNav), which ALWAYS waits NAV_RECALL_SETTLE
+    // before querying anything — because the hardware genuinely needs that
+    // settle time to finish reinstantiating the patch. That resync only
+    // fires when the confirmed slot actually differs from currentSlot
+    // (handleSlotConfirm's own guard), so a same-slot save never gets it —
+    // this REQU_CHAIN_MAP was firing with NO settle delay at all, unlike
+    // every other post-commit/post-nav re-read in the app. If hardware
+    // hasn't finished reassigning handles yet, the reply this elicits (and
+    // therefore currentChain) can be stale, and an FX-host model change
+    // built from that stale chain writes wrong handles for the other 9
+    // blocks — a plausible mechanism for the corruption, not yet proven
+    // but matching every observation so far.
     if (typeof REQU_CHAIN_MAP !== 'undefined') {
+      await sleep(NAV_RECALL_SETTLE);
       appLog('Post-save: re-reading chain map to refresh reassigned block handles');
       sendHex(REQU_CHAIN_MAP);
     }

@@ -779,7 +779,14 @@ function sendCabBypass(isActive) {
 // hit repeatedly the same day. Paced with the same NAV_QUERY_GAP already
 // used for every other post-nav query burst (requestPatchStateAfterNav,
 // this file) rather than inventing a new interval.
-async function requestAllBypass() {
+// SERIALIZED (2026-08-29) against requestFxHostParams via runPacedBurst
+// (see its own comment, this file) — without this, a bypass sweep and an
+// FX-host param query triggered around the same event could interleave
+// their sends on the wire.
+function requestAllBypass() {
+  return runPacedBurst(requestAllBypassImpl);
+}
+async function requestAllBypassImpl() {
   if (!bridgeMidiReady) return;
   if (!currentChain.length) { appLog('requestAllBypass: no chain map yet'); return; }
   let n = 0;
@@ -815,6 +822,25 @@ function sendRawParamWrite(instId, paramId, rawV0) {
     + paramId.toString(16).padStart(2,'0').toUpperCase() + ' '
     + (rawV0 & 0x7F).toString(16).padStart(2,'0').toUpperCase() + ' 00 00 00 00 F7';
   return sendHex(hex);
+}
+
+// Serializes paced query bursts (requestAllBypass, requestFxHostParams) so
+// two of them can't interleave their sends on the wire. Found 2026-08-29:
+// once both were converted to paced async functions (each awaiting
+// NAV_QUERY_GAP between sends), nothing stopped two from running at the
+// SAME time if both got triggered around the same event (e.g. a chain-map
+// reply firing both a bypass sweep and an FX-host panel refresh) — their
+// individual awaited sends round-robin on the event loop and end up
+// shuffled together on the wire, e.g. a bypass query for one handle
+// immediately followed by an FX-host param query for a different handle,
+// where before pacing existed each burst was atomic. runPacedBurst chains
+// callers onto one shared promise so each burst runs to completion before
+// the next one starts, while each burst keeps its own internal pacing.
+let pacedBurstQueue = Promise.resolve();
+function runPacedBurst(fn) {
+  const run = pacedBurstQueue.then(fn, fn);
+  pacedBurstQueue = run.catch(() => {});
+  return run;
 }
 
 // CCs that carry PER-PATCH values (so a change should light the SAVE latch).

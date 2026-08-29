@@ -457,7 +457,12 @@ function sendFxHostModelChange(slotId, newMid) {
 // right before hitting the FX1/amp corruption bug the same day. Paced with
 // the same NAV_QUERY_GAP interval used everywhere else in this app for a
 // query burst, not a new one invented here.
-async function requestFxHostParams(slotId) {
+// SERIALIZED (2026-08-29) against requestAllBypass via runPacedBurst
+// (transport.js) — see its own comment.
+function requestFxHostParams(slotId) {
+  return runPacedBurst(function() { return requestFxHostParamsImpl(slotId); });
+}
+async function requestFxHostParamsImpl(slotId) {
   if (!bridgeMidiReady) return;
   const blk = currentChain.find(b => b.slotId === slotId);
   if (!blk) { appLog('requestFxHostParams: no block in chain for slot=0x' + slotId.toString(16).padStart(2,'0')); return; }
