@@ -160,6 +160,25 @@ OPEN:        Are 0x3F (RESO) and 0x38 (No Cab) per-output or GLOBAL? All capture
              far. This is what decides the RESO/No-Cab UI (shared toggles vs
              per-output), which in turn decides the To Amp panel layout (A vs C).
 
+AVID STARTUP DECODE (2026-08-30, 24e1b36c-Avid_Startup_With_Rack_On.pcapng) —
+  the connect-time reads Avid fires, decoded from its cold start (692 sysex):
+    * CONFIRMS 01 38: Avid queries global cab with F0 13 0B 0F 01 38 F7; rack
+      replied 12 38 00 (Global Cab Off clear here). So our planned connect-time
+      01 38 query IS Avid's exact behavior — build with confidence.
+    * Avid's startup query set (dir 0x01): 01 02/03/04(x208 name scan)/05/07/08/
+      0A/11(x39)/20(x65 FX model enum)/21/22/34/35/36(x4)/37(x2)/38/39/3A(x3)/
+      3B(x4)/3C/3D/40/50. NOTABLY NO 01 3F — Avid never reads RESO. RESO has no
+      read anywhere; toggle must start indeterminate, period.
+    * Global option responses this capture (RESO OFF): 12 38 00, 12 35 02,
+      12 39 00, 12 3C 02, 12 3D 00, 12 40 00. -> 0x35=02, 0x39=00 is the
+      RESO-OFF BASELINE. NEXT: an Avid startup with RESO ON — if 0x35 or 0x39
+      comes back different, that byte encodes RESO (hidden readback found); if
+      both unchanged, RESO confirmed unreadable.
+    * Startup patch was factory o1 "Boosted Duo" (space=1, raw slot 56,
+      12 02 01 38). Irrelevant to the option queries (they fire every startup).
+    * BONUS: Avid queries 01 37 (To Amp source, both slots) at startup — a future
+      path to give our source pickers real initial state instead of "— Src —".
+
 RESOLVED (2026-08-30, 1f714eae-session20260830070813.log, v1.3.68) — the
   0x35/0x39 = RESO hypothesis is REJECTED, and RESO global+persistent is now
   the strongest-confirmed:
