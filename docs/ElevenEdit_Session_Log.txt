@@ -160,6 +160,27 @@ OPEN:        Are 0x3F (RESO) and 0x38 (No Cab) per-output or GLOBAL? All capture
              far. This is what decides the RESO/No-Cab UI (shared toggles vs
              per-output), which in turn decides the To Amp panel layout (A vs C).
 
+LEAD (2026-08-29) — RESO readback + the unknown startup bytes 0x35/0x39:
+  RESO (0x3F) has no readback of its own, yet its state must be reported on
+  nav somewhere. The nav readback burst (17:58:53) included two of the Tech
+  Ref's "purpose unknown" startup commands with LIVE VALUES for the first time:
+  0x35 = 02, 0x39 = 00 (both dir 0x12). HYPOTHESIS (Charlie): one of these is
+  RESO's readback. NOT confirmed — this log has only one readback burst, taken
+  BEFORE the RESO toggles (18:00:50+), so no before/after to compare. TEST:
+  toggle RESO on, then nav away-and-back to force a fresh burst, and diff
+  12 35 / 12 39 vs 02/00. If one flips with RESO -> decodes an unknown byte AND
+  gives RESO a readback. CAVEAT: could instead be other User Options fields
+  (Digital output mode / exp pedal / footswitch) the rack also dumps on nav.
+
+BUG (2026-08-29, current build — Charlie confirmed live, visual): the chain row
+  shows CAB enabled when the GLOBAL cab bypass (0x38) is on, because the app
+  never handled 0x38 and only knows the per-patch cab state. Result: app says
+  you have a speaker cab when the rack has none. FIX (read-only, testable
+  without sound): handle 0x38 (12 readback + 02 broadcast), track globalCabBypass
+  (state.js), and render chain-cab off when global is on (effective = patch-cab
+  AND NOT global). updateCabBypassDisplay (ui.js:1914) is the render point;
+  0x38 currently hits UNHANDLED. Offered to Charlie to do now or batch.
+
 OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
   1. UI polish — the shrunk 56px To Amp knobs look undersized next to the
      80px Gate/Volumes knobs. Options on the table: (a) revert To Amp knobs
