@@ -132,6 +132,11 @@ let globalCabBypass;
 // instantly instead of on the next nav). Guards against re-asserting on a
 // front-panel global clear (which the rack handles itself). 2026-08-30.
 let pendingCabReassert = false;
+// RESO (CMD 0x3F) — GLOBAL amp-out pre-cab resonance/impedance sim, on/off.
+// undefined until known. It has no confirmed read (Avid never queries it); the
+// 01 3F connect query is an experiment to see if the rack answers anyway. State
+// is otherwise adopt-broadcast-only (0x3F on change). 2026-08-30.
+let resoState;
 
 // Bypass paramLo values — Tech Ref Sec 3.
 const BYPASS_PARAMLO_BLOCK = 0x01;   // every non-amp chain block

@@ -670,6 +670,25 @@ function sendGlobalCabBypassSet(engaged) {
   return sendHex(hex);
 }
 
+// ── CMD 0x3F — RESO (global amp-out pre-cab resonance sim). Value-based on/off.
+// READ (EXPERIMENT):  F0 13 0B 0F 01 3F F7  — Avid never queries RESO, so it is
+//   unknown whether the rack answers. If it replies 12 3F [state], we've solved
+//   RESO's startup state; if silent, resoState stays adopt-broadcast-only.
+// SET (unused until the RESO toggle UI): F0 13 0B 0F 00 3F [state] F7
+//   (01=on, 00=off). Send form inferred from the broadcast — never yet sent by
+//   this app or Avid. Not brick-class (only 0x37 bricks). Reply/echo -> handleReso.
+function sendResoQuery() {
+  if (!bridgeMidiReady) return;
+  appLog('sendResoQuery: probing whether the rack answers 01 3F (RESO read)');
+  return sendHex('F0 13 0B 0F 01 3F F7');
+}
+function sendResoSet(on) {
+  if (!bridgeMidiReady) return;
+  const hex = 'F0 13 0B 0F 00 3F ' + (on ? '01' : '00') + ' F7';
+  appLog('sendResoSet: ' + (on ? 'ON' : 'OFF'));
+  return sendHex(hex);
+}
+
 // ── CMD 0x0D — Stereo/Mono set command.
 // Confirmed 2026-07-18 from Avid Diag5 capture (not a toggle — it IS a set).
 // Format: F0 13 0B 0F 00 0D [val] F7
@@ -938,7 +957,12 @@ async function requestFullState() {
   // can't know it's forced off (2026-08-30). Reply -> handleGlobalCabBypass.
   await sleep(80);
   sendGlobalCabBypassQuery();
-  appLog('Requested one-time setup state (curr rig confirm, chain map, global cab)');
+  // EXPERIMENT (2026-08-30): try reading RESO too. Avid never queries it, so we
+  // don't know if the rack answers — the reply (if any) lands in handleReso and
+  // reveals startup RESO state; silence just means resoState stays undefined.
+  await sleep(80);
+  sendResoQuery();
+  appLog('Requested one-time setup state (curr rig confirm, chain map, global cab, reso probe)');
 }
 
 // Amp, name, Rig Vol, and CHAIN_MAP are all per-patch — refresh all four

@@ -59,6 +59,7 @@ async function parseSysEx(data) {
     case 0x37: return handleToAmpSourceBroadcast(data);
     case 0x3D: return handleInputSelectorBroadcast(data);
     case 0x38: return handleGlobalCabBypass(data);
+    case 0x3F: return handleReso(data);
     case 0x11: return handleParamReadback(data);
   }
   // Fell through — no case above claimed this CMD (every case returns, so
@@ -848,6 +849,19 @@ function handleGlobalCabBypass(data) {
   } else if (globalCabBypass === true) {
     pendingCabReassert = false;  // engage cancels any stale pending re-assert
   }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CMD 0x3F — RESO (global amp-out pre-cab resonance sim). state at data[6].
+// ════════════════════════════════════════════════════════════════════
+// Broadcast (dir 0x02) on a front-panel change: F0 13 0B 0F 02 3F [state] F7.
+// We ALSO fire a 01 3F query on connect (experiment) — IF the rack answers, the
+// reply (dir 0x12) lands here too and we learn the startup state. If it never
+// replies, resoState stays undefined (adopt-broadcast-only). state 01=on,00=off.
+function handleReso(data) {
+  if (data.length < 8) return;
+  resoState = (data[6] === 0x01);
+  appLog('CMD 0x3F RESO: ' + (resoState ? 'ON' : 'OFF') + ' (dir=0x' + data[4].toString(16).padStart(2,'0') + ')');
 }
 
 // ════════════════════════════════════════════════════════════════════

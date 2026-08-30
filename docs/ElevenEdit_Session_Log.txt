@@ -160,6 +160,17 @@ OPEN:        Are 0x3F (RESO) and 0x38 (No Cab) per-output or GLOBAL? All capture
              far. This is what decides the RESO/No-Cab UI (shared toggles vs
              per-output), which in turn decides the To Amp panel layout (A vs C).
 
+RESO READ EXPERIMENT — 1.3.72 (2026-08-30, NOT YET TESTED): last read hope is a
+  DIRECT 01 3F query (Avid never uses it; 0x35/0x39 already ruled out). sendResoQuery
+  ('F0 13 0B 0F 01 3F F7') fired on connect from requestFullState; handleReso
+  (sysex-handler.js) tracks resoState from any 0x3F (broadcast dir 02 or reply dir
+  12). If the rack answers 12 3F [state] -> RESO startup state SOLVED, RESO becomes
+  a normal toggle showing real state. If SILENT -> no read exists; RESO toggle
+  starts indeterminate (two-position On/Off control + a one-time "trust your ears"
+  note, since the set is value-based so the user commands absolute state). sendResoSet
+  ('00 3F [state]') defined but UNUSED (ready for the toggle; send form still
+  unconfirmed, not brick-class). This build only READS — no state change.
+
 AVID STARTUP DECODE (2026-08-30, 24e1b36c-Avid_Startup_With_Rack_On.pcapng) —
   the connect-time reads Avid fires, decoded from its cold start (692 sysex):
     * CONFIRMS 01 38: Avid queries global cab with F0 13 0B 0F 01 38 F7; rack
