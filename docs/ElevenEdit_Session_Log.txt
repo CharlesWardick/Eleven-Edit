@@ -307,6 +307,13 @@ BUG (2026-08-29, current build — Charlie confirmed live, visual): the chain ro
   (a front-panel global clear does NOT trigger it — the rack handles that). This
   is Charlie's own "send a cab state toggle after Yes" idea, confirmed to be
   exactly what Avid does. NOT YET TESTED LIVE.
+  TESTED LIVE + CONFIRMED (Charlie, 2026-08-30): ".71 was a success." Clicking
+  Yes clears Global Cab Off and the cab returns INSTANTLY (no nav). The whole Cab
+  Off feature is now complete + confirmed: chain-display honesty via 0x38
+  broadcast (1.3.69), connect-time 01 38 query for startup state (1.3.70), modal
+  + Yes clears global and re-asserts the cab instantly (1.3.71). Also confirmed
+  along the way: the 0x38 SET works (retract old "dead-send"), and 01 38 read is
+  Avid's exact startup query.
 
 OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
   1. UI polish — the shrunk 56px To Amp knobs look undersized next to the
