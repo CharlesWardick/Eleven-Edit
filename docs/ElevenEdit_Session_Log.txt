@@ -104,6 +104,18 @@ FINDING:     Capture of the HW front-panel driving To Amp source with RESO.
              (a) RESO is its own command CMD 0x3F, broadcast form
                  F0 13 0B 0F 02 3F [state] F7  (01=on, 00=off). No slot byte.
                  Reaches our MIDI path — app logged UNHANDLED CMD 0x3F.
+                 *** RESO IS NOT A CAB BYPASS (Charlie, 2026-08-29). *** It taps
+                 the amp block's output PRE-CABINET to a hardware output (on an
+                 Amp Output source); the cab can stay ENABLED in the chain (the
+                 rig output still gets the cab). It changes the amp-out TAP
+                 POINT, it does not disable the cab. Distinct from 0x38 below,
+                 which IS a true global cab bypass. RESO is GLOBAL: the byte
+                 carries only [state], no position/output address (if it were
+                 per-position it would need an address byte like 0x37's [slot]);
+                 confirmed twice — the address-less byte AND Charlie's panel
+                 test (set it in any of the 4 spots, all 4 mirror the one
+                 value). Its EFFECT is conditional (relevant only when a source
+                 feeds amp-out), but the stored flag is a single global on/off.
              (b) The HW's "5th source option" Rig Out No Cab is NOT a new 0x37
                  value. Stepping Rig Output -> Rig Out No Cab emits NO new 0x37;
                  instead CMD 0x38 (Global Cabinet Bypass, already in Sec 18)
