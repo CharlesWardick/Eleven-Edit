@@ -160,6 +160,25 @@ OPEN:        Are 0x3F (RESO) and 0x38 (No Cab) per-output or GLOBAL? All capture
              far. This is what decides the RESO/No-Cab UI (shared toggles vs
              per-output), which in turn decides the To Amp panel layout (A vs C).
 
+RESOLVED (2026-08-30, 1f714eae-session20260830070813.log, v1.3.68) — the
+  0x35/0x39 = RESO hypothesis is REJECTED, and RESO global+persistent is now
+  the strongest-confirmed:
+    * RESO ON 07:08:39 -> OFF 07:09:00 (0x3F broadcasts). In that 21s window the
+      user navved SIX patches (nav pulls 07:08:42/43/45/46/50/54); RESO stayed on
+      the whole time — no reset, no rebroadcast. GLOBAL + rides through nav.
+    * ZERO 12 35 / 12 39 / 12 38 in the entire run. Our nav pull queries the
+      tone/amp params only, never those global bytes. So RESO has NO readback
+      our app receives — ADOPT-BROADCAST-ONLY (0x3F), same class as input/mute;
+      its toggle reads "unknown" until a 0x3F broadcast (our send echo or a
+      front-panel change). 0x35/0x39 are NOT RESO — some other User Options
+      fields, still unidentified.
+    * CORRECTION to the earlier "0x38 has a nav readback" note: 0x35/0x38/0x39
+      appear only in a one-time POPULATE/ENUMERATE burst (the earlier log's
+      17:58:53 block, alongside the 0x20 model-name reads), NOT on ordinary nav.
+      For the Cab Off display fix, rely on the 0x38 CHANGE broadcast (dir 0x02,
+      which we do catch); initial-state-on-connect depends on when that populate
+      burst fires — trigger still to be pinned down.
+
 LEAD (2026-08-29) — RESO readback + the unknown startup bytes 0x35/0x39:
   RESO (0x3F) has no readback of its own, yet its state must be reported on
   nav somewhere. The nav readback burst (17:58:53) included two of the Tech
