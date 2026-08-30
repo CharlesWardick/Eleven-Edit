@@ -280,6 +280,20 @@ BUG (2026-08-29, current build — Charlie confirmed live, visual): the chain ro
   engaged -> chain CAB should now show red on load (query worked); (2) click red
   CAB -> modal; Yes -> does the rack's global bypass actually clear (cab returns)?
   that answers whether 0x38 SET works. Back up first.
+  TESTED 1.3.70 (2026-08-30, f1f3a085-session20260830081243.log):
+    * STARTUP QUERY WORKS: 01 38 on connect -> reply 12 38 01 -> chain CAB red on
+      load. Confirmed. (And modal + No = no change: good.)
+    * 0x38 SET WORKS — retracts the old "dead-send" note. Yes -> sent 00 38 00 ->
+      rack ECHOED 02 38 00 (accepted). Software CAN control global cab bypass.
+    * BUT display/HW lag on Yes: app went green (correct per the rack's echo:
+      global clear + patch cab on), yet the rack's own chain SCREEN still showed
+      cab off until a nav; navving away self-healed it. Likely the rack applies
+      the change but doesn't repaint/rebuild the cab into the live path until the
+      next rig reload. OPEN — needs Charlie's EAR test: after Yes, is the cab
+      audibly back immediately (=> rack screen-lag only, our app is correct,
+      nothing to fix) or only after nav (=> rack needs a reload; then add a
+      guarded self-recall of the current slot after the clear, protecting unsaved
+      edits). Do NOT force a reload until this is known.
 
 OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
   1. UI polish — the shrunk 56px To Amp knobs look undersized next to the
