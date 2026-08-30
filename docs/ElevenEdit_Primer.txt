@@ -26,7 +26,24 @@ no code to write, just the file and a config line, not yet done). The
 version is still 1.3.x on purpose (Charlie's own bump-every-session
 convention, Tech Ref/Primer HOW TO WORK WITH CHARLIE) — 1.0.0 is
 reserved for an actual public release, done by Charlie, not
-automatically. Current version as of this update: 1.3.67.
+automatically. Current version as of this update: 1.3.73.
+  2026-08-30 SESSION SUMMARY (TO AMP SOURCE — 3RD AND FINAL ATTEMPT, SUCCEEDED —
+  full detail: Tech Ref Sec 18 + Sec 24 Change Log 2026-08-30, Session Log
+  2026-08-29/30 [FOLDED IN]) — ALL TESTED LIVE and confirmed by Charlie,
+  v1.3.67->1.3.73. The single most destructive item in the project is solved:
+  To Amp Source (CMD 0x37), which had bricked the rack 3x, was sending one extra
+  byte — a USB-MIDI framing byte (0x07) misread as payload — making the rack read
+  an out-of-range slot. The corrected 9-byte send works with no assert; no CMD
+  0x3A query needed. Source pickers re-enabled with real state on connect. Three
+  wins over Avid's own editor fell out of the same investigation: (1) RESO (CMD
+  0x3F), a global, audible amp-out pre-cab resonance sim Avid never exposed — now
+  readable/settable with a UI toggle; (2) the 0x38 SET works (retracts "dead-
+  send"); (3) Global Cab Off handled end-to-end — honest chain-row CAB, startup
+  read, an Avid-style "master cabinet bypass" prompt whose Yes brings the cab back
+  instantly. UI: To Amp box back to full knobs + source pickers, new GLOBALS box
+  (Cab Off + RESO). This was release-side work per Charlie's request, not
+  proactively suggested. One accepted cosmetic quirk (rack's own chain graphic
+  lags a SW-driven cab-off) documented, not fixed.
   2026-08-29 SESSION SUMMARY (MAJOR BUGFIX — full detail: Tech Ref Sec 24
   Change Log 2026-08-29 entry, Session Log 2026-08-29 entries) — ALL TESTED
   LIVE AND CONFIRMED by Charlie across repeated runs. Fixed a long-standing
@@ -935,6 +952,23 @@ request.
   tuner pause and tuner-off-on-nav both confirmed working).
 
 WORKING:
+  TO AMP SOURCE / RESO / GLOBAL CAB OFF (2026-08-30, TESTED LIVE, v1.3.68-1.3.73)
+    — full detail Tech Ref Sec 18.
+    TO AMP SOURCE (CMD 0x37) — the two source pickers (Rig Input/Amp Input/Amp
+      Output/Rig Output), in a column right of the To Amp vol knobs. Real state
+      read on connect (01 37). The 3rd-and-final attempt: the send had a spurious
+      0x07 framing byte (out-of-range slot -> the source never moved AND the 3
+      historic bricks); the corrected 9-byte send works, no CMD 0x3A needed.
+    RESO (CMD 0x3F) — global amp-out pre-cab resonance sim, audible, that Avid's
+      editor never exposed. Toggle in the new GLOBALS box; readable (01 3F) so it
+      shows real state on load, settable (00 3F), tracks front-panel changes.
+    GLOBAL CAB OFF (CMD 0x38) — "Cab Always Off" toggle in the GLOBALS box +
+      honest chain-row CAB (defers to the global flag) + startup read (01 38) +
+      an Avid-style "master cabinet bypass is on — turn it off?" prompt on a
+      globally-suppressed chain-cab click, whose Yes clears 0x38 and re-asserts
+      the per-patch cab so it returns instantly. SET retracts the old "dead-send".
+    GLOBALS box — new 4th box right of Volumes holding the two rig-wide toggles
+      (Cab Off, RESO), kept out of the To Amp box since they're not amp source.
   BANK EXPORT / IMPORT (2026-08-10, TESTED LIVE) — "Export All Rigs…" and
     "Import Rigs…", TFX/Bank toolbar (reordered same day: SAVE, Load TFX,
     Export All Rigs, Import Rigs — single-patch ops before whole-bank
@@ -1332,10 +1366,10 @@ NOT YET IMPLEMENTED (largest first):
   sane per-model defaults instead of trusting the firmware's "garbage
   defaults" on a model change — stayed explicitly OUT of scope (Charlie's
   call), not yet designed or built, possibly deferred indefinitely. ***
-  To Amp source dropdowns — code present, GUI removed. SW sends don't move the
-    HW source; root cause STILL UNKNOWN. NOTE: this is NOT the wrong-handle
-    defect fixed on 7/19 — CMD 0x36/0x3A are global commands with their own
-    slot argument and never used currentParamHi. Do not assume it is fixed.
+  [DONE 2026-08-30] To Amp source dropdowns — SOLVED and shipped (v1.3.68+),
+    moved to WORKING. Root cause was a spurious 0x07 framing byte in the send;
+    corrected 9-byte CMD 0x37 works. See WORKING (TO AMP SOURCE / RESO / GLOBAL
+    CAB OFF) and Tech Ref Sec 18.
   Save to Different Slot — IMPLEMENTED 2026-08-11, TESTED LIVE and
     CONFIRMED WORKING (Charlie: "Nailed it works good now"), moved out of
     this list — see JUMP LIST entry above (WORKING) for the
@@ -1362,8 +1396,11 @@ NOT YET IMPLEMENTED (largest first):
 DO NOT RETRY (quick list — full list in Technical Reference Sec 20)
 -------------------------------------------------------------------
   Zadig / node-usb / node-midi / Web MIDI for the Vendor Specific port
-  Sending CMD 0x37 (To Amp Source) — every assert on it has BRICKED the rack
-    (full factory reset), 3x over 2 days. Do not send. 0x36 volume is safe.
+  Sending a MALFORMED CMD 0x37 (To Amp Source) — the 3 historic bricks were the
+    OLD 10-byte send (spurious 0x07 framing byte -> out-of-range slot 0x07).
+    SOLVED 2026-08-30: the correct 9-byte form (F0 13 0B 0F 00 37 [slot][val] F7)
+    works and is safe. Send ONLY that exact form; never an out-of-range slot.
+    0x36 volume was never implicated. (Tech Ref Sec 18/20.)
   Hardcoding paramHi — it is a runtime handle from the chain map
   Caching a block handle across a chain map — re-read after every CMD 0x21
     and every CMD 0x0D
@@ -1667,6 +1704,25 @@ KEY STATE VARIABLES (state.js):
   toneKnobOrderPrefs      Amp Controls reorder, 2026-08-03 — ampKey -> saved
                           knob display order (array of paramLo), persisted
   toneRowLocked           Amp Controls reorder — re-arms locked every launch
+  globalCabBypass         Global Cab Off (CMD 0x38) state — true=engaged/no cab,
+                          undefined until read on connect (2026-08-30)
+  resoState               RESO (CMD 0x3F) on/off, read on connect (2026-08-30)
+  pendingCabReassert      set when the user clears Cab Off; the 0x38 clear echo
+                          then re-asserts the per-patch cab so it returns at once
+
+  To Amp Source / RESO / Global Cab Off functions (2026-08-30):
+    transport.js     sendToAmpSource (corrected 9-byte 0x37), sendToAmpSourceRead
+                     (01 37 connect read), sendGlobalCabBypassQuery/Set (01 38 /
+                     00 38), sendResoQuery/Set (01 3F / 00 3F). sendToAmpSourceQuery
+                     (0x3A) RETIRED/dormant.
+    sysex-handler.js handleToAmpSourceBroadcast (0x37, also handles the 12 37
+                     read reply), handleGlobalCabBypass (0x38), handleReso (0x3F).
+    ui.js            refreshGlobalToggles + the Cab Off / RESO toggle wiring; the
+                     "master cabinet bypass" modal (openCabBypassModal); source
+                     picker change listeners.
+    index.html       GLOBALS box (#globals-group, #cab-off-tog, #reso-tog), the
+                     To Amp source pickers (#toamp1-src/#toamp2-src) in a column,
+                     #cab-bypass-modal.
 
 
 ENVIRONMENT
@@ -1691,17 +1747,17 @@ ENVIRONMENT
 HARDWARE SAFETY
 ---------------
   Always back up patches before any SW-send testing session.
-  CMD 0x37 (To Amp Source) is the project's most dangerous command. EVERY
-    assert on it has BRICKED the rack and forced a full factory reset — three
-    times across two non-consecutive days, all from 0x37 selects, never from
-    0x36 volume. Patches survive only from backup. A CMD 0x3A query-first
-    sequence avoided the assert in limited testing, but the feature never
-    worked and why SW sends don't move the HW source is unknown, so the
-    dropdowns stay removed. DO NOT send 0x37 until an observation-only capture
-    explains the difference (see the To Amp Source investigation brief). This
-    brick-on-assert behaviour is SPECIFIC to 0x37: asserts elsewhere
-    (bad-patch-format while learning TFX, front-panel oddities) recovered with
-    a nav-away-and-back and never needed a reset. See Tech Ref Sec 18.
+  CMD 0x37 (To Amp Source) — SOLVED 2026-08-30, but still handle with respect.
+    The 3 historic bricks (full factory reset each, two non-consecutive days,
+    all from 0x37 selects, never 0x36 volume) were caused by the OLD 10-byte
+    send carrying a spurious 0x07 framing byte, which made the rack read an
+    out-of-range slot (0x07) into a 2-entry routing table. The correct message
+    is 9 bytes (F0 13 0B 0F 00 37 [slot][val] F7); it moves the source with no
+    assert (confirmed live) and needs no CMD 0x3A query. So 0x37 is a working
+    command now — but it restructures routing, so send ONLY the exact 9-byte
+    form, never an out-of-range slot, and back up before bulk source testing.
+    Asserts elsewhere (bad-patch-format, panel oddities) recover with a
+    nav-away-and-back. See Tech Ref Sec 18/20.
   NEVER run the Avid Editor on Windows 11 — BSOD. It may be installed there
     for its graphics, but never launched (see GRAPHICS below).
   Never drive the Avid Editor and Eleven Edit at the same time. Several BSODs

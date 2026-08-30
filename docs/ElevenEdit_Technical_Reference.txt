@@ -736,15 +736,33 @@ CMD 0x36 — Output Volume. F0 13 0B 0F [dir] 36 [outSel]... See Section 18.
     -> F0 13 0B 0F 12 36 [outSel] [v0] 00 00 00 00 F7
   The outSel byte is REQUIRED; the bare form returns nothing. Decode v0 with
   the standard continuous-knob rule (Section 7). Values are PER-PATCH.
-CMD 0x37 — To Amp Source. F0 13 0B 0F 00 37 07 [slot] [val] F7.
-  *** MUST be preceded by a CMD 0x3A query for that slot — sending without it
-  causes a firmware assert. *** The 7/14 factory-reset incident was this
-  command sent unqueried. With the query first the sequence is safe, but SW
-  sends still do not move the HW source (cause unknown). See Section 18.
-CMD 0x3A — To Amp Source query. REQU: F0 13 0B 0F 01 3A [slot] F7.
-  RESP: F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7. Required before any
-  CMD 0x37 write. See Section 18. [SEND/RECV]
-CMD 0x38 — Global Cabinet Bypass. Global override. Front-panel only. [DEAD-send]
+CMD 0x37 — To Amp Source. F0 13 0B 0F 00 37 [slot] [val] F7.  (9 bytes)
+  *** CORRECTED 2026-08-30 — SOLVED, WORKING. *** The old format had a spurious
+  0x07 after 0x37; that byte is USB-MIDI packet framing (the CIN header of the
+  final SysEx packet), misread off the 7/17 capture as payload. Our 10-byte send
+  shifted every byte over, so the rack read slot=0x07 (out of range) — which is
+  why the source never moved AND why it bricked (bad index into a 2-entry routing
+  table). The real message is 9 bytes, no 0x07. slot 0x00=ToAmp1, 0x01=ToAmp2;
+  val 0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output. HW echoes
+  dir=0x02. NO CMD 0x3A query is needed first (Avid sends none — confirmed). READ:
+  F0 13 0B 0F 01 37 [slot] F7 -> 12 37 [slot][val] (Avid's startup read). See
+  Section 18. [SEND/RECV/BROADCAST — the corrected 9-byte form is confirmed safe]
+CMD 0x3A — To Amp Source query (legacy, RETIRED). REQU: F0 13 0B 0F 01 3A [slot]
+  F7. Once believed a required prerequisite to 0x37; the 2026-08-30 captures show
+  Avid never uses it and it was never the real fix — the malformed 0x37 byte was.
+  Source is now read via 01 37 and set bare. [unused]
+CMD 0x38 — Global Cabinet Bypass ("Cab Always Off"). GLOBAL, not per-patch.
+  READ: F0 13 0B 0F 01 38 F7 -> 12 38 [state]; SET: F0 13 0B 0F 00 38 [state] F7
+  (01=engaged/no cab, 00=clear); broadcast dir 0x02 on change. RETRACTS the old
+  "front-panel only [DEAD-send]" — the SET works (confirmed 2026-08-30, Avid's
+  own "master cabinet bypass" prompt uses it). Only queried on connect/populate,
+  NOT on ordinary nav. See Section 18. [SEND/RECV/BROADCAST]
+CMD 0x3F — RESO. GLOBAL amp-out pre-cab resonance/impedance sim (audible; taps
+  the amp output pre-cabinet to a hardware output, cab can stay enabled in the
+  chain). NOT a cab bypass. Avid's editor never exposed it. READ: F0 13 0B 0F
+  01 3F F7 -> 12 3F [state] (works, though Avid never queries it); SET: F0 13 0B
+  0F 00 3F [state] F7 (01=on, 00=off); broadcast dir 0x02 on change. Value-based
+  (explicit on/off), no per-output slot (global). See Section 18. [SEND/RECV/BROADCAST]
 CMD 0x3B — Master Mute (Main/Phones). F0 13 0B 0F [dir] 3B [channel] [state]
   F7. channel 0x00=Main, 0x01=Phones; state 0x00/0x01. SW send CONFIRMED
   7/29/2026, retracting the old "Front-panel only [DEAD-send]" reading — see
@@ -789,9 +807,12 @@ generic MIDI Identity Request/Reply, sent once on first connect.
   BUILD (state.js) is the single source for that constant. Entirely separate
   from Avid's 13 0B 0F command set.
 
-CMD 0x35 / CMD 0x39 — confirmed to EXIST in the startup capture, payload-
-less (F0 13 0B 0F 01 35 F7 and F0 13 0B 0F 01 39 F7), purpose still unknown.
-Eleven Edit neither sends nor needs them.
+CMD 0x35 / CMD 0x39 — Avid queries both at startup (payload-less REQUs
+F0 13 0B 0F 01 35 F7 / 01 39 F7). Live values first captured 2026-08-30:
+0x35=02, 0x39=00 (dir 0x12 replies). Purpose still unknown, but CONFIRMED NOT
+RESO — an Avid startup with RESO ON returned the identical 0x35=02 / 0x39=00,
+so neither encodes RESO (which has its own read, CMD 0x3F). Some other User
+Options fields. Eleven Edit neither sends nor needs them.
 
 
 ===================================================================
@@ -1920,48 +1941,71 @@ MASTER MUTE — MAIN / PHONES (CMD 0x3B):
   buttons not yet exercised against real hardware — first confirmed test
   covered the volume control only.
 
-TO AMP SOURCE (CMD 0x37):
-  Confirmed wire format 7/17/2026 from Avid editor USB capture:
-    F0 13 0B 0F 00 37 07 [slot] [val] F7
-  slot: 0x00=ToAmp1, 0x01=ToAmp2.
-  val:  0x00=Rig Input, 0x01=Amp Input, 0x02=Amp Output, 0x03=Rig Output.
-  HW also has additional options beyond Avid's 4 (Rig Out No Cab, RESO toggle)
-  with unknown val bytes — not yet captured.
-  HW echoes back with dir=0x02, same format.
+TO AMP SOURCE (CMD 0x37) — SOLVED + WORKING (2026-08-30):
+  *** ROOT CAUSE FOUND AND FIXED. *** The 7/17 capture was misdecoded. The real
+  message is 9 bytes:
+    F0 13 0B 0F 00 37 [slot] [val] F7
+  slot: 0x00=ToAmp1, 0x01=ToAmp2.  val: 0x00=Rig Input, 0x01=Amp Input,
+  0x02=Amp Output, 0x03=Rig Output.  ToAmp1 vs ToAmp2 differ ONLY by the slot
+  byte; everything else identical. HW echoes dir=0x02, same 9-byte layout.
   Global setting — not per-patch, not stored in TFX body.
-  *** HIGHEST-RISK COMMAND IN THE PROJECT. EVERY ASSERT ON CMD 0x37 HAS
-  BRICKED THE RACK AND FORCED A FULL FACTORY RESET — no exceptions. ***
-  History (dates approximate, two NON-CONSECUTIVE days):
-    Day 1 — knobs (0x36) and selects (0x37) both attempted. Selects asserted
-            and BRICKED the unit; full factory reset required. (The knobs
-            simply did not work that day; they never asserted and never
-            bricked anything.)
-    Day 2 — knobs got working first (0x36, now confirmed). Then selects were
-            attempted again and BRICKED the unit TWICE more, each a full reset.
-    Net: three bricks, all from CMD 0x37 selects, every one a factory reset.
-    CMD 0x36 volume is fully exonerated — it has never asserted or bricked.
-  CONTRAST — asserts ELSEWHERE are not like this: the "bad patch format"
-  errors during TFX learning and assorted front-panel oddities recovered with
-  a nav-away-and-back, no reset. The brick-on-assert behaviour is SPECIFIC to
-  this command. Do not generalise it to hardware testing at large, and do not
-  soften it here: on 0x37, assert = brick = reset.
-  Patches survive ONLY because Charlie backs up; the rack retains nothing
-  through the reset.
-  The CMD 0x3A query-first sequence was found to avoid the assert in limited
-  testing, but the feature was never made to work and the root cause of why
-  SW sends do not move the HW source is unknown. "Safer sequence found" does
-  NOT mean "safe" — see STATUS below and the investigation brief.
-  CMD 0x3A REQU: F0 13 0B 0F 01 3A [slot] F7
-  CMD 0x3A RESP: F0 13 0B 0F 12 3A 07 [slot] [currentVal] F7  (10 bytes)
-    data[6]=0x07, data[7]=slot, data[8]=currentVal.
-  STATUS: query+write avoided the assert in limited testing, but the HW source
-  does NOT change in response to SW sends — root cause unknown. Dropdowns
-  removed from the GUI by decision; code preserved for future investigation.
-  DO NOT re-enable or send until an observation-only capture explains what the
-  Avid editor does that we do not (see the To Amp Source investigation brief).
-  Factory reset recovery: hold FX Loop + Mod + Reverb at power on, wait for the
-  logo with no scroll bar, power off, power on normally. Restore patches from
-  backup afterward.
+  THE OLD 10-BYTE FORM WAS WRONG: "F0 13 0B 0F 00 37 07 [slot][val] F7" carried a
+  spurious 0x07 after 0x37. That 0x07 is USB-MIDI packet framing — the CIN header
+  (0x07 = "SysEx ends, 3 data bytes") of the final 4-byte packet — mistaken for a
+  payload byte. (The math is forced: a 9-byte SysEx packetizes to exactly the 12
+  USB data bytes / 3 packets seen in the capture; a 10-byte message needs 16
+  bytes / 4 packets, which is not there.) The Java bridge adds the framing, so we
+  send the clean 9-byte SysEx. Same bug class already fixed on CMD 0x0D
+  Stereo/Mono ("the 0x04/0x06 bytes are USB-MIDI framing").
+  WHY THAT BYTE CAUSED BOTH SYMPTOMS: it shifted everything over, so the rack
+  read slot=0x07 (only 0x00/0x01 exist) — an out-of-range index into a 2-entry
+  ROUTING table. That is why (a) the source never moved and (b) it BRICKED (a
+  malformed routing restructure, not a bad value). The corrected 9-byte send is
+  confirmed on hardware to move the source with no assert, all 4 values, both
+  outputs (Charlie, 2026-08-29). NO CMD 0x3A query is needed first — the Avid
+  editor sends none before a change (2026-08-29 capture); the old "must query
+  first" belief was a side effect of the malformed write. READ on connect via
+  F0 13 0B 0F 01 37 [slot] F7 -> 12 37 [slot][val] (Avid's own startup read).
+  *** BRICK HISTORY (KEEP — do not repeat the mistake). *** Before the fix, every
+  assert on 0x37 bricked the rack to a full factory reset: three times over two
+  non-consecutive days (Day 1: one brick; Day 2: two more), all from the
+  malformed selects. CMD 0x36 volume never asserted or bricked. The brick was
+  the out-of-range slot; with the corrected 9-byte message it does not recur.
+  Still the most powerful command in the app (it restructures routing) — send
+  only the exact 9-byte form, and back up before bulk source testing.
+  Factory reset recovery (if ever needed again): hold FX Loop + Mod + Reverb at
+  power on, wait for the logo with no scroll bar, power off, power on normally.
+  Restore patches from backup afterward.
+
+  THE "5TH OPTION" — Rig Out No Cab — is NOT a 5th 0x37 value. It is Rig Output
+  (val 3) PLUS the global cab bypass engaged (CMD 0x38 = 01). See CMD 0x38 below.
+
+RESO (CMD 0x3F) — GLOBAL, amp-out pre-cab resonance/impedance sim (2026-08-30):
+  F0 13 0B 0F [dir] 3F [state] F7 (01=on, 00=off). Audible: with cabs off it
+  chooses straight amp->external IR/speaker vs simulating the amp's resonance/
+  impedance curve before the external output. NOT a cab bypass — it taps the amp
+  output pre-cabinet to a hardware output; the cab can stay enabled in the chain
+  for the rig output. GLOBAL: the byte carries only [state], no per-output slot
+  (setting it in any of the 4 front-panel spots writes the one flag; all mirror
+  it). Avid's editor never exposed RESO and the manual never mentions it.
+  READ: F0 13 0B 0F 01 3F F7 -> 12 3F [state] — WORKS (confirmed 2026-08-30),
+  even though Avid never queries it, so RESO state is known on connect. SET:
+  00 3F [state] — confirmed on hardware. Value-based (explicit on/off).
+
+GLOBAL CAB BYPASS (CMD 0x38, "Cab Always Off") — GLOBAL (2026-08-30):
+  F0 13 0B 0F [dir] 38 [state] F7 (01=engaged/no cab anywhere, 00=clear).
+  READ 01 38 (Avid's startup read) -> 12 38 [state]; SET 00 38 [state] — both
+  confirmed working (retracts the old "front-panel only [DEAD-send]"). Not
+  queried on ordinary nav, only connect/populate, so the app queries it on
+  connect. When engaged it forces the cab off regardless of the patch's own cab
+  bypass, so the chain-row CAB must defer to it (effective cab = patch-cab AND
+  NOT global). Avid's editor exposes it as the "Cab Always Off" checkbox and,
+  when you click a chain cab that's globally suppressed, prompts "master cabinet
+  bypass is on — turn it off?"; its Yes clears 0x38 THEN re-writes the per-patch
+  cab bypass (00 11 [handle] 14 [val]) so the rack rebuilds the cab into the path
+  immediately (Eleven Edit mirrors this). Driving 0x38 from software does NOT
+  repaint the rack's own front-panel chain graphic until a rack-side interaction
+  or a nav — accepted known quirk (audio + our app are correct).
 
 
 RIG TEMPO — CMD 0x50. FULLY DECODED 7/24/2026 (Tempo_Settings.pcapng).
@@ -2179,13 +2223,17 @@ CHAIN / DANGER:
   Identifying a chain block by mid range instead of slot ID — mid is the
     MODEL, and generic FX slots host models from other categories, so ranges
     overlap. Use the slot ID (Sec 4).
-  Sending CMD 0x37 (To Amp Source) at all — every assert on this command has
-    BRICKED the rack and forced a full factory reset, three times across two
-    days (Sec 18). The query-first sequence avoided the assert in limited
-    testing but the feature never worked and the root cause is unknown. Do not
-    send it. This is unique to 0x37: asserts elsewhere (bad-patch-format, panel
-    oddities) recover with nav-away/back. CMD 0x36 volume is NOT implicated.
-    Always query with CMD 0x3A, wait for response, then send CMD 0x37.
+  Sending a MALFORMED CMD 0x37 (To Amp Source) — the 3 historic bricks (full
+    factory reset each, two days, Sec 18) were all from the OLD 10-byte send with
+    a spurious 0x07 framing byte, which made the rack read an out-of-range slot
+    (0x07) into a 2-entry routing table. ROOT CAUSE FOUND + FIXED 2026-08-30: the
+    correct message is 9 bytes (F0 13 0B 0F 00 37 [slot][val] F7, no 0x07),
+    confirmed on hardware to move the source with no assert. No CMD 0x3A query is
+    needed (Avid sends none). So 0x37 is now a WORKING command — but send ONLY
+    the exact 9-byte form; a wrong slot byte is what bricks, so never hardcode or
+    compute an out-of-range slot, and back up before bulk source testing. (Asserts
+    elsewhere — bad-patch-format, panel oddities — recover with nav-away/back;
+    the 0x37 brick was specific to the malformed routing write.)
   Sending the SAVE sequence (CMD 0x04 write form, Sec 15) with raw_slot
     outside 0-103 — CONFIRMED 2026-08-28: partial write (name briefly took,
     did not actually persist) followed by a BSOD on further interaction.
@@ -3127,6 +3175,34 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
 ===================================================================
 24. CHANGE / CONSOLIDATION LOG
 ===================================================================
+
+2026-08-30 (TO AMP SOURCE + RESO + GLOBAL CAB OFF — the "3rd and final attempt",
+  ALL TESTED LIVE and confirmed by Charlie, versions 1.3.67->1.3.73; full
+  blow-by-blow with every capture and retracted theory in the Session Log
+  2026-08-29/30 entries [FOLDED IN]). Sections updated: 6 (CMD 0x37/0x38/0x3A/
+  0x35/0x39 + new 0x3F), 18 (TO AMP SOURCE block rewritten SOLVED; RESO + Global
+  Cab Off blocks added), 20 (0x37 do-not-retry reframed to malformed-only).
+  - TO AMP SOURCE (CMD 0x37) SOLVED: the send was 10 bytes with a spurious 0x07
+    (USB-MIDI framing misread as payload); the real message is 9 bytes. That byte
+    made the rack read slot=0x07 (out of range) — the cause of BOTH the source
+    never moving AND all 3 historic bricks. Corrected 9-byte send works, no
+    assert; no CMD 0x3A query needed. Source pickers re-enabled; real state read
+    on connect via 01 37. (v1.3.68)
+  - GLOBAL CAB OFF (CMD 0x38): retracts "dead-send" — READ 01 38 + SET 00 38 both
+    work. Chain-row CAB now defers to it (was showing a cab the rack wasn't
+    producing). Connect-time query for startup state; "master cabinet bypass is
+    on — turn it off?" modal whose Yes clears 0x38 then re-writes the per-patch
+    cab (00 11 [handle] 14) so the cab returns instantly, mirroring Avid.
+    (v1.3.69-1.3.71) Known quirk: SW-driven 0x38 doesn't repaint the rack's own
+    chain graphic until a rack interaction/nav — accepted, not a defect.
+  - RESO (CMD 0x3F): new. Global amp-out pre-cab resonance sim, audible, that
+    Avid's editor never exposed. Readable (01 3F -> 12 3F, works even though Avid
+    never queries it), settable (00 3F), broadcasts on change. Toggle in the UI.
+    (v1.3.72-1.3.73) Ruled out 0x35/0x39 as RESO's readback via an Avid RESO-ON
+    startup A/B (both unchanged, 0x35=02/0x39=00).
+  - UI: To Amp box back to full 80px knobs with source pickers in a right-hand
+    column; new GLOBALS box (Cab Off + RESO toggles) right of Volumes.
+  - Investigation brief (To Amp Source): its job is done and it is retired.
 
 2026-08-29 (MAJOR BUGFIX SESSION — the "save corrupts the chain / amp"
   hunt, ALL TESTED LIVE and confirmed by Charlie, versions 1.3.59->1.3.67,
