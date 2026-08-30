@@ -171,6 +171,15 @@ LEAD (2026-08-29) — RESO readback + the unknown startup bytes 0x35/0x39:
   12 35 / 12 39 vs 02/00. If one flips with RESO -> decodes an unknown byte AND
   gives RESO a readback. CAVEAT: could instead be other User Options fields
   (Digital output mode / exp pedal / footswitch) the rack also dumps on nav.
+  UPDATE (be39ae37-Avid_Reso_Test_Nav.pcapng): RESO reconfirmed GLOBAL — toggled
+  on (C3) / off (C2) across an Avid-driven nav walk C4->C3->C2->C1, rode across
+  the patch changes with no auto-reset and no per-nav rebroadcast. BUT this
+  capture had NO 0x35/0x38/0x39 readbacks at all: AVID'S EDITOR NAV DOES NOT
+  EMIT THE READBACK BURST — only slot-confirm (0x02) + patch body. That burst is
+  something OUR app's nav pull triggers, not Avid's — so the 0x35/0x39 test must
+  be driven from ELEVEN EDIT, not Avid: run Eleven Edit, turn RESO on (front
+  panel), nav a patch in Eleven Edit, and diff 12 35 / 12 39 in ITS program log
+  vs the earlier 02 / 00. No Wireshark needed.
 
 BUG (2026-08-29, current build — Charlie confirmed live, visual): the chain row
   shows CAB enabled when the GLOBAL cab bypass (0x38) is on, because the app
