@@ -160,7 +160,22 @@ OPEN:        Are 0x3F (RESO) and 0x38 (No Cab) per-output or GLOBAL? All capture
              far. This is what decides the RESO/No-Cab UI (shared toggles vs
              per-output), which in turn decides the To Amp panel layout (A vs C).
 
-TO AMP PANEL LAYOUT + GLOBALS BOX — 1.3.73 (2026-08-30, NOT YET TESTED LIVE):
+TESTED LIVE + CONFIRMED (Charlie, 2026-08-30): 1.3.73 "everything seems spot on
+  working" — layout (full knobs + source pickers right), GLOBALS box (Cab Off +
+  RESO toggles), source pickers reading real state on connect, AND the RESO 0x3F
+  SET (first live send) all work. The 00 3F SET is confirmed. The entire To Amp
+  Source / RESO / Global Cab Off feature set is now functional.
+  KNOWN QUIRK (accepted, not fixing — Charlie leaning that way, Claude concurs):
+  when Global Cab Off is driven from software (engaged, or landed-on while
+  engaged), the RACK's own front-panel chain GRAPHIC doesn't repaint — our app
+  and the audio are correct, only the rack's screen lags, and it self-heals on any
+  rack interaction. The re-assert trick would sync it but WRITES the cab param =
+  flags the patch dirty; doing that on engage adds dirtying where there's none
+  now, and on patch-load would dirty every nav. Not worth it — same category as
+  the expected Save-to-Rack blip. (Escape hatch if ever wanted: re-assert on
+  ENGAGE only, never on nav.)
+
+TO AMP PANEL LAYOUT + GLOBALS BOX — 1.3.73 (2026-08-30, NOW TESTED LIVE, above):
   Charlie's layout call (screenshot + notes): To Amp box back to full-size 80px
   knobs with the two source pickers in a COLUMN to the right (white text to match
   cab/mic), same box height. Cab Off + RESO are rig-wide, NOT amp source, so they
