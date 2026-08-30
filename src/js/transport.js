@@ -682,6 +682,16 @@ function sendResoQuery() {
   appLog('sendResoQuery: probing whether the rack answers 01 3F (RESO read)');
   return sendHex('F0 13 0B 0F 01 3F F7');
 }
+// ── CMD 0x37 READ — To Amp source query (dir 0x01), one per slot. Avid sends
+// these at startup (Avid_Startup capture: 01 37 x2). Reply 12 37 [slot] [val]
+// routes to handleToAmpSourceBroadcast, which fills the source pickers with real
+// state on connect. A READ only — NOT the brick-class 0x37 SET (dir 0x00).
+function sendToAmpSourceRead() {
+  if (!bridgeMidiReady) return;
+  appLog('sendToAmpSourceRead: reading To Amp 1/2 source (01 37)');
+  sendHex('F0 13 0B 0F 01 37 00 F7');
+  sendHex('F0 13 0B 0F 01 37 01 F7');
+}
 function sendResoSet(on) {
   if (!bridgeMidiReady) return;
   const hex = 'F0 13 0B 0F 00 3F ' + (on ? '01' : '00') + ' F7';
@@ -962,7 +972,9 @@ async function requestFullState() {
   // reveals startup RESO state; silence just means resoState stays undefined.
   await sleep(80);
   sendResoQuery();
-  appLog('Requested one-time setup state (curr rig confirm, chain map, global cab, reso probe)');
+  await sleep(80);
+  sendToAmpSourceRead();
+  appLog('Requested one-time setup state (curr rig confirm, chain map, global cab, reso, to-amp source)');
 }
 
 // Amp, name, Rig Vol, and CHAIN_MAP are all per-patch — refresh all four

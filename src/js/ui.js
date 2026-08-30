@@ -1988,6 +1988,41 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// ── GLOBALS box: Cab Off (CMD 0x38) + RESO (CMD 0x3F) toggles ──────────
+// Both are rig-wide and read on connect, so they reflect real state. Each lights
+// amber when active, shows "?" only in the rare window before its state is known.
+function setTogState(id, on) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('tog-unknown', on === undefined);
+  el.classList.toggle('tog-on', on === true);
+}
+function refreshGlobalToggles() {
+  setTogState('cab-off-tog', globalCabBypass);
+  setTogState('reso-tog', resoState);
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const cabTog = document.getElementById('cab-off-tog');
+  if (cabTog) cabTog.addEventListener('click', function() {
+    if (!bridgeMidiReady) return;
+    if (globalCabBypass === undefined) { appLog('Global cab state unknown yet, ignoring click'); return; }
+    if (globalCabBypass === true) {
+      // Clearing Cab Off: same as the chain-row modal Yes — clear + re-assert the
+      // cab so it returns instantly (handleGlobalCabBypass does the re-assert).
+      pendingCabReassert = true;
+      sendGlobalCabBypassSet(false);
+    } else {
+      sendGlobalCabBypassSet(true);
+    }
+  });
+  const resoTog = document.getElementById('reso-tog');
+  if (resoTog) resoTog.addEventListener('click', function() {
+    if (!bridgeMidiReady) return;
+    // resoState is read on connect, so it's known; flip to the other state.
+    if (typeof sendResoSet === 'function') sendResoSet(!(resoState === true));
+  });
+});
+
 // ── Update amp display and gate knob CCs when amp changes ──
 function syncAmpSelectDropdown(key) {
   const sel = document.getElementById('amp-select');
@@ -2399,6 +2434,14 @@ function setVolumeControlsEnabled(enabled) {
   ['amp-out-knob','rig-vol-knob','toamp1-knob','toamp2-knob'].forEach(id => {
     document.getElementById(id).classList.toggle('knob-disabled', !enabled);
   });
+  // To Amp source pickers + the GLOBALS toggles (Cab Off / RESO) are all
+  // bridge-only controls — gate them the same as the volume knobs.
+  ['toamp1-src','toamp2-src'].forEach(id => {
+    const s = document.getElementById(id); if (s) s.disabled = !enabled;
+  });
+  ['cab-off-tog','reso-tog'].forEach(id => {
+    const b = document.getElementById(id); if (b) b.classList.toggle('knob-disabled', !enabled);
+  });
   if (!enabled) {
     ['amp-out-val','rig-vol-val','toamp1-vol-val','toamp2-vol-val'].forEach(id => {
       document.getElementById(id).textContent = '--';
@@ -2408,6 +2451,7 @@ function setVolumeControlsEnabled(enabled) {
       const w = document.getElementById(id);
       if (w) drawKnob(w.querySelector('canvas'), parseInt(w.dataset.value)||0);
     });
+    refreshGlobalToggles();
   }
 }
 

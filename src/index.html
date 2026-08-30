@@ -605,20 +605,35 @@
      border nearby to poke through) but visible as soon as one sits inside
      a bordered group box (Parametric EQ, 2026-07-31). */
   .fxhost-select { width: 130px; }
-  /* To Amp source pickers (2026-08-29) — the two To Amp columns carry a knob
-     AND a source <select>. Shrinking the knob 80->56px keeps the column the
-     same total height as an 80px-knob column (label + 56 knob + val + select
-     ≈ label + 80 knob + val), so the box stays flush with Gate/Volumes and
-     never grows taller. drawKnob reads canvas.width, so the 56px canvas scales
-     itself — no render change needed. */
-  .toamp-knob-sm { width: 56px; height: 56px; }
+  /* To Amp source pickers (2026-08-30) — full-size knobs, the two source
+     <select>s stacked in a column to the RIGHT of the knobs. White text to match
+     the CAB/MIC dropdowns. */
+  .toamp-src-col { display: flex; flex-direction: column; justify-content: center; gap: 6px; align-self: center; padding-left: 4px; }
+  .toamp-src-cap { font-size: 10px; color: var(--muted); letter-spacing: .6px; text-transform: uppercase; text-align: center; }
+  .toamp-src-row { display: flex; align-items: center; gap: 5px; }
+  .toamp-src-num { font-size: 11px; color: var(--label); font-family: 'Consolas', monospace; width: 8px; }
   .toamp-src-select {
-    width: 88px; box-sizing: border-box; margin-top: 3px;
-    font-size: 10px; font-family: 'Consolas', monospace; padding: 1px 2px;
-    background: #1a1a1a; color: var(--accent);
+    width: 96px; box-sizing: border-box;
+    font-size: 11px; font-family: 'Consolas', monospace; padding: 2px 3px;
+    background: #1a1a1a; color: var(--text);
     border: 1px solid var(--border-dim); border-radius: 3px;
   }
   .toamp-src-select:focus { outline: 1px solid var(--accent); }
+  .toamp-src-select:disabled { opacity: 0.3; }
+  /* GLOBALS box toggles — Cab Off (0x38) / RESO (0x3F). Amber/lit when active,
+     dim outline when off, "?" appended while state is unknown (2026-08-30). */
+  .globals-stack { display: flex; flex-direction: column; gap: 8px; align-self: center; }
+  .glob-tog {
+    display: flex; align-items: center; gap: 8px; min-width: 100px;
+    padding: 8px 10px; background: #1a1a1a; border: 1px solid var(--border-dim);
+    border-radius: 4px; color: var(--muted); font-size: 12px; letter-spacing: .5px;
+    text-transform: uppercase; cursor: pointer; font-family: inherit;
+  }
+  .glob-tog:hover { border-color: var(--accent); }
+  .glob-tog .dot { width: 8px; height: 8px; border-radius: 50%; background: #3a3a3a; flex: 0 0 auto; }
+  .glob-tog.tog-on { border-color: var(--accent); color: var(--accent); background: #1a1400; }
+  .glob-tog.tog-on .dot { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+  .glob-tog.tog-unknown .glab::after { content: ' ?'; color: var(--muted); }
   .knob-val { font-size: 12px; color: var(--accent); font-weight: bold; text-align: center; font-family: 'Consolas', monospace; min-width: 44px; }
   .knob-disabled { pointer-events: none; opacity: 0.3; }
   /* A knob the hardware DOES report but that we must not write to (Speed,
@@ -1365,40 +1380,48 @@
 
           <div class="vdiv"></div>
 
-          <!-- To Amp 1 & 2 — Vol knob (CMD 0x36) + Source picker (CMD 0x37).
-               Knobs are shrunk (56px vs the usual 80px) so the source <select>
-               fits under each without making this box taller than Gate/Volumes
-               (Charlie's call, 2026-08-29). The picker's option values ARE the
-               wire val: 0=Rig Input, 1=Amp Input, 2=Amp Output, 3=Rig Output. -->
+          <!-- To Amp 1 & 2 — full-size Vol knobs (CMD 0x36) with the Source
+               pickers (CMD 0x37) in a column to the right (2026-08-30, Charlie's
+               call — knobs back to 80px, box a touch wider, same height as
+               Gate/Volumes). Global switches (Cab Off / RESO) are NOT here — they
+               live in their own GLOBALS box, since they're rig-wide, not amp
+               source. Picker option values ARE the wire val: 0=Rig Input,
+               1=Amp Input, 2=Amp Output, 3=Rig Output. Real state read on connect
+               via the 01 37 query (Avid's own startup read). -->
           <div class="gate-group">
             <div class="gate-label">To Amp</div>
-            <div class="ctrl-knob knob-disabled toamp-src-col" id="toamp1-knob">
+            <div class="ctrl-knob knob-disabled" id="toamp1-knob">
               <label>1 Vol</label>
-              <div class="knob-wrap toamp-knob-sm" id="toamp1-vol-wrap" data-value="64">
-                <canvas class="knob-canvas" width="56" height="56"></canvas>
+              <div class="knob-wrap" id="toamp1-vol-wrap" data-value="64">
+                <canvas class="knob-canvas" width="80" height="80"></canvas>
               </div>
               <span class="knob-val" id="toamp1-vol-val">--</span>
-              <select class="toamp-src-select" id="toamp1-src">
-                <option value="-1" disabled selected>— Src —</option>
-                <option value="0">Rig Input</option>
-                <option value="1">Amp Input</option>
-                <option value="2">Amp Output</option>
-                <option value="3">Rig Output</option>
-              </select>
             </div>
-            <div class="ctrl-knob knob-disabled toamp-src-col" id="toamp2-knob">
+            <div class="ctrl-knob knob-disabled" id="toamp2-knob">
               <label>2 Vol</label>
-              <div class="knob-wrap toamp-knob-sm" id="toamp2-vol-wrap" data-value="64">
-                <canvas class="knob-canvas" width="56" height="56"></canvas>
+              <div class="knob-wrap" id="toamp2-vol-wrap" data-value="64">
+                <canvas class="knob-canvas" width="80" height="80"></canvas>
               </div>
               <span class="knob-val" id="toamp2-vol-val">--</span>
-              <select class="toamp-src-select" id="toamp2-src">
-                <option value="-1" disabled selected>— Src —</option>
-                <option value="0">Rig Input</option>
-                <option value="1">Amp Input</option>
-                <option value="2">Amp Output</option>
-                <option value="3">Rig Output</option>
-              </select>
+            </div>
+            <div class="toamp-src-col">
+              <div class="toamp-src-cap">Source</div>
+              <div class="toamp-src-row"><span class="toamp-src-num">1</span>
+                <select class="toamp-src-select" id="toamp1-src" disabled>
+                  <option value="-1" disabled selected>— Src —</option>
+                  <option value="0">Rig Input</option>
+                  <option value="1">Amp Input</option>
+                  <option value="2">Amp Output</option>
+                  <option value="3">Rig Output</option>
+                </select></div>
+              <div class="toamp-src-row"><span class="toamp-src-num">2</span>
+                <select class="toamp-src-select" id="toamp2-src" disabled>
+                  <option value="-1" disabled selected>— Src —</option>
+                  <option value="0">Rig Input</option>
+                  <option value="1">Amp Input</option>
+                  <option value="2">Amp Output</option>
+                  <option value="3">Rig Output</option>
+                </select></div>
             </div>
           </div>
 
@@ -1423,6 +1446,27 @@
                 <canvas class="knob-canvas" width="80" height="80"></canvas>
               </div>
               <span class="knob-val" id="rig-vol-val">--</span>
+            </div>
+          </div>
+
+          <div class="vdiv"></div>
+
+          <!-- GLOBALS — rig-wide amp-out switches, NOT per-patch and NOT part of
+               amp source (Charlie's call, 2026-08-30): Cab Off (CMD 0x38 master
+               cabinet bypass) and RESO (CMD 0x3F, amp-out pre-cab resonance sim,
+               a feature Avid's editor never exposed). Both are read on connect and
+               reflect the rack's real state. Sit in the space right of Volumes. -->
+          <div class="gate-group" id="globals-group">
+            <div class="gate-label">Globals</div>
+            <div class="globals-stack">
+              <button type="button" class="glob-tog knob-disabled tog-unknown" id="cab-off-tog"
+                      title="Master cabinet bypass — engaged means no cab on any output (CMD 0x38)">
+                <span class="dot"></span><span class="glab">Cab Off</span>
+              </button>
+              <button type="button" class="glob-tog knob-disabled tog-unknown" id="reso-tog"
+                      title="RESO — amp-out pre-cab resonance/impedance sim, audible with cabs off (CMD 0x3F)">
+                <span class="dot"></span><span class="glab">Reso</span>
+              </button>
             </div>
           </div>
 

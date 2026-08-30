@@ -836,6 +836,7 @@ function handleGlobalCabBypass(data) {
   // Re-render the chain CAB block through the per-patch value; updateCabBypassDisplay
   // applies the global override so the effective state shows correctly.
   updateCabBypassDisplay(cabBypassActive);
+  if (typeof refreshGlobalToggles === 'function') refreshGlobalToggles();
   // If WE just cleared it via the modal's "Yes", re-assert the per-patch cab now
   // that the clear is acknowledged — this is what makes the rack rebuild the cab
   // into the signal path immediately (mirrors Avid: 00 38 00 then a cab-bypass
@@ -862,6 +863,7 @@ function handleReso(data) {
   if (data.length < 8) return;
   resoState = (data[6] === 0x01);
   appLog('CMD 0x3F RESO: ' + (resoState ? 'ON' : 'OFF') + ' (dir=0x' + data[4].toString(16).padStart(2,'0') + ')');
+  if (typeof refreshGlobalToggles === 'function') refreshGlobalToggles();
 }
 
 // ════════════════════════════════════════════════════════════════════
