@@ -231,6 +231,21 @@ BUG (2026-08-29, current build — Charlie confirmed live, visual): the chain ro
   queries; NOT the dead-send 0x38 set) once on connect; the 12 38 reply already
   routes to handleGlobalCabBypass. Also asked Charlie to toggle global bypass
   off/on live to confirm the broadcast (dir 0x02) half works.
+  BROADCAST HALF TESTED LIVE + CONFIRMED (Charlie, 2026-08-30, session 073612):
+  toggling Global Cab Off from the panel flips the chain CAB correctly (engaged
+  -> CAB red/no-cab, clear -> CAB green). Display fix works whenever a 0x38
+  arrives; only the connect-time initial read is missing. Clicking the red CAB is
+  honest-but-silent (Patch Cab toggle no-op'd by the rack's Global Cab Off;
+  display stays red) — explanatory modal not yet coded.
+  TERMINOLOGY LOCKED (avoid "bypass on/off"): "Global Cab Off" (0x38) engaged=no
+  cab / clear=cab follows patch; "Patch Cab" (0x11/0x14) on / bypassed; chain CAB
+  box green = cab actually producing sound, red = no cab from EITHER cause. Rule:
+  CAB green only when Patch Cab on AND Global Cab Off clear.
+  NEXT BUILD 1.3.70 (proposed, pending OK — two 0x38 sends, neither is brick-class
+  0x37): (a) connect-time 01 38 query for startup state; (b) the "master cabinet
+  bypass is on / turn it off?" modal on a red-CAB click, Yes sends 00 38 00
+  (Global Cab Off clear) — also tests whether the 0x38 SET works (old "dead-send"
+  note likely wrong since Avid's prompt does it).
 
 OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
   1. UI polish — the shrunk 56px To Amp knobs look undersized next to the
