@@ -906,6 +906,10 @@ function updateMonoIndicator(isMono) {
     conn.title = isMono ? 'Mono' : 'Stereo';
   }
   appLog('Stereo/Mono: ' + (isMono ? 'MONO' : 'STEREO'));
+  // The innerHTML reset above wipes any child of #mono-connector — including a
+  // Rig Output ("3") To Amp tap badge anchored there. Re-place the indicators so
+  // that badge survives a stereo/mono update (fix 2026-08-30).
+  if (typeof placeToAmpTapIndicators === 'function') placeToAmpTapIndicators();
 }
 
 // Click handler for Stereo/Mono badge — wired up once DOM is ready
