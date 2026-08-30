@@ -171,9 +171,17 @@ AVID STARTUP DECODE (2026-08-30, 24e1b36c-Avid_Startup_With_Rack_On.pcapng) —
       read anywhere; toggle must start indeterminate, period.
     * Global option responses this capture (RESO OFF): 12 38 00, 12 35 02,
       12 39 00, 12 3C 02, 12 3D 00, 12 40 00. -> 0x35=02, 0x39=00 is the
-      RESO-OFF BASELINE. NEXT: an Avid startup with RESO ON — if 0x35 or 0x39
-      comes back different, that byte encodes RESO (hidden readback found); if
-      both unchanged, RESO confirmed unreadable.
+      RESO-OFF BASELINE.
+    * RESO-ON A/B DONE + CLOSED (be6fcf94-Avid_Startup_with_RESO_ON.pcapng):
+      with RESO ON, 0x35=02 and 0x39=00 — IDENTICAL to the RESO-OFF baseline,
+      and still no 01 3F query. So RESO is NOT hidden in 0x35/0x39 (nor anywhere
+      else). FINAL: RESO has no readback at all — adopt-broadcast-only (0x3F on
+      change), toggle starts indeterminate and resolves on first touch/broadcast.
+      Hypothesis exhausted; do not revisit without genuinely new evidence.
+      (Side note: 0x3C was 02 in the o1 capture, 00 here on A1 -> 0x3C is
+      per-patch, not global. 0x35/0x38/0x39 identical across both patches ->
+      global, as expected. This RESO-ON capture had 0x38=00 = Global Cab Off
+      CLEAR, i.e. cabs normal — global bypass was NOT engaged despite intent.)
     * Startup patch was factory o1 "Boosted Duo" (space=1, raw slot 56,
       12 02 01 38). Irrelevant to the option queries (they fire every startup).
     * BONUS: Avid queries 01 37 (To Amp source, both slots) at startup — a future
