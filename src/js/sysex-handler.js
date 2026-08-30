@@ -835,6 +835,19 @@ function handleGlobalCabBypass(data) {
   // Re-render the chain CAB block through the per-patch value; updateCabBypassDisplay
   // applies the global override so the effective state shows correctly.
   updateCabBypassDisplay(cabBypassActive);
+  // If WE just cleared it via the modal's "Yes", re-assert the per-patch cab now
+  // that the clear is acknowledged — this is what makes the rack rebuild the cab
+  // into the signal path immediately (mirrors Avid: 00 38 00 then a cab-bypass
+  // write). Only on the clear (not on engage), and only for our own action.
+  if (pendingCabReassert && globalCabBypass === false) {
+    pendingCabReassert = false;
+    if (cabBypassActive !== undefined && typeof sendCabBypass === 'function') {
+      appLog('Re-asserting per-patch cab after global clear (Avid-style refresh)');
+      sendCabBypass(cabBypassActive);
+    }
+  } else if (globalCabBypass === true) {
+    pendingCabReassert = false;  // engage cancels any stale pending re-assert
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════

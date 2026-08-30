@@ -127,6 +127,11 @@ let cabBypassActive;            // undefined until read from hardware
 // chain row's CAB block defers to this so it never shows a cab the rack isn't
 // producing (2026-08-30).
 let globalCabBypass;
+// Set true when the user clears Global Cab Off via the modal's "Yes"; the 0x38
+// clear echo then re-asserts the per-patch cab (mirrors Avid, so the cab returns
+// instantly instead of on the next nav). Guards against re-asserting on a
+// front-panel global clear (which the rack handles itself). 2026-08-30.
+let pendingCabReassert = false;
 
 // Bypass paramLo values — Tech Ref Sec 3.
 const BYPASS_PARAMLO_BLOCK = 0x01;   // every non-amp chain block

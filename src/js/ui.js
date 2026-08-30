@@ -1974,6 +1974,12 @@ document.addEventListener('DOMContentLoaded', function() {
   if (no) no.addEventListener('click', closeCabBypassModal);
   if (yes) yes.addEventListener('click', function() {
     closeCabBypassModal();
+    // Mirror Avid's "Yes" (Avid_..._YES capture, 2026-08-30): clear Global Cab
+    // Off, then re-assert the per-patch cab so the rack rebuilds it into the path
+    // immediately instead of on the next nav. The re-assert is fired from the
+    // 0x38-clear echo (handleGlobalCabBypass) so it lands AFTER the clear is
+    // acknowledged; pendingCabReassert scopes it to this action only.
+    pendingCabReassert = true;
     if (typeof sendGlobalCabBypassSet === 'function') sendGlobalCabBypassSet(false);
   });
   const overlay = document.getElementById('cab-bypass-modal');
