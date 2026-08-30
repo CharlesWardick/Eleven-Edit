@@ -634,6 +634,20 @@
   .glob-tog.tog-on { border-color: var(--accent); color: var(--accent); background: #1a1400; }
   .glob-tog.tog-on .dot { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
   .glob-tog.tog-unknown .glab::after { content: ' ?'; color: var(--muted); }
+  /* Chain-row To Amp tap indicators (2026-08-30) — small numbered badges (1/2)
+     on the chain flow where each To Amp output taps the signal, like Avid. Sit
+     just above the connector at the tap point. When both taps land on the same
+     connector they offset left/right so they don't stack. */
+  .chain-arr { position: relative; }
+  .toamp-tap {
+    position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+    min-width: 15px; height: 15px; padding: 0 2px; box-sizing: border-box;
+    border-radius: 8px; background: var(--accent); color: #111;
+    font: bold 10px/15px 'Consolas', monospace; text-align: center;
+    z-index: 6; pointer-events: none; box-shadow: 0 0 3px rgba(0,0,0,0.6);
+  }
+  .toamp-tap.tap-left  { transform: translateX(-50%) translateX(-9px); }
+  .toamp-tap.tap-right { transform: translateX(-50%) translateX(9px); }
   .knob-val { font-size: 12px; color: var(--accent); font-weight: bold; text-align: center; font-family: 'Consolas', monospace; min-width: 44px; }
   .knob-disabled { pointer-events: none; opacity: 0.3; }
   /* A knob the hardware DOES report but that we must not write to (Speed,

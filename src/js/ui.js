@@ -1701,6 +1701,49 @@ function renderChainRow() {
   applyChainOrder(currentChain);
   refreshBlockBypassDisplays();
   wireChainDrag();
+  placeToAmpTapIndicators();
+}
+
+// ── Chain-row To Amp tap indicators (2026-08-30) ──────────────────────
+// Small numbered badges (1 / 2) on the chain flow at the point each To Amp
+// output taps the signal, mirroring Avid's "1"/"2" markers. The tap point is
+// purely the source value (RESO / No-Cab don't move it):
+//   0 Rig Input  -> chain input (before block 1)
+//   1 Amp Input  -> connector immediately before the AMP-CAB slot
+//   2 Amp Output -> connector immediately after the AMP-CAB slot
+//   3 Rig Output -> chain end (the mono connector before the stereo badge)
+// prevElementSibling/nextElementSibling naturally resolve to the input/end
+// connectors when AMP-CAB is the first/last block. Re-run on every chain render
+// and on any source change.
+function toAmpTapAnchor(srcVal) {
+  if (srcVal === 0) return document.getElementById('chain-input-connector');
+  if (srcVal === 3) return document.getElementById('mono-connector');
+  const amp = (typeof containerForSlot === 'function') ? containerForSlot(SLOT_AMP) : null;
+  if (!amp) return null;
+  const sib = (srcVal === 1) ? amp.previousElementSibling
+            : (srcVal === 2) ? amp.nextElementSibling
+            : null;
+  return (sib && sib.classList && sib.classList.contains('chain-arr')) ? sib : null;
+}
+function placeToAmpTapIndicators() {
+  document.querySelectorAll('.toamp-tap').forEach(el => el.remove());
+  const strip = document.getElementById('chainstrip');
+  if (!strip) return;
+  const readSrc = id => { const s = document.getElementById(id); const v = s ? parseInt(s.value, 10) : NaN; return (isNaN(v) || v < 0) ? null : v; };
+  const taps = [];
+  const s1 = readSrc('toamp1-src'); if (s1 !== null) taps.push({ n: '1', anchor: toAmpTapAnchor(s1) });
+  const s2 = readSrc('toamp2-src'); if (s2 !== null) taps.push({ n: '2', anchor: toAmpTapAnchor(s2) });
+  taps.forEach(t => {
+    if (!t.anchor) return;
+    const badge = document.createElement('span');
+    badge.className = 'toamp-tap';
+    badge.textContent = t.n;
+    badge.title = 'To Amp ' + t.n + ' output tap';
+    if (taps.filter(x => x.anchor === t.anchor).length > 1) {
+      badge.classList.add(t.n === '1' ? 'tap-left' : 'tap-right');
+    }
+    t.anchor.appendChild(badge);
+  });
 }
 
 // Moves the chain-slot divs into `order` and repaints the connector arrows.
@@ -2942,6 +2985,7 @@ initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valToAmpVol, function(v) { sendToA
     var val = parseInt(sel.value, 10);
     if (isNaN(val) || val < 0) return;
     sendToAmpSource(pair[1], val);
+    placeToAmpTapIndicators();  // reflect the new tap point immediately
   });
 });
 

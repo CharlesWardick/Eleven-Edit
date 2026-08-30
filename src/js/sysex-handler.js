@@ -814,6 +814,7 @@ function handleToAmpSourceBroadcast(data) {
     if (sel) sel.value = String(val);
     appLog('CMD 0x37 ToAmp' + (slot+1) + ' source: val=0x' + val.toString(16).padStart(2,'0').toUpperCase());
   }
+  if (typeof placeToAmpTapIndicators === 'function') placeToAmpTapIndicators();
 }
 
 // ════════════════════════════════════════════════════════════════════

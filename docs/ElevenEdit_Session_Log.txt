@@ -37,6 +37,27 @@ NEXT:        what would confirm it, or what to do with it
 ENTRIES (newest first)
 ===================================================================
 
+-------------------------------------------------------------------
+DATE:        2026-08-30 (post-finalize follow-on)
+STATUS:      provisional — NOT YET TESTED LIVE (v1.3.74)
+AREA:        Chain-row To Amp tap indicators (UI, cosmetic)
+FINDING:     Added the deferred chain-row source indicators — small numbered
+             badges (1/2) on the chain flow at each To Amp output's tap point,
+             like Avid. Tap point = source value only (RESO/No-Cab don't move it):
+             0 Rig Input->chain input (#chain-input-connector); 1 Amp Input->
+             connector before AMP-CAB; 2 Amp Output->connector after AMP-CAB;
+             3 Rig Output->chain end (#mono-connector). placeToAmpTapIndicators +
+             toAmpTapAnchor (ui.js) run from renderChainRow, the picker change
+             listener, and handleToAmpSourceBroadcast. Overlap handled: two taps
+             on the same connector offset left/right (.tap-left/.tap-right) so
+             they don't stack (Charlie's concern). Badge is position:absolute in
+             the connector (.chain-arr position:relative), pointer-events:none.
+NEXT:        Charlie live test — position/size of the badges (top:-13px is a
+             first guess; may need nudging so they don't clip the thumbnails or
+             the connector), and the same-tap offset spacing. Fold to Primer
+             WORKING once confirmed. v1.3.74.
+-------------------------------------------------------------------
+
 [FOLDED IN: 2026-08-30 finalize] — the entire 2026-08-29/30 To Amp Source / RESO
 / Global Cab Off investigation below (every entry from here down through the
 "AVID STARTUP DECODE" / "RESO ... CLOSED" / cab-display / 1.3.68-1.3.73 test
