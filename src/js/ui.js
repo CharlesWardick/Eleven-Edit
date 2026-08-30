@@ -1914,9 +1914,17 @@ function updateAmpBypassDisplay(isOn) {
 function updateCabBypassDisplay(isOn) {
   const el = document.getElementById('chain-cab');
   if (!el) return;
+  // Global cabinet bypass (CMD 0x38 "Cab Always Off") overrides the per-patch
+  // cab bypass: when it's on the rack produces NO cab regardless of the patch,
+  // so the chain must show CAB off or it lies about the signal path (fix
+  // 2026-08-30 — was showing the patch's own cab state, blind to the global
+  // override). globalCabBypass is undefined until we've seen a 0x38, so before
+  // then we fall back to the per-patch value unchanged.
+  let effOn = isOn;
+  if (globalCabBypass === true) effOn = false;
   el.classList.remove('slot-on','slot-off','slot-unknown');
-  if (isOn === null || isOn === undefined) el.classList.add('slot-unknown');
-  else el.classList.add(isOn ? 'slot-on' : 'slot-off');
+  if (effOn === null || effOn === undefined) el.classList.add('slot-unknown');
+  else el.classList.add(effOn ? 'slot-on' : 'slot-off');
 }
 
 // Click to toggle amp / cab bypass.

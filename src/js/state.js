@@ -121,6 +121,12 @@ let currentChainInput = null;   // { slotId, modelId, handle } for the input blo
 // Every other block uses paramLo 0x01 on its own handle.
 let blockBypass = {};
 let cabBypassActive;            // undefined until read from hardware
+// Global cabinet bypass (CMD 0x38, "Cab Always Off") — GLOBAL, not per-patch.
+// undefined until a 0x38 broadcast/readback is seen; true = global bypass on
+// (cab forced off on hardware regardless of the patch's own cab bypass). The
+// chain row's CAB block defers to this so it never shows a cab the rack isn't
+// producing (2026-08-30).
+let globalCabBypass;
 
 // Bypass paramLo values — Tech Ref Sec 3.
 const BYPASS_PARAMLO_BLOCK = 0x01;   // every non-amp chain block

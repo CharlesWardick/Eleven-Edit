@@ -107,7 +107,7 @@ function connectBridgeWs() {
       setGateControlsEnabled(false);
       currentAmpKey = null; currentAmpName = null; currentParamHi = -1; hasReceivedAmpOutValue = false;
       currentChain = []; currentChainInput = null;  // handles are per-session, never reuse across a disconnect
-      blockBypass = {}; cabBypassActive = undefined;
+      blockBypass = {}; cabBypassActive = undefined; globalCabBypass = undefined;
       document.getElementById('amp-name-display').textContent = '';
       clearTimeout(bridgeReconnectTimer);
       bridgeReconnectTimer = setTimeout(connectBridgeWs, 3000);
@@ -205,7 +205,7 @@ function handleBridgeMsg(msg) {
       setGateControlsEnabled(false);
       currentAmpKey = null; currentAmpName = null; currentParamHi = -1; hasReceivedAmpOutValue = false;
       currentChain = []; currentChainInput = null;  // handles are per-session, never reuse across a disconnect
-      blockBypass = {}; cabBypassActive = undefined;
+      blockBypass = {}; cabBypassActive = undefined; globalCabBypass = undefined;
       document.getElementById('amp-name-display').textContent = '';
       break;
     case 'midi_in':

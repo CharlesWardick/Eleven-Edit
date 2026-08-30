@@ -208,6 +208,17 @@ BUG (2026-08-29, current build — Charlie confirmed live, visual): the chain ro
   (state.js), and render chain-cab off when global is on (effective = patch-cab
   AND NOT global). updateCabBypassDisplay (ui.js:1914) is the render point;
   0x38 currently hits UNHANDLED. Offered to Charlie to do now or batch.
+  IMPLEMENTED 2026-08-30 (v1.3.69, NOT YET TESTED LIVE): handleGlobalCabBypass
+  (sysex-handler.js) handles CMD 0x38 (dir 02 broadcast + dir 12 readback), sets
+  globalCabBypass (state.js), re-renders chain CAB; updateCabBypassDisplay (ui.js)
+  shows CAB off when globalCabBypass===true, overriding the per-patch value;
+  globalCabBypass reset to undefined on (re)connect (transport.js).
+  KNOWN GAP: not queried on ordinary nav, so if the app starts with global bypass
+  already ON and no 0x38 broadcast/populate arrives, the chain still shows the
+  patch's cab state until one does — full initial-state fix needs a connect-time
+  0x38 query we haven't identified (candidate experiment: F0 13 0B 0F 01 38 F7,
+  a read, do carefully). The click-to-enable PROMPT is still deferred; this fix
+  is display-only.
 
 OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
   1. UI polish — the shrunk 56px To Amp knobs look undersized next to the

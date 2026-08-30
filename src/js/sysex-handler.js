@@ -58,6 +58,7 @@ async function parseSysEx(data) {
     case 0x3A: return handleToAmpSourceQueryResp(data);
     case 0x37: return handleToAmpSourceBroadcast(data);
     case 0x3D: return handleInputSelectorBroadcast(data);
+    case 0x38: return handleGlobalCabBypass(data);
     case 0x11: return handleParamReadback(data);
   }
   // Fell through — no case above claimed this CMD (every case returns, so
@@ -812,6 +813,28 @@ function handleToAmpSourceBroadcast(data) {
     if (sel) sel.value = String(val);
     appLog('CMD 0x37 ToAmp' + (slot+1) + ' source: val=0x' + val.toString(16).padStart(2,'0').toUpperCase());
   }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CMD 0x38 — Global cabinet bypass ("Cab Always Off" in Avid's User Options)
+// ════════════════════════════════════════════════════════════════════
+// F0 13 0B 0F [dir] 38 [state] F7 — state 0x01 = global bypass ON (no cab),
+// 0x00 = off. GLOBAL, not per-patch (decoded 2026-08-29/30). Arrives as a
+// change broadcast (dir 0x02, front panel / a source set to "Rig Out No Cab")
+// and in the rack's populate/enumerate readback burst (dir 0x12) — both carry
+// state at data[6], so one handler covers both. When ON it forces the cab off
+// on hardware regardless of the patch's own cab bypass, so the chain row must
+// reflect that or it claims a speaker cab the rack isn't producing.
+// NOTE: this is NOT queried on an ordinary nav pull, so if the app connects
+// while global bypass is already on and no broadcast/populate arrives, the state
+// stays unknown until one does (a connect-time query form is not yet identified).
+function handleGlobalCabBypass(data) {
+  if (data.length < 8) return;
+  globalCabBypass = (data[6] === 0x01);
+  appLog('CMD 0x38 global cab bypass: ' + (globalCabBypass ? 'ON (no cab)' : 'off'));
+  // Re-render the chain CAB block through the per-patch value; updateCabBypassDisplay
+  // applies the global override so the effective state shows correctly.
+  updateCabBypassDisplay(cabBypassActive);
 }
 
 // ════════════════════════════════════════════════════════════════════
