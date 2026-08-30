@@ -134,6 +134,22 @@ EVIDENCE:    d8bd0076-To_amp_source_1_with_RESO.pcapng (USBPcap, decoded by hand
 CONFLICTS:   Sec 18 lists 0x38 as "Global Cabinet Bypass ... Front-panel only
              [DEAD-send]" and 0x3F is undocumented — both to be added/updated
              once the open question below is settled. Nothing folded yet.
+READBACK:    0x38 (global Cab Off) HAS a readback — the rack reports
+             F0 13 0B 0F 12 38 [state] F7 (dir 0x12) in the nav/populate burst
+             (seen at 17:58:53 alongside 0x35/0x39/0x3C/0x3D/0x40), so its true
+             state is known on connect + every nav. 0x3F (RESO) has NO readback
+             anywhere in the log — state known only after a change broadcast
+             (input/mute-class limitation). Both currently hit UNHANDLED.
+INTERACTION (Charlie, 2026-08-29) — implementing Cab Off (0x38) is 3 pieces,
+             not just a toggle: (1) handle 0x38 readback(dir 12)+broadcast(dir
+             02), track the global flag; (2) the chain-row CAB block must DEFER
+             to the global flag — when global Cab Off is on the CAB shows off and
+             STAYS off across every patch nav (global override of the per-patch,
+             per-handle cab bypass we already do); (3) clicking the chain CAB to
+             re-enable while global is on must prompt like Avid ("The master
+             cabinet bypass is on. Would you like to turn it off?" No/Yes) — Yes
+             sends 0x38 off. RESO has no such chain entanglement — just a global
+             toggle shown when a source feeds amp-out.
 OPEN:        Are 0x3F (RESO) and 0x38 (No Cab) per-output or GLOBAL? All captured
              toggles were output 1; both commands are [state]-only with no slot.
              HYPOTHESIS: global single toggles (no per-output distinction). NEXT:
