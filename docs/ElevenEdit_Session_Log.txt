@@ -96,6 +96,42 @@ NEXT (fold at wrap): corrected 9-byte CMD 0x37 into Tech Ref Sec 18 (replace
              investigation brief (its job is done). NOT yet folded — waiting on
              Charlie's wrap signal.
 
+-------------------------------------------------------------------
+DATE:        2026-08-29 (evening, RESO capture)
+STATUS:      provisional — decoded, NOT implemented. One question open.
+AREA:        To Amp Source RESO + "Rig Out No Cab" (CMD 0x3F, 0x38)
+FINDING:     Capture of the HW front-panel driving To Amp source with RESO.
+             (a) RESO is its own command CMD 0x3F, broadcast form
+                 F0 13 0B 0F 02 3F [state] F7  (01=on, 00=off). No slot byte.
+                 Reaches our MIDI path — app logged UNHANDLED CMD 0x3F.
+             (b) The HW's "5th source option" Rig Out No Cab is NOT a new 0x37
+                 value. Stepping Rig Output -> Rig Out No Cab emits NO new 0x37;
+                 instead CMD 0x38 (Global Cabinet Bypass, already in Sec 18)
+                 F0 13 0B 0F 02 38 [state] F7 (01=No Cab / bypass on, 00=off).
+                 So source stays 4 values (0x37 val 0-3); "Rig Out No Cab" =
+                 Rig Output (val 3) + global cab bypass on. Likely the same cab
+                 bypass state the CAB block already tracks.
+             (c) Both 0x3F and 0x38 are 8-byte [state]-only — NEITHER carries a
+                 ToAmp1/2 slot byte (unlike 0x37's [slot][val]).
+             (d) Incidental: each routing change also re-broadcasts amp param
+                 0x11 paramLo 0x05 (query+resp) — side effect, ignore.
+EVIDENCE:    d8bd0076-To_amp_source_1_with_RESO.pcapng (USBPcap, decoded by hand
+             in Python — pcapng packet data at +28, dataLength-bounded USB-MIDI
+             reassembly) + bb3764a5-session20260829175757.log. All toggles were
+             on OUTPUT 1; output 2 only got a source change (37 01 03).
+CONFLICTS:   Sec 18 lists 0x38 as "Global Cabinet Bypass ... Front-panel only
+             [DEAD-send]" and 0x3F is undocumented — both to be added/updated
+             once the open question below is settled. Nothing folded yet.
+OPEN:        Are 0x3F (RESO) and 0x38 (No Cab) per-output or GLOBAL? All captured
+             toggles were output 1; both commands are [state]-only with no slot.
+             HYPOTHESIS: global single toggles (no per-output distinction). NEXT:
+             capture source 2 — on ToAmp2 set Amp Output + toggle RESO, then Rig
+             Out No Cab + toggle RESO — and diff the 0x3F/0x38 bytes vs output 1.
+             Identical bytes => global. Also: SENDING these is untested/careful
+             (0x38 historically "dead-send", 0x3F send unknown) — decode only so
+             far. This is what decides the RESO/No-Cab UI (shared toggles vs
+             per-output), which in turn decides the To Amp panel layout (A vs C).
+
 OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
   1. UI polish — the shrunk 56px To Amp knobs look undersized next to the
      80px Gate/Volumes knobs. Options on the table: (a) revert To Amp knobs
