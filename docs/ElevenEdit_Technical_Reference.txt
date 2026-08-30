@@ -3203,6 +3203,11 @@ NOTE: these are parameter NAMES and ORDER. The paramLo NUMBERS for CMD 0x11
   - UI: To Amp box back to full 80px knobs with source pickers in a right-hand
     column; new GLOBALS box (Cab Off + RESO toggles) right of Volumes.
   - Investigation brief (To Amp Source): its job is done and it is retired.
+  - CHAIN-ROW TAP INDICATORS (v1.3.74-1.3.77): numbered 1/2 badges on the chain
+    flow at each To Amp output's tap point (source value -> chain input / before
+    or after AMP-CAB / chain end), like Avid. Fixed a repaint that erased the
+    Rig Output badge (updateMonoIndicator rewrites #mono-connector). Source
+    pickers sized to match the CAB/MIC dropdowns.
 
 2026-08-29 (MAJOR BUGFIX SESSION — the "save corrupts the chain / amp"
   hunt, ALL TESTED LIVE and confirmed by Charlie, versions 1.3.59->1.3.67,

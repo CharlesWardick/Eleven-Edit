@@ -39,8 +39,15 @@ ENTRIES (newest first)
 
 -------------------------------------------------------------------
 DATE:        2026-08-30 (post-finalize follow-on)
-STATUS:      provisional — NOT YET TESTED LIVE (v1.3.74)
+STATUS:      [FOLDED IN: Primer WORKING + Tech Ref Sec 24] — TESTED LIVE (v1.3.77)
 AREA:        Chain-row To Amp tap indicators (UI, cosmetic)
+RESULT:      TESTED LIVE + CONFIRMED (Charlie): numbered white 1/2 badges on the
+             chain flow at each To Amp tap point, correct positions incl. on
+             drag. Fixes along the way: dropped the amber ball for a plain white
+             number nudged out of the top clip (1.3.75); Rig Output badge was
+             erased by #mono-connector's innerHTML repaint in updateMonoIndicator
+             -> re-place after that (1.3.76); source pickers bumped to match the
+             CAB/MIC dropdown size (1.3.77).
 FINDING:     Added the deferred chain-row source indicators — small numbered
              badges (1/2) on the chain flow at each To Amp output's tap point,
              like Avid. Tap point = source value only (RESO/No-Cab don't move it):
