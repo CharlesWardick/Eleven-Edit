@@ -647,6 +647,29 @@ function sendToAmpSource(slot, val) {
   return sendHex(hex);
 }
 
+// ── CMD 0x38 — Global cabinet bypass ("Cab Always Off"). GLOBAL, not per-patch.
+// READ:  F0 13 0B 0F 01 38 F7   -> reply F0 13 0B 0F 12 38 [state] F7
+//   Confirmed to be exactly what the Avid editor sends on startup
+//   (Avid_Startup_With_Rack_On.pcapng, 2026-08-30) — the rack does not
+//   volunteer this state on connect/nav, so we must ask, like Avid does.
+// SET:   F0 13 0B 0F 00 38 [state] F7   (state 0x01 = engaged/no cab, 0x00 = clear)
+//   The old "0x38 front-panel only / dead-send" note is unverified against this;
+//   Avid's own "master cabinet bypass is on — turn it off?" prompt clears it, so
+//   the set is expected to work. NOT a brick-class command (only 0x37 bricks).
+// Replies/echoes route to handleGlobalCabBypass (sysex-handler.js) via the cmd
+// dispatch, which updates globalCabBypass and the chain CAB display.
+function sendGlobalCabBypassQuery() {
+  if (!bridgeMidiReady) return;
+  appLog('sendGlobalCabBypassQuery: reading global cab-off state (01 38)');
+  return sendHex('F0 13 0B 0F 01 38 F7');
+}
+function sendGlobalCabBypassSet(engaged) {
+  if (!bridgeMidiReady) return;
+  const hex = 'F0 13 0B 0F 00 38 ' + (engaged ? '01' : '00') + ' F7';
+  appLog('sendGlobalCabBypassSet: ' + (engaged ? 'engage (no cab)' : 'clear'));
+  return sendHex(hex);
+}
+
 // ── CMD 0x0D — Stereo/Mono set command.
 // Confirmed 2026-07-18 from Avid Diag5 capture (not a toggle — it IS a set).
 // Format: F0 13 0B 0F 00 0D [val] F7
@@ -910,7 +933,12 @@ async function requestFullState() {
   if (!bridgeMidiReady) return;
   sendHex(REQU_CURR_RIG);   await sleep(150);
   sendHex(REQU_CHAIN_MAP);
-  appLog('Requested one-time setup state (curr rig confirm, chain map)');
+  // Global cab bypass (CMD 0x38) is GLOBAL and never volunteered on connect/nav,
+  // so query it here like Avid does at startup — otherwise the chain CAB block
+  // can't know it's forced off (2026-08-30). Reply -> handleGlobalCabBypass.
+  await sleep(80);
+  sendGlobalCabBypassQuery();
+  appLog('Requested one-time setup state (curr rig confirm, chain map, global cab)');
 }
 
 // Amp, name, Rig Vol, and CHAIN_MAP are all per-patch — refresh all four

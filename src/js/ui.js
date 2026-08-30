@@ -1946,10 +1946,40 @@ document.addEventListener('DOMContentLoaded', function() {
   if (cabEl) {
     cabEl.addEventListener('click', function() {
       if (!bridgeMidiReady) return;
+      // Global Cab Off wins over the per-patch cab: while it's engaged, toggling
+      // the patch cab does nothing on hardware. Rather than a silent no-op, offer
+      // to clear the global switch — matching the Avid editor's own prompt
+      // (2026-08-30). Only intercepts when we KNOW global is engaged.
+      if (globalCabBypass === true) { openCabBypassModal(); return; }
       if (cabBypassActive === undefined) { appLog('Cab bypass state unknown yet, ignoring click'); return; }
       sendCabBypass(!cabBypassActive);
     });
   }
+});
+
+// Master-cabinet-bypass prompt (2026-08-30). Yes -> clear Global Cab Off (send
+// CMD 0x38 = 0). The rack echoes 0x38, handleGlobalCabBypass updates state + the
+// chain CAB display; no optimistic UI here (same contract as the bypass clicks).
+function openCabBypassModal() {
+  const m = document.getElementById('cab-bypass-modal');
+  if (m) m.classList.add('open');
+}
+function closeCabBypassModal() {
+  const m = document.getElementById('cab-bypass-modal');
+  if (m) m.classList.remove('open');
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const no = document.getElementById('cab-bypass-no');
+  const yes = document.getElementById('cab-bypass-yes');
+  if (no) no.addEventListener('click', closeCabBypassModal);
+  if (yes) yes.addEventListener('click', function() {
+    closeCabBypassModal();
+    if (typeof sendGlobalCabBypassSet === 'function') sendGlobalCabBypassSet(false);
+  });
+  const overlay = document.getElementById('cab-bypass-modal');
+  if (overlay) overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) closeCabBypassModal();  // click outside the box dismisses
+  });
 });
 
 // ── Update amp display and gate knob CCs when amp changes ──

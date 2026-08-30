@@ -260,11 +260,18 @@ BUG (2026-08-29, current build — Charlie confirmed live, visual): the chain ro
   cab / clear=cab follows patch; "Patch Cab" (0x11/0x14) on / bypassed; chain CAB
   box green = cab actually producing sound, red = no cab from EITHER cause. Rule:
   CAB green only when Patch Cab on AND Global Cab Off clear.
-  NEXT BUILD 1.3.70 (proposed, pending OK — two 0x38 sends, neither is brick-class
-  0x37): (a) connect-time 01 38 query for startup state; (b) the "master cabinet
-  bypass is on / turn it off?" modal on a red-CAB click, Yes sends 00 38 00
-  (Global Cab Off clear) — also tests whether the 0x38 SET works (old "dead-send"
-  note likely wrong since Avid's prompt does it).
+  BUILT 1.3.70 (2026-08-30, NOT YET TESTED LIVE): (a) sendGlobalCabBypassQuery
+  (transport.js, 'F0 13 0B 0F 01 38 F7') fired from requestFullState on connect/
+  reconnect — confirmed to be Avid's exact startup read, so should give the chain
+  CAB its real state at launch; reply routes to handleGlobalCabBypass. (b) The
+  "Master Cabinet Bypass" modal (#cab-bypass-modal, index.html) opens when the
+  chain CAB is clicked while globalCabBypass===true; Yes -> sendGlobalCabBypassSet
+  (false) = 'F0 13 0B 0F 00 38 00 F7'. THE 01 38 QUERY is the low-risk read; THE
+  00 38 SET (modal Yes) is the untested write to verify — not brick-class (only
+  0x37 bricks), worst case a hang/power-cycle. TEST: (1) start with Global Cab Off
+  engaged -> chain CAB should now show red on load (query worked); (2) click red
+  CAB -> modal; Yes -> does the rack's global bypass actually clear (cab returns)?
+  that answers whether 0x38 SET works. Back up first.
 
 OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
   1. UI polish — the shrunk 56px To Amp knobs look undersized next to the
