@@ -219,6 +219,18 @@ BUG (2026-08-29, current build — Charlie confirmed live, visual): the chain ro
   0x38 query we haven't identified (candidate experiment: F0 13 0B 0F 01 38 F7,
   a read, do carefully). The click-to-enable PROMPT is still deferred; this fix
   is display-only.
+  TESTED 1.3.69 (2026-08-30, 2f0063d6-session20260830072713.log): fix is INERT
+  in the real case. ZERO 0x38 in the whole run — the rack does NOT volunteer the
+  global cab state on connect or nav; it only broadcasts 0x38 on CHANGE, and
+  global bypass was already on before launch, so globalCabBypass stayed undefined
+  and the override never engaged. Chain still showed cab active on load + nav.
+  (Cab clicks were per-patch sendBypassWrite paramLo=0x14, correctly no-op'd by
+  the rack's global override.) CONCLUSION: the display fix needs a CONNECT-TIME
+  QUERY to be useful. PLAN (pending Charlie OK — a new send): sendHex
+  'F0 13 0B 0F 01 38 F7' (dir 0x01 READ, same family as the working 0x36/0x3A
+  queries; NOT the dead-send 0x38 set) once on connect; the 12 38 reply already
+  routes to handleGlobalCabBypass. Also asked Charlie to toggle global bypass
+  off/on live to confirm the broadcast (dir 0x02) half works.
 
 OPEN ITEMS (2026-08-29, not tonight — Charlie's call, discuss next):
   1. UI polish — the shrunk 56px To Amp knobs look undersized next to the
