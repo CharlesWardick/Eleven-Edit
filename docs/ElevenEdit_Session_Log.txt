@@ -170,6 +170,14 @@ RESO READ EXPERIMENT — 1.3.72 (2026-08-30, NOT YET TESTED): last read hope is 
   note, since the set is value-based so the user commands absolute state). sendResoSet
   ('00 3F [state]') defined but UNUSED (ready for the toggle; send form still
   unconfirmed, not brick-class). This build only READS — no state change.
+  *** SOLVED — TESTED LIVE (Charlie, 2026-08-30): the rack DOES answer 01 3F.
+  RESO ON at startup -> log "CMD 0x3F RESO: ON (dir=0x12)"; RESO OFF -> "OFF
+  (dir=0x12)". So RESO has a working readback (F0 13 0B 0F 01 3F F7 -> 12 3F
+  [state]) even though Avid never uses it. RESO startup state is fully solved:
+  it can be a normal toggle showing real state on load — no indeterminate, no
+  modal, no "trust your ears" needed. resoState is now reliably known on connect.
+  REMAINING for RESO: confirm the 00 3F SET works live (now verifiable via the
+  read-back), then build the toggle UI. ***
 
 AVID STARTUP DECODE (2026-08-30, 24e1b36c-Avid_Startup_With_Rack_On.pcapng) —
   the connect-time reads Avid fires, decoded from its cold start (692 sysex):
