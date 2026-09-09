@@ -1,0 +1,97 @@
+ELEVEN EDIT — BEFORE YOU INSTALL
+===================================================================
+
+WHAT THIS IS
+
+Eleven Edit is an independent, community patch editor for the Avid
+Eleven Rack guitar processor. It is written and maintained by one
+person (Charles Wardick) as a personal project, shared publicly because
+it works well enough to be useful to other Eleven Rack owners.
+
+This is not a commercial product. There is no company, no support
+contract, and no warranty behind it beyond what's stated here. It is
+open-source software (MIT License — see LICENSE.txt) provided as-is.
+
+Eleven Edit is shared as-is: the source code is here for anyone to
+read, use, and modify, but there is no obligation to respond to,
+investigate, or fix any issue you report. If something doesn't work
+for you, you're welcome to fix it yourself and share the result — that's
+the point of it being open source — but don't expect a support line.
+
+It is not affiliated with, endorsed by, or supported by Avid Technology,
+Inc. "Eleven Rack" is a product name used here only to identify the
+hardware this software works with.
+
+
+TESTED CONFIGURATION
+
+Eleven Edit has been built and tested against real Eleven Rack hardware
+on:
+
+    Windows 10                  (VM and physical machines)
+    Windows 11, version 22H2    (VM)
+    Windows 11, version 26H1    (VM and a 2011-era Lenovo laptop)
+
+  ...using the Avid Eleven Rack USB driver, version 1.1.12, and a
+  Java Runtime Environment (JRE), version 25 or higher.
+
+JAVA VERSION REQUIREMENT: Eleven Edit requires JRE 25 or higher.
+Older Java versions (including JRE 8 and JRE 21) have been directly
+tested and found to freeze or crash (BSOD) the Windows operating
+system when running Eleven Edit. Eleven Edit checks your installed
+Java version on startup and will not proceed if it is too old —
+install or update to a current JRE if prompted.
+
+Other Windows versions, driver versions, or hardware revisions of the
+Eleven Rack may work but have not been tested. Use on an untested
+configuration is at your own risk.
+
+A NOTE ON THE AVID EDITOR: Avid's own Eleven Rack Editor software is
+known to cause a Windows crash (BSOD) when RUN on Windows 11 — this is
+a problem with Avid's software, not with Eleven Edit, which runs
+normally on Windows 11. If the Avid Editor is installed on your system,
+do not launch it on Windows 11. Do not run Eleven Edit and the Avid
+Editor at the same time on any Windows version; running both
+simultaneously has been observed to cause system crashes during this
+software's development.
+
+Eleven Edit communicates with the Eleven Rack over USB using its
+existing Avid driver and documented-by-observation SysEx protocol —
+it does not modify, flash, or replace any firmware or driver on your
+computer or the hardware.
+
+
+ASSUMPTION OF RISK
+
+By installing and using this software, you acknowledge and accept that:
+
+  - This software communicates directly with your Eleven Rack hardware
+    over USB, including sending settings and patch data to it.
+  - It has been tested by its author on the configurations listed above,
+    but has NOT been tested across every Windows version, driver
+    version, or Eleven Rack unit in existence.
+  - You are solely responsible for backing up your existing rig/patch
+    data (via this software's own export tools, or otherwise) before
+    making changes.
+  - You assume all risk of using this software, including but not
+    limited to: lost, corrupted, or overwritten patches or rig data;
+    Windows crashes or instability (including BSOD); and any failure,
+    malfunction, or damage to your Eleven Rack hardware or computer,
+    however caused.
+  - This software is provided "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    express or implied, as stated in full in the accompanying MIT
+    License (LICENSE.txt). The author is not liable for any damages or
+    losses arising from its use.
+
+If you do not accept these terms, do not install or use this software.
+
+
+LICENSE
+
+Eleven Edit is free, open-source software released under the MIT
+License. The full license text is included with this installation
+(LICENSE.txt) and in the project's source repository. See NOTICE.txt
+for third-party acknowledgments.
+
+By clicking "I Agree" below, you confirm that you have read and accept
+the terms above.

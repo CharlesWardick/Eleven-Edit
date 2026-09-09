@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<!--
+  Eleven Edit
+  Copyright (c) 2026 Charles Wardick
+  SPDX-License-Identifier: MIT
+  See LICENSE in the project root for full license text.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Eleven Edit</title>
+<style>
+  :root { --accent: #ffb000; --accent-dim: #a87400; --text: #ddd; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #0e0e0e; color: var(--text);
+    font-family: 'Segoe UI', Arial, sans-serif; user-select: none;
+  }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 1px solid #333; height: 100vh; position: relative;
+  }
+  #logo {
+    font-size: 34px; font-weight: 800; letter-spacing: 4px; color: var(--accent);
+    text-shadow: 0 0 10px rgba(255,176,0,0.35);
+  }
+  #subtitle { font-size: 12px; letter-spacing: 3px; color: #888; margin-top: 4px; text-transform: uppercase; }
+
+  #progress-view { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; padding: 0 40px; }
+  #progress-track {
+    width: 100%; height: 10px; background: #1a1a1a; border: 1px solid #333; border-radius: 5px; overflow: hidden;
+  }
+  #progress-bar { height: 100%; width: 5%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); transition: width 0.3s ease; }
+  #status-text { font-size: 13px; color: var(--text); min-height: 16px; }
+
+  #gate-view { display: none; flex-direction: column; align-items: center; gap: 16px; width: 100%; padding: 0 30px; }
+  #gate-view.open { display: flex; }
+  #progress-view.hidden { display: none; }
+  #gate-msg { font-size: 13px; line-height: 1.7; text-align: center; color: var(--text); }
+  #gate-buttons { display: flex; gap: 10px; width: 100%; }
+  #btn-startup-retry, #btn-startup-quit {
+    background: transparent; border: 2px solid var(--accent-dim); color: var(--accent);
+    font-size: 13px; font-weight: 700; letter-spacing: 2px; padding: 8px;
+    border-radius: 6px; cursor: pointer; text-transform: uppercase; flex: 1;
+  }
+  #btn-startup-retry:hover, #btn-startup-quit:hover { background: #1a1200; border-color: var(--accent); }
+  #version-tag {
+    position: absolute; bottom: 8px; right: 12px;
+    font-size: 10px; color: #777; letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+  <div id="version-tag"></div>
+  <div id="logo">ELEVEN EDIT</div>
+  <div id="subtitle">Patch Editor for Avid Eleven Rack</div>
+  <div style="height:24px;"></div>
+
+  <div id="progress-view">
+    <div id="progress-track"><div id="progress-bar"></div></div>
+    <div id="status-text">Starting Java bridge...</div>
+  </div>
+
+  <div id="gate-view">
+    <div id="gate-msg">Unable to locate Eleven Rack. Make sure Eleven Rack is connected and turned on.<br>Click Try Again to rescan. Click Quit to close.</div>
+    <div id="gate-buttons">
+      <button id="btn-startup-retry">Try Again</button>
+      <button id="btn-startup-quit">Quit</button>
+    </div>
+  </div>
+
+<script>
+  const progressView = document.getElementById('progress-view');
+  const gateView      = document.getElementById('gate-view');
+  const progressBar   = document.getElementById('progress-bar');
+  const statusText    = document.getElementById('status-text');
+  const versionTag    = document.getElementById('version-tag');
+
+  if (versionTag && window.electronAPI.getAppVersion) {
+    window.electronAPI.getAppVersion().then((v) => { versionTag.textContent = 'v' + v; });
+  }
+
+  window.electronAPI.onSplashProgress((data) => {
+    if (data.message) statusText.textContent = data.message;
+    if (typeof data.fraction === 'number') {
+      progressBar.style.width = Math.max(5, Math.min(100, data.fraction * 100)) + '%';
+    }
+  });
+
+  var gateMsg   = document.getElementById('gate-msg');
+  var retryBtn  = document.getElementById('btn-startup-retry');
+
+  window.electronAPI.onSplashShowGate((data) => {
+    progressView.classList.add('hidden');
+    gateView.classList.add('open');
+    if (data && data.reason === 'java') {
+      // Java runtime missing/unreachable (2026-09-05) — the bridge process
+      // failed to spawn (ENOENT) rather than the usual "still scanning for
+      // hardware" case, so this needs its own message instead of the
+      // generic "make sure the rack is connected" text, which would be
+      // actively misleading here.
+      // Try Again HIDDEN (2026-09-05, corrected after live testing) — a
+      // just-installed/updated Java changes the Windows PATH, but this
+      // already-running process's environment is fixed from when it
+      // launched; Node/Electron never re-reads an updated PATH mid-session.
+      // Clicking Try Again re-runs the SAME check against the SAME stale
+      // environment, so it can NEVER see a Java install that happened after
+      // launch, no matter how many times it's clicked (confirmed live:
+      // installing JRE 25 then clicking Try Again still reported the old
+      // version; only fully quitting and relaunching the EXE picked up the
+      // change). Quit-and-relaunch is the only real fix, so that's what the
+      // message says instead of offering a button that cannot succeed.
+      gateMsg.innerHTML = 'Eleven Edit could not start its Java bridge component.' +
+        '<br><br>This usually means Java is not installed, or is not on the ' +
+        'system PATH. Eleven Edit requires a Java runtime (JRE), version 25 ' +
+        'or higher, to communicate with the Eleven Rack over USB.' +
+        '<br><br>Install a Java runtime, then completely QUIT Eleven Edit ' +
+        'and start it again (a just-installed Java will not be found without ' +
+        'a full restart).';
+      retryBtn.style.display = 'none';
+    } else if (data && data.reason === 'java-version') {
+      // Java found but too old (2026-09-05) — distinct from the 'java' case
+      // above: main.js's preflight check ran `java -version` successfully
+      // and refused to launch the bridge because the detected version is
+      // below the confirmed floor. JRE 8 and JRE 21 are both confirmed —
+      // on real hardware, more than one machine, VM and physical PC alike —
+      // to freeze/crash (BSOD) the Windows operating system, not just this
+      // app, so this blocks BEFORE the bridge ever launches rather than
+      // letting that happen.
+      // Try Again HIDDEN for the exact same stale-PATH reason as the
+      // missing-java case above — confirmed live the same session: updating
+      // Java to 25 and clicking Try Again still reported the old version
+      // until Eleven Edit was fully quit and relaunched.
+      var detected = data.detectedVersion
+        ? 'This system has Java ' + data.detectedVersion + ' installed.'
+        : 'This system\'s Java version could not be determined.';
+      gateMsg.innerHTML = detected +
+        '<br><br>Eleven Edit requires Java 25 or higher. Older Java versions ' +
+        '(including Java 8 and Java 21) have been known to freeze or crash ' +
+        '(BSOD) the Windows operating system.' +
+        '<br><br>Install or update to a current Java runtime, then completely ' +
+        'QUIT Eleven Edit and start it again (a just-installed Java will not ' +
+        'be found without a full restart).';
+      retryBtn.style.display = 'none';
+    } else if (data && data.reason === 'firmware') {
+      // Firmware mismatch (2026-08-28) — Try Again is hidden here on
+      // purpose: the rack's firmware won't change by rescanning, so
+      // offering that button would just invite a repeat of the same
+      // block. Quit is the only real option until Eleven Edit is
+      // confirmed against whatever firmware this unit is running.
+      // reportedBuild/expectedBuild come pre-formatted ("0.1.5.7") from
+      // showFirmwareGate (ui.js) rather than hardcoded here, so this
+      // text can never drift out of sync with the actual comparison
+      // value in state.js.
+      var reportedLine = data.reportedBuild
+        ? 'This system reported back firmware build "' + data.reportedBuild + '."'
+        : 'This system did not respond to the firmware version check.';
+      gateMsg.innerHTML = reportedLine +
+        '<br><br>Eleven Edit was built and tested specifically for ' +
+        'firmware Version 2.0.1, Build ' + data.expectedBuild + '.' +
+        '<br><br>Running against unverified firmware is not supported.' +
+        '<br><br>Click Quit to close.';
+      retryBtn.style.display = 'none';
+    } else {
+      gateMsg.innerHTML = 'Unable to locate Eleven Rack. Make sure Eleven Rack is connected and turned on.<br>Click Try Again to rescan. Click Quit to close.';
+      retryBtn.style.display = '';
+    }
+  });
+
+  window.electronAPI.onSplashHideGate(() => {
+    gateView.classList.remove('open');
+    progressView.classList.remove('hidden');
+    progressBar.style.width = '5%';
+    retryBtn.style.display = '';
+  });
+
+  document.getElementById('btn-startup-retry').addEventListener('click', () => {
+    gateView.classList.remove('open');
+    progressView.classList.remove('hidden');
+    statusText.textContent = 'Retrying...';
+    progressBar.style.width = '5%';
+    window.electronAPI.sendStartupRetryClick();
+  });
+
+  document.getElementById('btn-startup-quit').addEventListener('click', () => {
+    window.electronAPI.quitApp();
+  });
+</script>
+</body>
+</html>

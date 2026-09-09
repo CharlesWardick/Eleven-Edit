@@ -1,0 +1,276 @@
+ELEVEN EDIT — USER MANUAL
+===================================================================
+
+Eleven Edit is a free patch editor for the Avid Eleven Rack guitar
+processor. It runs on your Windows PC and remote-controls
+the Eleven Rack over USB — it does not run on the rack itself, and you
+do not need the Avid Eleven Rack Editor or an iLok to use it.
+
+This manual covers what you need to get going and find your way around.
+For the full technical background (protocol details, hardware research,
+etc.) see the project's GitHub page.
+
+
+BEFORE YOU START
+--------------------------------------------------
+
+  - Back up your rig/patch data before making changes you can't undo.
+    Use Export All Rigs... (see BACKUP AND SAFETY below) to save a copy
+    of everything on the rack before you start editing.
+  - This software communicates directly with your Eleven Rack over USB,
+    including writing changes to it. See EULA.txt (shown during install)
+    for the full terms and risk disclosure.
+
+
+WHAT YOU NEED
+--------------------------------------------------
+
+  - Windows 10 or Windows 11.
+  - An Avid Eleven Rack, connected over USB and powered on.
+  - The Avid Eleven Rack USB driver installed. Both version 1.0.11 and
+    version 1.1.12 are confirmed working; the newer 1.1.12 is fine and
+    fully featured, and 1.0.11 also works if you prefer it. You do NOT
+    need the Avid Eleven Rack Editor itself — just its driver.
+  - A Java Runtime Environment (JRE), version 25 or higher. Eleven Edit
+    checks this automatically and will tell you if your Java is missing
+    or too old — see STARTUP MESSAGES below.
+
+  THE SIMPLE PREREQUISITE TEST. Eleven Edit runs on top of Windows, the
+  Avid driver, and Java — it does not replace or interfere with any of
+  them, and it cannot cause a Windows crash. So the test is easy: install
+  the Avid driver and Java, connect the rack, and reboot (and shut down and
+  start up) a couple of times with the rack plugged in. If Windows itself
+  is stable that way, Eleven Edit will run on top of it just fine. If your
+  PC is NOT stable with just the driver installed — before Eleven Edit is
+  even in the picture — that is a Windows/driver matter to sort out first;
+  see "Windows stability and the Avid driver" under Troubleshooting.
+
+
+INSTALLING
+--------------------------------------------------
+
+  1. Run the installer. It will show a license/terms screen — read and
+     accept it to continue.
+  2. If no Java runtime is found on your system, you'll see a warning
+     with the option to continue anyway (useful if you plan to install
+     Java right after) or cancel and install Java first.
+  3. Choose an install location (or use the default) and finish the
+     install.
+  4. Launch Eleven Edit from the Start Menu or desktop shortcut, with
+     your Eleven Rack connected and powered on.
+
+
+STARTUP MESSAGES
+--------------------------------------------------
+
+The first time Eleven Edit runs — or any time it can't connect — you may
+see one of these screens instead of the main window:
+
+  "Unable to locate Eleven Rack" — the app can't find the hardware.
+    Check that the rack is connected, powered on, and the USB driver is
+    installed. Click Try Again once you've checked.
+
+  "Java Runtime Not Detected" / Java version too old — Eleven Edit needs
+    Java 25 or higher to run. If you just installed or updated Java,
+    you'll need to fully quit Eleven Edit and start it again — Windows
+    won't let an already-running program see a Java installation that
+    happened after it started.
+
+  Firmware version mismatch — Eleven Edit is built and tested against
+    Eleven Rack firmware Version 2.0.1, Build 0.1.5.7. If your unit
+    reports a different version, this is a one-way stop (no Try Again)
+    until a version of Eleven Edit that supports your firmware is
+    available.
+
+For reference, everything Eleven Edit checks for at startup:
+  - Eleven Rack firmware Version 2.0.1, Build 0.1.5.7
+  - Avid Eleven Rack USB driver (version 1.0.11 or 1.1.12, both confirmed working)
+  - Java Runtime Environment (JRE), version 25 or higher
+
+
+THE MAIN SCREEN
+--------------------------------------------------
+
+TOP BAR
+  Bank/Patch navigation (◀ BNK / BNK ▶, ◀ PCH / PCH ▶) — step through
+  banks and patches. The current patch name is shown in the box next to
+  it.
+
+  Click the LEFT side of that box to open a compact Jump List by slot
+  number; click the RIGHT side to open it by patch name instead — both
+  let you jump straight to any patch instead of stepping through one at
+  a time.
+
+  Click directly on the patch NAME TEXT itself to rename it. A rename
+  is a real edit — it dirties the patch and isn't written to the rack
+  until you Save, just like changing a knob.
+
+  INPUT — selects Guitar, Mic, Line, or Digital input.
+
+  TUNER — turns on the tuner display on the Eleven Rack's own front
+  panel. Eleven Edit can't display tuner data remotely — the rack
+  doesn't expose that over the same USB/MIDI connection Eleven Edit
+  uses — so this button just switches the rack itself into tuner mode
+  for you to read on the hardware.
+
+  PHON VOL / MAIN VOL — headphone and main output volume, each with its
+  own mute button.
+
+  TEMPO — the rig's tempo, used by any tempo-synced effect.
+
+  WINDOW +/- — zooms the whole app interface in or out. Your zoom level
+  is remembered the next time you open Eleven Edit.
+
+CHAIN ROW
+  Shows every block in your current signal chain, in order, with a
+  small icon above each one. Click a block's name to bypass/enable it
+  (green = active, red/strikethrough = bypassed). Click a block's icon
+  to open that block's controls below; drag it to reorder the chain —
+  the icon handles both jobs.
+
+AMP PANEL
+  Amp Model, Cab, Mic, and Axis (on/off-axis mic placement) dropdowns,
+  plus Speaker Breakup and True-Z. Below that: Gate, To Amp, and Volumes
+  knobs, then the full tone stack (Gain, Bass, Middle, Treble, Presence,
+  plus model-dependent extras like Speed/Depth for tremolo-equipped
+  amps), Bright/Tremolo toggles, and a Sync dropdown for tempo-synced
+  tremolo.
+
+  The lock icon next to the tone knobs locks/unlocks custom knob
+  ordering (drag a knob's label to reorder; your custom order is
+  remembered per amp model). The # button cycles how many knob values
+  are shown numerically — useful for decluttering the panel once you
+  know your settings by ear.
+
+  GLOBALS (Cab Always Off, Cabinet Resonance) are rig-wide hardware
+  settings, not saved per patch.
+
+EFFECT PANELS
+  Click any other chain block (Wah, Dist, FX1/FX2, Mod, Delay, Reverb,
+  FX Loop) to open its own control panel below the chain row, in place
+  of the amp panel. Each panel's controls match that block's model.
+
+AUTO ADVANCE
+  A patch-stepping tool: pick a FROM/TO range, an interval in seconds,
+  and click START to have Eleven Edit automatically step through that
+  range of patches — useful for auditioning a whole bank hands-free.
+  PAUSE and STOP are available at any time.
+
+
+SAVING AND LOADING
+--------------------------------------------------
+
+  SAVE (bottom left) — Save to Rack commits your current edits to a
+  slot on the hardware. Save to Disk writes a .tfx file to your
+  computer instead, without touching the rack.
+
+  Load TFX... — loads a .tfx file into hardware memory for editing (it
+  does not commit to a slot until you explicitly save it there).
+
+
+BACKUP AND SAFETY
+--------------------------------------------------
+
+  Export All Rigs... — backs up every one of the 104 user/factory slots
+  on your rack to a folder of .tfx files plus a .zip, on your computer.
+  Do this before any session where you'll be making a lot of changes.
+
+  Import Rigs... — restores rigs from a previously exported .xml index
+  or .zip file, writing only the slots it lists. You'll see exactly
+  what will be imported (and what's being skipped, and why) before
+  anything is written. If any patch in the bank is corrupt (common with
+  patch files collected from around the web), Eleven Edit skips it and
+  keeps going, then tells you exactly which slots were bad at the end —
+  the good ones still import, and a skipped slot keeps whatever patch was
+  already there. See "Patch uploads and Windows 11" under Troubleshooting
+  if uploads fail across the board.
+
+  Rig Balancing... — a dedicated screen for leveling output volume
+  across all 104 user rigs. Changes are buffered until you commit them,
+  so you can discard everything and back out cleanly if you change your
+  mind partway through.
+
+
+ABOUT / SETTINGS
+--------------------------------------------------
+
+  The gear icon (bottom right) opens Settings:
+
+    - Captures Folder — where exported rigs/patches are saved. Set
+      Folder... changes it; Open Folder shows it in Windows Explorer.
+    - Avid Graphics Folder — optional. If you have the Avid Eleven Rack
+      Editor's own graphics assets on your PC, point this at that
+      folder and Scan Folder to pull in real pedal/amp thumbnail images
+      for the chain row instead of the plain text-labeled boxes.
+    - Open Logs Folder — opens the folder Eleven Edit writes session
+      logs to.
+    - Rig-Wide Hardware Settings — Hardware Loop Global Routing and
+      Digital Output Mode, two global (not per-patch) settings that
+      live here rather than in the amp/effect panels.
+
+  The About box (also bottom right) shows the current version number.
+
+  The ? button opens this manual.
+
+
+TROUBLESHOOTING
+--------------------------------------------------
+
+  - Window looks clipped, cramped, or covered in scroll bars — this
+    usually means the window is too small for the current zoom level
+    (see WINDOW +/- above). Try zooming out with the - button, resizing
+    the window larger, or maximizing it. Eleven Edit's layout isn't
+    built to be squeezed into a tiny window at a high zoom level; give
+    it a reasonably sized window and it looks the way it's meant to.
+  - "Can't find Eleven Rack" at startup — check the USB cable, that the
+    rack is powered on, and that the Avid USB driver is installed.
+  - Java-related startup messages — see STARTUP MESSAGES above.
+  - Avid's own Eleven Rack Editor is known to crash Windows (BSOD) if
+    run on Windows 11. If it's installed on your system, avoid launching
+    it on Windows 11, and never run it at the same time as Eleven Edit
+    on any Windows version.
+  - Windows stability and the Avid driver — rarely, a machine can become
+    unstable at boot (a crash or restart loop) after the Avid USB driver
+    is installed. This is the Avid driver reacting to Windows, NOT Eleven
+    Edit — it happens with just the driver installed, before Eleven Edit
+    runs, and Eleven Edit cannot cause it. Two things clear it up if you
+    ever hit it: (1) do not set the Eleven Rack as your Windows DEFAULT
+    sound device (Settings → System → Sound) — note that installing the
+    driver may quietly set it as the default for you, so change it back;
+    and (2) if it still misbehaves, use the older 1.0.11 driver, which is
+    lighter and does not show this behavior. Eleven Edit works the same on
+    either driver. If your PC is stable through a couple of reboots with
+    the rack plugged in, none of this applies to you.
+  - Patch uploads and Windows 11 — if loading a single patch or importing
+    a bank fails and the rack's front panel flashes "Bad Patch Data", and
+    it happens for essentially EVERY patch, this is a known Windows 11 bug,
+    not a problem with your patches or with Eleven Edit. Recent Windows 11
+    updates replaced the built-in MIDI system with a new one ("Windows MIDI
+    Services") that can corrupt the large messages a patch upload needs.
+    Eleven Edit detects this and stops with a message rather than filling
+    your rack with errors. The same patches and banks import fine on
+    Windows 10, or on a Windows 11 PC that has not received that update.
+    Microsoft is fixing this; until it reaches your PC, use Windows 10 for
+    uploading patches/banks. (Reading, editing, saving patches to the rack,
+    exporting a backup, and saving to disk are NOT affected and work
+    normally on any Windows.) A rack front-panel "Bad Patch Data" message is
+    harmless and clears the moment you change patches.
+    On a PC with this new MIDI system, Eleven Edit tells you up front: a
+    one-time notice at startup, and a reminder each time you click Load TFX
+    or Import Rigs (with a "hide the upload buttons for now" option). You can
+    turn these warnings off under Settings → "Windows 11 upload warning". If
+    Microsoft's fix reaches your PC, the first time an upload succeeds Eleven
+    Edit notices and stops warning automatically.
+  - For anything not covered here, see the project's GitHub page for
+    the full technical documentation, or open an issue there.
+
+Eleven Edit is a one-person, open-source project, shared as-is — there's
+no support obligation behind it. The source is there to read, use, and
+fix yourself if something doesn't work for you; see EULA.txt for the
+full terms.
+
+
+===================================================================
+Eleven Edit is an independent, unofficial project — not affiliated with
+or endorsed by Avid Technology, Inc. See LICENSE and NOTICE on the project's
+GitHub page for license and acknowledgment details.

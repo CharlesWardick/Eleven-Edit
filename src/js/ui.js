@@ -1,0 +1,3852 @@
+/*
+ * Eleven Edit
+ * Copyright (c) 2026 Charles Wardick
+ * SPDX-License-Identifier: MIT
+ * See LICENSE in the project root for full license text.
+ */
+// ════════════════════════════════════════════════════════════════════
+// UI.JS — knob rendering, value formatting, enable/disable state,
+// display updates. Everything that touches the DOM to show something,
+// as opposed to transport.js (sends/receives) or protocol.js (decodes).
+// ════════════════════════════════════════════════════════════════════
+
+// ── Knob colour states (item A, 7/26/2026) ──────────────────────────
+// The rack's line-pointer knobs glow to show state; we mirror that.
+//   amber = amp / main-panel base   green = fx (effect-panel) base
+//   red   = current value differs from the patch's SAVED baseline
+// Baseline = the value read back when the patch loads (see
+// captureKnobBaselines). Any move away from it — from our drag, the front
+// panel, or Avid — turns the knob red, exactly as the hardware pointer does.
+// Kept as named values so item B can later read them from settings.json.
+const KNOB_COLORS = {
+  amber:  '#e0a020',   // was hardcoded throughout drawKnob
+  green:  '#30c050',   // theme --green, matches active chain blocks
+  yellow: '#e8d030',   // Graphic EQ vertical sliders' base colour (Avid's own
+                       // panel uses yellow, not green, for this one) — 7/31/2026
+  blue:   '#3f8fe0',   // Parametric EQ's HF band accent — 7/31/2026
+  red:    '#e83828'    // uncommitted change
+};
+
+// ── Nav-pull paint buffering (2026-09-03, Charlie's ask) ────────────────
+// A patch nav fires a whole sequence of small queries (transport.js,
+// requestPatchStateAfterNav) and each reply used to repaint its own control
+// the instant it landed — the main panel visibly updated control-by-control
+// over the ~1-2s pull instead of changing all at once. Scoped to the MAIN
+// PANEL only for now (Charlie's call) — FX panels stay untouched, a
+// deliberate follow-up for later.
+// navPaintDeferred gates the handful of shared paint functions below;
+// while true they record a replay closure in navPendingPaints instead of
+// touching the DOM, and requestPatchStateAfterNav's finish() calls
+// flushNavPaint() once everything has landed, painting it all in one pass.
+// IMPORTANT: only the VISIBLE repaint is deferred. Any bookkeeping a paint
+// function does alongside it (dataset.value/.orig writes, baseline
+// anchoring) stays live and un-gated — captureAmpPatchLoadSnapshot
+// (sysex-handler.js) reads several of those values back synchronously
+// moments later (same nav pull) to seed its own per-amp cache, and a
+// deferred write would hand it stale data. Where that live "value of
+// record" isn't already a dataset attribute (Cab/Mic Type selects, the
+// Axis toggle button, the Breakup slider — all of which store their value
+// in the native element's own .value/class instead), one was added
+// specifically so the read-back stays correct even while the visual
+// update is held back.
+var navPaintDeferred = false;
+var navPendingPaints = [];
+function deferPaintOrRun(fn) {
+  if (navPaintDeferred) { navPendingPaints.push(fn); return; }
+  fn();
+}
+function flushNavPaint() {
+  navPaintDeferred = false;
+  var paints = navPendingPaints;
+  navPendingPaints = [];
+  paints.forEach(function(fn) { fn(); });
+}
+// Starts (or re-confirms) buffering. Called as the very FIRST thing in
+// clearStaleReadoutsOnNav (capture-scan.js) — nav's actual first paint-
+// affecting step, well before requestPatchStateAfterNav's own async start —
+// so the "drop the old baseline and repaint" sweep it runs (clearMainKnob
+// Baselines/clearBreakupBaseline) gets buffered too instead of visibly
+// stripping every knob's baseline tick the instant nav starts (found
+// 2026-09-03: ticks were vanishing on click, a full 1-2s before the rest of
+// the screen updated). Idempotent — safe to call again later in the same
+// nav (requestPatchStateAfterNav does, for callers that skip
+// clearStaleReadoutsOnNav) without wiping paints already queued.
+function beginNavPaintBuffer() {
+  if (!navPaintDeferred) navPendingPaints = [];
+  navPaintDeferred = true;
+}
+
+// Fires onDone once every id in `los` has been reported via the returned
+// gate's markSeen(lo), or after timeoutMs — whichever comes first. Used
+// everywhere a flush/swap needs to know when a query burst's REPLIES have
+// actually landed, not just when the burst finished SENDING — the two are
+// not the same thing, and treating them as if they were was the root
+// cause of an occasional leftover 64/"--" placeholder surviving a flush
+// (found 2026-09-03, first on the FX-host/Delay panels, then confirmed on
+// the main-panel amp block/tone knobs too — same bug, same fix, shared
+// here instead of copied per panel).
+function makeArrivalGate(los, timeoutMs, onDone) {
+  var remaining = {};
+  los.forEach(function(lo) { remaining[lo] = true; });
+  var left = los.length;
+  var done = false;
+  var timer = setTimeout(finish, timeoutMs);
+  function finish() {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    onDone();
+  }
+  return {
+    markSeen: function(lo) {
+      if (done || !remaining[lo]) return;
+      delete remaining[lo];
+      left--;
+      if (left <= 0) finish();
+    }
+  };
+}
+
+// Active arrival gate for the main nav pull's amp-block paramLo loop (see
+// requestPatchStateAfterNav, transport.js) — routeAmpBlockParam
+// (sysex-handler.js) reports into it as each reply lands.
+var navAmpArrivalGate = null;
+
+// Decide a knob's colour from its wrap: fixed per-band accent color (no
+// red-on-change) if data-band-color is set, else fx/amber base with the
+// usual red-on-change. Band-accent knobs (Parametric EQ, 7/31/2026) needed
+// this split because their bands are ALREADY red/amber/green/blue by
+// design (matches Avid's own panel) — a generic red-on-change would be
+// indistinguishable from the LF/OUT bands' normal red, or the LMF band's
+// normal amber. Those knobs signal "changed" via the value-text readout
+// instead (see updateFxHostKnob's cell.bandColor branch, fx-panels.js).
+function knobColor(canvas, value127) {
+  const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
+  if (wrap && wrap.dataset.bandColor) return wrap.dataset.bandColor;
+  let base = KNOB_COLORS.amber;
+  if (wrap && wrap.dataset.base === 'fx') base = KNOB_COLORS.green;
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
+    // Optional per-knob tolerance (data-tol, default 0 = exact match, same
+    // as always). DELAY's own knobs set this (fx-panels.js) — its coarse,
+    // wide-range controls (Delay ms especially) can settle 1 raw unit off
+    // the exact value we wrote/restored to, a real hardware quantization
+    // step on write+broadcast round-trip, not a further edit (2026-09-01,
+    // Charlie's own double-click-then-red observation). Every other panel
+    // keeps exact-match red-on-change, unchanged.
+    const tol = wrap.dataset.tol ? (parseInt(wrap.dataset.tol) || 0) : 0;
+    if (Math.abs(parseInt(wrap.dataset.orig) - value127) > tol) return KNOB_COLORS.red;
+  }
+  return base;
+}
+
+// ── Pointer-only knob style (trialled on row 1 2026-09-03, rolled out to
+// every plain rotary knob same session) ─────────────────────────────────
+// Charlie's ask: drop the ring and the red/amber colour-change entirely —
+// the transitional colour flashes during patch/FX changes had become an
+// annoyance — in favor of a plain pointer-only knob from a mockup he'd
+// seen elsewhere. Opt-in per wrap via data-style="tick" (index.html/
+// fx-panels.js) so the OLD ring engine (drawKnob's own body, below) stays
+// intact and selectable — Charlie's own call, wants the option to offer
+// both styles later. Parametric EQ's band-accent knobs (cell.bandColor,
+// data-band-color) folded in 2026-09-03 too — their fixed per-band accent
+// (matches Avid's own LF/LMF/HMF/HF colours) overrides the amber/green
+// base pick below; no red-on-change substitute needed anymore either,
+// since this engine has no colour-by-state at all to collide with.
+// No colour-by-state (Charlie's call — the colour WAS the flashing he
+// wants gone) — pointer is amber on the amp/main-panel base, green on FX,
+// matching knobColor's base split minus the red-on-change. No min/max
+// ticks (the 270° sweep is assumed, same as any knob of this type) — just
+// the body, one pointer, and the same external baseline tick drawKnob
+// already draws (dataset.orig), so the double-click-restore target stays
+// visible even with the colour cue gone.
+function drawTickKnob(canvas, value127, wrap) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2, r = (w-6)/2;
+  const startRad = -Math.PI/2 + (225 * Math.PI/180);
+  const sweepRad = 270 * Math.PI/180;
+  const angleFor = function(v) { return startRad + (sweepRad * v/127); };
+  let pointerCol = (wrap && wrap.dataset.base === 'fx') ? KNOB_COLORS.green : KNOB_COLORS.amber;
+  if (wrap && wrap.dataset.bandColor) pointerCol = wrap.dataset.bandColor;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Body — dark radial gradient, matches the mockup's .knob-wrap
+  const grad = ctx.createRadialGradient(cx - r*0.3, cy - r*0.35, r*0.1, cx, cy, r);
+  grad.addColorStop(0, '#3a3a3a');
+  grad.addColorStop(0.7, '#1a1a1a');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Baseline mark — same external tick drawKnob uses (dataset.orig),
+  // same position it would occupy on the ring version, just against a
+  // plain body instead of a track.
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
+    const baseRad = angleFor(parseInt(wrap.dataset.orig));
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(baseRad + Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(0, -(r+2));
+    ctx.lineTo(0, -(r-2));
+    ctx.strokeStyle = '#c8c8c8'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Live pointer — single tick, no colour-by-state (Charlie's call).
+  const rot = angleFor(value127);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rot + Math.PI/2);
+  ctx.beginPath();
+  ctx.moveTo(0, -(r-9));
+  ctx.lineTo(0, -Math.max(0, r-31));
+  ctx.strokeStyle = pointerCol; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawKnob(canvas, value127) {
+  if (navPaintDeferred) { navPendingPaints.push(function() { drawKnob(canvas, value127); }); return; }
+  const wrap0 = canvas.closest ? canvas.closest('.knob-wrap') : null;
+  if (wrap0 && wrap0.dataset.style === 'tick') { drawTickKnob(canvas, value127, wrap0); return; }
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2, r = (w-6)/2;
+  const knobCol = knobColor(canvas, value127);
+
+  // 7 o'clock = 225° from top (12 o'clock), going clockwise
+  // Canvas angles: 0 = right (3 o'clock), PI/2 = bottom, PI = left, 3PI/2 = top
+  // 12 o'clock in canvas = -PI/2 (or 3PI/2)
+  // 7 o'clock = -PI/2 + 225°*(PI/180) = -PI/2 + 3.927 = 2.356 rad
+  const startRad = -Math.PI/2 + (225 * Math.PI/180);
+  const sweepRad = 270 * Math.PI/180;
+  const endRad   = startRad + (sweepRad * value127/127);
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Track
+  ctx.beginPath();
+  ctx.arc(cx, cy, r-4, startRad, startRad+sweepRad);
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Value arc. At a very small value, the swept angle is shorter than the
+  // round cap's own width, so both end-caps overlap into a solid blob that
+  // pokes past the ring's edge instead of reading as a sliver of line — use
+  // a flat cap for those tiny sweeps; round caps still look right once the
+  // arc is long enough to show them properly.
+  if (value127 > 0) {
+    const minSweepForRoundCap = 5 / (r-4); // ~lineWidth's angular width at this radius
+    ctx.beginPath();
+    ctx.arc(cx, cy, r-4, startRad, endRad);
+    ctx.strokeStyle = knobCol; ctx.lineWidth = 5;
+    ctx.lineCap = (endRad - startRad) < minSweepForRoundCap ? 'butt' : 'round';
+    ctx.stroke();
+  }
+
+  // Baseline mark (2026-08-27, Charlie's call, replaces the brief
+  // pointer-line experiment — ring restored, this stayed) — a small tick
+  // at the value this knob loaded with, so a change reads against where
+  // it started, not just its colour. Drawn from the first paint, not
+  // just once the value has diverged (2026-08-27, 2nd round) — Charlie's
+  // call: appearing/disappearing on the first move read as awkward, so
+  // it coincides with the tip indicator until the knob actually moves.
+  // SHRUNK TO A SHORT EXTERNAL TICK (2026-08-27, 3rd round, Charlie's own
+  // paint mockup) — the earlier version was a notch crossing the ring
+  // stroke itself, which read as a second ring segment, not a marker.
+  // This sits entirely just outside the ring's outer edge (r-1.5, given
+  // the ring's own 5px lineWidth at radius r-4), so it never overlaps
+  // the lit or unlit track and needs no black-outline contrast trick.
+  const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
+    const origV = parseInt(wrap.dataset.orig);
+    const baseRad = startRad + (sweepRad * origV/127);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(baseRad + Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(0, -(r+2));
+    ctx.lineTo(0, -(r-2));
+    ctx.strokeStyle = '#c8c8c8'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Body
+  ctx.beginPath();
+  ctx.arc(cx, cy, r-11, 0, Math.PI*2);
+  ctx.fillStyle = '#242424'; ctx.fill();
+  ctx.strokeStyle = '#484848'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Indicator — was a dot at the arc's tip; now a radial line (Charlie's
+  // call, 2026-08-27; lengthened 2x same day, was reading out of scale
+  // at the original 8px), same position and colour. endRad is a canvas
+  // arc angle (0=3 o'clock); the rotated frame's "up" (-y) is 12
+  // o'clock, so add PI/2 to align it with the arc endpoint.
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(endRad + Math.PI/2);
+  ctx.beginPath();
+  ctx.moveTo(0, -(r-13));
+  ctx.lineTo(0, -Math.max(0, r-29));
+  ctx.strokeStyle = knobCol; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── Vertical fader (Graphic EQ, 7/31/2026, enlarged + calibrated 7/31/2026
+// same day per Charlie's request) — first non-rotary FX1 control. Mimics
+// Avid's own Graphic EQ panel: a vertical groove with printed calibration
+// numbers on BOTH sides (Avid only prints them on one side; we have the
+// panel width to spare) and a horizontal thumb bar that rides it, base
+// colour YELLOW (not green like every other FX control) that turns RED on
+// change from baseline (R3), same rule, new base colour. Canvas is sized
+// 74x173 (was 34x130 — ~1/3 taller, wide enough for both tick columns) —
+// see FX1_MODELS' Graphic EQ ticks arrays (protocol.js) for the printed
+// values per band, matching Avid's own panel scale.
+function eqSliderColor(wrap, value127) {
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== ''
+      && parseInt(wrap.dataset.orig) !== value127) {
+    return KNOB_COLORS.red;
+  }
+  return KNOB_COLORS.yellow;
+}
+
+// Inverse of eqSliderDb — the raw v127 a given dB value sits at, so a tick
+// mark lines up exactly with where the thumb sits when the live value
+// matches that tick. `linear` selects the same shape eqSliderDb used (see
+// its header comment for why Output needs the plain-proportional variant).
+function eqDbToV127(db, minDb, maxDb, linear) {
+  if (linear) return ((db - minDb) / (maxDb - minDb)) * 127;
+  if (db === 0) return 64;
+  if (db < 0) { const below = -minDb / 64; return 64 + db / below; }
+  const above = maxDb / 63; return 64 + db / above;
+}
+
+function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks, linear) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w / 2;
+  const top = 10, bottom = h - 10;
+  const trackH = bottom - top;
+  const col = eqSliderColor(wrap, value127);
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Calibration ticks + numbers, printed on both sides of the groove —
+  // static, independent of the live value, exactly like the markings
+  // silkscreened on Avid's own panel.
+  if (ticks && typeof minDb === 'number' && typeof maxDb === 'number') {
+    ctx.font = '9px sans-serif';
+    ctx.fillStyle = '#888';
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
+    ticks.forEach(function(db) {
+      const v = Math.max(0, Math.min(127, eqDbToV127(db, minDb, maxDb, linear)));
+      const y = bottom - (v / 127) * trackH;
+      ctx.beginPath();
+      ctx.moveTo(cx - 11, y); ctx.lineTo(cx - 7, y);
+      ctx.moveTo(cx + 7, y);  ctx.lineTo(cx + 11, y);
+      ctx.stroke();
+      const label = (db > 0 ? '+' : '') + db;
+      ctx.textAlign = 'right'; ctx.fillText(label, cx - 13, y + 3);
+      ctx.textAlign = 'left';  ctx.fillText(label, cx + 13, y + 3);
+    });
+  }
+
+  // Groove
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx, top); ctx.lineTo(cx, bottom);
+  ctx.stroke();
+
+  // Thumb — a horizontal bar, matching the Avid fader look. 0 = bottom,
+  // 127 = top (dragging UP raises the value, same convention as every
+  // knob's vertical drag).
+  const y = bottom - (value127 / 127) * trackH;
+  ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 9, y); ctx.lineTo(cx + 9, y);
+  ctx.stroke();
+  // Centre notch on the thumb, like the real fader cap
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(cx, y, 2, 0, Math.PI*2);
+  ctx.fill();
+}
+
+// clearMainKnobBaselines REMOVED 2026-09-03 (Charlie's ask) — used to wipe
+// every main-panel knob's baseline and repaint at nav start, so the
+// incoming patch's knobs showed plain amber during the pull instead of a
+// red flash against the OLD patch's baseline. That justification no longer
+// applies: the tick-style knobs (drawKnob's data-style="tick" branch) have
+// no colour-by-state at all now, so there was nothing left to protect
+// against — the wipe was pure cost, and with nav-pull buffering in place
+// its repaint (paired with captureKnobBaselines' own repaint moments
+// later, past its own separate settle delay — a real second step, not an
+// illusion) was exactly what made every knob's baseline TICK vanish and
+// reappear on every nav, even when the tick never needed to move. Now the
+// baseline is simply left alone until captureKnobBaselines paints the real
+// one, once, at the end of the pull — a tick that's already correct never
+// gets touched, and one that needs to move jumps straight there in a
+// single step, same as the live pointer already does. Speaker Breakup
+// (still the old colour-on-change engine, not converted to the tick style)
+// still needs its own clear for the same reason it always did — Charlie's
+// call was specifically about the tick knobs — so clearStaleReadoutsOnNav
+// (capture-scan.js) now calls clearBreakupBaseline() directly instead of
+// through this function.
+
+// First-wins baseline for Rig Vol / To Amp 1 / To Amp 2 (2026-09-03) — same
+// spirit as blockBaselineSetIfUnset (fx-panels.js) but flat, no slot/model
+// keying, since these three don't live on the amp block's shared-storage
+// address space (see the "Rig Vol / To Amp Volume do NOT belong here" note
+// above) — nothing to bleed across amp models. Reset per patch-load
+// (clearStaleReadoutsOnNav, capture-scan.js). Called from their own
+// broadcast handlers (sysex-handler.js) the instant a value arrives, so the
+// very first paint already has the right baseline tick — before this,
+// their tick only got set by captureKnobBaselines' delayed end-of-pull
+// sweep below, well after the pointer had already jumped to the new value,
+// a visible lag Charlie caught (2026-09-03).
+var mainKnobLoadBaseline = {};
+function mainKnobBaselineSetIfUnset(wrapId, val) {
+  if (mainKnobLoadBaseline[wrapId] === undefined) mainKnobLoadBaseline[wrapId] = val;
+  return mainKnobLoadBaseline[wrapId];
+}
+
+// Snapshot every MAIN-PANEL knob's current value as its baseline. Called once
+// per patch load and once after a save, so the red "changed" state is measured
+// against the patch's saved values — not against a live edit. Effect-panel
+// knobs (data-base="fx") are excluded here; they baseline themselves when their
+// panel's params arrive (see updateDistKnob / updateReverbKnob), because those
+// values come in a separate query a moment later, not in this patch dump.
+function captureKnobBaselines() {
+  // Excludes data-base="eq" (2026-09-02) as well as "fx" — Graphic EQ's
+  // vertical sliders (fx-panels.js renderFxHostCell, cell.slider branch)
+  // carry the "eq" tag instead of "fx" so their CSS sizing override
+  // (.eq-slider, index.html) applies, and this blanket loop's exclusion
+  // list never got updated to match: it repainted their canvases with the
+  // wrong function (drawKnob instead of drawEqSlider) on every post-nav
+  // baseline settle, same bug class rebaselineOpenFxPanel (below) already
+  // had a real fix for — this loop just never got it. Root-caused from
+  // Charlie's app log: sliders drew correctly right after nav, then a
+  // few hundred ms later (NAV_BASELINE_SETTLE, transport.js) this function
+  // fired and silently overwrote them with knob arcs.
+  // Excludes data-base="amp" (2026-09-02, tone-stack cache experiment) —
+  // tone-w0..7 now get their baseline anchored per (amp, paramLo) via
+  // blockBaselineSetIfUnset (applyAmpToneKnob, ui.js), same as every other
+  // per-model block. Leaving them in this blanket sweep would flatten that
+  // straight back to "whatever's on screen ~1s after nav," undoing the
+  // whole point — same bug class as the "eq" exclusion above, caught
+  // proactively this time instead of from a live report.
+  document.querySelectorAll('.knob-wrap:not([data-base="fx"]):not([data-base="eq"]):not([data-base="amp"]):not([data-base="rigbal"])').forEach(function(w) {
+    if (w.dataset.value !== undefined && w.dataset.value !== '') {
+      w.dataset.orig = w.dataset.value;
+      var c = w.querySelector('canvas');
+      if (c) drawKnob(c, parseInt(w.dataset.value) || 0);  // reset colour to base
+    }
+  });
+  captureBreakupBaseline();
+}
+
+// ── Speaker Breakup slider baseline (2026-08-03) — same amber/red-on-change
+// + double-click-to-baseline contract every round knob follows (Sec 20A R3/
+// R8), extended to this one control that's a native <input type=range>
+// instead of a .knob-wrap canvas, so it fell outside the generic sweep
+// above and never got a baseline, a colour change, or a restore at all. ──
+function captureBreakupBaseline() {
+  const slider = document.getElementById('breakup-slider');
+  if (slider) slider.dataset.orig = slider.value;
+  updateBreakupColor();
+}
+function clearBreakupBaseline() {
+  const slider = document.getElementById('breakup-slider');
+  if (slider) delete slider.dataset.orig;
+  deferPaintOrRun(updateBreakupColor);
+}
+// Drives BOTH the thumb and the filled portion of the groove via the two
+// CSS custom properties the fully-custom track styling (index.html) reads
+// — --track-color (amber/red, same values as KNOB_COLORS) and --fill-pct
+// (the value as a percent). Called on every value OR baseline change so
+// the slider always repaints fully in sync, same as drawKnob does for the
+// round knobs.
+function updateBreakupColor() {
+  const slider = document.getElementById('breakup-slider');
+  if (!slider) return;
+  const hasOrig = slider.dataset.orig !== undefined && slider.dataset.orig !== '';
+  const changed = hasOrig && parseInt(slider.dataset.orig) !== parseInt(slider.value);
+  slider.classList.toggle('changed', changed);
+  slider.style.setProperty('--track-color', changed ? KNOB_COLORS.red : KNOB_COLORS.amber);
+  slider.style.setProperty('--fill-pct', (parseInt(slider.value) / 127 * 100) + '%');
+
+  // Baseline tick (2026-08-27) — the knob's "value this control loaded
+  // with" marker (see drawKnob), adapted for this native <input
+  // type=range>: a separate positioned DOM element (index.html
+  // .sctrl-baseline), not something drawn on the control itself, since a
+  // native range input has no canvas and no way to host an injected child.
+  // Position is corrected for the thumb's own width (14px) — the thumb's
+  // CENTRE travels from thumbW/2 to trackW-thumbW/2, not edge to edge, so
+  // a plain 0-100% placement would drift away from where the thumb
+  // actually sits as the value nears either end.
+  const tick = document.getElementById('breakup-baseline');
+  if (tick) {
+    if (hasOrig) {
+      const trackW = slider.offsetWidth || 160;
+      const thumbW = 14;
+      const origV = parseInt(slider.dataset.orig);
+      tick.style.left = ((thumbW / 2) + (trackW - thumbW) * (origV / 127)) + 'px';
+      // NOT '' — that clears the inline override and falls back to the
+      // stylesheet, whose .sctrl-baseline rule IS display:none (that's the
+      // hidden-by-default state), so it never actually showed anything.
+      // Real bug behind two rounds of "no visible change" on the z-index
+      // attempts (2026-08-27) — this line, not stacking order, was why the
+      // tick never appeared at all.
+      tick.style.display = 'block';
+    } else {
+      tick.style.display = 'none';
+    }
+  }
+}
+
+function valDisplay(v127) { return (v127/127*10).toFixed(1); }
+
+// Graphic EQ band/output display. TWO SHAPES, chosen by the `linear` flag —
+// picked apart 2026-07-31 by a capture that started every slider parked at
+// 0.0 dB, swept to max/min, then tried to dial back to exactly 0.0 dB:
+//   SYMMETRIC BANDS (100/370/800/2k/3.25k) — two-slope-anchored-at-64, same
+//   shape as valToAmpVol (Sec 20A R5: 0.0 dB exactly reachable, not
+//   interpolated near it). CONFIRMED by that capture: every symmetric band's
+//   "return to zero" attempt settled tightly on raw 63/64, exactly where
+//   this formula puts 0.0 dB.
+//   OUTPUT (-20..+6, asymmetric) — plain proportional across the FULL 0-127
+//   range, linear=true. The two-slope-at-64 formula was WRONG for this one:
+//   the same capture showed Charlie's return-to-zero attempts clustering
+//   around raw 99-100, nowhere near 64, and never actually settling — 20 dB
+//   of range below 0 and 6 above, spread over 127 steps, does not divide
+//   evenly (0.0 dB sits at a non-integer raw ~97.7), so exact 0.0 dB may be
+//   genuinely unreachable at this resolution — a real hardware granularity
+//   limit, not a display bug to paper over.
+function eqSliderDb(v127, minDb, maxDb, linear) {
+  var db;
+  if (linear) {
+    db = minDb + (v127 / 127) * (maxDb - minDb);
+  } else {
+    const below = -minDb / 64;
+    const above = maxDb / 63;
+    db = (v127 < 64) ? (v127 - 64) * below : (v127 - 64) * above;
+  }
+  const t = db.toFixed(1);
+  return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
+}
+
+// Parametric EQ frequency readout — Hz below 1kHz, kHz above, one decimal
+// either way (matches Avid's own panel: "100.0 Hz", "2.0 kHz").
+function eqFreqDisplay(hz) {
+  return hz >= 1000 ? (hz / 1000).toFixed(1) + ' kHz' : hz.toFixed(1) + ' Hz';
+}
+
+// ── Effect-panel knob baseline (item A, FX truth) ───────────────────
+// The effect-panel DOM is rebuilt every time a panel opens, so a knob's
+// "original" value cannot live only on the wrap or it is lost on reopen —
+// which is why FX knobs used to forget their red state after switching panels.
+// It lives here instead: one entry per effect slot, surviving open/close and
+// visits to other panels, exactly like the amp panel holds its truth.
+//   fxBaseline[slotId][loHex] = original value for THIS patch
+// Reset points:
+//   - full patch nav  -> clearFxBaselines() from clearStaleReadoutsOnNav()
+//   - effect model change -> clearFxBaselineForSlot() in the refresh funcs
+//   - save -> re-anchored to the just-saved values (sysex-handler save path)
+var fxBaseline = {};
+
+// ── SAVE-button dirty latch (item, 7/26) ────────────────────────────
+// Grey until the first patch edit, then green until the next patch nav or a
+// save. Pure latch — set once on change, never re-checks whether values were
+// put back. Global writes (To Amp source) and readbacks do not call these.
+function markPatchDirty() {
+  var b = document.getElementById('btn-save-menu');
+  if (b) b.classList.add('green');
+}
+function clearPatchDirty() {
+  var b = document.getElementById('btn-save-menu');
+  if (b) b.classList.remove('green');
+}
+
+// ── Knob write throttle (item, 7/26) ────────────────────────────────
+// A knob drag used to send one MIDI write per mouse-move — up to ~48/sec in a
+// captured session. That flood swamps the rack; it reassigns the amp's internal
+// handle mid-stream and starts broadcasting from the new one, which the app no
+// longer recognises ("instId does not match currentParamHi, ignored"), so the
+// knobs go dead in both directions and it looks like a disconnect. Same problem
+// the tempo control already solved. This trailing throttle coalesces rapid
+// changes per control: the on-screen knob still moves instantly (drawn locally);
+// only the hardware write is paced, and the final value always lands.
+var KNOB_SEND_INTERVAL = 60;   // ms between writes for one control while dragging
+var _knobSendTimers  = {};
+var _knobSendPending = {};
+function queueKnobSend(key, fn, val) {
+  _knobSendPending[key] = { fn: fn, val: val };
+  if (_knobSendTimers[key]) return;               // a write is already scheduled
+  _knobSendTimers[key] = setTimeout(function() {
+    _knobSendTimers[key] = null;
+    var p = _knobSendPending[key];
+    _knobSendPending[key] = null;
+    if (p) p.fn(p.val);                            // send the most recent value
+  }, KNOB_SEND_INTERVAL);
+}
+
+// Same debounce shape as queueKnobSend, but with a longer interval for
+// MODEL-SWITCH dropdowns specifically (2026-09-02, generalized from the
+// Amp Select fix — see that fix's own comment for the full incident:
+// holding an arrow key fires a real 'change' event, and thus a real
+// hardware write, on every repeat with no throttling at all, backing up a
+// queue of confirmations far faster than the rack can drain it). A model
+// switch is much heavier than a plain knob write — it relabels/blanks a
+// whole control panel, then runs its own settle-then-requery chain — so
+// this needs more headroom above typical OS key-repeat rate (~30-50ms)
+// than KNOB_SEND_INTERVAL (60ms) gives, to actually coalesce a held key
+// down to one real switch instead of firing on every repeat anyway. Every
+// intermediate model passed through in under this window was never
+// actually seen/used, so skipping its write changes nothing real.
+var MODEL_SEND_INTERVAL = 150;
+var _modelSendTimers  = {};
+var _modelSendPending = {};
+function queueModelSend(key, fn, val) {
+  _modelSendPending[key] = { fn: fn, val: val };
+  if (_modelSendTimers[key]) return;
+  _modelSendTimers[key] = setTimeout(function() {
+    _modelSendTimers[key] = null;
+    var p = _modelSendPending[key];
+    _modelSendPending[key] = null;
+    if (p) p.fn(p.val);
+  }, MODEL_SEND_INTERVAL);
+}
+
+function clearFxBaselines() { fxBaseline = {}; }
+function clearFxBaselineForSlot(slotId) { delete fxBaseline[slotId]; }
+// First value seen for a slot+lo this patch becomes its baseline; later calls
+// return that same stored baseline rather than overwriting it, so a reopened
+// panel measures the current (possibly changed) value against the original.
+function fxBaselineSetIfUnset(slotId, loHex, val) {
+  if (!fxBaseline[slotId]) fxBaseline[slotId] = {};
+  if (fxBaseline[slotId][loHex] === undefined) fxBaseline[slotId][loHex] = val;
+  return fxBaseline[slotId][loHex];
+}
+
+// ── "LOADED" OPTION MARKER (2026-09-02) ──
+// Puts .opt-loaded (bold + --blue, index.html) on whichever <option> in a
+// <select> matches the value that dropdown showed right after the current
+// patch loaded — so stepping through a long list doesn't lose track of
+// where you started.
+//
+// ONE mechanism for every dropdown, including sub-selects nested inside a
+// model panel (REVERB Type, DELAY's Sync/Feedback Mode, FX-host's per-cell
+// Sync/Select): a plain key->value store (dropdownLoadedValue, state.js)
+// cleared on every real patch nav (clearStaleReadoutsOnNav, capture-
+// scan.js), same "new patch, old reference points are meaningless" rule
+// the knob/model-cache baselines already follow. Call syncLoadedMarker(sel,
+// key) right after the code that sets sel.value from a hardware read.
+//
+// 2026-09-02 CORRECTION: an earlier version used a per-element dataset flag
+// for the nested sub-selects instead (assuming their DOM gets torn down
+// and rebuilt on every nav, so the flag would always start fresh). Wrong —
+// those panels only re-render their knobs on a MODEL switch
+// (refreshReverbPanelAfterChainMap etc.); a nav that keeps the same outer
+// model (e.g. Eleven SR -> Eleven SR, just a different Type) leaves the old
+// <select> DOM node in place, flag already set from the PREVIOUS patch, so
+// the new patch's real value silently never got marked (Charlie's live
+// report: loaded with Early Reflections2, marker stuck on Echo Room from
+// whatever the prior patch had). The keyed store doesn't have this problem
+// — it's cleared by clearStaleReadoutsOnNav regardless of what happens to
+// the DOM, so it's correct whether or not a given nav triggers a re-render.
+function markLoadedOption(sel, val) {
+  if (!sel) return;
+  const want = String(val);
+  Array.prototype.forEach.call(sel.options, function(opt) {
+    opt.classList.toggle('opt-loaded', opt.value === want);
+  });
+}
+function syncLoadedMarker(sel, key) {
+  if (!sel) return;
+  if (dropdownLoadedValue[key] === undefined) dropdownLoadedValue[key] = sel.value;
+  markLoadedOption(sel, dropdownLoadedValue[key]);
+}
+
+// After a save, whatever an open effect panel currently shows IS the saved
+// truth — re-anchor its baseline to now so those knobs read green again.
+function rebaselineOpenFxPanel() {
+  var slotId = -1, sel = '';
+  if (typeof distPanelOpen !== 'undefined' && distPanelOpen)        { slotId = SLOT_DIST;   sel = '#dist-knob-row .knob-wrap'; }
+  else if (typeof reverbPanelOpen !== 'undefined' && reverbPanelOpen){ slotId = SLOT_REVERB; sel = '#reverb-knob-row .knob-wrap'; }
+  else if (openFxHostSlot !== null)                                 { slotId = openFxHostSlot; sel = '#fxhost-knob-row .knob-wrap'; }
+  else if (typeof wahPanelOpen !== 'undefined' && wahPanelOpen)     { slotId = SLOT_WAH;    sel = '#wah-knob-row .knob-wrap'; }
+  else if (typeof volPanelOpen !== 'undefined' && volPanelOpen)     { slotId = SLOT_VOL;    sel = '#vol-knob-row .knob-wrap'; }
+  else if (typeof fxLoopPanelOpen !== 'undefined' && fxLoopPanelOpen) { slotId = SLOT_LOOP; sel = '#fxloop-knob-row .knob-wrap'; }
+  else if (typeof delayPanelOpen !== 'undefined' && delayPanelOpen) { slotId = SLOT_DELAY; sel = '#delay-knob-row .knob-wrap'; }
+  if (slotId < 0) return;
+  // FX-host cell lookup for the non-round kinds (slider) — added 2026-07-31
+  // after this function's blanket drawKnob() call corrupted Graphic EQ's
+  // vertical sliders on save (a slider-shaped canvas painted with circular-
+  // arc math). Every other panel (DIST/REVERB/WAH/VOL) only ever has round
+  // knobs, so cell stays null there and drawKnob is always right.
+  var fxHostModel = (openFxHostSlot !== null && typeof currentFxHostModel === 'function') ? currentFxHostModel(openFxHostSlot) : null;
+  document.querySelectorAll(sel).forEach(function(w) {
+    var loHex = w.dataset.distLo || w.dataset.reverbLo || w.dataset.fxhostLo || w.dataset.wahLo || w.dataset.volLo || w.dataset.fxloopLo || w.dataset.delayLo;
+    if (loHex === undefined || w.dataset.value === undefined || w.dataset.value === '') return;
+    var v = parseInt(w.dataset.value);
+    if (!fxBaseline[slotId]) fxBaseline[slotId] = {};
+    fxBaseline[slotId][loHex] = v;
+    w.dataset.orig = v;
+    var cell = null;
+    if (fxHostModel) {
+      var lo = parseInt(loHex, 16);
+      fxHostAllCells(fxHostModel).forEach(function(c) { if (c.lo === lo) cell = c; });
+    }
+    if (cell && cell.slider) drawEqSlider(w.querySelector('canvas'), v, w, cell.min, cell.max, cell.ticks, cell.linear);
+    else                     drawKnob(w.querySelector('canvas'), v);
+    // cell.bandColor knobs (Parametric EQ) carry "changed" on the value-
+    // text readout, not the arc (see knobColor/updateFxHostKnob) — a save
+    // must clear that red/bold styling too, or it survives a save just
+    // baselined to green would.
+    if (cell && cell.bandColor) {
+      var valEl = document.getElementById('fxhost-v-' + loHex);
+      if (valEl) { valEl.style.color = ''; valEl.style.fontWeight = ''; }
+    }
+  });
+}
+
+// Gate Threshold: 0=OFF, 1-127 maps -90dB to -20dB
+function valGateThresh(v127) {
+  if (v127 === 0) return 'OFF';
+  const db = -90 + (v127 / 127) * 70;
+  return db.toFixed(1) + ' dB';
+}
+
+// Gate Release: logarithmic 10ms to 3000ms
+// Hardware shows ~198ms at midpoint — log scale confirmed
+// One decimal place throughout (7/27), matching every other readout
+// (Gate Threshold, Rig Vol, Amp Out, To Amp Vol) — was showing a bare
+// rounded integer below 1000ms ("10 ms") while the seconds branch above
+// 1000ms already used .toFixed(1). The v127=0 special case is gone too:
+// the formula already lands exactly on 10 at v127=0, so toFixed(1) alone
+// gives "10.0 ms" with no separate branch needed.
+function valGateRelease(v127) {
+  // Logarithmic: ms = 10 * (300)^(v/127)
+  const ms = 10 * Math.pow(300, v127 / 127);
+  return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
+}
+
+// Rig Volume: 0-127 maps -24dB to 0dB
+function valRigVol(v127) {
+  const db = -24 + (v127 / 127) * 24;
+  return db.toFixed(1) + ' dB';
+}
+
+// Amp Out Level — 0.6 dB per step, 0.0 dB at v127 = 98.
+// ANCHORED 7/23/2026, replacing db = -60 + (v127/127)*78, which put 0.0 dB at
+// v127 = 97.7 — a value that cannot exist, so the display could never print
+// 0.0 and read +0.2 instead.
+// EVIDENCE (session-2026-07-23-155947.log):
+//   rack set to 0.0 dB  -> v127 = 98, we displayed +0.2
+//   rack reading 4.8 dB -> v127 = 106, we displayed +5.1
+// 106 is 8 steps above 98 and 4.8 / 8 = 0.6 exactly. The old 78 dB span
+// implies 0.6142 per step, which would have shown 4.9 rather than the 4.8 on
+// the rack, so 0.6 is the true step and the documented -60..+18 range was
+// rounded. Implied endpoints are now -58.8 dB at 0 and +17.4 dB at 127 —
+// worth a spot check at both extremes.
+function valAmpOut(v127) {
+  const db = (v127 - 98) * 0.6;
+  const t = db.toFixed(1);
+  // No '+' on a bare zero, matching the rack.
+  return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
+}
+
+// To Amp 1/2 Volume: 0-127 maps -12dB to +12dB. v0=0x00 = MUTE.
+// Confirmed from Avid editor display 7/17/2026.
+//
+// ANCHORED AT 64 (fixed 7/23/2026). The old formula was
+//     db = -12 + (v127 / 127) * 24
+// which puts 0.0 dB at v127 = 63.5 — a value that cannot exist. The display
+// could therefore NEVER print 0.0: it showed +0.1 at 64 and -0.1 at 63.
+// Evidence: with the rack reading 0.0 dB our own log recorded
+//     CMD 0x36 ToAmp1 volume: v0=0x00 (+0.1 dB)
+// and v0=0x00 decodes to 64. So 64 is the hardware's 0 dB point.
+// The two sides therefore have slightly different step sizes (64 steps below
+// centre, 63 above), which is what makes all three anchors land exactly:
+// 0 -> -12.0, 64 -> 0.0, 127 -> +12.0.
+// This is almost certainly the "0.2-0.4 dB midrange nonlinearity" recorded in
+// Tech Ref Sec 21 as cosmetic — an offset scale is worst at the middle and
+// vanishes at the ends, which is exactly the reported shape.
+function valToAmpVol(v127) {
+  if (v127 === 0) return 'MUTE';
+  const db = (v127 < 64) ? (v127 - 64) * (12 / 64)
+                         : (v127 - 64) * (12 / 63);
+  const t = db.toFixed(1);
+  // No '+' on zero — the rack shows a bare 0.0 dB, not +0.0.
+  return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
+}
+
+// ════════════════════════════════════════════════════════════════════
+// STARTUP
+// ════════════════════════════════════════════════════════════════════
+function setInputButtons(inputVal) {
+  const isGuitar = (inputVal === 0x00);
+  const isMic    = (inputVal === 0x02);
+  const isLine   = (inputVal === 0x03 || inputVal === 0x04 || inputVal === 0x05);
+  const isDig    = (inputVal === 0x06 || inputVal === 0x07 || inputVal === 0x08);
+  document.getElementById('btn-input-guitar').classList.toggle('active', isGuitar);
+  document.getElementById('btn-input-mic').classList.toggle('active',    isMic);
+  document.getElementById('btn-input-line').classList.toggle('active',   isLine);
+  document.getElementById('btn-input-dig').classList.toggle('active',    isDig);
+
+  // Passive clone at the start of the chain strip (7/28) — same source of
+  // truth as the buttons above, updated in the same place so it can never
+  // drift out of sync with them.
+  const cloneEl = document.getElementById('chain-input-wrap');
+  if (cloneEl) {
+    cloneEl.textContent = isGuitar ? 'GUITAR' : isMic ? 'MIC' : isLine ? 'LINE' : isDig ? 'DIGITAL' : '--';
+  }
+}
+
+// ── Avid editor state — purely informational now. The Java bridge owns
+// both Eleven Rack MIDI ports itself, so controls no longer depend on the
+// editor being open. This just warns if the editor opens alongside the
+// bridge, since both trying to own the same ports at once is the one
+// scenario the docs flag as a real risk. ──
+let avidRunning = false;
+function updateAvidStatus(running) {
+  if (running === avidRunning) return;
+  avidRunning = running;
+
+  const badge  = document.getElementById('avid-status-badge');
+  const msg    = document.getElementById('avid-msg');
+
+  badge.textContent = running ? 'AVID EDITOR: OPEN' : 'AVID EDITOR: CLOSED';
+  badge.className   = running ? 'inactive' : 'active';
+  msg.textContent   = 'Avid editor and this app both use the Eleven Rack ports — closing the editor avoids a conflict.';
+  msg.style.display = running ? 'block' : 'none';
+
+  if (running) {
+    appLog('Avid editor detected — both apps are now sharing the Eleven Rack ports (potential conflict)');
+  } else {
+    appLog('Avid editor closed');
+  }
+}
+
+// ── Knob initializer for permanent knobs (Rig Vol, Amp Out) ──
+function initKnob(wrapId, valId, dispFn, onChangeCB) {
+  const wrap = document.getElementById(wrapId);
+  const valSpan = document.getElementById(valId);
+  if (!wrap) return;
+  const canvas = wrap.querySelector('canvas');
+  let val = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+  drawKnob(canvas, val);
+  if (valSpan) valSpan.textContent = dispFn(val);
+
+  let dragging = false, startY = 0, startVal = 0;
+
+  wrap.addEventListener('mousedown', e => {
+    val = parseInt(wrap.dataset.value) || 0;
+    dragging = true; startY = e.clientY; startVal = val; e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    // Release outside the window never delivers a mouseup here, which used to
+    // leave the knob following the mouse with no button held until the next
+    // click. e.buttons is 0 the moment the button is up, wherever it happened.
+    if (e.buttons === 0) { dragging = false; return; }
+    val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    wrap.dataset.value = val;
+    drawKnob(canvas, val);
+    if (valSpan) valSpan.textContent = dispFn(val);
+    if (onChangeCB) queueKnobSend('knob:' + wrapId, onChangeCB, val);
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  window.addEventListener('blur', () => { dragging = false; });
+  wrap.addEventListener('dblclick', () => {
+    // R8 — double-click restores the knob to its load baseline (R3's
+    // dataset.orig), not a fixed centre value. Same send path as a normal
+    // drag, so R1 endpoint sentinels apply automatically via onChangeCB.
+    val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    wrap.dataset.value = val;
+    drawKnob(canvas, val); if (valSpan) valSpan.textContent = dispFn(val);
+    if (onChangeCB) queueKnobSend('knob:' + wrapId, onChangeCB, val);
+  });
+  wrap.addEventListener('wheel', e => {
+    e.preventDefault();
+    val = parseInt(wrap.dataset.value) || 0;
+    val = Math.max(0, Math.min(127, val - Math.sign(e.deltaY)));
+    wrap.dataset.value = val;
+    drawKnob(canvas, val); if (valSpan) valSpan.textContent = dispFn(val);
+    if (onChangeCB) queueKnobSend('knob:' + wrapId, onChangeCB, val);
+  }, { passive: false });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LOGGING — renderer side sends to main for file write
+// ════════════════════════════════════════════════════════════════════
+function appLog(line) {
+  if (!logsEnabled) return;
+  try { window.electronAPI.logWrite(line); } catch(e) {}
+}
+
+// ── 7-bit decode (port of ElevenHack SysEx.java extractFrom7bits) ──
+function updateGateReadout(gate) {
+  if (!gate) return;
+  const tWrap = document.getElementById('gate-thresh-wrap');
+  const rWrap = document.getElementById('gate-release-wrap');
+  if (tWrap) {
+    tWrap.dataset.value = gate.threshV;
+    drawKnob(tWrap.querySelector('canvas'), gate.threshV);
+    document.getElementById('gate-thresh-val').textContent = valGateThresh(gate.threshV);
+  }
+  if (rWrap) {
+    rWrap.dataset.value = gate.releaseV;
+    drawKnob(rWrap.querySelector('canvas'), gate.releaseV);
+    document.getElementById('gate-release-val').textContent = valGateRelease(gate.releaseV);
+  }
+  appLog('Gate readout updated — thresh=' + valGateThresh(gate.threshV) + ' release=' + valGateRelease(gate.releaseV));
+}
+
+// Set true only once a REAL Amp Out value has actually been read back —
+// from SEND_PATCH decode below, or from a live CMD 0x11 broadcast (a
+// physical knob turn). Used to block the knob from transmitting anything
+// before that happens, since it used to be able to send whatever
+// arbitrary position it defaulted to on load — confirmed to be able to
+// silently move the real hardware output level. See sendAmpOutIfReady().
+function updateAmpOutReadout(v) {
+  if (v == null) return;
+  hasReceivedAmpOutValue = true;
+  const wrap = document.getElementById('amp-out-wrap');
+  if (wrap) {
+    wrap.dataset.value = v;
+    drawKnob(wrap.querySelector('canvas'), v);
+    deferPaintOrRun(function() { document.getElementById('amp-out-val').textContent = valAmpOut(v); });
+  }
+  appLog('Amp Out readout updated — ' + valAmpOut(v));
+}
+
+// ── To Amp 1 & 2 volume readout update (from TFX decode on patch load) ──
+function updateToAmpVolumeReadouts(vols) {
+  if (!vols) return;
+  const w1 = document.getElementById('toamp1-vol-wrap');
+  if (w1) {
+    w1.dataset.value = vols.amp1V;
+    drawKnob(w1.querySelector('canvas'), vols.amp1V);
+    document.getElementById('toamp1-vol-val').textContent = valToAmpVol(vols.amp1V);
+  }
+  const w2 = document.getElementById('toamp2-vol-wrap');
+  if (w2) {
+    w2.dataset.value = vols.amp2V;
+    drawKnob(w2.querySelector('canvas'), vols.amp2V);
+    document.getElementById('toamp2-vol-val').textContent = valToAmpVol(vols.amp2V);
+  }
+  appLog('To Amp volumes from TFX: amp1=' + valToAmpVol(vols.amp1V) + '  amp2=' + valToAmpVol(vols.amp2V));
+}
+
+// ── Push decoded tone knob values into the tone knob UI on patch load ──
+// values = array from decodeToneKnobValues(), parallel to knob-type entries
+// in AMP_TONE_PARAMS[currentAmpKey].knobs. null entries = key not found.
+// ── Bright toggle ──
+let brightOn = false;
+// ── Tremolo on/off (paramLo 0x13) — undefined until the hardware tells us ──
+let tremOn;
+// ── Live Sync zone (0 = OFF) and a per-drag latch, so turning Speed clears
+// Sync exactly once per drag rather than on every mousemove. ──
+let currentSyncZone = 0;
+let syncClearedThisDrag = false;
+
+function updateBrightButton() {
+  document.getElementById('btn-bright').classList.toggle('on', brightOn);
+}
+
+function updateBrightReadout(val) {
+  // TFX: raw 0=OFF, raw 1=ON (decoded to val 0 or 127 by decodeToneKnobValues)
+  // CMD 0x11 live: val=127=ON, val=0=OFF (confirmed Black Vib capture 7/15/2026)
+  brightOn = (val > 63);
+  deferPaintOrRun(updateBrightButton);
+  appLog('Bright ' + (brightOn ? 'ON' : 'OFF') + ' (val=' + val + ')');
+}
+
+function updateBrightVisibility(ampKey) {
+  const ap = ampKey ? AMP_TONE_PARAMS[ampKey] : null;
+  // The Bright toggle is named MOD on SL100 Drive, so match on type, not label.
+  const hasBright = !!(ap && ap.knobs && ap.knobs.some(k => k.type === 'toggle' && k.lo === 0x0E));
+  const hasTrem   = ampHasTremolo(ampKey);
+
+  const btn = document.getElementById('btn-bright');
+  if (btn) {
+    btn.style.display = hasBright ? '' : 'none';
+    // Label from the amp table, not hardcoded: SL100 Drive names this same
+    // toggle MOD while Crunch and Clean call it Bright.
+    if (hasBright) {
+      const bk = ap.knobs.find(k => k.lo === 0x0E);
+      btn.textContent = (bk && bk.label ? bk.label : 'Bright').toUpperCase();
+    }
+  }
+  const tbtn = document.getElementById('btn-trem');
+  if (tbtn) tbtn.style.display = hasTrem ? '' : 'none';
+  const sgrp = document.getElementById('sync-group');
+  if (sgrp) sgrp.style.display = hasTrem ? '' : 'none';
+
+  // The stack itself is hidden only when the amp has none of the three.
+  const row = document.getElementById('amp-toggles-row');
+  if (row) row.style.display = (hasBright || hasTrem) ? 'flex' : 'none';
+
+  if (!hasBright) { brightOn = false; }
+  if (!hasTrem) { tremOn = undefined; updateSyncReadout(null); }
+}
+
+// ── Tremolo ON/OFF — paramLo 0x13, confirmed 7/23/2026. Same two-state
+// encoding as Bright: 127 = ON, 0 = OFF. ──
+function updateTremButton() {
+  const btn = document.getElementById('btn-trem');
+  if (!btn) return;
+  // Colour carries the state; the label stays constant (user, 7/23).
+  btn.classList.toggle('on', tremOn === true);
+}
+
+function updateTremReadout(val) {
+  tremOn = (val >= 64);
+  deferPaintOrRun(updateTremButton);
+  appLog('Tremolo readback: ' + (tremOn ? 'ON' : 'OFF') + ' (val=' + val + ')');
+}
+
+// ── Sync dropdown — paramLo 0x12. The wire value is continuous 0-127 and
+// quantises into 14 zones; see SYNC_DIVISIONS in protocol.js. WRITABLE: picking
+// a division writes the zone centre (change handler below). The old Speed/Sync
+// write-block was removed — the interlock is handled by sending Sync=OFF on
+// grabbing Speed (Tech Ref Sec 11 / Sec 20A R7), not by blocking writes;
+// READ_ONLY_PARAM_LOS is empty. ──
+function populateSyncDropdown() {
+  const sel = document.getElementById('sync-select');
+  if (!sel || sel.options.length) return;
+  SYNC_DIVISIONS.forEach((d, i) => {
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = (i === 0) ? 'OFF' : (d.glyph + '   ' + d.text);
+    sel.appendChild(opt);
+  });
+}
+
+function updateSyncReadout(val) {
+  const sel = document.getElementById('sync-select');
+  if (!sel) return;
+  populateSyncDropdown();
+  if (val === null || val === undefined) {
+    currentSyncZone = 0;
+    deferPaintOrRun(function() { sel.selectedIndex = 0; syncLoadedMarker(sel, 'sync-select'); });
+    return;
+  }
+  const idx = syncIndexFromV127(val);
+  currentSyncZone = idx;
+  // The hardware has spoken, so any pending "clear Sync" for a drag in
+  // progress is satisfied — don't send a second one.
+  if (idx === 0) syncClearedThisDrag = true;
+  deferPaintOrRun(function() { sel.value = String(idx); syncLoadedMarker(sel, 'sync-select'); });
+  appLog('Sync readback: val=' + val + ' -> zone ' + idx + ' (' + SYNC_DIVISIONS[idx].text + ')');
+}
+
+// User picks a division — write the CENTRE of that zone so a rounding error
+// either way still lands in the intended division. Format confirmed against
+// Avid's own Sync write, which is byte identical to what sendParamWrite emits
+// (the 0x10 seen in the last byte of hardware broadcasts is added by the rack
+// on the way out, not something we send).
+document.addEventListener('DOMContentLoaded', function() {
+  populateSyncDropdown();
+  const sel = document.getElementById('sync-select');
+  if (!sel) return;
+  // Debounced (2026-09-02, generalized from the Amp Select fix — see
+  // queueKnobSend above) — a held arrow key fires a real 'change' event,
+  // and thus a real hardware write, on every repeat with no throttling.
+  sel.addEventListener('change', function() {
+    if (currentParamHi < 0) {
+      appLog('Sync: no amp handle yet, not sending');
+      updateSyncReadout(null);
+      return;
+    }
+    const idx = parseInt(sel.value);
+    if (isNaN(idx)) return;
+    queueKnobSend('sync-select', function(idx2) {
+      const v = syncV127FromIndex(idx2);
+      sendParamWrite(0x12, v);
+      appLog('Sync set to zone ' + idx2 + ' (' + SYNC_DIVISIONS[idx2].text + ') val=' + v);
+    }, idx);
+  });
+});
+
+function updateToneReadouts(values, ampKey) {
+  if (!values || !values.length) return;
+  const ap = ampKey ? AMP_TONE_PARAMS[ampKey] : null;
+  // Parallel to decodeToneKnobValues' return (protocol.js) — TABLE order,
+  // knob+toggle. Each knob-type entry is then routed to its actual SCREEN
+  // slot via toneSlotIndexForLo (protocol.js), which respects a saved
+  // reorder — table order and screen order are not the same thing once an
+  // amp has a custom order.
+  const knobs = ap && ap.knobs ? ap.knobs.filter(k => k.type === 'knob' || k.type === 'toggle') : [];
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] == null) continue;
+    const knob = knobs[i];
+    if (!knob) continue;
+    if (knob.type === 'toggle') {
+      updateBrightReadout(values[i]);
+      continue;
+    }
+    const slot = toneSlotIndexForLo(ampKey, knob.lo);
+    if (slot < 0) continue;
+    const wrap = document.getElementById('tone-w' + slot);
+    const valEl = document.getElementById('tone-v' + slot);
+    if (wrap) {
+      wrap.dataset.value = values[i];
+      drawKnob(wrap.querySelector('canvas'), values[i]);
+    }
+    if (valEl) valEl.textContent = valDisplay(values[i]);
+  }
+  appLog('Tone readouts updated from TFX: [' + values.join(', ') + ']');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AMP TONE-STACK PER-MODEL CACHE (2026-09-02, experiment branch) — the
+// same generic engine DIST/REVERB/WAH/FX1 use (blockCacheSave/
+// blockCacheApply/blockBaselineSetIfUnset, fx-panels.js), with SLOT_AMP as
+// a new caller. Unlike those blocks, the amp panel has no uniform
+// {slot}-w-{lo} DOM naming — tone knobs live at a fixed SCREEN POSITION
+// (tone-w0..7) that depends on the amp's own knob list AND any saved
+// reorder (getOrderedToneKnobs/toneSlotIndexForLo, protocol.js), so cells
+// are read/written by paramLo but painted through that indirection.
+// SCOPE, deliberately: the tone-stack knobs (Gain/Bass/Middle/Treble/
+// Presence/etc, or Tone/Inst Vol/Mic Vol on 3-knob amps) — the actual
+// controls Charlie's screenshots showed bleeding across amps at
+// "extremes" (a 3-knob Tweed vs an 8-knob DC Modern sharing paramLos under
+// different names, hardware-confirmed correct-but-confusing behaviour, see
+// transport.js "AMP TYPE CHANGE" comment) — PLUS, as of the 2026-09-02
+// follow-ups below (ampCacheCells), the rest of "that row" (Bright/MOD
+// toggle and the Sync/Tremolo pair) AND the rest of the amp block: Amp Out,
+// Gate Threshold/Release, Cab Type, Mic Type, Mic Axis, Speaker Breakup.
+// Charlie's own final framing, confirmed: all of it is one entity — every
+// paramLo that lives on the amp block's own handle (confirmed via
+// ampBlockParamLos, transport.js — the same query list Bright/tone knobs
+// already came from). Two things stay OUT, for two different reasons: Rig
+// Vol/To Amp Volume are per-patch but NOT amp-handle storage (raw CC17,
+// untouched by an amp switch — nothing to cache), and To Amp SOURCE is HW
+// global, not per-patch at all (already excluded elsewhere).
+//
+// Cache/baseline key is the amp's string key (e.g. 'tweed_lux'), not a
+// numeric mid — blockCacheSave/Apply/BaselineSetIfUnset don't care, they
+// just use it as an object key.
+
+// blockCacheSave's readValueFn — current raw v127 of one tone-stack cell,
+// read through its current screen slot.
+function ampToneCellReadValue(ampKey, cell) {
+  var slot = toneSlotIndexForLo(ampKey, cell.lo);
+  if (slot < 0) return undefined;
+  var w = document.getElementById('tone-w' + slot);
+  return w ? parseInt(w.dataset.value) : undefined;
+}
+
+// blockCacheApply's applyValueFn — paint one cached tone-stack value onto
+// its CURRENT screen slot for ampKey (which may differ from the slot it
+// held under whatever amp it was cached from — screen order is per-amp).
+// Also anchors the per-(amp,paramLo) baseline here, same as DIST/FX1's own
+// update functions, so red/green survives a switch instead of relying on
+// the generic nav-triggered captureKnobBaselines() sweep (which tone
+// knobs are now excluded from — see data-base="amp", index.html).
+function applyAmpToneKnob(ampKey, lo, val) {
+  var slot = toneSlotIndexForLo(ampKey, lo);
+  if (slot < 0) return;
+  var loHex = lo.toString(16).padStart(2,'0');
+  var wrap  = document.getElementById('tone-w' + slot);
+  var valEl = document.getElementById('tone-v' + slot);
+  if (wrap) {
+    wrap.dataset.orig  = blockBaselineSetIfUnset(SLOT_AMP, ampKey, loHex, val);
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) deferPaintOrRun(function() { valEl.textContent = valDisplay(val); });
+}
+
+// ── AMP CACHE — ROW 2 (Bright/MOD toggle, Sync selector, Tremolo On/Off)
+// PLUS the rest of the amp block (2026-09-02, same-day follow-up) ──
+// Row 2 was Charlie's own ask after confirming the tone-stack cache live:
+// "that row" (index.html's "ROW 2 — tone stack knobs plus the Bright/Trem/
+// Sync stack") is one visual unit, and value memory on the knobs alone
+// without also covering the toggle/selector controls right next to them
+// was the thing that made the Sync side effect look like a gap instead of
+// the actual fix.
+//
+// Extended the SAME session (Charlie's own framing, confirmed): "all of it
+// is one big [patch-level] entity" — Amp Model + Cab + Mic + Axis + Speaker
+// Breakup + Gate + Amp Out are ALL paramLo storage on the amp block's own
+// handle (confirmed: all in ampBlockParamLos' query list, transport.js —
+// the same list Bright/tone knobs are queried from on an amp switch), so
+// they all have the identical "shared storage bleeds across amp models"
+// shape and belong in this cache together. Rig Vol / To Amp Volume do NOT
+// belong here even though they're also per-patch: they live in a different
+// address space entirely (raw CC17, not a CMD 0x11 paramLo on the amp
+// handle) and an amp-model switch never touches or resets them — nothing
+// to cache/restore because switching models can't invalidate them. To Amp
+// SOURCE is the other exclusion, for the opposite reason: HW global, not
+// per-patch at all (already excluded from the dropdown-marker work).
+//
+// Bright(0x0E)/Sync(0x12)/Tremolo(0x13)/Cab(0x15)/Mic(0x16)/Axis(0x17) have
+// no red/green "changed since load" concept — plain toggle buttons and
+// display-only dropdowns, not knobs — so those six only get cache save/
+// restore, not baseline painting, matching how DIST/REVERB/FX-host's own
+// toggle/select cells already work. Amp Out(0x03)/Gate Thresh(0x04)/Gate
+// Release(0x05)/Speaker Breakup(0x18) ARE knob-shaped (canvas or slider,
+// red/green + baseline tick) with FIXED DOM ids (no screen-position
+// indirection the way tone knobs have) — these anchor a per-(amp,paramLo)
+// baseline via blockBaselineSetIfUnset, same contract as applyAmpToneKnob,
+// and are tagged data-base="amp" (index.html) so the generic post-nav
+// captureKnobBaselines() sweep leaves them alone — same fix already needed
+// for tone-w0..7 and Graphic EQ's sliders, applied proactively here instead
+// of waiting for a live report.
+//
+// Paint side reuses the SAME functions a real hardware broadcast already
+// uses (updateBrightReadout/updateSyncReadout/updateTremReadout/
+// updateCabTypeDisplay/updateMicTypeDisplay/updateAxisDisplay) wherever one
+// already existed, so a cache restore paints pixel-identical to a genuine
+// readback; Amp Out/Gate/Breakup get one small shared helper below since
+// their existing update functions (updateAmpOutReadout, etc.) don't anchor
+// a per-amp baseline the way this cache needs.
+
+// blockCacheApply's applyValueFn helper for the four FIXED-id knob-shaped
+// cells (Amp Out/Gate Thresh/Gate Release use a canvas .knob-wrap; Speaker
+// Breakup uses a native <input type=range>, so it's handled separately
+// below) — anchors the per-(amp,paramLo) baseline the same way
+// applyAmpToneKnob does for tone knobs.
+function applyAmpFixedKnob(ampKey, lo, val, wrapId, valId, dispFn) {
+  var loHex = lo.toString(16).padStart(2,'0');
+  var wrap  = document.getElementById(wrapId);
+  var valEl = document.getElementById(valId);
+  if (wrap) {
+    wrap.dataset.orig  = blockBaselineSetIfUnset(SLOT_AMP, ampKey, loHex, val);
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+  }
+  if (valEl) deferPaintOrRun(function() { valEl.textContent = dispFn(val); });
+}
+
+// Same idea for Speaker Breakup (0x18) — a native <input type=range>, not a
+// canvas, so it paints through updateBreakupColor (ui.js) instead of
+// drawKnob, but anchors its baseline (slider.dataset.orig) the same way.
+function applyAmpBreakup(ampKey, val) {
+  var slider = document.getElementById('breakup-slider');
+  if (!slider) return;
+  slider.dataset.orig  = blockBaselineSetIfUnset(SLOT_AMP, ampKey, '18', val);
+  // dataset.value is the live "value of record" — captureAmpPatchLoadSnapshot
+  // reads it back via readWrapValue right after this call, same nav pull, so
+  // it must not wait on the deferred visual update below (nav-pull buffering,
+  // 2026-09-03).
+  slider.dataset.value = val;
+  deferPaintOrRun(function() {
+    slider.value = val;
+    var valEl = document.getElementById('breakup-val');
+    if (valEl) valEl.textContent = (Math.round(val / 127 * 100) / 10).toFixed(1);
+    updateBreakupColor();
+  });
+}
+
+// The "everything except tone stack" cell list for SLOT_AMP — whichever of
+// Bright/Sync/Tremolo this amp actually has, plus the always-present rest
+// of the amp block: Amp Out, Gate Threshold/Release, Cab Type, Mic Type,
+// Mic Axis, Speaker Breakup. Split out from ampCacheCells (2026-09-03,
+// Charlie's own design) so the patch-load-snapshot seed logic (sysex-
+// handler.js, CMD 0x0F echo handler) can address exactly this group —
+// the tone knobs are deliberately excluded here since they genuinely
+// differ per amp and always get a fresh live read, never seeded from a
+// snapshot.
+function ampNonToneCells(ampKey) {
+  var cells = [];
+  var ap = ampKey ? AMP_TONE_PARAMS[ampKey] : null;
+  var brightCell = ap && ap.knobs && ap.knobs.find(function(k) { return k.type === 'toggle' && k.lo === 0x0E; });
+  if (brightCell) cells.push({ lo: 0x0E, label: brightCell.label || 'Bright' });
+  if (typeof ampHasTremolo === 'function' && ampHasTremolo(ampKey)) {
+    cells.push({ lo: 0x12, label: 'Sync' });
+    cells.push({ lo: 0x13, label: 'Tremolo' });
+  }
+  cells.push({ lo: 0x03, label: 'Amp Out' });
+  cells.push({ lo: 0x04, label: 'Gate Thresh' });
+  cells.push({ lo: 0x05, label: 'Gate Release' });
+  cells.push({ lo: 0x15, label: 'Cab Type' });
+  cells.push({ lo: 0x16, label: 'Mic Type' });
+  cells.push({ lo: 0x17, label: 'Mic Axis' });
+  cells.push({ lo: 0x18, label: 'Speaker Breakup' });
+  return cells;
+}
+
+// blockCacheSave's cell list for SLOT_AMP — the tone knobs (unchanged,
+// still via getOrderedToneKnobs so screen-position/reorder logic isn't
+// touched) plus ampNonToneCells above.
+function ampCacheCells(ampKey) {
+  return getOrderedToneKnobs(ampKey).slice().concat(ampNonToneCells(ampKey));
+}
+
+// Records the TRUE first real hardware reading of one "everything else"
+// paramLo this patch-load into ampPatchLoadSnapshot (state.js) — called
+// from routeAmpBlockParam (sysex-handler.js) after each of those paramLos
+// paints. Reuses ampCacheCellReadValue (below) to read the just-painted
+// DOM state in the exact same value shape the cache itself uses (index for
+// Cab/Mic, 127/0 for Axis, raw v127 for the rest), so the snapshot and the
+// cache always agree on what a value "means." No-ops before an amp is
+// identified or if this paramLo already has a snapshot value this
+// patch-load (ampPatchLoadSnapshotSetIfUnset is first-wins).
+function captureAmpPatchLoadSnapshot(lo) {
+  if (!currentAmpKey || typeof ampPatchLoadSnapshotSetIfUnset !== 'function') return;
+  var v = ampCacheCellReadValue(currentAmpKey, { lo: lo });
+  if (v !== undefined) ampPatchLoadSnapshotSetIfUnset(lo.toString(16).padStart(2,'0'), v);
+}
+
+// blockCacheSave's readValueFn — tone knobs unchanged (ampToneCellReadValue);
+// Bright/Sync/Tremolo read from the same live state variables their own
+// update functions maintain (brightOn/currentSyncZone/tremOn, all above).
+// Tremolo returns undefined (skipped, same as any other undefined cell) if
+// the hardware hasn't told us its state yet, same "don't cache a guess"
+// rule updateBrightVisibility already applies when hiding the button.
+// Cab/Mic read the dropdown's selected INDEX (not v0 — sendCabParamWrite
+// does its own index->v0 lookup, same value shape updateCabTypeDisplay/
+// updateMicTypeDisplay already expect). Axis reads the toggle button's 'on'
+// class as 127/0 (sendCabParamWrite's own v127-style encoding for it, same
+// as Bright/Tremolo). Amp Out/Gate/Breakup read their fixed-id wrap's
+// current value directly.
+function ampCacheCellReadValue(ampKey, cell) {
+  if (cell.lo === 0x0E) return brightOn ? 127 : 0;
+  if (cell.lo === 0x12) return syncV127FromIndex(currentSyncZone);
+  if (cell.lo === 0x13) return (tremOn === undefined) ? undefined : (tremOn ? 127 : 0);
+  // Amp Out guards on hasReceivedAmpOutValue (state.js) same as its own
+  // knob's send-side guard (app-init.js) — before any real readback this
+  // session, the wrap still holds its unset HTML default (data-value="64"),
+  // and caching that would be exactly the "silently push a fake default"
+  // bug that guard exists to prevent, just via the cache instead of a raw
+  // click. Undefined here is skipped by blockCacheSave, same as Tremolo's
+  // own "don't cache a guess" case above.
+  if (cell.lo === 0x03) return hasReceivedAmpOutValue ? readWrapValue('amp-out-wrap') : undefined;
+  if (cell.lo === 0x04) return readWrapValue('gate-thresh-wrap');
+  if (cell.lo === 0x05) return readWrapValue('gate-release-wrap');
+  if (cell.lo === 0x15) return readSelectValue('cab-type-select');
+  if (cell.lo === 0x16) return readSelectValue('mic-type-select');
+  if (cell.lo === 0x17) {
+    var axisBtn = document.getElementById('axis-btn');
+    if (!axisBtn) return undefined;
+    // dataset.value (set live by updateAxisDisplay, nav-pull buffering
+    // 2026-09-03) is the value of record; the 'on' class is only the
+    // (possibly still-deferred) visual state, so prefer dataset when set.
+    if (axisBtn.dataset.value !== undefined && axisBtn.dataset.value !== '') {
+      return axisBtn.dataset.value === '1' ? 127 : 0;
+    }
+    return axisBtn.classList.contains('on') ? 127 : 0;
+  }
+  if (cell.lo === 0x18) return readWrapValue('breakup-slider', true);
+  return ampToneCellReadValue(ampKey, cell);
+}
+
+// Small DOM-read helpers shared by ampCacheCellReadValue above — isSlider
+// reads a native <input>'s value (preferring dataset.value, the live value
+// of record — see applyAmpBreakup/updateBreakupDisplay — over the possibly
+// still-deferred .value) instead of a .knob-wrap's dataset.value directly.
+function readWrapValue(id, isSlider) {
+  var el = document.getElementById(id);
+  if (!el) return undefined;
+  var v = isSlider ? (el.dataset.value !== undefined && el.dataset.value !== '' ? el.dataset.value : el.value) : el.dataset.value;
+  return (v === undefined || v === '') ? undefined : parseInt(v);
+}
+// Prefers dataset.value (the live value of record — see updateCabTypeDisplay/
+// updateMicTypeDisplay, nav-pull buffering 2026-09-03) over the select's own
+// .value, which may still be the pre-nav option while a repaint is deferred.
+function readSelectValue(id) {
+  var el = document.getElementById(id);
+  if (!el) return undefined;
+  var v = (el.dataset.value !== undefined && el.dataset.value !== '') ? el.dataset.value : el.value;
+  if (v === undefined || v === '') return undefined;
+  return parseInt(v);
+}
+
+// blockCacheApply's applyValueFn — dispatches to whichever paint function
+// owns that paramLo. Speed(0x11)/Sync(0x12) ordering (Sync must win, since
+// hardware computes Speed from it) is handled by the CALLER (sysex-handler.js,
+// the CMD 0x0F echo handler) before this is ever reached — see the "skip
+// cached Speed when the cached Sync isn't OFF" comment there.
+function ampCacheApplyValue(ampKey, lo, val) {
+  if (lo === 0x0E) { updateBrightReadout(val); return; }
+  if (lo === 0x12) { updateSyncReadout(val); return; }
+  if (lo === 0x13) { updateTremReadout(val); return; }
+  if (lo === 0x03) { applyAmpFixedKnob(ampKey, lo, val, 'amp-out-wrap', 'amp-out-val', valAmpOut); hasReceivedAmpOutValue = true; return; }
+  if (lo === 0x04) { applyAmpFixedKnob(ampKey, lo, val, 'gate-thresh-wrap', 'gate-thresh-val', valGateThresh); return; }
+  if (lo === 0x05) { applyAmpFixedKnob(ampKey, lo, val, 'gate-release-wrap', 'gate-release-val', valGateRelease); return; }
+  if (lo === 0x15) { updateCabTypeDisplay(val); return; }
+  if (lo === 0x16) { updateMicTypeDisplay(val); return; }
+  if (lo === 0x17) { updateAxisDisplay(val >= 64); return; }
+  if (lo === 0x18) { applyAmpBreakup(ampKey, val); return; }
+  applyAmpToneKnob(ampKey, lo, val);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CAB / MIC / AXIS / BREAKUP / MONO UI UPDATES
+// ════════════════════════════════════════════════════════════════════
+
+function updateCabTypeDisplay(index) {
+  if (index == null || index < 0 || index >= CAB_TYPE_LIST.length) return;
+  const sel = document.getElementById('cab-type-select');
+  if (sel) {
+    // dataset.value is the live value of record — see readSelectValue and
+    // the nav-pull buffering header comment above (2026-09-03). The actual
+    // <select>'s .value is what's visually deferred.
+    sel.dataset.value = String(index);
+    deferPaintOrRun(function() { sel.value = String(index); syncLoadedMarker(sel, 'cab-type-select'); });
+  }
+  appLog('Cab type: ' + CAB_TYPE_LIST[index].name + ' (index=' + index + ')');
+}
+
+function updateMicTypeDisplay(index) {
+  if (index == null || index < 0 || index >= MIC_TYPE_NAMES.length) return;
+  const sel = document.getElementById('mic-type-select');
+  if (sel) {
+    sel.dataset.value = String(index);
+    deferPaintOrRun(function() { sel.value = String(index); syncLoadedMarker(sel, 'mic-type-select'); });
+  }
+  appLog('Mic type: ' + MIC_TYPE_NAMES[index] + ' (index=' + index + ')');
+}
+
+function updateAxisDisplay(axisOn) {
+  if (axisOn == null) return;
+  const btn = document.getElementById('axis-btn');
+  if (btn) {
+    // dataset.value is the live value of record, same reasoning as Cab/Mic
+    // above — ampCacheCellReadValue's axis branch reads it, not the class.
+    btn.dataset.value = axisOn ? '1' : '0';
+    deferPaintOrRun(function() {
+      btn.textContent = axisOn ? 'ON AXIS' : 'OFF AXIS';
+      btn.classList.toggle('on', axisOn);
+    });
+  }
+  appLog('Mic axis: ' + (axisOn ? 'ON AXIS' : 'OFF AXIS'));
+}
+
+function updateBreakupDisplay(v127) {
+  if (v127 == null) return;
+  const slider = document.getElementById('breakup-slider');
+  if (slider) slider.dataset.value = v127;   // live value of record, see applyAmpBreakup
+  deferPaintOrRun(function() {
+    const s = document.getElementById('breakup-slider');
+    const valEl = document.getElementById('breakup-val');
+    if (s)     s.value = v127;
+    if (valEl) valEl.textContent = (Math.round(v127 / 127 * 100) / 10).toFixed(1);
+    updateBreakupColor();
+  });
+  appLog('Speaker breakup: v=' + v127);
+}
+
+function updateCabMicReadouts(cabMic) {
+  if (!cabMic) return;
+  updateCabTypeDisplay(cabMic.cabIndex);
+  updateMicTypeDisplay(cabMic.micIndex);
+  updateAxisDisplay(cabMic.axisOn);
+  updateBreakupDisplay(cabMic.breakupV);
+  // Cab bypass comes from the TFX key sldJ, so it is known at patch load.
+  // Amp bypass has no TFX key and arrives as null here — it is resolved by
+  // requestAllBypass() once the chain map gives us handles. Show it as
+  // unknown only until THAT first resolves it — a later body decode (any
+  // bulk readback: manual capture, nav, disk-capture-after-save) must NOT
+  // stomp an already-known value back to undefined just because this
+  // particular decode has nothing to say about it. Found 2026-08-29: the
+  // unconditional overwrite here was re-breaking the AMP chain-row button
+  // (back to "state unknown yet, ignoring click") every time immediately
+  // after a Save-to-Rack's own post-save requestAllBypass had just correctly
+  // resolved it — saveToRackAndDisk's trailing manual-capture pull (isSave
+  // false, just a disk-capture readback) re-decodes the body and used to
+  // wipe blockBypass[SLOT_AMP] straight back to undefined. cabBypassActive
+  // already had this right (guarded above); this mirrors that guard.
+  if (cabMic.cabActive !== null && cabMic.cabActive !== undefined) {
+    cabBypassActive = cabMic.cabActive;
+  }
+  updateCabBypassDisplay(cabMic.cabActive !== null && cabMic.cabActive !== undefined ? cabMic.cabActive : cabBypassActive);
+  if (cabMic.ampActive !== null && cabMic.ampActive !== undefined) {
+    blockBypass[SLOT_AMP] = cabMic.ampActive;
+  }
+  updateAmpBypassDisplay(blockBypass[SLOT_AMP]);
+}
+
+function updateMonoIndicator(isMono) {
+  if (isMono == null) return;
+  currentMonoState = isMono;
+  const el = document.getElementById('mono-indicator');
+  if (el) {
+    el.textContent = isMono ? 'MONO' : 'STEREO';
+    el.classList.toggle('mono-active', isMono);
+    el.classList.toggle('mono-inactive', !isMono);
+  }
+  // Connector into the badge: one line for MONO, two for STEREO — tracks the
+  // badge state, deliberately not any block's output channel count.
+  const conn = document.getElementById('mono-connector');
+  if (conn) {
+    conn.innerHTML = isMono ? '<i></i>' : '<i></i><i></i>';
+    conn.title = isMono ? 'Mono' : 'Stereo';
+  }
+  appLog('Stereo/Mono: ' + (isMono ? 'MONO' : 'STEREO'));
+  // The innerHTML reset above wipes any child of #mono-connector — including a
+  // Rig Output ("3") To Amp tap badge anchored there. Re-place the indicators so
+  // that badge survives a stereo/mono update (fix 2026-08-30).
+  if (typeof placeToAmpTapIndicators === 'function') placeToAmpTapIndicators();
+}
+
+// Click handler for Stereo/Mono badge — wired up once DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  var monoBtn = document.getElementById('mono-indicator');
+  if (monoBtn) {
+    var monoLocked = false;
+    monoBtn.addEventListener('click', function() {
+      if (!bridgeMidiReady || monoLocked) return;
+      monoLocked = true;
+      setTimeout(function() { monoLocked = false; }, 300);
+      var newMono = !currentMonoState;
+      updateMonoIndicator(newMono);   // optimistic display
+      sendMonoStereo(newMono);        // toggle hardware
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// MASTER (MAIN) VOLUME + MUTE — CMD 0x36 outSel 0x00 / CMD 0x3B
+// ════════════════════════════════════════════════════════════════════
+// Compact value box + stepper, same style family as the RIG TEMPO field
+// just below (no canvas knob — the reserved chain-strip slot above TEMPO
+// is thumb-height, not the 80px the amp-panel knobs need). No drag; just
+// click arrows, mouse wheel while focused, or up/down keys.
+// Mute buttons ARE read on connect (CMD 0x3B query form, confirmed 2026-08-31,
+// sendMuteQuery in requestFullState); they fall back to dim ("unmuted") only
+// until the reply/broadcast lands. Volumes are likewise read on connect (0x36).
+
+// Master Volume is a plain 0-10 linear dial (confirmed 7/29/2026 by Charlie
+// against the real hardware — NOT the To Amp 1/2 -12..+12 dB scale valToAmpVol
+// uses, even though the underlying v0<->v127 byte encoding is identical).
+// v127=0 -> 0.0, v127=127 -> 10.0.
+function valToMasterVol(v127) {
+  return ((v127 / 127) * 10).toFixed(1);
+}
+
+// Repaint the value box from currentMasterVol ('--' until first readback).
+function renderMasterVolField() {
+  const el = document.getElementById('mvol-val');
+  if (!el) return;
+  el.textContent = (currentMasterVol === null) ? '--' : valToMasterVol(currentMasterVol);
+}
+
+// Called by the CMD 0x36 handler for every broadcast, echo and query reply.
+function updateMasterVolDisplay(v127) {
+  if (v127 === null || v127 === undefined) return;
+  deferPaintOrRun(function() { currentMasterVol = v127; renderMasterVolField(); });
+}
+
+function setMasterVol(v127, send) {
+  if (v127 < 0) v127 = 0;
+  if (v127 > 127) v127 = 127;
+  currentMasterVol = v127;
+  renderMasterVolField();
+  if (send) queueKnobSend('masterVol', sendMasterVolume, v127);
+}
+
+function stepMasterVol(dir) {
+  if (currentMasterVol === null) {
+    appLog('Master volume: no value read back yet — nothing to step');
+    return;
+  }
+  setMasterVol(currentMasterVol + dir, true);
+}
+
+// Headphones volume — CMD 0x36 outSel 0x01. Same 0-10 scale as Main
+// (valToMasterVol), its own value box + stepper twin. 2026-08-31.
+function renderPhonesVolField() {
+  const el = document.getElementById('pvol-val');
+  if (!el) return;
+  el.textContent = (currentPhonesVol === null) ? '--' : valToMasterVol(currentPhonesVol);
+}
+function updatePhonesVolDisplay(v127) {
+  if (v127 === null || v127 === undefined) return;
+  deferPaintOrRun(function() { currentPhonesVol = v127; renderPhonesVolField(); });
+}
+function setPhonesVol(v127, send) {
+  if (v127 < 0) v127 = 0;
+  if (v127 > 127) v127 = 127;
+  currentPhonesVol = v127;
+  renderPhonesVolField();
+  if (send) queueKnobSend('phonesVol', sendPhonesVolume, v127);
+}
+function stepPhonesVol(dir) {
+  if (currentPhonesVol === null) {
+    appLog('Phones volume: no value read back yet — nothing to step');
+    return;
+  }
+  setPhonesVol(currentPhonesVol + dir, true);
+}
+
+// Repaint a mute button from its state — dim normally, lit red when muted.
+function updateMuteButton(channel, muted) {
+  if (channel === MUTE_CH_MAIN) muteMainState = muted;
+  else if (channel === MUTE_CH_PHONES) mutePhonesState = muted;
+  const id = (channel === MUTE_CH_MAIN) ? 'btn-mute-main' : 'btn-mute-phones';
+  const btn = document.getElementById(id);
+  if (btn) btn.classList.toggle('mute-active', muted);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const box = document.getElementById('mvol-box');
+  const up  = document.getElementById('mvol-up');
+  const dn  = document.getElementById('mvol-dn');
+  if (up) up.addEventListener('click', function() { stepMasterVol(1);  if (box) box.focus(); });
+  if (dn) dn.addEventListener('click', function() { stepMasterVol(-1); if (box) box.focus(); });
+  if (box) {
+    box.addEventListener('wheel', function(e) {
+      if (document.activeElement !== box) return;
+      e.preventDefault();
+      stepMasterVol(e.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+    box.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowUp')   { e.preventDefault(); stepMasterVol(1); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); stepMasterVol(-1); }
+    });
+  }
+
+  // Headphones volume box + stepper — twin of the Main box above.
+  const pbox = document.getElementById('pvol-box');
+  const pup  = document.getElementById('pvol-up');
+  const pdn  = document.getElementById('pvol-dn');
+  if (pup) pup.addEventListener('click', function() { stepPhonesVol(1);  if (pbox) pbox.focus(); });
+  if (pdn) pdn.addEventListener('click', function() { stepPhonesVol(-1); if (pbox) pbox.focus(); });
+  if (pbox) {
+    pbox.addEventListener('wheel', function(e) {
+      if (document.activeElement !== pbox) return;
+      e.preventDefault();
+      stepPhonesVol(e.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+    pbox.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowUp')   { e.preventDefault(); stepPhonesVol(1); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); stepPhonesVol(-1); }
+    });
+  }
+
+  var muteLocked = { main: false, phones: false };
+  function wireMuteBtn(id, channel, key) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      if (!bridgeMidiReady || muteLocked[key]) return;
+      muteLocked[key] = true;
+      setTimeout(function() { muteLocked[key] = false; }, 300);
+      var current = (channel === MUTE_CH_MAIN) ? muteMainState : mutePhonesState;
+      var next = !current;
+      updateMuteButton(channel, next); // optimistic display
+      sendMute(channel, next);
+    });
+  }
+  wireMuteBtn('btn-mute-main',   MUTE_CH_MAIN,   'main');
+  wireMuteBtn('btn-mute-phones', MUTE_CH_PHONES, 'phones');
+});
+
+// ════════════════════════════════════════════════════════════════════
+// RIG TEMPO — digital-clock field (CMD 0x50)
+// ════════════════════════════════════════════════════════════════════
+//
+// Held internally as TENTHS of a BPM (integer), so stepping the tenths digit
+// is plain +/- 1 and there is no floating-point drift on repeated steps.
+// 100 = 10.0 BPM, 5000 = 500.0 BPM.
+//
+// Three ways in, all agreed with Charlie 7/24:
+//   - click a segment, then arrows / mouse wheel / up-down keys
+//   - the small stepper to the right of the box
+//   - type the value straight in and press Enter
+//
+// Nothing is sent until a value is COMMITTED. Typing is buffered and only
+// leaves the box on Enter or blur, so a half-typed "1" on the way to "120"
+// never reaches the hardware as 10 BPM.
+var currentTempoTenths = null;      // null until the first readback
+var tempoSeg           = 'w';       // 'w' whole, 't' tenths
+var tempoTypeBuf       = null;      // non-null while the user is typing
+var tempoSendTimer     = null;
+var tempoPendingSend   = null;
+
+const TEMPO_MIN_T = Math.round(TEMPO_BPM_MIN * 10);
+const TEMPO_MAX_T = Math.round(TEMPO_BPM_MAX * 10);
+
+// Repaint from currentTempoTenths, or from the type buffer while typing.
+function renderTempoField() {
+  const wEl = document.getElementById('tempo-whole');
+  const tEl = document.getElementById('tempo-tenth');
+  const box = document.getElementById('tempo-box');
+  if (!wEl || !tEl || !box) return;
+
+  if (tempoTypeBuf !== null) {
+    // Show exactly what has been typed so far, left as typed.
+    const parts = tempoTypeBuf.split('.');
+    wEl.textContent = (parts[0] === '' ? '_' : parts[0]);
+    tEl.textContent = (parts.length > 1 ? (parts[1] === '' ? '_' : parts[1]) : '_');
+    box.classList.add('tempo-typing');
+    wEl.classList.remove('seg-on');
+    tEl.classList.remove('seg-on');
+    return;
+  }
+
+  box.classList.remove('tempo-typing');
+  if (currentTempoTenths === null) {
+    wEl.textContent = '---';
+    tEl.textContent = '-';
+  } else {
+    wEl.textContent = String(Math.floor(currentTempoTenths / 10));
+    tEl.textContent = String(currentTempoTenths % 10);
+  }
+  // 7/29: Charlie caught the whole-BPM segment showing amber "selected"
+  // (seg-on) at all times, including when the app window wasn't even
+  // focused — tempoSeg defaults to 'w' and nothing gated the highlight on
+  // whether the box was actually clicked into. Now requires real focus too,
+  // so the segment only lights up while the user is actually in the box
+  // (clicked a segment, or tabbed/focused it) — matches the tenths side's
+  // plain look the rest of the time.
+  const focused = document.activeElement === box;
+  wEl.classList.toggle('seg-on', focused && tempoSeg === 'w');
+  tEl.classList.toggle('seg-on', focused && tempoSeg === 't');
+}
+
+// Called by the CMD 0x50 handler for every broadcast, echo and query reply.
+// Ignored mid-typing so the hardware cannot overwrite a value being entered.
+function updateTempoDisplay(bpm) {
+  if (bpm === null || bpm === undefined) return;
+  const t = Math.round(bpm * 10);
+  const changed = (t !== currentTempoTenths);
+  currentTempoTenths = t;
+  if (tempoTypeBuf === null) deferPaintOrRun(renderTempoField);
+  if (changed) appLog('Rig tempo: ' + (t / 10).toFixed(1) + ' BPM');
+}
+
+// Trailing throttle. A tempo change makes the rack rebroadcast every
+// tempo-synced parameter in the chain — three messages in the calibration
+// capture, 753 in an earlier front-panel sweep — so held arrows and wheel
+// spins must not turn into a message per step.
+function queueTempoSend(tenths) {
+  tempoPendingSend = tenths;
+  if (tempoSendTimer) return;
+  tempoSendTimer = setTimeout(function() {
+    tempoSendTimer = null;
+    const v = tempoPendingSend;
+    tempoPendingSend = null;
+    if (v !== null) sendRigTempo(v / 10);
+  }, 150);
+}
+
+function setTempoTenths(t, send) {
+  if (t < TEMPO_MIN_T) t = TEMPO_MIN_T;
+  if (t > TEMPO_MAX_T) t = TEMPO_MAX_T;
+  currentTempoTenths = t;
+  renderTempoField();
+  if (send) queueTempoSend(t);
+}
+
+// Step the SELECTED segment: tenths digit = 0.1 BPM, whole digits = 1.0 BPM.
+function stepTempo(dir) {
+  if (currentTempoTenths === null) {
+    appLog('Rig tempo: no value read back yet — nothing to step');
+    return;
+  }
+  setTempoTenths(currentTempoTenths + dir * (tempoSeg === 't' ? 1 : 10), true);
+}
+
+function commitTempoTyping() {
+  if (tempoTypeBuf === null) return;
+  const raw = tempoTypeBuf;
+  tempoTypeBuf = null;
+  const v = parseFloat(raw);
+  if (isNaN(v)) { renderTempoField(); return; }
+  const t = Math.round(v * 10);
+  if (t < TEMPO_MIN_T || t > TEMPO_MAX_T) {
+    appLog('Rig tempo: ' + v + ' is outside ' + TEMPO_BPM_MIN.toFixed(1)
+           + '-' + TEMPO_BPM_MAX.toFixed(1) + ' BPM — clamped');
+    setStatus('Tempo range is ' + TEMPO_BPM_MIN.toFixed(1) + ' to '
+              + TEMPO_BPM_MAX.toFixed(1) + ' BPM');
+  }
+  setTempoTenths(t, true);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const box = document.getElementById('tempo-box');
+  const wEl = document.getElementById('tempo-whole');
+  const tEl = document.getElementById('tempo-tenth');
+  const up  = document.getElementById('tempo-up');
+  const dn  = document.getElementById('tempo-dn');
+  if (!box) return;
+
+  function selectSeg(s) {
+    if (tempoTypeBuf !== null) commitTempoTyping();
+    tempoSeg = s;
+    renderTempoField();
+    box.focus();
+  }
+  if (wEl) wEl.addEventListener('mousedown', function(e) { e.preventDefault(); selectSeg('w'); });
+  if (tEl) tEl.addEventListener('mousedown', function(e) { e.preventDefault(); selectSeg('t'); });
+  box.addEventListener('mousedown', function(e) {
+    if (e.target === box) { e.preventDefault(); selectSeg(tempoSeg); }
+  });
+
+  if (up) up.addEventListener('click', function() { stepTempo(1);  box.focus(); });
+  if (dn) dn.addEventListener('click', function() { stepTempo(-1); box.focus(); });
+
+  // Wheel only acts when the box has focus, so a stray scroll over the chain
+  // strip on the way somewhere else cannot nudge the rig tempo.
+  box.addEventListener('wheel', function(e) {
+    if (document.activeElement !== box) return;
+    e.preventDefault();
+    stepTempo(e.deltaY < 0 ? 1 : -1);
+  }, { passive: false });
+
+  box.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowUp')    { e.preventDefault(); stepTempo(1);  return; }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); stepTempo(-1); return; }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); selectSeg('w'); return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); selectSeg('t'); return; }
+    if (e.key === 'Enter')      { e.preventDefault(); commitTempoTyping(); return; }
+    if (e.key === 'Escape')     { e.preventDefault(); tempoTypeBuf = null; renderTempoField(); return; }
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (tempoTypeBuf !== null) {
+        tempoTypeBuf = tempoTypeBuf.slice(0, -1);
+        if (tempoTypeBuf === '') tempoTypeBuf = null;
+        renderTempoField();
+      }
+      return;
+    }
+    if (/^[0-9]$/.test(e.key) || e.key === '.') {
+      e.preventDefault();
+      if (tempoTypeBuf === null) tempoTypeBuf = '';
+      if (e.key === '.' && tempoTypeBuf.indexOf('.') !== -1) return;
+      // Cap the entry so a stuck key cannot build an absurd string.
+      if (tempoTypeBuf.replace('.', '').length >= 4) return;
+      tempoTypeBuf += e.key;
+      renderTempoField();
+    }
+  });
+
+  // commitTempoTyping() no-ops (no repaint) when nothing was mid-typed —
+  // the common case of "clicked a segment, then clicked elsewhere" — so the
+  // seg-on highlight would otherwise survive a blur with no typing involved.
+  // Always repaint after, not just when there was something to commit.
+  box.addEventListener('blur', function() { commitTempoTyping(); renderTempoField(); });
+  // Repaint on focus too, not just blur — this is what actually lights up
+  // the seg-on highlight now that it's gated on real focus (see
+  // renderTempoField). Reachable via Tab, not just the mousedown handlers
+  // above (those already call renderTempoField themselves via selectSeg).
+  box.addEventListener('focus', function() { renderTempoField(); });
+
+  renderTempoField();
+});
+
+// ════════════════════════════════════════════════════════════════════
+// CHAIN ROW — reorder, hover text, stereo connectors
+// ════════════════════════════════════════════════════════════════════
+//
+// The row is TEN FIXED SLOTS, always all present, re-ordered to match the
+// patch. Slots are MOVED, never rebuilt: each slot div carries its own
+// data-slot / data-panel and its own listeners, so relocating the div takes
+// its identity and behaviour with it. That is why the ▼ panel mapping keeps
+// working with no extra code once a block moves.
+//
+// Called on every CMD 0x21, which covers patch load, stereo/mono toggle and
+// reorder.
+// ════════════════════════════════════════════════════════════════════
+// CHAIN ROW — drag to reorder
+// ════════════════════════════════════════════════════════════════════
+//
+// FX LOOP PLACEMENT RULE (Tech Ref Sec 4): the loop has only FOUR legal
+// positions — first, immediately left of AMP-CAB, immediately right of it, or
+// last. Both the Avid editor and the hardware front panel resolve this before
+// anything is sent: the editor SNAPS a dropped loop to the nearest legal spot
+// rather than refusing it. We do the same, so an illegal arrangement is never
+// transmitted.
+//
+// AMP-CAB + LOOP "LINKED BLOCK" RULE (confirmed against the Avid editor
+// 7/28/2026, Session Log): dragging AMP-CAB while LOOP sits immediately
+// adjacent to it (either side) moves LOOP along with it, same direction, same
+// distance, until LOOP would be pushed past either end of the chain — at
+// which point LOOP stays parked at that end and further AMP-CAB movement is
+// free (LOOP at position 1 or 10 is legal regardless of AMP-CAB's position).
+// Dragging LOOP directly, or dragging AMP-CAB when LOOP is NOT adjacent to it,
+// uses the plain snap-to-nearest-legal-stop behaviour below (unchanged, and
+// already confirmed correct against a full legality table the same day).
+//
+// baseOrder defaults to currentChain but the live drag preview (wireChainDrag)
+// passes a frozen snapshot taken at dragstart instead, so a chain-map arriving
+// mid-drag can't perturb the on-screen preview (Session Log WATCH FOR, 7/19).
+//
+// Shared by computeReorder AND the drag-ghost builder (wireChainDrag), so the
+// "is this drag a linked AMP-CAB+LOOP pair" question has exactly one answer
+// used everywhere, not two independently-maintained copies of the same check.
+// Returns null if not linked, else {ampIdx, loopIdx, loopBefore}.
+function linkedAmpLoopInfo(fromSlotId, baseOrder) {
+  if (fromSlotId !== SLOT_AMP) return null;
+  const ampIdx  = baseOrder.findIndex(b => b.slotId === SLOT_AMP);
+  const loopIdx = baseOrder.findIndex(b => b.slotId === SLOT_LOOP);
+  if (ampIdx < 0 || loopIdx < 0 || Math.abs(ampIdx - loopIdx) !== 1) return null;
+  // Adjacent alone isn't enough: LOOP already parked at an end (index 0 or
+  // the last index) is legal on its own regardless of AMP-CAB's position, so
+  // it must NOT be dragged along even though it's numerically "adjacent" —
+  // confirmed by simulation: amp=9/loop=10 wrongly pulled loop to 2 before
+  // this guard was added.
+  if (loopIdx === 0 || loopIdx === baseOrder.length - 1) return null;
+  return { ampIdx, loopIdx, loopBefore: loopIdx < ampIdx };
+}
+
+// Returns a reordered copy of baseOrder, loop legality already resolved.
+function computeReorder(fromSlotId, targetSlotId, after, baseOrder) {
+  const src = baseOrder || currentChain;
+  if (fromSlotId === targetSlotId) return src;
+
+  const linkInfo = linkedAmpLoopInfo(fromSlotId, src);
+  if (linkInfo) return computeLinkedAmpLoopReorder(src, targetSlotId, after, linkInfo.ampIdx, linkInfo.loopIdx);
+
+  const rest = src.filter(b => b.slotId !== fromSlotId);
+  const moved = src.find(b => b.slotId === fromSlotId);
+  if (!moved) return null;
+  let idx = rest.findIndex(b => b.slotId === targetSlotId);
+  if (idx < 0) idx = rest.length;
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(idx, rest.length));
+  rest.splice(idx, 0, moved);
+  return enforceLoopPlacement(rest);
+}
+
+// Moves AMP-CAB and its adjacent LOOP together as a two-item unit. Removing
+// both from the order and reinserting them as a pair (in their original
+// relative order, so LOOP stays on the same side it started on) means the
+// normal 0..rest.length clamp that already bounds a single-item insertion
+// now bounds the PAIR instead — which is exactly what stops LOOP from ever
+// being pushed past either end. No separate boundary check needed.
+function computeLinkedAmpLoopReorder(src, targetSlotId, after, ampIdx, loopIdx) {
+  const loopBefore = loopIdx < ampIdx;
+  const pair = loopBefore ? [src[loopIdx], src[ampIdx]] : [src[ampIdx], src[loopIdx]];
+  const rest = src.filter(b => b.slotId !== SLOT_AMP && b.slotId !== SLOT_LOOP);
+  let idx = rest.findIndex(b => b.slotId === targetSlotId);
+  // 7/28, 11th pass BUG FIX: target not found in `rest` means the hit-test
+  // landed on AMP or LOOP itself — part of what's being carried, not a real
+  // drop target. Used to fall through to idx = rest.length ("park at the
+  // end"), which is why the pair would ricochet to slot 10 and back whenever
+  // the cursor happened to pass over LOOP mid-drag (Charlie: "the loop
+  // shoots to slot 10 then back"). No-op instead, same as the plain
+  // fromSlotId===targetSlotId self-target case elsewhere.
+  if (idx < 0) return src;
+  if (after) idx += 1;
+  idx = Math.max(0, Math.min(idx, rest.length));
+  const result = rest.slice();
+  result.splice(idx, 0, ...pair);
+  return result;
+}
+
+function legalLoopIndices(withoutLoop) {
+  const a = withoutLoop.findIndex(b => b.slotId === SLOT_AMP);
+  if (a < 0) return [0];
+  // indices are insertion points into the 9-block list
+  return Array.from(new Set([0, a, a + 1, withoutLoop.length])).sort((x,y) => x-y);
+}
+
+function enforceLoopPlacement(order) {
+  const cur = order.findIndex(b => b.slotId === SLOT_LOOP);
+  if (cur < 0) return order;
+  const loop = order[cur];
+  const without = order.filter(b => b.slotId !== SLOT_LOOP);
+  const legal = legalLoopIndices(without);
+  // where the loop currently sits, expressed as an insertion index into `without`
+  const desired = cur;
+  if (legal.includes(desired)) return order;
+  let best = legal[0];
+  for (const k of legal) if (Math.abs(k - desired) < Math.abs(best - desired)) best = k;
+  const snapped = without.slice();
+  snapped.splice(best, 0, loop);
+  appLog('Chain drag: FX Loop snapped from position ' + (desired+1) + ' to ' + (best+1)
+         + ' (only first / either side of AMP-CAB / last are legal)');
+  return snapped;
+}
+
+function sameOrder(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].slotId !== b[i].slotId) return false;
+  return true;
+}
+
+// MOUSE-TRACKED DRAG (rewritten 7/28, replacing native HTML5 drag-and-drop).
+// Native drag-and-drop does its own hit-testing of whatever's under the
+// cursor, and it does not tolerate the dragged-over elements being moved
+// while a native drag is in progress — which is exactly what the live
+// preview does (applyChainOrder relocates divs on every update). Real-world
+// testing showed this as a rapid ok/no-drop cursor flicker and, on a
+// two-block swap, the two blocks flashing back and forth at high speed —
+// the browser's native drag tracking losing and re-finding its target as
+// the DOM shifted under it. Knobs in this app never had this problem
+// because they were never native-drag-based; they use plain mousedown/
+// mousemove/mouseup, same as this rewrite now does for the chain row.
+let chainDragSlot       = null;   // slot ID being dragged
+let chainDragPending    = false;  // mousedown happened; watching for the move
+                                   // threshold before committing to a real drag
+let chainDragActive     = false;  // TRUE once the threshold is crossed — this
+                                   // (not chainDragPending) is what suppresses
+                                   // the click that follows a real drag, so a
+                                   // plain click without movement still reaches
+                                   // the bypass-toggle handler normally
+let chainDragCont       = null;   // .chain-slot/.chain-slot-stack container (still what gets reordered)
+let chainDragThumb      = null;   // .chain-thumb inside it — the actual drag handle (7/28)
+let chainDragLinkedCont = null;   // LOOP's container, ONLY set when dragging AMP in the
+                                   // linked AMP-CAB+LOOP case (7/28, 11th pass) — carried in
+                                   // lockstep with chainDragCont via the same transform delta,
+                                   // instead of getting the other blocks' slide-in treatment,
+                                   // so the pair visually stays glued together during the drag
+let chainDragLinkedGapX = 0;      // signed distance, LOOP's thumb center minus AMP's, measured
+                                   // ONCE at drag start before any transform (7/28, 12th/13th
+                                   // pass) — constant for the whole drag since the pair always
+                                   // moves in lockstep. Used with chainDragMovingRight below to
+                                   // hit-test off whichever block is currently LEADING the drag
+                                   // direction, not always AMP's own center (see mousemove)
+let chainDragLastX      = 0;      // previous mousemove's clientX (7/28, 13th pass) — compared
+                                   // against the current one to detect instantaneous drag
+                                   // direction, only meaningful for the linked-pair hit-test
+let chainDragMovingRight = true;  // this drag's current direction, updated only on an actual
+                                   // nonzero horizontal move so a zero-delta frame (e.g. a purely
+                                   // vertical jiggle) can't flip it — default is arbitrary, gets
+                                   // set for real on the first real movement past the threshold
+let chainDragStartX     = 0;
+let chainDragStartY     = 0;
+let chainDragOffsetX    = 0;      // cursor position WITHIN the grabbed block,
+let chainDragOffsetY    = 0;      // used for grab-offset-independent hit
+                                   // testing (see mousemove below)
+let chainDragStartOrder = null;   // currentChain snapshot at mousedown — every
+                                   // preview computation this drag uses THIS,
+                                   // never the live currentChain, so an
+                                   // incoming chain-map broadcast mid-drag
+                                   // cannot yank the preview (WATCH FOR, 7/19)
+let chainPreviewOrder   = null;   // order currently shown on screen
+const CHAIN_DRAG_THRESHOLD = 4;   // px of movement before it counts as a drag
+
+// 7/28 (2nd pass): the floating ghost clone that used to live here is gone.
+// Charlie's screen recording of Avid's own editor showed no separate ghost at
+// all during a drag — just the real block sliding smoothly into its new
+// spot. Removed the clone entirely; applyChainOrderAnimated (defined right
+// after applyChainOrder below, since it wraps it) gives the REAL blocks that
+// same smooth slide via a FLIP animation, so the "what am I carrying" cue is
+// now just the dragged thumb's own .dragging opacity plus it visibly sliding
+// with everything else — no clone needed, and the old linked-pair "show both
+// blocks in the ghost" special case is no longer needed either: since both
+// blocks in a linked AMP-CAB/LOOP move for real now, they simply slide
+// together in sync, which already reads as "these two travel together"
+// without any dedicated code for it.
+
+function wireChainDrag() {
+  const strip = document.getElementById('chainstrip');
+  if (!strip || strip.dataset.dragWired) return;
+  strip.dataset.dragWired = '1';
+
+  // 7/28: drag now starts ONLY from .chain-thumb, not anywhere in the slot.
+  // Previously the whole slot (including the .chain-name label) was the
+  // mousedown target, which is what put the drag-handle and the bypass-toggle
+  // click on the same element — Charlie: "the clicker is also the drag
+  // handle". Splitting them onto separate elements (thumb vs label) removes
+  // that conflict at the source, matching how Avid's own editor works: you
+  // grab the pedal graphic, you click the label.
+  strip.addEventListener('mousedown', function(ev) {
+    if (ev.button !== 0) return;   // left button only
+    const thumb = ev.target.closest('.chain-thumb');
+    if (!thumb || !strip.contains(thumb)) return;
+    const cont = thumb.closest('.chain-slot, .chain-slot-stack');
+    if (!cont) return;
+    const blk = currentChain.find(b => containerForSlot(b.slotId) === cont);
+    if (!blk) return;
+    chainDragSlot = blk.slotId;
+    chainDragPending = true;
+    chainDragCont = cont;
+    chainDragThumb = thumb;
+    chainDragStartX = ev.clientX;
+    chainDragStartY = ev.clientY;
+    chainDragLastX  = ev.clientX;
+    const r = thumb.getBoundingClientRect();
+    chainDragOffsetX = ev.clientX - r.left;   // where within the THUMB it was
+    chainDragOffsetY = ev.clientY - r.top;    // grabbed, so the ghost doesn't jump
+    chainDragStartOrder = currentChain.slice();
+    chainPreviewOrder = chainDragStartOrder;
+    ev.preventDefault();   // no text selection / stray native drag ghost
+  });
+
+  // LIVE PREVIEW (7/28): the blocks physically shift into the speculative
+  // order as you drag, instead of a static insertion marker that only
+  // resolved on drop. Recomputed off chainDragStartOrder, applied to the DOM
+  // immediately — nothing is sent to hardware until mouseup.
+  window.addEventListener('mousemove', function(ev) {
+    if (chainDragSlot === null) return;
+    if (ev.buttons === 0) { endChainDrag(false); return; }   // button released outside the window
+
+    if (chainDragPending) {
+      const dx = ev.clientX - chainDragStartX, dy = ev.clientY - chainDragStartY;
+      if (Math.hypot(dx, dy) < CHAIN_DRAG_THRESHOLD) return;   // still just a click so far
+      chainDragPending = false;
+      chainDragActive = true;
+      chainDragThumb.classList.add('dragging');
+      document.body.style.cursor = 'grabbing';
+      // 7/28, 10th pass: the dragged block now follows the cursor for real
+      // (see the bottom of this handler) instead of sitting still until a
+      // reorder fires — Charlie: Avid's own drag is "immediately... in
+      // motion" the moment you move, not "drag to the edge, then sudden
+      // swap". pointer-events:none lets elementFromPoint below see THROUGH
+      // the dragged block to whatever it's now visually overlapping (the
+      // same trick the old floating ghost got for free by being a separate
+      // overlay). transition:none for the whole drag guarantees the follow
+      // is always an instant 1:1 snap to the cursor, never an animated
+      // catch-up — only the OTHER blocks (via applyChainOrderAnimated) get
+      // an eased transition.
+      chainDragCont.style.pointerEvents = 'none';
+      chainDragCont.style.transition = 'none';
+
+      // 7/28, 11th pass: if this is the linked AMP-CAB+LOOP case, LOOP rides
+      // along with the SAME transform every frame (below), instead of
+      // getting the other blocks' eased slide-in — Charlie: "the loop
+      // doesn't stay in close proximity with amp, it's at least one block
+      // behind" (it was on the slow CHAIN_SLIDE_MS transition, re-triggered
+      // on every incremental reorder during a fast real drag, so it could
+      // never fully catch up). pointer-events:none here also closes the
+      // ricochet bug fixed in computeLinkedAmpLoopReorder — without it,
+      // elementFromPoint could land ON LOOP directly, which used to be
+      // treated as a real target.
+      const linkInfo = linkedAmpLoopInfo(chainDragSlot, chainDragStartOrder);
+      if (linkInfo) {
+        const partnerBlk = chainDragStartOrder[linkInfo.loopIdx];
+        chainDragLinkedCont = containerForSlot(partnerBlk.slotId);
+        if (chainDragLinkedCont) {
+          chainDragLinkedCont.style.pointerEvents = 'none';
+          chainDragLinkedCont.style.transition = 'none';
+          // Measured HERE, before either block has any transform applied —
+          // the one moment guaranteed to reflect their true natural gap.
+          const linkedThumb = chainDragLinkedCont.querySelector('.chain-thumb');
+          const ampNatural  = chainDragThumb.getBoundingClientRect();
+          const loopNatural = linkedThumb.getBoundingClientRect();
+          chainDragLinkedGapX = (loopNatural.left + loopNatural.width / 2)
+                               - (ampNatural.left  + ampNatural.width  / 2);
+        }
+      }
+    }
+
+    // Hit-test off the DRAGGED BLOCK'S OWN position, not the raw cursor
+    // (7/28, Charlie: "matters where I place the mouse on the source block").
+    // ev.clientX alone is offset by wherever within the thumb you happened to
+    // grab it — chainDragOffsetX undoes that grab offset, landing on the
+    // dragged thumb's own current center. That makes the reorder trigger
+    // point consistent regardless of where on the block you clicked, instead
+    // of shifting by the grab offset. It is also, as of the 10th pass, the
+    // exact point the block's own visual center is being driven to below —
+    // so this hit-test is now testing against where the block ACTUALLY is,
+    // not just a computed proxy for it.
+    const dragCenterX = ev.clientX - chainDragOffsetX + chainDragThumb.offsetWidth  / 2;
+    const dragCenterY = ev.clientY - chainDragOffsetY + chainDragThumb.offsetHeight / 2;
+
+    // 7/28, 13th pass: for the linked case, hit-test off whichever block —
+    // AMP or LOOP — is actually LEADING the current drag direction, not a
+    // fixed compromise point. The 12th pass tried splitting the difference
+    // (the pair's CENTER) after Charlie found LOOP-leading directions needed
+    // a full extra block's width of travel while LOOP-trailing directions
+    // were already correct — but averaging just spread that wrongness onto
+    // BOTH directions evenly instead of fixing it (Charlie caught this: "the
+    // two [previously good] seem a bit off now... consistent with what the
+    // fix did for the problem in the other direction"). The actually correct
+    // reference point is the block that's physically out in front: use
+    // LOOP's center when moving toward LOOP's side, AMP's own (dragCenterX,
+    // unchanged) when moving toward AMP's side — that restores the
+    // already-good trailing direction to exactly its original behavior
+    // while giving the leading direction its TRUE edge instead of a halfway
+    // compromise. chainDragLinkedGapX's sign says which side LOOP is on;
+    // Math.max/min picks the more-advanced point for the CURRENT direction
+    // without needing to know which literal side that is. 0 for a non-linked
+    // drag either way, so hitTestX reduces to plain dragCenterX there.
+    if (ev.clientX !== chainDragLastX) {
+      chainDragMovingRight = ev.clientX > chainDragLastX;
+    }
+    chainDragLastX = ev.clientX;
+    const linkedLeadOffset = chainDragMovingRight
+      ? Math.max(0, chainDragLinkedGapX)
+      : Math.min(0, chainDragLinkedGapX);
+    const hitTestX = dragCenterX + linkedLeadOffset;
+
+    if (chainDragActive) {
+      // elementFromPoint does fresh hit-testing against whatever is actually
+      // rendered right now — unlike native drag's event target, it is not
+      // confused by applyChainOrder having just moved things around. With
+      // pointer-events:none on the dragged block (above), this naturally
+      // finds whatever real neighbor the dragged block is now visually
+      // overlapping, instead of just finding itself.
+      const el = document.elementFromPoint(hitTestX, dragCenterY);
+      const cont = el ? el.closest('.chain-slot, .chain-slot-stack') : null;
+      if (cont && strip.contains(cont)) {
+        const target = chainDragStartOrder.find(b => containerForSlot(b.slotId) === cont);
+        if (target) {
+          const r = cont.getBoundingClientRect();
+          // Position 1 gets its whole width as the "before" zone, not just its
+          // left half (7/28, Charlie: not enough room before the window's left
+          // edge to reliably cross the midpoint). No position is lost by this:
+          // landing right after this same block is still reachable via the
+          // SECOND block's left half, so this only removes a redundant,
+          // cramped path — it doesn't block reaching anywhere the plain
+          // midpoint math could reach.
+          const after = (target.slotId === chainDragStartOrder[0].slotId)
+                        ? false
+                        : hitTestX > r.left + r.width / 2;
+          const next = computeReorder(chainDragSlot, target.slotId, after, chainDragStartOrder);
+          if (next && !sameOrder(next, chainPreviewOrder)) {
+            chainPreviewOrder = next;
+            // Exclude the dragged block (and its linked LOOP partner, if any)
+            // from the OTHER blocks' slide-in animation — their position is
+            // driven continuously below, not by a discrete slide, and would
+            // otherwise fight with that.
+            applyChainOrderAnimated(next, [chainDragCont, chainDragLinkedCont]);
+          }
+        }
+      }
+
+      // CONTINUOUS FOLLOW (7/28, 10th pass): keep the dragged thumb's visual
+      // center pinned to dragCenterX/Y at all times, recomputed AFTER any
+      // reorder above so it reflects the block's up-to-date slot position,
+      // not a stale one from before the DOM move. Clearing the transform to
+      // measure, then reapplying, is the only reliable way to get the block's
+      // true CURRENT natural (untransformed) position — there's no cheaper
+      // shortcut that stays correct across an interrupted/mid-reorder drag.
+      chainDragCont.style.transform = 'none';
+      const thumbNatural = chainDragThumb.getBoundingClientRect();
+      const naturalCenterX = thumbNatural.left + thumbNatural.width / 2;
+      const followDx = dragCenterX - naturalCenterX;
+      chainDragCont.style.transform = `translateX(${followDx}px)`;
+
+      // 7/28, 11th pass: LOOP (if linked) gets the EXACT SAME delta, not its
+      // own recomputed one — that's what keeps it glued to AMP-CAB at a
+      // constant visual distance instead of independently chasing the
+      // cursor. Its own natural DOM position already sits correctly adjacent
+      // to AMP-CAB's (computeLinkedAmpLoopReorder always keeps the pair
+      // together), so applying the same shift to both preserves that gap.
+      if (chainDragLinkedCont) {
+        chainDragLinkedCont.style.transform = `translateX(${followDx}px)`;
+      }
+    }
+  });
+
+  window.addEventListener('mouseup', function() {
+    if (chainDragSlot === null) return;
+    endChainDrag(true);
+  });
+
+  window.addEventListener('blur', function() {
+    if (chainDragSlot === null) return;
+    endChainDrag(false);   // losing focus mid-drag cancels, never commits
+  });
+
+  function endChainDrag(allowCommit) {
+    const wasReallyDragging = chainDragActive;
+    let committed = false;
+    if (allowCommit && wasReallyDragging
+        && chainPreviewOrder && !sameOrder(chainPreviewOrder, currentChain)) {
+      sendChainOrder(chainPreviewOrder);   // hardware replies with a map; renderChainRow adopts it
+      committed = true;
+    }
+    if (chainDragThumb) chainDragThumb.classList.remove('dragging');
+    if (chainDragCont) {
+      // Clear the continuous-follow transform/pointer-events (7/28, 10th
+      // pass) — the block's NATURAL slot position is already correct (every
+      // reorder during the drag actually moved it in the DOM), so clearing
+      // the transform just lets it sit there normally; no settle animation
+      // needed since the visual position was already tracking the cursor
+      // right up to release.
+      chainDragCont.style.transform = '';
+      chainDragCont.style.transition = '';
+      chainDragCont.style.pointerEvents = '';
+    }
+    if (chainDragLinkedCont) {   // LOOP's lockstep styles (7/28, 11th pass), same reasoning
+      chainDragLinkedCont.style.transform = '';
+      chainDragLinkedCont.style.transition = '';
+      chainDragLinkedCont.style.pointerEvents = '';
+    }
+    document.body.style.cursor = '';
+    chainDragSlot = null;
+    chainDragThumb = null;
+    chainDragPending = false;
+    chainDragCont = null;
+    chainDragLinkedCont = null;
+    chainDragLinkedGapX = 0;
+    chainDragLastX = 0;
+    chainDragMovingRight = true;
+    chainDragStartOrder = null;
+    chainPreviewOrder = null;
+    setTimeout(() => {
+      chainDragActive = false;   // let the stray click pass first
+      // A committed drag leaves the preview's DOM alone — the hardware's own
+      // CMD 0x21 reply will call renderChainRow() for real once it lands, and
+      // currentChain will match what's already on screen by then (no visible
+      // jump). A cancelled/no-op drag, or a plain click that never became a
+      // real drag, has nothing coming, so re-sync now (a no-op if nothing
+      // ever moved).
+      if (!committed) renderChainRow();
+    }, 0);
+  }
+}
+
+// Map a chain slot ID to its (movable) container div in the chain row.
+// Shared by applyChainOrder (every block, on chain-map/reorder) and
+// setCurrentAmp (the AMP-CAB slot specifically, on an amp change that
+// doesn't move the chain map at all — Phase 12's "amp model change refresh"
+// path). Swaps in the real Avid graphic when src resolves, otherwise keeps
+// the dashed dummy placeholder — never both, never neither.
+function setChainThumbImage(thumbWrap, src) {
+  if (!thumbWrap) return;
+  const img = thumbWrap.querySelector('.chain-thumb-img');
+  const ph  = thumbWrap.querySelector('.chain-thumb-placeholder');
+  if (src && img) {
+    img.src = src;
+    img.style.display = '';
+    if (ph) ph.style.display = 'none';
+  } else {
+    if (img) { img.style.display = 'none'; img.removeAttribute('src'); }
+    if (ph) ph.style.display = '';
+  }
+}
+
+function containerForSlot(slotId) {
+  if (slotId === SLOT_AMP) {
+    const el = document.getElementById('chain-amp');
+    return el ? el.closest('.chain-slot-stack') : null;
+  }
+  const dom = SLOT_ID_TO_DOM[slotId];
+  if (!dom) return null;
+  const el = document.getElementById('chain-' + dom);
+  return el ? el.closest('.chain-slot') : null;
+}
+
+function renderChainRow() {
+  const strip = document.getElementById('chainstrip');
+  if (!strip || !currentChain.length) return;
+  // A live drag preview (wireChainDrag) is showing its own speculative order
+  // on screen right now — a chain-map arriving mid-drag (front panel, Avid,
+  // an echo) must not fight it. dragend re-syncs for real once the drag ends
+  // (Session Log WATCH FOR, 7/19).
+  if (chainDragActive) return;
+
+  applyChainOrder(currentChain);
+  refreshBlockBypassDisplays();
+  wireChainDrag();
+  placeToAmpTapIndicators();
+}
+
+// ── Chain-row To Amp tap indicators (2026-08-30) ──────────────────────
+// Small numbered badges (1 / 2) on the chain flow at the point each To Amp
+// output taps the signal, mirroring Avid's "1"/"2" markers. The tap point is
+// purely the source value (RESO / No-Cab don't move it):
+//   0 Rig Input  -> chain input (before block 1)
+//   1 Amp Input  -> connector immediately before the AMP-CAB slot
+//   2 Amp Output -> connector immediately after the AMP-CAB slot
+//   3 Rig Output -> chain end (the mono connector before the stereo badge)
+// prevElementSibling/nextElementSibling naturally resolve to the input/end
+// connectors when AMP-CAB is the first/last block. Re-run on every chain render
+// and on any source change.
+function toAmpTapAnchor(srcVal) {
+  if (srcVal === 0) return document.getElementById('chain-input-connector');
+  if (srcVal === 3) return document.getElementById('mono-connector');
+  const amp = (typeof containerForSlot === 'function') ? containerForSlot(SLOT_AMP) : null;
+  if (!amp) return null;
+  const sib = (srcVal === 1) ? amp.previousElementSibling
+            : (srcVal === 2) ? amp.nextElementSibling
+            : null;
+  return (sib && sib.classList && sib.classList.contains('chain-arr')) ? sib : null;
+}
+function placeToAmpTapIndicators() {
+  document.querySelectorAll('.toamp-tap').forEach(el => el.remove());
+  const strip = document.getElementById('chainstrip');
+  if (!strip) return;
+  const readSrc = id => { const s = document.getElementById(id); const v = s ? parseInt(s.value, 10) : NaN; return (isNaN(v) || v < 0) ? null : v; };
+  const taps = [];
+  const s1 = readSrc('toamp1-src'); if (s1 !== null) taps.push({ n: '1', anchor: toAmpTapAnchor(s1) });
+  const s2 = readSrc('toamp2-src'); if (s2 !== null) taps.push({ n: '2', anchor: toAmpTapAnchor(s2) });
+  taps.forEach(t => {
+    if (!t.anchor) return;
+    const badge = document.createElement('span');
+    badge.className = 'toamp-tap';
+    badge.textContent = t.n;
+    badge.title = 'To Amp ' + t.n + ' output tap';
+    if (taps.filter(x => x.anchor === t.anchor).length > 1) {
+      badge.classList.add(t.n === '1' ? 'tap-left' : 'tap-right');
+    }
+    t.anchor.appendChild(badge);
+  });
+}
+
+// Moves the chain-slot divs into `order` and repaints the connector arrows.
+// Pulled out of renderChainRow (7/28) so the live drag preview can call it
+// with a SPECULATIVE order while dragging, without touching currentChain or
+// re-running the bypass-paint / drag-wiring side effects.
+function applyChainOrder(order) {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) return;
+
+  // Collect the movable pieces before touching anything.
+  // The "drag blocks to reorder" hint was removed 7/24/2026 — 10px on #555 was
+  // unreadable. #mono-indicator now carries the margin-left:auto that pushes
+  // the right-hand group to the end of the strip.
+  // #chain-input-connector is also .chain-arr (so it inherits the same line
+  // styling) but it is NOT one of the between-block connectors this loop
+  // assigns — excluded the same way #mono-connector already is, or this loop
+  // would hijack it as a stereo/mono arrow and throw off the block<->arrow
+  // pairing by one (7/28).
+  const arrows = Array.from(strip.querySelectorAll('.chain-arr:not(#mono-connector):not(#chain-input-connector)'));
+  const conn    = document.getElementById('mono-connector');
+  // 7/28 BUG FIX: #mono-indicator is now wrapped in a .chain-slot (with a
+  // hidden .chain-open) so it bottom-aligns at the same baseline as every
+  // real block's label. Grabbing and re-appending the bare label (as this
+  // used to do) ripped it straight back out of that wrapper on every single
+  // reorder — which is constantly, in the real app — leaving an orphaned
+  // empty wrapper sitting in the row (the extra gap Charlie saw) and the
+  // badge reverting to plain align-self:center (why it drifted back to
+  // looking wrong after any chain-map update, not just on first load).
+  // Move the WRAPPER, not the label.
+  const monoLbl = document.getElementById('mono-indicator');
+  const mono    = monoLbl ? monoLbl.closest('.chain-slot') : null;
+  // 7/29: #tempo-wrap got the exact same .chain-slot + hidden-caret wrapper
+  // treatment as #mono-indicator above, for the exact same bottom-align
+  // reason — so it needs the exact same fix here. Grabbing the bare
+  // #tempo-wrap (as this used to do) would rip it straight back out of that
+  // wrapper on every reorder, same failure mode as the 7/28 mono bug.
+  const tempoEl = document.getElementById('tempo-wrap');
+  const tempo   = tempoEl ? tempoEl.closest('.chain-slot') : null;
+
+  let arrowIdx = 0;
+  order.forEach((blk, i) => {
+    const cont = containerForSlot(blk.slotId);
+    if (!cont) return;
+    strip.appendChild(cont);                       // move, do not clone
+
+    // Hover text on BOTH the label and the ▼, for a bigger target.
+    const model = MODEL_NAMES[blk.modelId];
+    const label = model || ('unknown model 0x' + blk.modelId.toString(16).padStart(2,'0'));
+    const tip   = blk.name + ' — ' + label;
+    cont.querySelectorAll('.chain-name, .chain-open').forEach(el => { el.title = tip; });
+
+    // 7/29: real Avid graphic (chain-graphics.js) in place of the dummy
+    // dashed placeholder, where a scan has been run and that model has a
+    // confirmed mapping. The AMP-CAB slot is identified by amp KEY
+    // (currentAmpKey, state.js — the TFX '6dls' identifier), not by
+    // blk.modelId, since every amp shares the same generic chain-map mid
+    // (0x00 'Eleven') regardless of which of the 33 amps is loaded.
+    const thumbWrap = cont.querySelector('.chain-thumb');
+    if (thumbWrap) {
+      const src = (blk.slotId === SLOT_AMP)
+        ? (typeof getAmpThumbSrc === 'function' ? getAmpThumbSrc(currentAmpKey) : null)
+        : (typeof getChainThumbSrc === 'function' ? getChainThumbSrc(blk.modelId) : null);
+      setChainThumbImage(thumbWrap, src);
+    }
+
+    // Connector after this block: double arrow when this block outputs stereo.
+    if (i < order.length - 1 && arrowIdx < arrows.length) {
+      const arr = arrows[arrowIdx++];
+      const st  = MODEL_OUT_STEREO[blk.modelId];
+      // Stacked horizontal lines, fixed width: one = mono, two = stereo.
+      // An unknown model gets a single DASHED line, never a solid one — an
+      // unknown must not be indistinguishable from a confident "mono".
+      arr.classList.remove('arr-unknown');
+      if (st === undefined) {
+        arr.innerHTML = '<i></i>';
+        arr.classList.add('arr-unknown');
+        arr.title = 'channel count unknown for ' + label;
+        appLog('Chain row: no output-channel entry for ' + blk.name
+               + ' model 0x' + blk.modelId.toString(16).padStart(2,'0')
+               + ' (' + label + ') — drawn as unknown');
+      } else {
+        arr.innerHTML = st ? '<i></i><i></i>' : '<i></i>';
+        arr.title = st ? 'stereo' : 'mono';
+      }
+      strip.appendChild(arr);
+    }
+  });
+
+  // Trailing items stay at the end.
+  arrows.slice(arrowIdx).forEach(a => { a.style.display = 'none'; });
+  if (conn)  strip.appendChild(conn);
+  if (mono)  strip.appendChild(mono);
+  if (tempo) strip.appendChild(tempo);
+}
+
+// How long the live-drag slide takes. First guess (a common, unremarkable UI
+// default), NOT yet confirmed against real hardware — Charlie's own feel-check
+// on a real rebuild is the actual test; adjust this one number if it reads as
+// too sluggish or too snappy.
+const CHAIN_SLIDE_MS = 1000;
+
+// FLIP-animates a reorder instead of letting applyChainOrder's instant
+// DOM move snap into place — used ONLY for the live drag preview (7/28, 2nd
+// pass: replaces the floating ghost clone, see the comment above where that
+// used to live). Avid's own editor has no separate "carried" visual during a
+// drag — just the real block sliding smoothly — so this makes the REAL
+// blocks slide instead of adding anything extra on top.
+//
+// FLIP = First (record where things are), Last (do the actual instant DOM
+// move), Invert (paint each moved element back at its OLD spot via a
+// transform, so nothing appears to have moved yet), Play (clear the
+// transform with a transition enabled, so the browser animates the actual
+// slide). Only translateX is needed — every mover here sits in a single
+// horizontal row, nothing changes rows.
+//
+// Sampling live rects (not tracking some idealized target) is what makes
+// this safe to call again before a previous slide has finished: a rapid drag
+// fires many of these in quick succession, and each call just captures
+// wherever things visually are AT THAT INSTANT (mid-slide or settled) as its
+// own "First" — no queuing or cancellation bookkeeping needed.
+//
+// excludeEls (7/28, 10th/11th pass): the dragged block — and, for the linked
+// AMP-CAB+LOOP case, its LOOP partner too — are left out of the mover list.
+// Both positions are driven every frame by wireChainDrag's own continuous
+// cursor-follow, not by sliding into a slot — including either here too
+// would mean two different pieces of code fighting over the same element's
+// transform on the same frame. Accepts an array (nulls ignored) since the
+// linked case needs two exclusions, not one.
+function applyChainOrderAnimated(order, excludeEls) {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) { applyChainOrder(order); return; }
+
+  // excludeEls may hold nulls (e.g. no linked partner this drag) — Set
+  // silently ignores those, no filtering needed for that case specifically.
+  const excluded = new Set(Array.isArray(excludeEls) ? excludeEls : [excludeEls]);
+  const movers = Array.from(strip.querySelectorAll('.chain-slot, .chain-slot-stack, .chain-arr'))
+    .filter(el => !excluded.has(el));
+  const firstRects = new Map();
+  movers.forEach(el => firstRects.set(el, el.getBoundingClientRect()));
+
+  applyChainOrder(order);   // Last — the real, instant reorder
+
+  movers.forEach(el => {
+    const first = firstRects.get(el);
+    const last  = el.getBoundingClientRect();
+    const dx = first.left - last.left;
+    if (Math.abs(dx) < 0.5) return;   // didn't actually move, nothing to animate
+
+    el.style.transition = 'none';
+    el.style.transform  = `translateX(${dx}px)`;   // Invert — paint at the old spot
+    void el.offsetWidth;                             // force a reflow so the browser commits that starting point
+    el.style.transition = `transform ${CHAIN_SLIDE_MS}ms ease`;
+    el.style.transform  = '';                          // Play — animate back to natural position
+
+    el.addEventListener('transitionend', function cleanup() {
+      el.style.transition = '';
+      el.style.transform  = '';
+    }, { once: true });
+  });
+}
+
+// Paint every non-amp slot from the stored bypass state.
+// Amp and cab have their own display functions and are not touched here.
+function refreshBlockBypassDisplays() {
+  if (navPaintDeferred) { navPendingPaints.push(refreshBlockBypassDisplays); return; }
+  currentChain.forEach(blk => {
+    if (blk.slotId === SLOT_AMP) return;
+    const dom = SLOT_ID_TO_DOM[blk.slotId];
+    if (!dom) return;
+    const el = document.getElementById('chain-' + dom);
+    if (!el) return;
+    const st = blockBypass[blk.slotId];
+    el.classList.remove('slot-on','slot-off','slot-unknown');
+    if (st === undefined) el.classList.add('slot-unknown');
+    else el.classList.add(st ? 'slot-on' : 'slot-off');
+  });
+}
+
+// Click a slot label = real bypass toggle.
+// Replaces an inline handler in index.html that only flipped the colour and
+// sent nothing — that made every non-amp slot lie about its state.
+// No optimistic update: the hardware broadcast is what repaints, so a failed
+// send leaves the display truthful.
+document.addEventListener('DOMContentLoaded', function() {
+  const strip = document.getElementById('chainstrip');
+  if (!strip) return;
+  strip.addEventListener('click', function(ev) {
+    const lbl = ev.target.closest('.chain-name');
+    if (!lbl || !strip.contains(lbl)) return;
+    if (chainDragActive) return;      // ignore the click that trails a drag
+    if (!bridgeMidiReady) return;
+    const dom = lbl.id.replace(/^chain-/, '');
+    const blk = currentChain.find(b => SLOT_ID_TO_DOM[b.slotId] === dom);
+    if (!blk) { appLog('Bypass click: ' + dom + ' not in chain map yet'); return; }
+    const cur = blockBypass[blk.slotId];
+    if (cur === undefined) { appLog('Bypass click: ' + blk.name + ' state unknown yet'); return; }
+    sendBypassWrite(blk.handle, BYPASS_PARAMLO_BLOCK, !cur);
+  });
+});
+
+// Amp/Cab bypass chain row highlight.
+// isOn: true = active, false = bypassed, null/undefined = not yet known.
+function updateAmpBypassDisplay(isOn) {
+  if (navPaintDeferred) { navPendingPaints.push(function() { updateAmpBypassDisplay(isOn); }); return; }
+  const el = document.getElementById('chain-amp');
+  if (!el) return;
+  el.classList.remove('slot-on','slot-off','slot-unknown');
+  if (isOn === null || isOn === undefined) el.classList.add('slot-unknown');
+  else el.classList.add(isOn ? 'slot-on' : 'slot-off');
+}
+
+function updateCabBypassDisplay(isOn) {
+  if (navPaintDeferred) { navPendingPaints.push(function() { updateCabBypassDisplay(isOn); }); return; }
+  const el = document.getElementById('chain-cab');
+  if (!el) return;
+  // Global cabinet bypass (CMD 0x38 "Cab Always Off") overrides the per-patch
+  // cab bypass: when it's on the rack produces NO cab regardless of the patch,
+  // so the chain must show CAB off or it lies about the signal path (fix
+  // 2026-08-30 — was showing the patch's own cab state, blind to the global
+  // override). globalCabBypass is undefined until we've seen a 0x38, so before
+  // then we fall back to the per-patch value unchanged.
+  let effOn = isOn;
+  if (globalCabBypass === true) effOn = false;
+  el.classList.remove('slot-on','slot-off','slot-unknown');
+  if (effOn === null || effOn === undefined) el.classList.add('slot-unknown');
+  else el.classList.add(effOn ? 'slot-on' : 'slot-off');
+}
+
+// Click to toggle amp / cab bypass.
+// Both live on the AMP-CAB block's single handle with different paramLos, so
+// they work wherever that block sits in the chain.
+// No optimistic display: the hardware broadcasts the new state immediately and
+// that broadcast is what updates the UI. If a send fails the display correctly
+// stays put rather than lying about it.
+document.addEventListener('DOMContentLoaded', function() {
+  const ampEl = document.getElementById('chain-amp');
+  if (ampEl) {
+    ampEl.addEventListener('click', function() {
+      if (!bridgeMidiReady) return;
+      if (blockBypass[SLOT_AMP] === undefined) { appLog('Amp bypass state unknown yet, ignoring click'); return; }
+      sendAmpBypass(!blockBypass[SLOT_AMP]);
+    });
+  }
+  const cabEl = document.getElementById('chain-cab');
+  if (cabEl) {
+    cabEl.addEventListener('click', function() {
+      if (!bridgeMidiReady) return;
+      // Global Cab Off wins over the per-patch cab: while it's engaged, toggling
+      // the patch cab does nothing on hardware. Rather than a silent no-op, offer
+      // to clear the global switch — matching the Avid editor's own prompt
+      // (2026-08-30). Only intercepts when we KNOW global is engaged.
+      if (globalCabBypass === true) { openCabBypassModal(); return; }
+      if (cabBypassActive === undefined) { appLog('Cab bypass state unknown yet, ignoring click'); return; }
+      sendCabBypass(!cabBypassActive);
+    });
+  }
+});
+
+// Master-cabinet-bypass prompt (2026-08-30). Yes -> clear Global Cab Off (send
+// CMD 0x38 = 0). The rack echoes 0x38, handleGlobalCabBypass updates state + the
+// chain CAB display; no optimistic UI here (same contract as the bypass clicks).
+function openCabBypassModal() {
+  const m = document.getElementById('cab-bypass-modal');
+  if (m) m.classList.add('open');
+}
+function closeCabBypassModal() {
+  const m = document.getElementById('cab-bypass-modal');
+  if (m) m.classList.remove('open');
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const no = document.getElementById('cab-bypass-no');
+  const yes = document.getElementById('cab-bypass-yes');
+  if (no) no.addEventListener('click', closeCabBypassModal);
+  if (yes) yes.addEventListener('click', function() {
+    closeCabBypassModal();
+    // Mirror Avid's "Yes" (Avid_..._YES capture, 2026-08-30): clear Global Cab
+    // Off, then re-assert the per-patch cab so the rack rebuilds it into the path
+    // immediately instead of on the next nav. The re-assert is fired from the
+    // 0x38-clear echo (handleGlobalCabBypass) so it lands AFTER the clear is
+    // acknowledged; pendingCabReassert scopes it to this action only.
+    pendingCabReassert = true;
+    if (typeof sendGlobalCabBypassSet === 'function') sendGlobalCabBypassSet(false);
+  });
+  const overlay = document.getElementById('cab-bypass-modal');
+  if (overlay) overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) closeCabBypassModal();  // click outside the box dismisses
+  });
+});
+
+// ── GLOBALS box: Cab Off (CMD 0x38) + RESO (CMD 0x3F) toggles ──────────
+// Both are rig-wide and read on connect, so they reflect real state. Each lights
+// amber when active, shows "?" only in the rare window before its state is known.
+function setTogState(id, on) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('tog-unknown', on === undefined);
+  el.classList.toggle('tog-on', on === true);
+}
+function refreshGlobalToggles() {
+  setTogState('cab-off-tog', globalCabBypass);
+  setTogState('reso-tog', resoState);
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const cabTog = document.getElementById('cab-off-tog');
+  if (cabTog) cabTog.addEventListener('click', function() {
+    if (!bridgeMidiReady) return;
+    if (globalCabBypass === undefined) { appLog('Global cab state unknown yet, ignoring click'); return; }
+    if (globalCabBypass === true) {
+      // Clearing Cab Off: same as the chain-row modal Yes — clear + re-assert the
+      // cab so it returns instantly (handleGlobalCabBypass does the re-assert).
+      pendingCabReassert = true;
+      sendGlobalCabBypassSet(false);
+    } else {
+      sendGlobalCabBypassSet(true);
+    }
+  });
+  const resoTog = document.getElementById('reso-tog');
+  if (resoTog) resoTog.addEventListener('click', function() {
+    if (!bridgeMidiReady) return;
+    // resoState is read on connect, so it's known; flip to the other state.
+    if (typeof sendResoSet === 'function') sendResoSet(!(resoState === true));
+  });
+});
+
+// ── Update amp display and gate knob CCs when amp changes ──
+// NOTE: does NOT touch the "loaded value" marker (syncLoadedMarker) — this
+// function is called from lots of places, including the CMD 0x21 chain-map
+// handler's own unconditional re-sync (sysex-handler.js), which can fire
+// BEFORE the new patch's real amp identity has been confirmed (that
+// arrives separately via the 0x0F echo, asynchronously). Marking a
+// dropdown "loaded" from a call that might still be showing the OLD
+// patch's amp would let a premature call win the marker's "first value
+// wins" race — exactly the bug Charlie caught live 2026-09-02 (marker
+// stuck on the previous patch's amp choice). The marker is anchored from
+// setCurrentAmp instead (below), the one place amp identity is actually
+// confirmed, whether that confirmation came from a real nav or a dropdown
+// pick.
+function syncAmpSelectDropdown(key) {
+  const sel = document.getElementById('amp-select');
+  if (!sel) return;
+  sel.disabled = !key || currentParamHi < 0;  // disable until chain map arrives
+  if (key && AMP_SELECT_BY_KEY[key]) {
+    ampSelectSyncing = true;
+    sel.value = key;
+    ampSelectSyncing = false;
+  }
+}
+
+function setCurrentAmp(key) {
+  // currentAmpKey/currentAmpName stay LIVE (not deferred) even during a nav
+  // pull — transport.js's Phase 3 (tone-knob queries) explicitly depends on
+  // currentAmpKey being set the instant amp identity resolves, since tone
+  // paramLo values are looked up per-amp. Only the actual repaint below is
+  // held back (nav-pull buffering, 2026-09-03).
+  currentAmpKey = key;
+  currentAmpName = key ? (AMP_NAME_MAP[key] || key) : null;
+  deferPaintOrRun(function() {
+    document.getElementById('amp-name-display').textContent = currentAmpName || '';
+    setGateControlsEnabled(!!key);
+    syncAmpSelectDropdown(key);
+    // "Loaded value" marker (2026-09-02 fix) — anchored HERE, not inside
+    // syncAmpSelectDropdown, since this is the one place amp identity is
+    // actually confirmed (see the comment on syncAmpSelectDropdown above).
+    const ampSel = document.getElementById('amp-select');
+    if (ampSel && key) syncLoadedMarker(ampSel, 'amp-select');
+    updateToneKnobs(key);
+    updateBrightVisibility(key);
+    // 7/29: refresh the AMP-CAB chain-thumb here too, not just on the next
+    // chain-map/reorder (applyChainOrder) — an amp change (Phase 12) doesn't
+    // move the chain map at all, so without this the thumbnail would lag one
+    // full nav behind the dropdown/amp-name-display above it.
+    const ampThumb = document.getElementById('chain-amp');
+    if (ampThumb && typeof getAmpThumbSrc === 'function') {
+      setChainThumbImage(ampThumb.closest('.chain-slot-stack').querySelector('.chain-thumb'),
+        getAmpThumbSrc(key));
+    }
+  });
+  appLog('Amp identified: ' + (currentAmpName || 'unknown') + ' key=' + key);
+}
+
+// ── Show/hide/relabel tone knob slots based on AMP_TONE_PARAMS, in this
+// amp's current SCREEN order (getOrderedToneKnobs, protocol.js — a saved
+// per-amp reorder if one exists, else table order). Called on every amp
+// identification (setCurrentAmp), so the order is resolved and painted in
+// one synchronous pass BEFORE anything is drawn — there is no default-order
+// paint that a preferred order then jumps to. ──
+function updateToneKnobs(key) {
+  const orderedLo = getOrderedToneKnobs(key).map(k => k.lo);
+  paintToneSlots(key, orderedLo);
+  wireToneKnobDrag();
+  appLog('Tone knobs updated for ' + (key || 'none') + ': ' + orderedLo.length + ' knob(s)');
+}
+
+// Resolves loOrder (array of paramLo) against this amp's table to get the
+// actual knob defs, in that order — the one place both the real (amp-change)
+// paint and the live drag preview turn an order into content.
+function toneKnobDefsForLoOrder(ampKey, loOrder) {
+  const ordered = getOrderedToneKnobs(ampKey);
+  const byLo = {};
+  ordered.forEach(k => { byLo[k.lo] = k; });
+  return loOrder.map(lo => byLo[lo]).filter(Boolean);
+}
+
+// What's currently painted into tone-k0..tone-k7, as an array of paramLo —
+// kept in step by both paintToneSlots (amp change) and repaintToneRowPreview
+// (live reorder drag), so either one always knows what the OTHER last left
+// on screen.
+let toneRowRenderedLoOrder = [];
+
+// Full repaint from scratch — relabels every visible slot for the new amp.
+// NEVER call this mid-reorder-drag — see repaintToneRowPreview below for
+// that case, which carries live values forward instead of blanking them.
+// Used to also force each knob to a "--"/64 placeholder here, on the theory
+// that a real readback follows shortly — but the knob canvas's own draw
+// still ran the instant this executed, and this always runs inside code
+// that's either buffered (a nav pull, ui.js navPaintDeferred — the
+// placeholder painted for real at FLUSH time, one visible frame before the
+// real value overwrote it: the "knob jumps to noon" symptom Charlie found
+// 2026-09-03) or immediately followed by the real value in the same
+// synchronous call (a save-confirm bulk decode, sysex-handler.js) where the
+// placeholder was always redundant. Removed 2026-09-03 — every visible
+// slot gets queried fresh moments later either way (ampBlockParamLos'
+// query list, transport.js, is built from the NEW amp), so leaving the
+// canvas alone here and letting the real value paint over whatever was
+// there is exactly what "point A to point B, no flash" needs.
+function paintToneSlots(ampKey, loOrder) {
+  const defs = toneKnobDefsForLoOrder(ampKey, loOrder);
+  for (let i = 0; i < 8; i++) {
+    const kEl = document.getElementById('tone-k' + i);
+    const lEl = document.getElementById('tone-l' + i);
+    const wEl = document.getElementById('tone-w' + i);
+    const vEl = document.getElementById('tone-v' + i);
+    if (!kEl) continue;
+    if (i < defs.length) {
+      kEl.style.display = '';
+      kEl.classList.remove('knob-disabled');
+      // Controls the app is not allowed to WRITE (currently Speed, pending the
+      // Sync interlock) are shown read-only rather than live. They still
+      // display every hardware broadcast; they just cannot be dragged out of
+      // step with the rack.
+      const blocked = (typeof READ_ONLY_PARAM_LOS !== 'undefined')
+                      && READ_ONLY_PARAM_LOS.indexOf(defs[i].lo) !== -1;
+      kEl.classList.toggle('knob-readonly', blocked);
+      kEl.title = blocked
+        ? defs[i].label + ' is read-only for now — set it on the rack. '
+          + 'It follows the Sync division, and writing it fights the hardware.'
+        : '';
+      if (lEl) lEl.textContent = defs[i].label;
+      // REMOVED the "--" placeholder here too (2026-09-03) — same reasoning
+      // as the canvas removal above: nav-pull buffering now tracks actual
+      // reply ARRIVAL (navAmpArrivalGate, transport.js), not send-
+      // completion, so the real value reliably lands before flush instead
+      // of racing it. Blanking to "--" here was actively harmful in the
+      // rare case a reply hadn't landed yet: it became the last thing
+      // painted, with nothing left to correct it.
+    } else {
+      kEl.style.display = 'none';
+    }
+  }
+  toneRowRenderedLoOrder = loOrder.slice();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AMP CONTROLS TONE-KNOB REORDER (2026-08-03) — drag a knob's LABEL (only
+// when unlocked) to reorder the tone stack; the chosen order is remembered
+// per amp (toneKnobOrderPrefs, state.js/protocol.js).
+//
+// Unlike the chain row, the fixed tone-k0..tone-k7 DOM elements NEVER
+// physically move — every other tone-knob code path (drag/dblclick/wheel
+// handlers above, the live CMD 0x11 router in sysex-handler.js,
+// updateToneReadouts) addresses a control by its FIXED slot id (tone-w<i>),
+// derived from getOrderedToneKnobs(currentAmpKey). Physically relocating the
+// tone-k<i> divs would leave those ids pointing at the wrong screen position.
+// So instead, a reorder swaps CONTENT between fixed slots (paintToneSlots/
+// repaintToneRowPreview), and the chain row's smooth "slide into place" feel
+// is recreated on top of that with a content-identity FLIP (keyed by
+// paramLo, not by which DOM node moved) — same First/Last/Invert/Play idea
+// as applyChainOrderAnimated, just adapted to content swapping instead of
+// node relocation.
+// ════════════════════════════════════════════════════════════════════
+let toneDragPending     = false;
+let toneDragActive      = false;
+let toneDragLo          = null;   // paramLo of the knob being dragged, null if none
+let toneDragCont        = null;   // the .ctrl-knob element CURRENTLY showing toneDragLo
+let toneDragStartX      = 0;
+let toneDragStartY      = 0;
+let toneDragOffsetX     = 0;      // cursor position within the grabbed slot
+let toneDragOffsetY     = 0;
+let toneDragStartOrder  = null;   // array of lo, screen order at mousedown
+let tonePreviewOrder    = null;   // array of lo, current speculative order
+const TONE_DRAG_THRESHOLD = 4;    // px before a click counts as a drag
+
+function updateToneLockButton() {
+  const btn = document.getElementById('tone-lock-btn');
+  const row = document.getElementById('tone-knobs-row');
+  if (row) row.classList.toggle('tone-row-locked', toneRowLocked);
+  if (!btn) return;
+  btn.textContent = toneRowLocked ? '🔒' : '🔓';
+  btn.classList.toggle('locked', toneRowLocked);
+  btn.title = toneRowLocked
+    ? 'Tone knob order is locked — click to unlock, then drag a knob name to reorder'
+    : 'Unlocked — drag a knob name to reorder. Click to lock again.';
+}
+
+function sameLoOrder(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+// Removes lo from order and reinserts it just before/after targetLo.
+function moveLoInOrder(order, lo, targetLo, after) {
+  const cur = order.slice();
+  const from = cur.indexOf(lo);
+  if (from < 0) return null;
+  cur.splice(from, 1);
+  let to = cur.indexOf(targetLo);
+  if (to < 0) return null;
+  if (after) to += 1;
+  cur.splice(to, 0, lo);
+  return cur;
+}
+
+// Live-drag repaint: carries each knob's CURRENT value/baseline/readout
+// forward into its new slot instead of resetting to a placeholder (nothing
+// has actually changed on the amp/hardware — only where it's displayed).
+// Updates EVERY slot's content, including the dragged knob's own — its
+// value isn't changing while its LABEL is what's being dragged, so
+// repainting it is harmless, and skipping it (an earlier version of this
+// function did) left stale leftover content in that fixed slot, which then
+// got mis-captured as a DIFFERENT knob's state on the next drag step.
+// dataset.orig (the red/amber "changed" baseline — knobColor, drawKnob
+// above) is content-identity state exactly like value/text and MUST travel
+// with it: it lives on the fixed tone-w<i> node, so a pure content swap
+// that only moved `value` left `orig` behind on the OLD occupant's
+// baseline, reading every slot that received new content as "changed" even
+// when it hadn't (the red-flash bug Charlie found 2026-08-03).
+function repaintToneRowPreview(ampKey, loOrder) {
+  const oldOrder = toneRowRenderedLoOrder;
+  const stateByLo = {};
+  oldOrder.forEach((lo, i) => {
+    const wEl = document.getElementById('tone-w' + i);
+    const vEl = document.getElementById('tone-v' + i);
+    if (wEl) stateByLo[lo] = { value: wEl.dataset.value, orig: wEl.dataset.orig, text: vEl ? vEl.textContent : '--' };
+  });
+  const defs = toneKnobDefsForLoOrder(ampKey, loOrder);
+  for (let i = 0; i < 8; i++) {
+    const kEl = document.getElementById('tone-k' + i);
+    const lEl = document.getElementById('tone-l' + i);
+    const wEl = document.getElementById('tone-w' + i);
+    const vEl = document.getElementById('tone-v' + i);
+    if (!kEl) continue;
+    if (i < defs.length) {
+      const def = defs[i];
+      kEl.style.display = '';
+      const blocked = (typeof READ_ONLY_PARAM_LOS !== 'undefined')
+                      && READ_ONLY_PARAM_LOS.indexOf(def.lo) !== -1;
+      kEl.classList.toggle('knob-readonly', blocked);
+      kEl.title = blocked
+        ? def.label + ' is read-only for now — set it on the rack. '
+          + 'It follows the Sync division, and writing it fights the hardware.'
+        : '';
+      if (lEl) lEl.textContent = def.label;
+      const prior = stateByLo[def.lo];
+      const val = prior && prior.value !== undefined && prior.value !== ''
+                  ? parseInt(prior.value) : 64;
+      if (wEl) {
+        wEl.dataset.value = val;
+        if (prior && prior.orig !== undefined && prior.orig !== '') wEl.dataset.orig = prior.orig;
+        else delete wEl.dataset.orig;
+        drawKnob(wEl.querySelector('canvas'), val);
+      }
+      if (vEl) vEl.textContent = prior ? prior.text : '--';
+    } else {
+      kEl.style.display = 'none';
+    }
+  }
+  toneRowRenderedLoOrder = loOrder.slice();
+}
+
+// FLIP-animates repaintToneRowPreview's content swap so the OTHER knobs
+// visibly slide to their new slot instead of snapping — same technique as
+// the chain row's applyChainOrderAnimated, keyed by paramLo (content
+// identity) since the DOM nodes themselves never move here. excludeLo (the
+// dragged knob) is skipped HERE ONLY — its slot's POSITION is already being
+// driven every frame by the continuous-follow transform in the mousemove
+// handler below, and this FLIP transform would fight that. Its CONTENT is
+// still fully repainted by repaintToneRowPreview above like everyone else.
+function repaintToneRowAnimated(ampKey, loOrder, excludeLo) {
+  const oldOrder = toneRowRenderedLoOrder;
+  const oldRects = {};
+  oldOrder.forEach((lo, i) => {
+    if (lo === excludeLo) return;
+    const cont = document.getElementById('tone-k' + i);
+    if (cont) oldRects[lo] = cont.getBoundingClientRect();
+  });
+
+  repaintToneRowPreview(ampKey, loOrder);
+
+  loOrder.forEach((lo, i) => {
+    if (lo === excludeLo) return;
+    const old = oldRects[lo];
+    const cont = document.getElementById('tone-k' + i);
+    if (!old || !cont) return;
+    const now = cont.getBoundingClientRect();
+    const dx = old.left - now.left, dy = old.top - now.top;
+    if (!dx && !dy) return;
+    cont.style.transition = 'none';
+    cont.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    requestAnimationFrame(() => {
+      cont.style.transition = 'transform 160ms ease';
+      cont.style.transform = '';
+    });
+  });
+}
+
+function wireToneKnobDrag() {
+  const row = document.getElementById('tone-knobs-row');
+  if (!row || row.dataset.dragWired) return;
+  row.dataset.dragWired = '1';
+
+  row.addEventListener('mousedown', function(ev) {
+    if (ev.button !== 0 || toneRowLocked) return;
+    const label = ev.target.closest('label');
+    if (!label || !row.contains(label)) return;
+    const cont = label.closest('.ctrl-knob');
+    if (!cont || cont.style.display === 'none') return;
+    const wrap = cont.querySelector('.knob-wrap[data-tone-idx]');
+    if (!wrap) return;
+    const idx = parseInt(wrap.dataset.toneIdx);
+    const ordered = getOrderedToneKnobs(currentAmpKey);
+    if (isNaN(idx) || idx < 0 || idx >= ordered.length) return;
+    toneDragLo = ordered[idx].lo;
+    toneDragCont = cont;
+    toneDragPending = true;
+    toneDragStartX = ev.clientX;
+    toneDragStartY = ev.clientY;
+    const r = cont.getBoundingClientRect();
+    toneDragOffsetX = ev.clientX - r.left;
+    toneDragOffsetY = ev.clientY - r.top;
+    toneDragStartOrder = ordered.map(k => k.lo);
+    tonePreviewOrder = toneDragStartOrder.slice();
+    ev.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(ev) {
+    if (toneDragLo === null) return;
+    if (ev.buttons === 0) { endToneDrag(false); return; }
+
+    if (toneDragPending) {
+      const dx0 = ev.clientX - toneDragStartX, dy0 = ev.clientY - toneDragStartY;
+      if (Math.hypot(dx0, dy0) < TONE_DRAG_THRESHOLD) return;
+      toneDragPending = false;
+      toneDragActive = true;
+      toneDragCont.classList.add('dragging');
+      toneDragCont.style.transition = 'none';
+      document.body.style.cursor = 'grabbing';
+    }
+
+    const cx = ev.clientX - toneDragOffsetX + toneDragCont.offsetWidth / 2;
+    const cy = ev.clientY - toneDragOffsetY + toneDragCont.offsetHeight / 2;
+
+    toneDragCont.style.pointerEvents = 'none';
+    const el = document.elementFromPoint(cx, cy);
+    toneDragCont.style.pointerEvents = '';
+    const targetCont = el ? el.closest('#tone-knobs-row .ctrl-knob') : null;
+    if (targetCont && targetCont !== toneDragCont && targetCont.style.display !== 'none') {
+      const targetWrap = targetCont.querySelector('.knob-wrap[data-tone-idx]');
+      const targetIdx = targetWrap ? parseInt(targetWrap.dataset.toneIdx) : NaN;
+      const ordered = getOrderedToneKnobs(currentAmpKey);
+      const targetLo = (!isNaN(targetIdx) && ordered[targetIdx]) ? ordered[targetIdx].lo : null;
+      if (targetLo !== null && targetLo !== toneDragLo) {
+        const r = targetCont.getBoundingClientRect();
+        const after = cx > r.left + r.width / 2;
+        const next = moveLoInOrder(tonePreviewOrder, toneDragLo, targetLo, after);
+        if (next && !sameLoOrder(next, tonePreviewOrder)) {
+          tonePreviewOrder = next;
+          repaintToneRowAnimated(currentAmpKey, tonePreviewOrder, toneDragLo);
+          // The dragged knob's content may have moved to a different fixed
+          // slot as part of that repaint — re-anchor the follow/dragging
+          // state onto whichever tone-k<i> now shows it.
+          const newIdx = tonePreviewOrder.indexOf(toneDragLo);
+          const newCont = document.getElementById('tone-k' + newIdx);
+          if (newCont && newCont !== toneDragCont) {
+            toneDragCont.classList.remove('dragging');
+            toneDragCont.style.transform = '';
+            toneDragCont.style.transition = '';
+            toneDragCont = newCont;
+            toneDragCont.classList.add('dragging');
+            toneDragCont.style.transition = 'none';
+          }
+        }
+      }
+    }
+
+    // Continuous follow — pin the dragged knob's visual center to the
+    // cursor, wherever its content currently lives.
+    toneDragCont.style.transform = 'none';
+    const natural = toneDragCont.getBoundingClientRect();
+    const followDx = cx - (natural.left + natural.width / 2);
+    const followDy = cy - (natural.top + natural.height / 2);
+    toneDragCont.style.transform = 'translate(' + followDx + 'px,' + followDy + 'px)';
+  });
+
+  window.addEventListener('mouseup', function() {
+    if (toneDragLo === null) return;
+    endToneDrag(true);
+  });
+  window.addEventListener('blur', function() {
+    if (toneDragLo === null) return;
+    endToneDrag(false);
+  });
+
+  function endToneDrag(allowCommit) {
+    const wasReallyDragging = toneDragActive;
+    if (toneDragCont) {
+      toneDragCont.classList.remove('dragging');
+      toneDragCont.style.transform = '';
+      toneDragCont.style.transition = '';
+      toneDragCont.style.pointerEvents = '';
+    }
+    document.body.style.cursor = '';
+    if (allowCommit && wasReallyDragging && tonePreviewOrder
+        && !sameLoOrder(tonePreviewOrder, toneDragStartOrder)) {
+      setToneKnobOrder(currentAmpKey, tonePreviewOrder);
+      appLog('Tone knob order changed for ' + currentAmpKey + ': '
+             + tonePreviewOrder.map(lo => '0x' + lo.toString(16).padStart(2,'0')).join(','));
+    }
+    // Final authoritative repaint, either way (committed, cancelled, or
+    // never passed the click threshold) — guarantees the fixed slots end
+    // up exactly matching getOrderedToneKnobs. Uses the PREVIEW repaint
+    // (carries live values forward), not a fresh placeholder paint: nothing
+    // on the amp/hardware changed just because the on-screen order did.
+    const finalOrder = getOrderedToneKnobs(currentAmpKey).map(k => k.lo);
+    repaintToneRowPreview(currentAmpKey, finalOrder);
+    toneDragLo = null;
+    toneDragCont = null;
+    toneDragPending = false;
+    toneDragActive = false;
+    toneDragStartOrder = null;
+    tonePreviewOrder = null;
+  }
+}
+
+// Applies the current numberDisplayMode to #panel-ampcab's classes — pure
+// CSS toggle (visibility:hidden), touches nothing about the knobs' actual
+// tracked values or any hardware write. Safe to call any time, including
+// before a patch/amp has loaded.
+function applyNumberDisplayMode() {
+  const panel = document.getElementById('panel-ampcab');
+  if (!panel) return;
+  panel.classList.toggle('hide-tone-nums', numberDisplayMode >= 1);
+  panel.classList.toggle('hide-row1-nums', numberDisplayMode >= 2);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const numberDisplayBtn = document.getElementById('number-display-btn');
+  if (numberDisplayBtn) {
+    numberDisplayBtn.addEventListener('click', function() {
+      numberDisplayMode = (numberDisplayMode + 1) % 3;
+      applyNumberDisplayMode();
+      window.electronAPI.saveNumberDisplayMode(numberDisplayMode);
+    });
+  }
+  const lockBtn = document.getElementById('tone-lock-btn');
+  if (lockBtn) {
+    lockBtn.addEventListener('click', function() {
+      toneRowLocked = !toneRowLocked;
+      updateToneLockButton();
+    });
+    updateToneLockButton();
+  }
+  const resetBtn = document.getElementById('tone-reset-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      if (!currentAmpKey) return;
+      if (resetToneKnobOrder(currentAmpKey)) {
+        // Carries live values forward into their default-order slots, same
+        // reasoning as the end of a reorder drag — resetting the ORDER
+        // preference doesn't mean the hardware values need re-querying.
+        const defaultOrder = getOrderedToneKnobs(currentAmpKey).map(k => k.lo);
+        repaintToneRowAnimated(currentAmpKey, defaultOrder, null);
+        appLog('Tone knob order reset to default for ' + currentAmpKey);
+      }
+    });
+  }
+});
+
+// ── Volume knobs (Rig Vol / Amp Out) — plain CC sends, no amp-model
+// dependency, so these only need the bridge connected ──
+function setVolumeControlsEnabled(enabled) {
+  ['amp-out-knob','rig-vol-knob','toamp1-knob','toamp2-knob'].forEach(id => {
+    document.getElementById(id).classList.toggle('knob-disabled', !enabled);
+  });
+  // To Amp source pickers + the GLOBALS toggles (Cab Off / RESO) are all
+  // bridge-only controls — gate them the same as the volume knobs.
+  ['toamp1-src','toamp2-src'].forEach(id => {
+    const s = document.getElementById(id); if (s) s.disabled = !enabled;
+  });
+  ['cab-off-tog','reso-tog'].forEach(id => {
+    const b = document.getElementById(id); if (b) b.classList.toggle('knob-disabled', !enabled);
+  });
+  if (!enabled) {
+    ['amp-out-val','rig-vol-val','toamp1-vol-val','toamp2-vol-val'].forEach(id => {
+      document.getElementById(id).textContent = '--';
+    });
+  } else {
+    ['amp-out-wrap','rig-vol-wrap','toamp1-vol-wrap','toamp2-vol-wrap'].forEach(id => {
+      const w = document.getElementById(id);
+      if (w) drawKnob(w.querySelector('canvas'), parseInt(w.dataset.value)||0);
+    });
+    refreshGlobalToggles();
+  }
+}
+
+// ── Gate knobs — two-byte paramId, paramLo consistent across all amps (
+// table), so these need an identified amp, not just a live bridge ──
+function setGateControlsEnabled(enabled) {
+  ['gate-thresh-knob','gate-release-knob'].forEach(id => {
+    document.getElementById(id).classList.toggle('knob-disabled', !enabled);
+  });
+  if (!enabled) {
+    ['gate-thresh-val','gate-release-val'].forEach(id => {
+      document.getElementById(id).textContent = '--';
+    });
+  } else {
+    ['gate-thresh-wrap','gate-release-wrap'].forEach(id => {
+      const w = document.getElementById(id);
+      if (w) drawKnob(w.querySelector('canvas'), parseInt(w.dataset.value)||0);
+    });
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// JAVA BRIDGE — WebSocket transport (ws://localhost:57121)
+// Replaces the old Focusrite (Web MIDI CC/PC) + Eleven Rack USB
+// (Web MIDI SysEx receive) two-path setup. One socket now handles
+// CC, PC, and SysEx in both directions via ElevenRackBridge.jar.
+// ════════════════════════════════════════════════════════════════════
+function slotLabel(slot) {
+  if (slot < 0 || slot > MAX_NAV_SLOT) return '??';
+  const sr = slotToSpaceRaw(slot);
+  const letter = BANKS[Math.floor(sr.rawSlot / 4)];
+  const label = letter + ((sr.rawSlot % 4) + 1);
+  return sr.space > 0 ? label.toLowerCase() : label;
+}
+
+function updateDisplay(slot) {
+  currentSlot = slot;
+  const el = document.getElementById('slot-display');
+  el.textContent = slotLabel(slot);
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 80);
+  document.getElementById('slot-num').textContent = 'Slot ' + slot;
+  // A hardware-initiated nav (front panel) can land mid-rename-edit, when
+  // #patch-name has been temporarily replaced by #patch-name-edit (see
+  // startPatchNameEdit, index.html) — the pending edit no longer applies
+  // to whatever patch is now loading, so drop it rather than orphan it or
+  // crash on a null nameEl. editEl._settled = true BEFORE removing it is
+  // what stops the edit's own commit()/blur handler (still attached, since
+  // this removal fires 'blur' synchronously) from firing a second,
+  // now-invalid replaceWith on the same node right after this one.
+  const editEl = document.getElementById('patch-name-edit');
+  if (editEl) {
+    editEl._settled = true;
+    const span = document.createElement('span');
+    span.id = 'patch-name';
+    editEl.replaceWith(span);
+  }
+  const nameEl = document.getElementById('patch-name');
+  if (nameEl) {
+    // Leave the OLD patch name visible until the buffered new name arrives with
+    // the rest of the nav pull (handlePatchName, routed through deferPaintOrRun)
+    // — no more current->"…"->new flash (2026-09-08, Charlie's ask). Same
+    // "keep the stale value until the real one lands" rule the tone/gate
+    // readouts already use (clearStaleReadoutsOnNav, 2026-09-03). If the edit
+    // teardown above just created a fresh empty span, seed it with the current
+    // name so it isn't blank in the gap.
+    var keep = (typeof currentPatchName !== 'undefined' && currentPatchName)
+      ? currentPatchName : nameEl.textContent;
+    if (keep && nameEl.textContent !== keep) nameEl.textContent = keep;
+  }
+}
+
+function setStatus(msg) { document.getElementById('status-msg').textContent = msg; }
+
+// ── Tuner state — single source of truth is the confirmed hardware
+// broadcast (CC 69: 0x40=ON, 0x3F=OFF), not our own click assumption.
+// This is what makes it correctly reflect hardware-button changes too,
+// same as gate/amp-out/amp-select already do for their own state. ──
+function handleTunerCC(val) {
+  const wasOn = tunerOn;
+  if (val === 0x40 || val === 127) tunerOn = true;
+  else if (val === 0x3F || val === 0) tunerOn = false;
+  else return; // unrecognized value — not the state broadcast, ignore
+  document.getElementById('btn-tuner').classList.toggle('on', tunerOn);
+  setStatus('Tuner ' + (tunerOn ? 'ON' : 'OFF'));
+  appLog('Tuner ' + (tunerOn ? 'ON' : 'OFF') + ' (confirmed via hardware)');
+  // Roller safety gate (2026-08-11, same family as SAVE/Load TFX/Export/
+  // Import): tuning is exactly the kind of thing the roller shouldn't step
+  // on mid-way through — pause on the ON transition, confirmed-state only
+  // (matches this function's own "wait for hardware" contract above), same
+  // shape as pauseRollerForSave.
+  if (tunerOn && !wasOn && typeof pauseRollerForTuner === 'function') pauseRollerForTuner();
+}
+
+const logEl = document.getElementById('monitor-log');
+
+function monitorLog(dir, text) {
+  const ts  = new Date().toLocaleTimeString('en-US', { hour12:false });
+  const cls = dir === 'OUT' ? 'mlog-out' : 'mlog-in';
+  const row = document.createElement('div');
+  row.innerHTML = '<span class="mlog-ts">' + ts + '</span><span class="' + cls + '">' + (dir==='OUT'?'▶':'◀') + ' ' + text + '</span>';
+  logEl.appendChild(row);
+  while (logEl.children.length > 300) logEl.removeChild(logEl.firstChild);
+  logEl.scrollTop = logEl.scrollHeight;
+  // Everything in monitor also goes to log file
+  appLog(dir + ' ' + text);
+}
+
+document.getElementById('monitor-header').addEventListener('click', e => {
+  if (e.target === document.getElementById('btn-monitor-clear')) return;
+  monitorOpen = !monitorOpen;
+  document.getElementById('monitor-body').classList.toggle('open', monitorOpen);
+  document.getElementById('monitor-toggle-label').textContent = monitorOpen ? '▼ HIDE' : '▶ SHOW';
+});
+document.getElementById('btn-monitor-clear').addEventListener('click', () => { logEl.innerHTML = ''; });
+
+// ════════════════════════════════════════════════════════════════════
+// ABOUT
+// ════════════════════════════════════════════════════════════════════
+document.getElementById('btn-about').addEventListener('click', () => { document.getElementById('about-overlay').classList.add('open'); });
+document.getElementById('btn-manual').addEventListener('click', async () => {
+  if (window.electronAPI && window.electronAPI.openUserManual) {
+    const result = await window.electronAPI.openUserManual();
+    if (!result || !result.ok) appLog('Could not open user manual: ' + (result && result.error));
+  }
+});
+document.getElementById('btn-about-close').addEventListener('click', () => { document.getElementById('about-overlay').classList.remove('open'); });
+document.getElementById('about-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('about-overlay')) document.getElementById('about-overlay').classList.remove('open');
+});
+
+// ════════════════════════════════════════════════════════════════════
+// WATCHDOG
+// ════════════════════════════════════════════════════════════════════
+if (window.electronAPI) {
+  window.electronAPI.onWatchdogAlert((data) => {
+    appLog('Watchdog: ' + data.message.replace(/\n/g,' '));
+    updateAvidStatus(data.running);
+    if (data.running) {
+      // Editor opened — show popup so Charlie knows there's a potential
+      // port conflict with the bridge (harmless if it closes again)
+      document.getElementById('watchdog-msg').textContent = data.message;
+      document.getElementById('watchdog-overlay').classList.add('open');
+    }
+    // Editor closed — just update badge silently, no popup needed (no
+    // effect on this app since the bridge owns the ports independently)
+  });
+  document.getElementById('btn-watchdog-ok').addEventListener('click', () => {
+    document.getElementById('watchdog-overlay').classList.remove('open');
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// STARTUP CONNECT GATE — like Avid's own "can't find hardware" prompt.
+// Startup only (see armStartupGate/hasCompletedInitialConnect in
+// transport.js) — a mid-session drop is the status-bar indicator + retry
+// button's job, not this modal's. Main window stays hidden the whole
+// time this runs (main.js show:false); the splash window is what the
+// user actually sees, driven from here via the electronAPI splash* IPC.
+// ════════════════════════════════════════════════════════════════════
+function showStartupGate() {
+  appLog('Startup gate: rack not found within grace period — blocking');
+  if (window.electronAPI) window.electronAPI.splashShowGate();
+}
+// Firmware mismatch gate (2026-08-28) — see HARDWARE SAFETY / EXPECTED_
+// FIRMWARE_BUILD (state.js) and checkInitialPopulateReady (transport.js).
+// No hide function: unlike the no-hardware gate, there's no "Try Again"
+// path that could plausibly resolve this — the rack's firmware doesn't
+// change by rescanning — so this is a one-way block for the session.
+// "0157" -> "0.1.5.7", matching how Charlie/Avid write the build number.
+function dotBuild(s) { return s ? s.split('').join('.') : s; }
+
+function showFirmwareGate(versionSeen) {
+  appLog('Firmware gate: build ' + (versionSeen || '(no reply)') +
+         ' — does not match expected ' + EXPECTED_FIRMWARE_BUILD + ' — blocking');
+  if (window.electronAPI) window.electronAPI.splashShowGate({
+    reason: 'firmware',
+    reportedBuild: versionSeen ? dotBuild(versionSeen) : null,
+    expectedBuild: dotBuild(EXPECTED_FIRMWARE_BUILD)
+  });
+}
+// Java-missing gate (2026-09-05) — see the bridge-status handler below,
+// which routes here only when the bridge process itself failed to spawn
+// (ENOENT) AND this is still the first connect of the session. Unlike the
+// firmware gate's "nothing will change by rescanning" reasoning, Try Again
+// is hidden here for a DIFFERENT reason (confirmed via live testing, not
+// theory): a Java install made after Eleven Edit launched changes the
+// Windows PATH, but this already-running process's own environment is
+// fixed at launch — clicking Try Again re-runs the same check against the
+// same stale PATH and can never see the new install. Only fully quitting
+// and relaunching picks up the change. See splash.html for the exact
+// message shown.
+let javaGateShown = false;
+function showJavaGate() {
+  if (javaGateShown) return;
+  javaGateShown = true;
+  appLog('Java gate: bridge process failed to launch — likely no JRE on PATH — blocking');
+  if (window.electronAPI) window.electronAPI.splashShowGate({ reason: 'java' });
+}
+// Java-too-old gate (2026-09-05) — distinct from showJavaGate above: java
+// WAS found, main.js's preflight refused to launch the bridge against it.
+// Try Again hidden for the identical stale-PATH reason as showJavaGate.
+let javaVersionGateShown = false;
+function showJavaVersionGate(detectedVersion) {
+  if (javaVersionGateShown) return;
+  javaVersionGateShown = true;
+  appLog('Java version gate: detected Java ' + (detectedVersion || '(unknown)') +
+         ', below required ' + MIN_JAVA_VERSION_DISPLAY + ' — blocking');
+  if (window.electronAPI) window.electronAPI.splashShowGate({ reason: 'java-version', detectedVersion: detectedVersion });
+}
+function hideStartupGate() {
+  javaGateShown = false;
+  javaVersionGateShown = false;
+  if (window.electronAPI) window.electronAPI.splashHideGate();
+}
+function splashSetProgress(message, fraction) {
+  if (window.electronAPI) window.electronAPI.splashProgress({ message: message, fraction: fraction });
+}
+if (window.electronAPI) {
+  // Fired when the splash window's own Try Again button is clicked —
+  // main.js relays it here rather than the splash having any bridge logic.
+  window.electronAPI.onStartupRetryClick(async () => {
+    hideStartupGate();
+    setStatus('Retrying — restarting Java bridge...');
+    appLog('Startup gate: Try Again — restarting bridge');
+    splashSetProgress('Restarting Java bridge...', 0.1);
+    try { await window.electronAPI.restartBridge(); } catch(e) {}
+    setTimeout(connectBridgeWs, 500);
+    armStartupGate();
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BRIDGE PROCESS STATUS — surfaces jar launch/crash issues in the UI
+// ════════════════════════════════════════════════════════════════════
+if (window.electronAPI && window.electronAPI.onBridgeStatus) {
+  window.electronAPI.onBridgeStatus((data) => {
+    if (!data.launched) {
+      appLog('Bridge process problem: ' + (data.error || 'stopped'));
+      setStatus('Bridge process stopped — ' + (data.error || 'check ElevenRackBridge.jar / JRE install'));
+      // ENOENT here means 'java' itself couldn't be spawned — almost always
+      // no JRE installed/on PATH. During the FIRST connect of the session
+      // this would otherwise surface only as the generic "can't find
+      // hardware" gate once the grace timer expires, which is actively
+      // misleading (it isn't a hardware problem). A later, mid-session
+      // bridge crash stays the status-bar's job, same as any other error —
+      // this only escalates to a gate before the first successful connect.
+      if (!hasCompletedInitialConnect && data.error && data.error.indexOf('ENOENT') !== -1) {
+        clearTimeout(startupGateTimer);
+        showJavaGate();
+      }
+      // Distinct from the ENOENT case above: java WAS found, but main.js's
+      // preflight check (checkJavaVersionThenLaunch) determined it's below
+      // MIN_JAVA_MAJOR_VERSION and refused to even spawn the bridge — JRE 8
+      // and JRE 21 are both confirmed to freeze the app solid on real
+      // hardware (2026-09-05 testing), so this has to block before launch,
+      // not after a hang with no way to recover from it.
+      if (!hasCompletedInitialConnect && data.error && data.error.indexOf('Java version') !== -1) {
+        clearTimeout(startupGateTimer);
+        showJavaVersionGate(data.javaVersion);
+      }
+    }
+  });
+}
+
+document.getElementById('btn-restart-bridge').addEventListener('click', async function() {
+  setStatus('Restarting bridge process...');
+  appLog('Manual bridge restart requested');
+  document.getElementById('midi-dot').classList.remove('connected');
+  bridgeMidiReady = false;
+  try {
+    if (bridgeWs) { try { bridgeWs.close(); } catch(e) {} }
+    await window.electronAPI.restartBridge();
+    setTimeout(connectBridgeWs, 1500);
+  } catch(e) {
+    setStatus('Restart failed: ' + e.message);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// ZOOM
+// ════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════
+// TONE KNOB DRAG — delegated handler, sends via sendParamWrite
+// ════════════════════════════════════════════════════════════════════
+(function() {
+  let dragging = false, startY = 0, startVal = 0, activeWrap = null, activeIdx = -1;
+
+  document.addEventListener('mousedown', function(e) {
+    const wrap = e.target.closest('.knob-wrap[data-tone-idx]');
+    if (!wrap) return;
+    activeIdx = parseInt(wrap.dataset.toneIdx);
+    if (isNaN(activeIdx) || activeIdx < 0) return;
+    activeWrap = wrap;
+    startVal = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    startY = e.clientY;
+    dragging = true;
+    syncClearedThisDrag = false;   // one Sync clear per drag, not per mousemove
+    // R9 — mark this knob's paramLo as the active drag target so a broadcast
+    // (notably the Sync-clear reply on a Speed drag, R7) can't repaint it
+    // mid-drag. Same guard as delayDragLo. Cleared on release below.
+    toneValueDragLo = -1;
+    if (currentAmpKey) {
+      const dk = getOrderedToneKnobs(currentAmpKey);
+      if (activeIdx < dk.length) toneValueDragLo = dk[activeIdx].lo;
+    }
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging || !activeWrap) return;
+    if (e.buttons === 0) { dragging = false; activeWrap = null; toneValueDragLo = -1; return; }  // released outside the window
+    const val = Math.max(0, Math.min(127, Math.round(startVal + (startY - e.clientY))));
+    activeWrap.dataset.value = val;
+    drawKnob(activeWrap.querySelector('canvas'), val);
+    const vEl = document.getElementById('tone-v' + activeIdx);
+    if (vEl) vEl.textContent = valDisplay(val);
+    if (currentAmpKey && currentParamHi >= 0) {
+      const knobs = getOrderedToneKnobs(currentAmpKey);
+      if (activeIdx < knobs.length) {
+        const lo = knobs[activeIdx].lo;
+        // SPEED (0x11) — the rack refuses a Speed write while Sync is on a
+        // division, and clears Sync to OFF the moment its OWN Speed knob is
+        // turned. Mirror that: clear Sync once per drag, then write Speed
+        // normally. Avid does NOT do this, which is why its Speed knob is
+        // inert in the same state — Avid_Shark_Sync_Test.pcapng shows ~40
+        // Speed writes ignored, the rack echoing the unchanged value back
+        // every time.
+        if (lo === 0x11 && currentSyncZone !== 0 && !syncClearedThisDrag) {
+          syncClearedThisDrag = true;
+          sendParamWrite(0x12, 0);
+          appLog('Speed moved while Sync was on ' + SYNC_DIVISIONS[currentSyncZone].text
+                 + ' — clearing Sync to OFF first (the rack does the same)');
+        }
+        queueKnobSend('tone:' + lo, function(v) { sendParamWrite(lo, v); }, val);
+      }
+    }
+  });
+
+  window.addEventListener('mouseup', function() { dragging = false; activeWrap = null; activeIdx = -1; toneValueDragLo = -1; });
+  window.addEventListener('blur', function() { dragging = false; activeWrap = null; activeIdx = -1; toneValueDragLo = -1; });
+
+  document.addEventListener('dblclick', function(e) {
+    const wrap = e.target.closest('.knob-wrap[data-tone-idx]');
+    if (!wrap) return;
+    const idx = parseInt(wrap.dataset.toneIdx);
+    if (isNaN(idx) || idx < 0) return;
+    // R8 — restore to the load baseline (R3's dataset.orig), not a fixed
+    // centre value.
+    const val = (wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') ? parseInt(wrap.dataset.orig) : 64;
+    wrap.dataset.value = val;
+    drawKnob(wrap.querySelector('canvas'), val);
+    const vEl = document.getElementById('tone-v' + idx);
+    if (vEl) vEl.textContent = valDisplay(val);
+    if (currentAmpKey && currentParamHi >= 0) {
+      const knobs = getOrderedToneKnobs(currentAmpKey);
+      if (idx < knobs.length) {
+        const lo = knobs[idx].lo;
+        // R7 — Speed is Sync-driven; a double-click restore must clear Sync
+        // first too, same as a drag grab (see the mousedown/mousemove pair
+        // above).
+        if (lo === 0x11 && currentSyncZone !== 0 && !syncClearedThisDrag) {
+          syncClearedThisDrag = true;
+          sendParamWrite(0x12, 0);
+          appLog('Speed double-click restore while Sync was on ' + SYNC_DIVISIONS[currentSyncZone].text
+                 + ' — clearing Sync to OFF first (the rack does the same)');
+        }
+        queueKnobSend('tone:' + lo, function(v) { sendParamWrite(lo, v); }, val);
+      }
+    }
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════
+// SCROLL WHEEL on tone / DIST / REVERB knobs (item 4, 7/26)
+// The Gate / To Amp / Rig Vol / Amp Out knobs already scroll via initKnob;
+// these delegated-handler knobs did not. One notch = 1 hardware unit (the
+// finest the rack accepts), matching the other knobs. Wheel up = increase.
+// Sends go through the same throttle as drags so a fast spin cannot flood the
+// rack; the red "changed" colour and SAVE-dirty latch follow automatically
+// because the send path is identical.
+// ════════════════════════════════════════════════════════════════════
+(function() {
+  function step(wrap, e) {
+    var v = (wrap.dataset.value !== undefined && wrap.dataset.value !== '') ? parseInt(wrap.dataset.value) : 64;
+    v = Math.max(0, Math.min(127, v - Math.sign(e.deltaY)));   // wheel up (deltaY<0) = increase
+    wrap.dataset.value = v;
+    drawKnob(wrap.querySelector('canvas'), v);
+    return v;
+  }
+  document.addEventListener('wheel', function(e) {
+    // Amp tone knobs (keyed by data-tone-idx, per-amp paramLo lookup)
+    var tw = e.target.closest('.knob-wrap[data-tone-idx]');
+    if (tw) {
+      var idx = parseInt(tw.dataset.toneIdx);
+      if (isNaN(idx) || idx < 0) return;
+      e.preventDefault();
+      var tv = step(tw, e);
+      var tEl = document.getElementById('tone-v' + idx);
+      if (tEl) tEl.textContent = valDisplay(tv);
+      if (currentAmpKey && currentParamHi >= 0) {
+        var knobs = getOrderedToneKnobs(currentAmpKey);
+        if (idx < knobs.length) {
+          var lo = knobs[idx].lo;
+          // Speed (0x11): the rack ignores a Speed write while Sync is on a
+          // division and clears Sync when its own Speed knob moves — mirror the
+          // drag handler and clear Sync first.
+          if (lo === 0x11 && currentSyncZone !== 0) {
+            queueKnobSend('tone:12', function(){ sendParamWrite(0x12, 0); }, 0);
+          }
+          queueKnobSend('tone:' + lo, function(val){ sendParamWrite(lo, val); }, tv);
+        }
+      }
+      return;
+    }
+    // DIST knobs (keyed by data-dist-lo)
+    var dw = e.target.closest('.knob-wrap[data-dist-lo]');
+    if (dw) {
+      var dlo = parseInt(dw.dataset.distLo, 16);
+      if (isNaN(dlo)) return;
+      e.preventDefault();
+      var dv = step(dw, e);
+      var dEl = document.getElementById('dist-v-' + dw.dataset.distLo);
+      if (dEl) dEl.textContent = valDisplay(dv);
+      if (bridgeMidiReady) queueKnobSend('dist:' + dlo, function(val){ sendDistParamWrite(dlo, val); }, dv);
+      return;
+    }
+    // REVERB knobs (keyed by data-reverb-lo). Routed through updateReverbKnob
+    // (fx-panels.js) rather than the generic step() helper every other panel
+    // here uses — REVERB is the one block where a knob update can also mean
+    // "the Type changed," which has to run the per-Type sub-cache save/
+    // apply/seed sequence (reverbHandleTypeChange) no matter which input
+    // method moved it. The generic step()+drawKnob path never touched
+    // dataset.orig or that sequence at all, so a wheel notch on ANY REVERB
+    // knob — including scrolling the Type knob itself, not just its
+    // dropdown — silently desynced the tick from reality (2026-09-01 fix;
+    // this was the real cause of Charlie's persistent tick reports, not the
+    // sub-cache logic itself).
+    var rw = e.target.closest('.knob-wrap[data-reverb-lo]');
+    if (rw) {
+      var rlo = parseInt(rw.dataset.reverbLo, 16);
+      if (isNaN(rlo)) return;
+      e.preventDefault();
+      var rCur = (rw.dataset.value !== undefined && rw.dataset.value !== '') ? parseInt(rw.dataset.value) : 64;
+      var rv = Math.max(0, Math.min(127, rCur - Math.sign(e.deltaY)));
+      if (typeof updateReverbKnob === 'function') updateReverbKnob(rlo, rv, true);
+      if (bridgeMidiReady) queueKnobSend('reverb:' + rlo, function(val){ sendReverbParamWrite(rlo, val); }, rv);
+      return;
+    }
+    // FX-HOST knobs (FX1/FX2/MOD, keyed by data-fxhost-lo). Uses
+    // updateFxHostKnob so a cell's custom display() formula (Dyn3
+    // Threshold/Attack/etc.) is honoured instead of the generic 0-10
+    // valDisplay.
+    var fw = e.target.closest('.knob-wrap[data-fxhost-lo]');
+    if (fw) {
+      var flo = parseInt(fw.dataset.fxhostLo, 16);
+      if (isNaN(flo)) return;
+      e.preventDefault();
+      var fv = step(fw, e);
+      var fSlot = openFxHostSlot;
+      if (typeof updateFxHostKnob === 'function') updateFxHostKnob(flo, fv);
+      if (bridgeMidiReady) queueKnobSend('fxhost:' + flo, function(val){ sendFxHostParamWrite(fSlot, flo, val); }, fv);
+      return;
+    }
+    // WAH knobs (keyed by data-wah-lo)
+    var ww = e.target.closest('.knob-wrap[data-wah-lo]');
+    if (ww) {
+      var wlo = parseInt(ww.dataset.wahLo, 16);
+      if (isNaN(wlo)) return;
+      e.preventDefault();
+      var wv = step(ww, e);
+      var wEl = document.getElementById('wah-v-' + ww.dataset.wahLo);
+      if (wEl) wEl.textContent = valDisplay(wv);
+      if (bridgeMidiReady) queueKnobSend('wah:' + wlo, function(val){ sendWahParamWrite(wlo, val); }, wv);
+      return;
+    }
+    // VOL knobs (keyed by data-vol-lo; the Taper toggle is a <button>, not a
+    // .knob-wrap, so it never matches this selector — nothing to exclude)
+    var vw = e.target.closest('.knob-wrap[data-vol-lo]');
+    if (vw) {
+      var vlo = parseInt(vw.dataset.volLo, 16);
+      if (isNaN(vlo)) return;
+      e.preventDefault();
+      var vv = step(vw, e);
+      var vEl = document.getElementById('vol-v-' + vw.dataset.volLo);
+      if (vEl) vEl.textContent = valDisplay(vv);
+      if (bridgeMidiReady) queueKnobSend('vol:' + vlo, function(val){ sendVolParamWrite(vlo, val); }, vv);
+      return;
+    }
+    // FX LOOP knobs (keyed by data-fxloop-lo)
+    var flw = e.target.closest('.knob-wrap[data-fxloop-lo]');
+    if (flw) {
+      var fllo = parseInt(flw.dataset.fxloopLo, 16);
+      if (isNaN(fllo)) return;
+      e.preventDefault();
+      var flv = step(flw, e);
+      var flEl = document.getElementById('fxloop-v-' + flw.dataset.fxloopLo);
+      if (flEl) flEl.textContent = (typeof fxLoopKnobDisplay === 'function') ? fxLoopKnobDisplay(fllo, flv) : valDisplay(flv);
+      if (bridgeMidiReady) queueKnobSend('fxloop:' + fllo, function(val){ sendFxLoopParamWrite(fllo, val); }, flv);
+      return;
+    }
+    // DELAY knobs (keyed by data-delay-lo; toggles are <button>s and the
+    // Sync selector is a <select>, neither matches this selector)
+    var dw = e.target.closest('.knob-wrap[data-delay-lo]');
+    if (dw) {
+      var dlo = parseInt(dw.dataset.delayLo, 16);
+      if (isNaN(dlo)) return;
+      e.preventDefault();
+      var dv = step(dw, e);
+      var dEl = document.getElementById('delay-v-' + dw.dataset.delayLo);
+      if (dEl) dEl.textContent = (typeof delayKnobDisplay === 'function') ? delayKnobDisplay(dlo, dv) : valDisplay(dv);
+      // R7 — Delay is Sync-driven; the rack refuses the write unless we
+      // explicitly clear Sync first (same as amp Tremolo Speed) — a
+      // local-only UI clear is not enough (2026-08-02 live-test fix).
+      if (dlo === 0x04) {
+        var dsel = document.getElementById('delay-sync-select');
+        if (dsel && dsel.value !== '0') {
+          if (typeof updateDelaySync === 'function') updateDelaySync(0);
+          if (bridgeMidiReady && typeof sendDelayParamWrite === 'function') sendDelayParamWrite(0x05, 0);
+        }
+      }
+      if (bridgeMidiReady) queueKnobSend('delay:' + dlo, function(val){ sendDelayParamWrite(dlo, val); }, dv);
+      return;
+    }
+  }, { passive: false });
+})();
+
+// ════════════════════════════════════════════════════════════════════
+// TO AMP 1 & 2 — CMD 0x36 volume knobs, CMD 0x37 source dropdowns
+// ════════════════════════════════════════════════════════════════════
+// Drag flags — readback handler checks these and skips display update
+// while the user is actively dragging, preventing HW broadcasts from
+// fighting the drag in progress.
+var toAmp1Dragging = false;
+var toAmp2Dragging = false;
+
+(function() {
+  var w1 = document.getElementById('toamp1-vol-wrap');
+  var w2 = document.getElementById('toamp2-vol-wrap');
+  if (w1) {
+    w1.addEventListener('mousedown', function() { toAmp1Dragging = true; });
+    window.addEventListener('mouseup', function() { toAmp1Dragging = false; });
+  }
+  if (w2) {
+    w2.addEventListener('mousedown', function() { toAmp2Dragging = true; });
+    window.addEventListener('mouseup', function() { toAmp2Dragging = false; });
+  }
+})();
+
+initKnob('toamp1-vol-wrap', 'toamp1-vol-val', valToAmpVol, function(v) { sendToAmpVolume(0x02, v); });
+initKnob('toamp2-vol-wrap', 'toamp2-vol-val', valToAmpVol, function(v) { sendToAmpVolume(0x03, v); });
+
+// To Amp source pickers (re-enabled 2026-08-29 with the corrected 9-byte
+// CMD 0x37, see transport.js sendToAmpSource). Sent BARE — no CMD 0x3A query
+// first — matching the Avid editor exactly (the 2026-08-29 capture shows it
+// queries nothing before a source change). Source is global, not per-patch, so
+// this must NOT light the SAVE latch: sendToAmpSource uses sendHex directly,
+// not sendPatchWrite, so it doesn't. The <select> sits inside #toampN-knob,
+// which setVolumeControlsEnabled() enables/disables on bridge connect, so the
+// picker is dead (pointer-events:none, dimmed) until the rack is live — no
+// separate enable wiring needed. The picker reflects confirmed state via the
+// CMD 0x37 broadcast handler (our own send's echo, or a front-panel/editor
+// change); it starts on the "— Src —" placeholder because there is no
+// connect-time source read (same limitation as the Input selector).
+[['toamp1-src', 0x00], ['toamp2-src', 0x01]].forEach(function(pair) {
+  var sel = document.getElementById(pair[0]);
+  if (!sel) return;
+  sel.addEventListener('change', function() {
+    var val = parseInt(sel.value, 10);
+    if (isNaN(val) || val < 0) return;
+    sendToAmpSource(pair[1], val);
+    placeToAmpTapIndicators();  // reflect the new tap point immediately
+  });
+});
+
+// FX Loop routing picker (CMD 0x3C) — GLOBAL, not per-patch. Reflects the real
+// hardware routing read on connect (sendFxLoopRoutingQuery), and sets it via
+// sendFxLoopRoutingSet (plain sendHex, so it does NOT light the SAVE latch).
+// The 0x3C set-echo/broadcast comes back through handleFxLoopRouting, which
+// calls setFxLoopRoutingDisplay to keep the picker in sync with front-panel or
+// Avid changes too.
+function setFxLoopRoutingDisplay(val) {
+  var sel = document.getElementById('fxloop-routing-select');
+  if (!sel) return;
+  if (val === undefined || val === null || val < 0) return;  // unknown — leave as-is
+  sel.value = String(val);
+}
+(function() {
+  var sel = document.getElementById('fxloop-routing-select');
+  if (!sel) return;
+  sel.addEventListener('change', function() {
+    var val = parseInt(sel.value, 10);
+    if (isNaN(val) || val < 0) return;
+    sendFxLoopRoutingSet(val);
+  });
+})();
+
+// True-Z picker (CMD 0x34) — PER-PATCH. Populated from TRUEZ_OPTIONS; reflects
+// the per-patch value read on connect/nav (sendTrueZQuery / the nav pull), and a
+// user change sets via sendTrueZSet (which marks the patch dirty). Front-panel /
+// Avid / model-change broadcasts (02 34) flow back through handleTrueZ ->
+// setTrueZDisplay to keep it in sync.
+(function populateTrueZ() {
+  var sel = document.getElementById('truez-select');
+  if (!sel || typeof TRUEZ_OPTIONS === 'undefined') return;
+  TRUEZ_OPTIONS.forEach(function(o) {
+    var opt = document.createElement('option');
+    opt.value = String(o.val);
+    opt.textContent = o.label;
+    sel.appendChild(opt);
+  });
+})();
+function setTrueZDisplay(val) {
+  if (navPaintDeferred) { navPendingPaints.push(function() { setTrueZDisplay(val); }); return; }
+  var sel = document.getElementById('truez-select');
+  if (!sel) return;
+  if (val === undefined || val === null || val < 0) return;  // unknown — leave as-is
+  // Assigning a value with no matching <option> makes the select render an EMPTY
+  // frame (no text) — the intermittent blank Charlie saw. Only assign when the
+  // value is one we have an option for; otherwise keep the current display and
+  // log the stray value (also useful evidence for the Auto-resolved question:
+  // if Auto ever broadcasts a resolved 0x00-0x0B, it lands here). 2026-08-31.
+  var target = String(val);
+  var hasOpt = Array.prototype.some.call(sel.options, function(o) { return o.value === target; });
+  if (!hasOpt) {
+    appLog('True-Z: read value 0x' + val.toString(16).padStart(2,'0').toUpperCase()
+      + ' has no matching option — keeping current display (not blanking)');
+    return;
+  }
+  sel.value = target;
+  syncLoadedMarker(sel, 'truez-select');
+}
+(function() {
+  var sel = document.getElementById('truez-select');
+  if (!sel) return;
+  // Debounced (2026-09-02, generalized from the Amp Select fix — see
+  // queueKnobSend, ui.js) — a held arrow key fires a real 'change' event,
+  // and thus a real hardware write, on every repeat with no throttling.
+  sel.addEventListener('change', function() {
+    var val = parseInt(sel.value, 10);
+    if (isNaN(val) || val < 0) return;
+    queueKnobSend('truez-select', sendTrueZSet, val);
+  });
+})();
+
+// Output mode picker (CMD 0x35) — GLOBAL, not per-patch. Same pattern as the FX
+// Loop routing picker: reflects the connect-read value (sendOutputModeQuery),
+// sets via sendOutputModeSet (plain sendHex, no SAVE latch), and stays in sync
+// with front-panel/Avid changes via the 0x35 broadcast -> handleOutputMode.
+function setOutputModeDisplay(val) {
+  var sel = document.getElementById('output-mode-select');
+  if (!sel) return;
+  if (val === undefined || val === null || val < 0) return;  // unknown — leave as-is
+  sel.value = String(val);
+}
+(function() {
+  var sel = document.getElementById('output-mode-select');
+  if (!sel) return;
+  sel.addEventListener('change', function() {
+    var val = parseInt(sel.value, 10);
+    if (isNaN(val) || val < 0) return;
+    sendOutputModeSet(val);
+  });
+})();
+

@@ -1,0 +1,35 @@
+Eleven Edit
+Copyright (c) 2026 Charles Wardick
+
+This software is released under the MIT License (see the LICENSE file).
+
+--------------------------------------------------------------------------
+Acknowledgments
+--------------------------------------------------------------------------
+Eleven Edit was written independently, from scratch. No third-party source
+code is included, copied, or reused.
+
+The Eleven Rack USB / MIDI (SysEx) protocol used by this software was
+re-derived independently through direct packet analysis (Wireshark). No Avid
+software, firmware, or source code was used at any point.
+
+The SysEx protocol map builds on -- and gratefully acknowledges -- the earlier
+reverse-engineering work of:
+
+    Guillaume Schmid -- ElevenHack (2013)
+    https://sites.google.com/site/elevenhack/
+    ElevenHack is licensed under the Apache License, Version 2.0.
+
+ElevenHack was consulted as conceptual reference only. None of its code was
+copied, ported, or incorporated; the two projects share no source and are
+built on different technology stacks.
+
+--------------------------------------------------------------------------
+A request to anyone building on this project
+--------------------------------------------------------------------------
+If you create a derivative work, please keep both Charles Wardick and
+Guillaume Schmid named in your credits or acknowledgments, passing the same
+courtesy forward to the next person.
+
+This is a request, made in the same spirit as the one ElevenHack made, not a
+condition of the MIT License.
