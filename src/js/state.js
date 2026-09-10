@@ -339,6 +339,12 @@ let hasReceivedAmpOutValue = false;
 let ampSelectSyncing = false; // guards against the sync below re-triggering a send
 
 const BRIDGE_URL = 'ws://localhost:57121';
+// macOS port (2026-09-10): the bridge process is a native CoreMIDI binary
+// (bridge-macos/ElevenRackBridge.swift), not the Java jar — same WebSocket
+// protocol, so only the wording and the port auto-detect differ (transport.js).
+const IS_MAC = !!(window.electronAPI && window.electronAPI.platform === 'darwin');
+const BRIDGE_LABEL     = IS_MAC ? 'CoreMIDI bridge' : 'Java bridge';
+const BRIDGE_EXE_LABEL = IS_MAC ? 'ElevenRackBridge (native)' : 'ElevenRackBridge.jar';
 let bridgeWs        = null;
 let bridgeReady      = false;   // socket open
 let bridgeMidiReady  = false;   // socket open AND ports connected

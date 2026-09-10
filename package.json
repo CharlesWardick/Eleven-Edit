@@ -1,12 +1,16 @@
 {
   "name": "eleven-edit",
   "version": "1.0.0",
-  "description": "Eleven Edit — Patch navigation, TFX capture and controls for Avid Eleven Rack (Java bridge transport)",
+  "description": "Eleven Edit \u2014 Patch navigation, TFX capture and controls for Avid Eleven Rack (Java bridge transport on Windows, native CoreMIDI bridge on macOS)",
   "author": "Charles Wardick <charles.wardick@gmail.com>",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win --x64",
+    "build:mac": "bash bridge-macos/build.sh && electron-builder --mac --arm64 --x64",
+    "bridge:mac": "bash bridge-macos/build.sh",
+    "test:bridge:mac": "bash bridge-macos/tests/run-smoke.sh",
+    "icons:mac": "python3 tools/gen_icns.py",
     "pack": "electron-builder --dir"
   },
   "build": {
@@ -14,7 +18,10 @@
     "productName": "Eleven Edit",
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "extraResources": [
+        "ElevenRackBridge.jar"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -24,6 +31,49 @@
       "license": "EULA.txt",
       "include": "installer/check-java.nsh"
     },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.music",
+      "minimumSystemVersion": "12.0",
+      "artifactName": "Eleven-Edit-${version}-macOS-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "bridge-macos/ElevenRackBridge",
+          "to": "ElevenRackBridge"
+        }
+      ]
+    },
+    "dmg": {
+      "sign": false,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
     "files": [
       "main.js",
       "preload.js",
@@ -31,11 +81,11 @@
       "assets/**/*"
     ],
     "extraResources": [
-      "ElevenRackBridge.jar",
       "LICENSE",
       "NOTICE",
       "UserManual.txt"
-    ]
+    ],
+    "afterPack": "scripts/afterpack-mac-adhoc-sign.js"
   },
   "devDependencies": {
     "electron": "^28.0.0",

@@ -3394,9 +3394,21 @@ function showJavaVersionGate(detectedVersion) {
          ', below required ' + MIN_JAVA_VERSION_DISPLAY + ' — blocking');
   if (window.electronAPI) window.electronAPI.splashShowGate({ reason: 'java-version', detectedVersion: detectedVersion });
 }
+// macOS bridge-missing gate (2026-09-10) — the native bridge binary failed
+// to spawn, or wasn't found inside the app bundle. No Java involved on this
+// platform, and unlike the Java gates Try Again IS offered: restartBridge
+// re-spawns the binary, which is exactly the retry that could succeed.
+let bridgeGateShown = false;
+function showBridgeGate(detail) {
+  if (bridgeGateShown) return;
+  bridgeGateShown = true;
+  appLog('Bridge gate: native bridge failed to launch — ' + (detail || '(no detail)') + ' — blocking');
+  if (window.electronAPI) window.electronAPI.splashShowGate({ reason: 'bridge', detail: detail || '' });
+}
 function hideStartupGate() {
   javaGateShown = false;
   javaVersionGateShown = false;
+  bridgeGateShown = false;
   if (window.electronAPI) window.electronAPI.splashHideGate();
 }
 function splashSetProgress(message, fraction) {
@@ -3407,9 +3419,9 @@ if (window.electronAPI) {
   // main.js relays it here rather than the splash having any bridge logic.
   window.electronAPI.onStartupRetryClick(async () => {
     hideStartupGate();
-    setStatus('Retrying — restarting Java bridge...');
+    setStatus('Retrying — restarting ' + BRIDGE_LABEL + '...');
     appLog('Startup gate: Try Again — restarting bridge');
-    splashSetProgress('Restarting Java bridge...', 0.1);
+    splashSetProgress('Restarting ' + BRIDGE_LABEL + '...', 0.1);
     try { await window.electronAPI.restartBridge(); } catch(e) {}
     setTimeout(connectBridgeWs, 500);
     armStartupGate();
@@ -3423,7 +3435,7 @@ if (window.electronAPI && window.electronAPI.onBridgeStatus) {
   window.electronAPI.onBridgeStatus((data) => {
     if (!data.launched) {
       appLog('Bridge process problem: ' + (data.error || 'stopped'));
-      setStatus('Bridge process stopped — ' + (data.error || 'check ElevenRackBridge.jar / JRE install'));
+      setStatus('Bridge process stopped — ' + (data.error || (IS_MAC ? 'check the bundled ElevenRackBridge binary' : 'check ElevenRackBridge.jar / JRE install')));
       // ENOENT here means 'java' itself couldn't be spawned — almost always
       // no JRE installed/on PATH. During the FIRST connect of the session
       // this would otherwise surface only as the generic "can't find
@@ -3431,9 +3443,11 @@ if (window.electronAPI && window.electronAPI.onBridgeStatus) {
       // misleading (it isn't a hardware problem). A later, mid-session
       // bridge crash stays the status-bar's job, same as any other error —
       // this only escalates to a gate before the first successful connect.
-      if (!hasCompletedInitialConnect && data.error && data.error.indexOf('ENOENT') !== -1) {
+      if (!hasCompletedInitialConnect && data.error &&
+          (data.error.indexOf('ENOENT') !== -1 ||
+           (IS_MAC && (data.error.indexOf('not found') !== -1 || data.error.indexOf('EACCES') !== -1)))) {
         clearTimeout(startupGateTimer);
-        showJavaGate();
+        if (IS_MAC) showBridgeGate(data.error); else showJavaGate();
       }
       // Distinct from the ENOENT case above: java WAS found, but main.js's
       // preflight check (checkJavaVersionThenLaunch) determined it's below

@@ -128,6 +128,64 @@ ENVIRONMENT:
   major version is below 25 (see JAVA VERSION GATE below and the Java-
   missing gate in Sec 24 Change Log 2026-09-04/05).
 
+MACOS PORT (2026-09-10) — same renderer, same WebSocket protocol, different
+  bridge. bridge-macos/ElevenRackBridge.swift (CoreMIDI + Network.framework,
+  ~450 lines, universal arm64+x86_64, ad-hoc signed, built by
+  bridge-macos/build.sh, shipped as an extraResource at
+  Eleven Edit.app/Contents/Resources/ElevenRackBridge) replaces the jar.
+  No JRE and no Avid driver: macOS's class USB-MIDI driver exposes the rack
+  as "Eleven Rack Rig" + "Eleven Rack External" (a source AND a destination
+  each — names per the Matt-Housley eleven-rack-driver README; that driver
+  is AUDIO-only and irrelevant here). The bridge's port list is one flat
+  array like Java's, but sources first then destinations, plus a
+  "kind":"in"|"out" field the renderer uses to split the two pickers
+  (transport.js populateBridgePorts; absent on Windows = old behaviour).
+  AUTO-DETECT (mac): IN = first "eleven"+"rig" source, OUT = first
+  "eleven"+"rig" destination (macPreferredPorts). *** UNVERIFIED ON REAL
+  HARDWARE *** — Windows uses IN=vendor-specific / OUT=External, so the Mac
+  default is a reasoned guess. If the identity request times out,
+  macTryNextPortCombo (transport.js) walks the other Eleven pairs once each
+  (Rig/Ext, Ext/Rig, Ext/Ext, ~10s per try) before the firmware gate, and
+  connectBridgeMidi->savePorts persists whichever pair answered.
+  main.js: IS_MAC branches only — spawn the binary instead of `java -jar`
+  (no Java version gate), pkill -x for orphan cleanup, pgrep -f (execFile,
+  no shell) for the Avid-editor watchdog, SIGKILL fallback in killBridge, a
+  real application menu (Cmd+Q / Cmd+C / Cmd+V), quit on window close on Mac
+  too, flags accept --logs/--nogpu/--t30 alongside /LOGS //NOGPU //T30.
+  Renderer: IS_MAC + BRIDGE_LABEL (state.js); 'bridge' splash gate when the
+  bridge fails to spawn (ui.js showBridgeGate — Try Again allowed, it
+  re-spawns); mac wording via applyMacLabels (app-init.js); pathToFileUrl
+  POSIX fix (chain-graphics.js). Windows 11 MIDI-stack gate resolves false
+  on Mac and stays dormant.
+  HOT-PLUG (mac only, new vs Java): the bridge rebroadcasts "ports" when the
+  MIDI setup changes while NOT connected (rack plugged in after launch ->
+  auto-connect), and "disconnected"+"ports" when the connected endpoints
+  vanish. Origin guard identical to Java's (file:// or none).
+  BUILD: npm run build:mac (electron-builder --mac dmg+zip, arm64+x64;
+  Electron ^28 deliberately unchanged, same runtime as Windows). UNSIGNED —
+  no Developer ID certificate — so Gatekeeper needs right-click->Open once.
+  TESTS (no hardware): bridge-macos/tests/run-smoke.sh — WS protocol vs a
+  virtual rack (identity, PC/CC, 1200-byte SysEx out / 1300-byte back
+  reassembled whole, error paths, stdin SHUTDOWN); tests/app-smoke.sh — the
+  whole app in dev mode vs the virtual rack (which also answers CMD 0x21 /
+  0x02 / 0x11 queries with canned data so the main window reveals).
+  VERIFIED 2026-09-10 (dev run AND the packaged .app, virtual rack): bridge
+  spawns, Electron 28's renderer WebSocket sends "Origin: file://" (accepted
+  by the same guard), Rig in/out auto-detected, identity reply parsed, chain
+  map + nav pull complete (~600 ms), main window reveals, stdin SHUTDOWN
+  exits the bridge on quit. userData on Mac is
+  ~/Library/Application Support/eleven-edit (package.json "name", not the
+  productName) — session logs live under its logs/ folder.
+  TRAP (2026-09-10, cost an hour): the first packaged build froze on launch
+  from Finder/`open` but ran fine from Terminal. `sample` showed the main
+  thread blocked in chmod(): doLaunchBridge had a "just in case"
+  fs.chmodSync(bridge, 0o755). A metadata write inside ~/Downloads (or any
+  TCC-protected folder) makes macOS raise a Files-and-Folders permission
+  prompt that blocks the syscall until answered; launched from a shell the
+  app inherits the shell's grant, launched from Finder it does not, and the
+  prompt was never visible. Rule: main.js must never WRITE inside its own
+  bundle or outside userData at startup on macOS; reads are fine.
+
 PLATFORM MATRIX (consolidated 7/21/2026 — supersedes all earlier scattered
 Windows notes). Avid USB driver v1.1.12 throughout.
 
@@ -3715,6 +3773,18 @@ v1.0.0 — PUBLIC RELEASE (2026-09-09). The final push to main renumbered the
   internal 1.4.x bump-every-session line (last build 1.4.105) to 1.0.0, the
   reserved public-release version. Code complete. No protocol/behaviour change
   in the renumber itself; the dated 1.4.xx entries below remain accurate history.
+
+2026-09-10 (MACOS PORT — mac build of v1.0.0, NOT yet tested on real hardware).
+  New: bridge-macos/ (ElevenRackBridge.swift, build.sh, tests/fake-rack.swift,
+  tests/ws-smoke.mjs, tests/run-smoke.sh, tests/app-smoke.sh), assets/icon.icns
+  + tools/gen_icns.py (tools/gen_icon.py made relocatable + importable),
+  package.json mac target/scripts (Electron ^28 unchanged). Changed: main.js
+  IS_MAC branches, preload.js untouched (platform already exposed), state.js
+  IS_MAC/BRIDGE_LABEL, transport.js mac auto-detect + macTryNextPortCombo +
+  kind-split pickers, ui.js showBridgeGate, splash.html 'bridge' gate,
+  app-init.js applyMacLabels, chain-graphics.js pathToFileUrl, index.html ids
+  for the swapped text, README + UserManual macOS sections. The Windows path
+  (jar, Java gate, NSIS installer) is untouched. Details: Sec 1 MACOS PORT.
 
 2026-09-09 (RELEASE-EVE BUG/POLISH, v1.4.92->1.4.105, TESTED LIVE, shipped in
   v1.0.0.) Three fixes plus a reference-only audit:

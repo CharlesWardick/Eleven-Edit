@@ -19,10 +19,57 @@ function isExternalMidiPort(name, desc) {
   return n.includes('eleven') && n.includes('external');
 }
 
+// ── macOS port names (2026-09-10) ──────────────────────────────────
+// With no Avid driver at all, macOS's class USB-MIDI driver shows the rack
+// as two ports each way: "Eleven Rack Rig" (the internal port the editor
+// protocol lives on) and "Eleven Rack External" (the rear-panel DIN jacks).
+// The CoreMIDI bridge lists sources (kind "in") and destinations (kind
+// "out") as separate entries, so IN and OUT can never collide here.
+function isMacRigPort(name)      { var n = (name||'').toLowerCase(); return n.includes('eleven') && n.includes('rig'); }
+function isMacExternalPort(name) { var n = (name||'').toLowerCase(); return n.includes('eleven') && n.includes('external'); }
+// Every Eleven-named endpoint of one kind, Rig first, then External, then
+// anything else Eleven-named (the ranking macTryNextPortCombo walks).
+function macRankedPorts(devices, kind) {
+  var all = (devices || []).filter(function(d) { return d.kind === kind && (d.name||'').toLowerCase().includes('eleven'); });
+  var rig  = all.filter(function(d) { return isMacRigPort(d.name); });
+  var ext  = all.filter(function(d) { return !isMacRigPort(d.name) && isMacExternalPort(d.name); });
+  var rest = all.filter(function(d) { return rig.indexOf(d) < 0 && ext.indexOf(d) < 0; });
+  return rig.concat(ext, rest);
+}
+function macPreferredPorts(devices) {
+  var ins = macRankedPorts(devices, 'in'), outs = macRankedPorts(devices, 'out');
+  return { inIdx: ins.length ? ins[0].index : -1, outIdx: outs.length ? outs[0].index : -1 };
+}
+// macOS port-pair fallback. Rig -> Rig is the expected pair, but the Windows
+// build SENDS on the External port and LISTENS on the vendor-specific one,
+// and no Mac has been tested against real hardware yet — so if the identity
+// request gets no reply, walk the other Eleven pairs once before failing
+// closed. Whichever pair answers is saved (connectBridgeMidi -> savePorts)
+// and becomes the default from then on. Returns true if a retry was started.
+var macCombosTried = [];
+function macTryNextPortCombo() {
+  if (!IS_MAC || !bridgePorts || !bridgePorts.length) return false;
+  var ins = macRankedPorts(bridgePorts, 'in'), outs = macRankedPorts(bridgePorts, 'out');
+  if (!ins.length || !outs.length) return false;
+  var key = function(i, o) { return i + '/' + o; };
+  if (macCombosTried.indexOf(key(bridgeInIdx, bridgeOutIdx)) < 0) macCombosTried.push(key(bridgeInIdx, bridgeOutIdx));
+  var next = null;
+  ins.forEach(function(i) { outs.forEach(function(o) {
+    if (!next && macCombosTried.indexOf(key(i.index, o.index)) < 0) next = { i: i, o: o };
+  }); });
+  if (!next) return false;
+  macCombosTried.push(key(next.i.index, next.o.index));
+  appLog('Firmware check: no reply on IN [' + bridgeInIdx + '] / OUT [' + bridgeOutIdx + '] — trying IN "' + next.i.name + '" / OUT "' + next.o.name + '"');
+  splashSetProgress('No reply on that port pair — trying ' + next.i.name + ' → ' + next.o.name + '...', 0.5);
+  connectBridgeMidi(next.i.index, next.o.index, bridgePorts);
+  setTimeout(function() { sendIdentityRequest(); armFirmwareCheckTimeout(); }, 800);
+  return true;
+}
+
 async function initMIDI() {
   applyStartupTimeoutOverride();
-  setStatus('Connecting to Java bridge...');
-  splashSetProgress('Starting Java bridge...', 0.1);
+  setStatus('Connecting to ' + BRIDGE_LABEL + '...');
+  splashSetProgress('Starting ' + BRIDGE_LABEL + '...', 0.1);
   armStartupGate();
   connectBridgeWs();
 }
@@ -91,6 +138,7 @@ function armFirmwareCheckTimeout() {
   clearTimeout(firmwareCheckTimer);
   firmwareCheckTimer = setTimeout(function() {
     if (firmwareCheckDone) return;
+    if (macTryNextPortCombo()) return;   // macOS: try the other Eleven port pair first
     firmwareCheckDone = true;
     firmwareOk = false;
     firmwareVersionSeen = null;
@@ -136,7 +184,7 @@ function connectBridgeWs() {
     };
 
     bridgeWs.onerror = function() {
-      setStatus('Bridge error — is ElevenRackBridge.jar running?');
+      setStatus('Bridge error — is ' + BRIDGE_EXE_LABEL + ' running?');
     };
 
     bridgeWs.onmessage = function(e) {
@@ -156,7 +204,7 @@ function handleBridgeMsg(msg) {
       clearTimeout(startupGateTimer);
       hideStartupGate();
       splashSetProgress('Eleven Rack found — reading current patch...', 0.6);
-      midiOutName = 'Eleven Rack (Java bridge)';
+      midiOutName = 'Eleven Rack (' + BRIDGE_LABEL + ')';
       document.getElementById('midi-dot').classList.add('connected');
       document.getElementById('midi-label').textContent = 'Connected';
       setStatus('Ready — ' + midiOutName);
@@ -277,13 +325,25 @@ function populateBridgePorts(devices) {
     var autoOut = -1, autoIn = -1;
     devices.forEach(function(d) {
       var label = '[' + d.index + '] ' + d.name + (d.desc ? ' — ' + d.desc : '');
-      var o1 = document.createElement('option'); o1.value = String(d.index); o1.textContent = label;
-      outSel.appendChild(o1);
-      var o2 = document.createElement('option'); o2.value = String(d.index); o2.textContent = label;
-      inSel.appendChild(o2);
+      // "kind" only comes from the macOS CoreMIDI bridge (sources and
+      // destinations are separate endpoints there): list each endpoint only
+      // in the picker it belongs to. The Java bridge sends no kind, so
+      // Windows keeps listing everything in both pickers, exactly as before.
+      if (!d.kind || d.kind === 'out') {
+        var o1 = document.createElement('option'); o1.value = String(d.index); o1.textContent = label;
+        outSel.appendChild(o1);
+      }
+      if (!d.kind || d.kind === 'in') {
+        var o2 = document.createElement('option'); o2.value = String(d.index); o2.textContent = label;
+        inSel.appendChild(o2);
+      }
       if (autoOut < 0 && isExternalMidiPort(d.name, d.desc)) autoOut = d.index;
       if (autoIn  < 0 && isVendorSpecific(d.name, d.desc))   autoIn  = d.index;
     });
+    if (IS_MAC) {
+      var macPick = macPreferredPorts(devices);   // Rig in / Rig out by default
+      autoIn = macPick.inIdx; autoOut = macPick.outIdx;
+    }
 
     if (autoIn >= 0 && autoIn === autoOut) {
       appLog('Port auto-detect: IN and OUT both matched device [' + autoIn + '] — treating as ambiguous, not auto-connecting');
@@ -319,8 +379,8 @@ function finishPortSelection(autoIn, autoOut, devices) {
   if (autoOut >= 0) outSel.value = String(autoOut);
   if (autoIn  >= 0) inSel.value  = String(autoIn);
 
-  if (autoIn < 0) appLog('IN: "Eleven Rack No details available" port not found — select manually');
-  if (autoOut < 0) appLog('OUT: "Eleven Rack External MIDI Port" not found — select manually');
+  if (autoIn < 0) appLog('IN: ' + (IS_MAC ? '"Eleven Rack Rig" input' : '"Eleven Rack No details available" port') + ' not found — select manually');
+  if (autoOut < 0) appLog('OUT: ' + (IS_MAC ? '"Eleven Rack Rig" output' : '"Eleven Rack External MIDI Port"') + ' not found — select manually');
 
   if (autoIn >= 0 && autoOut >= 0 && autoIn !== autoOut) {
     connectBridgeMidi(autoIn, autoOut, devices);

@@ -59,7 +59,7 @@
 
   <div id="progress-view">
     <div id="progress-track"><div id="progress-bar"></div></div>
-    <div id="status-text">Starting Java bridge...</div>
+    <div id="status-text">Starting MIDI bridge...</div>
   </div>
 
   <div id="gate-view">
@@ -143,6 +143,17 @@
         'QUIT Eleven Edit and start it again (a just-installed Java will not ' +
         'be found without a full restart).';
       retryBtn.style.display = 'none';
+    } else if (data && data.reason === 'bridge') {
+      // macOS (2026-09-10): the native MIDI bridge (ElevenRackBridge, bundled
+      // inside Eleven Edit.app) failed to start — nothing to do with Java on
+      // this platform. Try Again stays available: restartBridge re-spawns it.
+      var detail = data.detail
+        ? '<br><br><span style="opacity:0.7;">' + String(data.detail).replace(/</g, '&lt;') + '</span>' : '';
+      gateMsg.innerHTML = 'Eleven Edit could not start its MIDI bridge component (ElevenRackBridge).' +
+        '<br><br>It ships inside Eleven Edit.app — if this keeps happening, re-download Eleven Edit ' +
+        'and drag it to Applications again.' + detail +
+        '<br><br>Click Try Again to relaunch the bridge. Click Quit to close.';
+      retryBtn.style.display = '';
     } else if (data && data.reason === 'firmware') {
       // Firmware mismatch (2026-08-28) — Try Again is hidden here on
       // purpose: the rack's firmware won't change by rescanning, so

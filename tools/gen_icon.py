@@ -11,6 +11,12 @@ Output: assets/icon.ico (multi-size: 16/32/48/256) and assets/icon.png
 """
 from PIL import Image, ImageDraw
 import math
+import os
+
+# Paths are relative to this script (was a hardcoded /home/user path — fixed
+# 2026-09-10 so it runs anywhere; gen_icns.py also imports make_icon from here).
+HERE = os.path.dirname(os.path.abspath(__file__))
+ASSETS = os.path.normpath(os.path.join(HERE, "..", "assets"))
 
 BG_TOP    = (58, 58, 58, 255)
 BG_BOTTOM = (22, 22, 22, 255)
@@ -136,22 +142,21 @@ def make_icon(size):
     return canvas
 
 
-sizes = [16, 24, 32, 48, 64, 128, 256]
-imgs = {s: make_icon(s) for s in sizes}
+def main():
+    sizes = [16, 24, 32, 48, 64, 128, 256]
+    imgs = {s: make_icon(s) for s in sizes}
 
-# Windows .ico — multi-size, each drawn natively (not resized from one master)
-imgs[256].save(
-    "/home/user/Eleven-Edit/assets/icon.ico",
-    sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
-    append_images=[imgs[16], imgs[24], imgs[32], imgs[48], imgs[64], imgs[128]],
-)
+    # Windows .ico — multi-size, each drawn natively (not resized from one master)
+    imgs[256].save(
+        os.path.join(ASSETS, "icon.ico"),
+        sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+        append_images=[imgs[16], imgs[24], imgs[32], imgs[48], imgs[64], imgs[128]],
+    )
 
-# 512 PNG for README / Linux / store listing use
-make_icon(512).save("/home/user/Eleven-Edit/assets/icon.png")
+    # 512 PNG for README / Linux / store listing use
+    make_icon(512).save(os.path.join(ASSETS, "icon.png"))
+    print("done")
 
-# A couple of size previews for a quick look before committing
-make_icon(256).save("/tmp/claude-0/-home-user-Eleven-Edit/70a4fc52-aaa1-5791-a374-1e3c18c70970/scratchpad/preview_256.png")
-make_icon(32).save("/tmp/claude-0/-home-user-Eleven-Edit/70a4fc52-aaa1-5791-a374-1e3c18c70970/scratchpad/preview_32.png")
-make_icon(16).save("/tmp/claude-0/-home-user-Eleven-Edit/70a4fc52-aaa1-5791-a374-1e3c18c70970/scratchpad/preview_16.png")
 
-print("done")
+if __name__ == "__main__":
+    main()

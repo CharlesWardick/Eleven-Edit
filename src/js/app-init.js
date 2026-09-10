@@ -13,6 +13,10 @@
 // ════════════════════════════════════════════════════════════════════
 
 async function init() {
+  // macOS (2026-09-10): the static page text says "Java bridge" / /FLAGS in
+  // a few places; swap in what actually runs here before anything shows.
+  if (IS_MAC) applyMacLabels();
+
   // Load zoom
   try {
     const zoom = await window.electronAPI.getZoom();
@@ -311,3 +315,28 @@ document.getElementById('btn-zoom-out').addEventListener('click', () => applyZoo
 populateRangeSelects();
 updateDisplay(0);
 setTimeout(init, 150);
+
+// ════════════════════════════════════════════════════════════════════
+// macOS wording (2026-09-10). Same page, different bridge: the status bar,
+// the About box's Architecture/Startup Flags text and the Restart Bridge
+// tooltip all named the Java jar. Everything else is identical on both
+// platforms, so this is a handful of text swaps rather than a second page.
+// ════════════════════════════════════════════════════════════════════
+function applyMacLabels() {
+  try {
+    var kind = document.getElementById('sb-bridge-kind');
+    if (kind) kind.textContent = 'Eleven Rack (CoreMIDI bridge)';
+    var rb = document.getElementById('btn-restart-bridge');
+    if (rb) rb.title = 'Kill and relaunch the native MIDI bridge (ElevenRackBridge)';
+    var arch = document.getElementById('about-architecture');
+    if (arch) arch.innerHTML = 'Native CoreMIDI WebSocket bridge (ElevenRackBridge, Swift) owns all MIDI '
+      + 'hardware access — no Java runtime, and no Avid driver needed for MIDI on macOS. '
+      + 'Electron renderer communicates over ws://localhost:57121. '
+      + 'Built with <a href="https://claude.com/claude-code" target="_blank">Claude Code</a>, Anthropic\'s AI coding assistant.';
+    var flags = document.getElementById('about-flags');
+    if (flags) flags.innerHTML = '<strong>--logs</strong> — enable session logging.<br>'
+      + '<strong>--nogpu</strong> — force software rendering (VMs only).<br>'
+      + '<strong>--t30</strong> — widen the startup timers to 30 s for a slow machine.<br>'
+      + 'Pass them from Terminal: <em>open -a "Eleven Edit" --args --logs</em>';
+  } catch(e) {}
+}

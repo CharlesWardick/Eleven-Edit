@@ -25,7 +25,8 @@ BEFORE YOU START
 WHAT YOU NEED
 --------------------------------------------------
 
-  - Windows 10 or Windows 11.
+  - Windows 10 or Windows 11 (Mac users: see the MACOS section — no
+    driver and no Java are needed there).
   - An Avid Eleven Rack, connected over USB and powered on.
   - The Avid Eleven Rack USB driver installed. Both version 1.0.11 and
     version 1.1.12 are confirmed working; the newer 1.1.12 is fine and
@@ -211,6 +212,50 @@ ABOUT / SETTINGS
   The About box (also bottom right) shows the current version number.
 
   The ? button opens this manual.
+
+
+MACOS
+--------------------------------------------------
+
+Eleven Edit also runs on the Mac (macOS 12 or later, Apple Silicon or
+Intel). It is the same program and the same screens; only the plumbing
+underneath differs, and the differences are all good news:
+
+  - No Java is needed. Skip every Java note in this manual.
+  - No Avid driver is needed either. macOS recognises the Eleven Rack's
+    MIDI connection by itself. In Audio MIDI Setup (and in Eleven Edit's
+    port pickers) the rack shows up as "Eleven Rack Rig" and
+    "Eleven Rack External". Rig is the one Eleven Edit talks to;
+    External is the rack's rear-panel MIDI jacks.
+  - Startup flags are written the Unix way: --logs, --nogpu, --t30
+    (see STARTUP FLAGS in the About box). From Terminal:
+        open -a "Eleven Edit" --args --logs
+    Session logs go to ~/Library/Application Support/eleven-edit/logs.
+
+  INSTALLING ON A MAC. Open the .dmg and drag Eleven Edit to Applications.
+  Eleven Edit is not signed with an Apple Developer certificate, so the
+  first time you open it macOS will say it cannot check it for malware:
+  right-click (or Control-click) the app, choose Open, then Open again in
+  the dialog — or go to System Settings > Privacy & Security and click
+  Open Anyway. You only have to do this once.
+
+  FIRST CONNECTION. The Mac build has not yet been tried against a real
+  Eleven Rack, only against a software stand-in. Eleven Edit expects the
+  rack on the "Rig" port both ways. If the rack does not answer the
+  firmware check there, Eleven Edit automatically tries the other
+  Rig/External combinations once each (you'll see "trying ... " on the
+  splash screen) before it gives up, and it remembers whichever pair
+  worked for next time. If it never connects, choose the ports by hand in
+  the MIDI pickers with the rack powered on, and please report which pair
+  worked so the default can be fixed.
+
+  "Could not start its MIDI bridge component" — the bridge is a small
+    helper program inside Eleven Edit.app. If this appears, click Try
+    Again; if it keeps happening, re-download Eleven Edit and copy it to
+    Applications again.
+
+  The Avid Eleven Rack Editor and Windows 11 notes below do not apply to
+  the Mac. Everything else in this manual does.
 
 
 TROUBLESHOOTING

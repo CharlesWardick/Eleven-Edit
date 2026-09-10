@@ -2242,7 +2242,7 @@
   <span id="avid-warn" class="sb warn" style="display:none;">AVID EDITOR: OPEN</span>
   <span class="sb" style="margin-left:auto;display:flex;align-items:center;gap:5px;">
     <div id="midi-dot"></div>
-    <span id="sb-bridge-label">Eleven Rack (Java bridge) — <span id="midi-label">Connecting…</span></span>
+    <span id="sb-bridge-label"><span id="sb-bridge-kind">Eleven Rack (Java bridge)</span> — <span id="midi-label">Connecting…</span></span>
   </span>
   <button id="btn-restart-bridge" title="Kill and relaunch ElevenRackBridge.jar">Restart Bridge</button>
   <span id="log-path-label" style="display:none;"></span>
@@ -2351,13 +2351,13 @@
     </div>
     <div class="about-section">
       <h3>Architecture</h3>
-      <p>Java WebSocket bridge (ElevenRackBridge.jar) owns all MIDI hardware access via javax.sound.midi.
+      <p id="about-architecture">Java WebSocket bridge (ElevenRackBridge.jar) owns all MIDI hardware access via javax.sound.midi.
       Electron renderer communicates over ws://localhost:57121.
       Built with <a href="https://claude.com/claude-code" target="_blank">Claude Code</a>, Anthropic's AI coding assistant.</p>
     </div>
     <div class="about-section">
       <h3>Startup Flags</h3>
-      <p><strong>/LOGS</strong> — enable session logging.<br>
+      <p id="about-flags"><strong>/LOGS</strong> — enable session logging.<br>
       <strong>/NOGPU</strong> — force software rendering (for VMs with a
       splash-screen white-flash bug; not needed on real hardware).</p>
     </div>

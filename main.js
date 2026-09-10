@@ -21,7 +21,25 @@ const { exec, execFile, spawn } = require('child_process');
 // help Windows correctly associate the process instead of guessing/
 // ghosting. Cheap to try, easy to revert if it makes no difference —
 // unlike the /NOGPU fix above, this one is UNVERIFIED, not confirmed.
-app.setAppUserModelId('com.charleswardick.eleveneedit');
+if (process.platform === 'win32') app.setAppUserModelId('com.charleswardick.eleveneedit');
+
+// ════════════════════════════════════════════════════════════════════
+// PLATFORM (macOS port, 2026-09-10). One codebase, two bridges: Windows
+// keeps the Java jar (see JAVA BRIDGE PROCESS below); macOS spawns a native
+// CoreMIDI bridge (bridge-macos/ElevenRackBridge.swift) that speaks the
+// identical WebSocket protocol, so nothing in the renderer's transport
+// changes. Startup flags accept BOTH the Windows-style /FLAG and Unix-style
+// --flag forms (a Mac shell or `open -a "Eleven Edit" --args --logs` passes
+// the latter naturally; /FLAG is kept so existing Windows shortcuts work).
+// ════════════════════════════════════════════════════════════════════
+const IS_MAC = process.platform === 'darwin';
+function hasFlag(name) {
+  const n = name.toLowerCase();
+  return process.argv.some(function(a) {
+    const s = String(a).toLowerCase();
+    return s === '/' + n || s === '--' + n;
+  });
+}
 
 // ════════════════════════════════════════════════════════════════════
 // /NOGPU — optional startup flag, same pattern as /LOGS below.
@@ -37,7 +55,7 @@ app.setAppUserModelId('com.charleswardick.eleveneedit');
 // the real-hardware one, since forcing software rendering has some
 // performance cost even though it's likely small for this simple 2D UI.
 // ════════════════════════════════════════════════════════════════════
-if (process.argv.some(a => a.toLowerCase() === '/nogpu')) {
+if (hasFlag('nogpu')) {
   app.disableHardwareAcceleration();
 }
 
@@ -54,7 +72,7 @@ if (process.argv.some(a => a.toLowerCase() === '/nogpu')) {
 // ════════════════════════════════════════════════════════════════════
 let startupTimeoutSec = null;
 (function () {
-  const hit = process.argv.map(a => /^\/t(\d{1,3})$/i.exec(a)).find(Boolean);
+  const hit = process.argv.map(a => /^(?:\/t|--t|--startup-timeout=)(\d{1,3})$/i.exec(String(a))).find(Boolean);
   if (hit) {
     let n = parseInt(hit[1], 10);
     if (n < 3)   n = 3;
@@ -136,7 +154,7 @@ ipcMain.handle('set-win11-startup-ack', function() {
 // ════════════════════════════════════════════════════════════════════
 let logStream = null;
 let logPath   = null;
-const logsEnabled = process.argv.some(a => a.toLowerCase() === '/logs');
+const logsEnabled = hasFlag('logs');
 
 function initLog() {
   if (!logsEnabled) return;
@@ -658,7 +676,7 @@ ipcMain.handle('browse-avid-dir', async function() {
       // a copied-out subset of the install still works. That loader is not
       // built yet — this is just the folder picker + rename.
       title: 'Choose Avid Graphics Folder',
-      defaultPath: storeGet('avidDir', 'C:\\Program Files'),
+      defaultPath: storeGet('avidDir', IS_MAC ? '/Applications' : 'C:\\Program Files'),
       properties: ['openDirectory']
     });
     if (result.canceled || !result.filePaths || !result.filePaths.length) {
@@ -806,11 +824,13 @@ ipcMain.handle('open-path', function(e, dirPath) {
 });
 
 // ════════════════════════════════════════════════════════════════════
-// JAVA BRIDGE PROCESS
+// JAVA BRIDGE PROCESS (Windows) / NATIVE BRIDGE PROCESS (macOS)
 // ElevenRackBridge.jar handles ALL MIDI transport (CC/PC/SysEx, both
 // directions) over ws://localhost:57121. The renderer connects to that
 // WebSocket directly — main.js's only job here is to find a JRE, launch
 // the jar as a child process, log its output, and clean it up on quit.
+// macOS (2026-09-10): identical lifecycle, but the child is the native
+// CoreMIDI binary bridge-macos/ElevenRackBridge (no JRE, no version gate).
 // ════════════════════════════════════════════════════════════════════
 let mainWindow    = null;
 let bridgeProc    = null;
@@ -835,13 +855,16 @@ function parseJavaMajorVersion(versionOutput) {
   return Number.isNaN(major) ? null : major;
 }
 
-function findBridgeJar() {
-  // Packaged build: jar sits next to the exe as an extraResource.
-  // Dev (npm start): jar sits alongside main.js.
-  const candidates = [
-    path.join(process.resourcesPath || '', 'ElevenRackBridge.jar'),
-    path.join(__dirname, 'ElevenRackBridge.jar'),
-  ];
+function findBridgeExecutable() {
+  // Packaged build: the bridge sits in the app's resources folder as an
+  // extraResource. Dev (npm start): the jar sits alongside main.js on
+  // Windows; on macOS the native binary lives in bridge-macos/ (built by
+  // bridge-macos/build.sh).
+  const candidates = IS_MAC
+    ? [ path.join(process.resourcesPath || '', 'ElevenRackBridge'),
+        path.join(__dirname, 'bridge-macos', 'ElevenRackBridge') ]
+    : [ path.join(process.resourcesPath || '', 'ElevenRackBridge.jar'),
+        path.join(__dirname, 'ElevenRackBridge.jar') ];
   for (const p of candidates) {
     if (p && fs.existsSync(p)) return p;
   }
@@ -855,6 +878,16 @@ function killOrphanedBridgeProcesses(cb) {
   // Hunt down anything running ElevenRackBridge.jar specifically (never a
   // blanket "kill all java.exe" — this machine may run other Java stuff)
   // and force-kill it before we try to launch our own copy.
+  if (IS_MAC) {
+    // Same idea with Mac tools: kill by EXACT process name (never a blanket
+    // "anything with Eleven in it"). pkill exits 1 when nothing matched.
+    execFile('pkill', ['-x', 'ElevenRackBridge'], function(err) {
+      if (err) logWrite('Orphan-bridge cleanup: nothing to clean up');
+      else logWrite('Orphan-bridge cleanup: cleared a stray ElevenRackBridge process');
+      cb();
+    });
+    return;
+  }
   const psCmd = 'powershell -NoProfile -Command "Get-CimInstance Win32_Process | ' +
     'Where-Object { $_.CommandLine -like \'*ElevenRackBridge.jar*\' } | ' +
     'ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"';
@@ -877,6 +910,7 @@ function launchBridge() {
 // bridge ever launches — launching an under-version JRE is what actually
 // freezes the app, so this has to happen BEFORE spawn, not after.
 function checkJavaVersionThenLaunch() {
+  if (IS_MAC) { doLaunchBridge(); return; } // native bridge — no Java on the Mac path
   execFile('java', ['-version'], function(err, stdout, stderr) {
     if (err) {
       // No java on PATH (or some other execution failure) — let the normal
@@ -902,21 +936,36 @@ function checkJavaVersionThenLaunch() {
 }
 
 function doLaunchBridge() {
-  bridgeJarPath = findBridgeJar();
+  bridgeJarPath = findBridgeExecutable();
   bridgeStatus.jarPath = bridgeJarPath;
 
   if (!bridgeJarPath) {
-    bridgeStatus.error = 'ElevenRackBridge.jar not found';
+    bridgeStatus.error = (IS_MAC ? 'ElevenRackBridge (native bridge)' : 'ElevenRackBridge.jar') + ' not found';
     logWrite('Bridge: ' + bridgeStatus.error + ' — checked resourcesPath and app dir');
+    if (IS_MAC && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('bridge-status', bridgeStatus); // Mac: surface as the bridge gate, not a 15s hardware timeout
+    }
     return;
   }
 
   try {
     logWrite('Bridge: launching ' + bridgeJarPath);
-    bridgeProc = spawn('java', ['-jar', bridgeJarPath], {
-      cwd: path.dirname(bridgeJarPath),
-      windowsHide: true,
-    });
+    if (IS_MAC) {
+      // NEVER touch the binary here (no chmod "just in case"): the bundle is
+      // code-signed, and a metadata write inside a protected folder such as
+      // ~/Downloads makes macOS raise a Files-and-Folders permission prompt
+      // that BLOCKS the syscall — with the app launched from Finder that
+      // dialog froze the whole main process on an invisible prompt
+      // (2026-09-10, found by sampling the stalled process). The build
+      // ships the bridge executable; if the mode bit ever gets lost, spawn
+      // fails with EACCES and the bridge gate reports it.
+      bridgeProc = spawn(bridgeJarPath, [], { cwd: path.dirname(bridgeJarPath) });
+    } else {
+      bridgeProc = spawn('java', ['-jar', bridgeJarPath], {
+        cwd: path.dirname(bridgeJarPath),
+        windowsHide: true,
+      });
+    }
 
     bridgeStatus.launched = true;
     bridgeStatus.error = null;
@@ -930,7 +979,7 @@ function doLaunchBridge() {
     bridgeProc.on('error', function(e) {
       bridgeStatus.launched = false;
       bridgeStatus.error = e.message;
-      logWrite('Bridge process error: ' + e.message + ' — is a JRE installed and on PATH?');
+      logWrite('Bridge process error: ' + e.message + (IS_MAC ? ' — is the bundled ElevenRackBridge binary present and executable?' : ' — is a JRE installed and on PATH?'));
       // 2026-09-05: a failed spawn (e.g. ENOENT — no java on PATH) still
       // hands back a ChildProcess object even though no real OS process
       // exists behind it. Left as-is, killBridge() would see a non-null
@@ -993,8 +1042,8 @@ function killBridge(callback) {
   setTimeout(function() {
     if (done) return;
     logWrite('Bridge: graceful shutdown did not complete in time — forcing');
-    try { proc.kill(); } catch(e) {}
-    if (pid) {
+    try { proc.kill(IS_MAC ? 'SIGKILL' : undefined); } catch(e) {}
+    if (pid && !IS_MAC) {
       try { exec('taskkill /PID ' + pid + ' /F /T'); } catch(e) {}
     }
     finish();
@@ -1018,6 +1067,14 @@ let watchdogInterval   = null;
 let watchdog3LastState = null;
 
 function isAvidEditorRunning(callback) {
+  if (IS_MAC) {
+    // execFile (no shell) on purpose: via `exec`, the shell's own command
+    // line would contain the pattern and pgrep -f would match itself.
+    execFile('pgrep', ['-f', 'Eleven Rack Editor.app/Contents/MacOS'], function(err, stdout) {
+      callback(!err && /\d/.test(stdout || ''));
+    });
+    return;
+  }
   exec('tasklist /FI "IMAGENAME eq ElevenRackEditor.exe" /NH', function(err, stdout) {
     if (err) { callback(false); return; }
     callback(stdout.toLowerCase().includes('elevenrackeditor.exe'));
@@ -1038,7 +1095,7 @@ function startWatchdog(mode) {
         mode: 3, running: running,
         message: running
           ? 'Avid Eleven Rack Editor is now open.\n\nBoth it and this app talk to the same Eleven Rack USB ports. This app no longer needs the editor open for readback — if you notice stalled or conflicting behavior, close one of the two.'
-          : 'Avid Eleven Rack Editor has closed.\n\nNo effect on this app — the Java bridge owns the Eleven Rack ports directly, independent of the editor.'
+          : 'Avid Eleven Rack Editor has closed.\n\nNo effect on this app — the MIDI bridge owns the Eleven Rack ports directly, independent of the editor.'
       });
     });
   }, 4000);
@@ -1156,7 +1213,10 @@ function createWindow() {
     minWidth: 900,
     minHeight:600,
     title:    'Eleven Edit',
-    icon:     path.join(__dirname, 'assets', 'icon.ico'),
+    // Mac: the bundle's .icns is the icon; an explicit undefined here makes
+    // Electron log "Argument must be a file path or a NativeImage", so the
+    // key is omitted entirely rather than set to nothing.
+    ...(IS_MAC ? {} : { icon: path.join(__dirname, 'assets', 'icon.ico') }),
     backgroundColor: '#0e0e0e',
     autoHideMenuBar: true,
     show: false, // revealed only on 'app-ready' IPC — see SPLASH above
@@ -1174,7 +1234,22 @@ function createWindow() {
   if (startupTimeoutSec) logWrite('Startup timeout override /T' + startupTimeoutSec + ' active — connect gate + firmware check widened to ' + startupTimeoutSec + 's');
 
   mainWindow.loadFile('src/index.html');
-  mainWindow.setMenu(null);
+  if (IS_MAC) {
+    // macOS needs a real application menu or Cmd+Q / Cmd+C / Cmd+V (inline
+    // rename!) do nothing — there's no per-window menu bar to hide here.
+    const { Menu } = require('electron');
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      { label: app.name, submenu: [
+        { role: 'about' }, { type: 'separator' },
+        { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' },
+        { role: 'quit' },
+      ] },
+      { role: 'editMenu' },
+      { role: 'windowMenu' },
+    ]));
+  } else {
+    mainWindow.setMenu(null);
+  }
 
   // EXTERNAL LINKS -> SYSTEM DEFAULT BROWSER. Any target="_blank" link (About
   // box web/email links) must open in Windows' default browser/mail app, never
@@ -1220,6 +1295,9 @@ app.commandLine.appendSwitch('enable-blink-features', 'MIDIGetSupportedExtension
 
 app.whenReady().then(function() {
   initLog();
+  if (IS_MAC && app.dock && !app.isPackaged) {
+    try { app.dock.setIcon(path.join(__dirname, 'assets', 'icon.png')); } catch(e) {} // dev-run dock icon
+  }
   launchBridge();
   createSplashWindow();
   createWindow();
@@ -1229,7 +1307,9 @@ app.on('window-all-closed', function() {
   stopWatchdog();
   killBridge(function() {
     logClose();
-    if (process.platform !== 'darwin') app.quit();
+    // Mac too: a hardware editor with no window (and no bridge) has nothing
+    // worth keeping alive in the Dock.
+    app.quit();
   });
 });
 

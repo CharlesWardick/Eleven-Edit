@@ -145,3 +145,8 @@ captures/
 docs/ElevenEdit_Primer.txt
 docs/ElevenEdit_Session_Log.txt
 docs/ElevenEdit_Archive.txt
+
+# macOS native bridge — build artifact (bridge-macos/build.sh), like the jar
+bridge-macos/ElevenRackBridge
+bridge-macos/ElevenRackBridge-arm64
+bridge-macos/ElevenRackBridge-x86_64

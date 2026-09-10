@@ -170,7 +170,9 @@ function setAvidGraphicsManifest(manifest) {
 // Encodes each path segment individually so spaces/parens in real Avid
 // folder names ("Eleven Distortion UI", "RB-01b (Blue)" etc.) survive.
 function pathToFileUrl(p) {
-  const norm = p.replace(/\\/g, '/');
+  // macOS paths start with "/" — drop it so the result is file:///Library/...
+  // (three slashes), not file:////Library/... Windows "C:\..." is unchanged.
+  const norm = p.replace(/\\/g, '/').replace(/^\/+/, '');
   const parts = norm.split('/').map(encodeURIComponent);
   return 'file:///' + parts.join('/');
 }
