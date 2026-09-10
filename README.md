@@ -9,9 +9,8 @@ just the Avid USB driver and a connected Eleven Rack.
 >
 > **macOS build (2026-09-10):** a native Mac port now exists — same app, same
 > renderer, with the Java bridge replaced by a small CoreMIDI bridge (no Java,
-> no Avid driver needed). It passes its protocol tests against a virtual rack
-> but has **not yet been tried against real Eleven Rack hardware**. See
-> [macOS](#macos) below.
+> no Avid driver needed). Verified against a real Eleven Rack (firmware
+> 2.0.1 build 0.1.5.7) on an Apple Silicon Mac. See [macOS](#macos) below.
 
 ![Eleven Edit v1.0.0 — the main patch editor and audition screen, connected to an Eleven Rack](assets/screenshot.png)
 
@@ -75,12 +74,14 @@ coding assistant.
   shipped an Apple Silicon audio driver, but Matt Housley's open-source
   [Eleven Rack Driver](https://github.com/Matt-Housley/eleven-rack-driver)
   covers it if you want the rack as a Core Audio device too.
-- **Not yet verified on real hardware.** The bridge passes an end-to-end test
-  against a virtual rack (see Build), and the Windows build's transport uses
-  a differently-named port pair, so the first Mac session with a real rack may
-  need a port choice: if the identity check gets no reply, Eleven Edit tries
-  the other Rig/External combinations once each before showing the firmware
-  gate, and remembers whichever pair answered. Please report what worked.
+- **Verified on real hardware (2026-09-10):** an Eleven Rack on firmware
+  2.0.1 build 0.1.5.7, plugged into an M1 Max MacBook Pro on macOS 26, was
+  found on the Rig ports automatically and answered the full startup sweep
+  (identity, patch name, chain map, 16 parameter reads) in about half a
+  second. As a safety net, if a rack ever fails the identity check on the Rig
+  pair, Eleven Edit tries the other Rig/External combinations once each before
+  showing the firmware gate, and remembers whichever pair answered. Intel
+  Macs get the x64 build but have not been tried.
 - The app is not code-signed with an Apple Developer ID (there is no paid
   certificate behind this project). On first launch macOS will say it can't
   verify the app: **right-click → Open → Open**, or allow it under System

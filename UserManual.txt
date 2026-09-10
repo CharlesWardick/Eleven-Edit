@@ -239,15 +239,14 @@ underneath differs, and the differences are all good news:
   the dialog — or go to System Settings > Privacy & Security and click
   Open Anyway. You only have to do this once.
 
-  FIRST CONNECTION. The Mac build has not yet been tried against a real
-  Eleven Rack, only against a software stand-in. Eleven Edit expects the
-  rack on the "Rig" port both ways. If the rack does not answer the
-  firmware check there, Eleven Edit automatically tries the other
-  Rig/External combinations once each (you'll see "trying ... " on the
-  splash screen) before it gives up, and it remembers whichever pair
-  worked for next time. If it never connects, choose the ports by hand in
-  the MIDI pickers with the rack powered on, and please report which pair
-  worked so the default can be fixed.
+  FIRST CONNECTION. Eleven Edit talks to the rack on the "Rig" port both
+  ways, and that is confirmed working on a real Eleven Rack (firmware
+  2.0.1, build 0.1.5.7) on an Apple Silicon Mac. Should a rack ever fail
+  the firmware check there, Eleven Edit automatically tries the other
+  Rig/External combinations once each (you'll see "trying ..." on the
+  splash screen) before it gives up, and remembers whichever pair worked.
+  If it never connects, choose the ports by hand in the MIDI pickers with
+  the rack powered on.
 
   "Could not start its MIDI bridge component" — the bridge is a small
     helper program inside Eleven Edit.app. If this appears, click Try

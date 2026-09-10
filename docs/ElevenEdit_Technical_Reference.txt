@@ -141,9 +141,13 @@ MACOS PORT (2026-09-10) — same renderer, same WebSocket protocol, different
   "kind":"in"|"out" field the renderer uses to split the two pickers
   (transport.js populateBridgePorts; absent on Windows = old behaviour).
   AUTO-DETECT (mac): IN = first "eleven"+"rig" source, OUT = first
-  "eleven"+"rig" destination (macPreferredPorts). *** UNVERIFIED ON REAL
-  HARDWARE *** — Windows uses IN=vendor-specific / OUT=External, so the Mac
-  default is a reasoned guess. If the identity request times out,
+  "eleven"+"rig" destination (macPreferredPorts). VERIFIED ON REAL HARDWARE
+  2026-09-10 (Eleven Rack fw 0157, M1 Max MacBook Pro, macOS 26.6.2, Logic
+  Pro open alongside): Rig/Rig answered first try — identity reply, patch
+  name, CMD 0x21 chain map, 16 CMD 0x11 reads in 549 ms, main window
+  revealed. CoreMIDI lists the rack as manufacturer "Digidesign", model
+  "Eleven Rack". Windows uses IN=vendor-specific / OUT=External, so the
+  pair fallback stays as a safety net: if the identity request times out,
   macTryNextPortCombo (transport.js) walks the other Eleven pairs once each
   (Rig/Ext, Ext/Rig, Ext/Ext, ~10s per try) before the firmware gate, and
   connectBridgeMidi->savePorts persists whichever pair answered.
@@ -3774,7 +3778,8 @@ v1.0.0 — PUBLIC RELEASE (2026-09-09). The final push to main renumbered the
   reserved public-release version. Code complete. No protocol/behaviour change
   in the renumber itself; the dated 1.4.xx entries below remain accurate history.
 
-2026-09-10 (MACOS PORT — mac build of v1.0.0, NOT yet tested on real hardware).
+2026-09-10 (MACOS PORT — mac build of v1.0.0; verified on real hardware the
+  same day, Rig/Rig ports, fw 0157 — see Sec 1 MACOS PORT).
   New: bridge-macos/ (ElevenRackBridge.swift, build.sh, tests/fake-rack.swift,
   tests/ws-smoke.mjs, tests/run-smoke.sh, tests/app-smoke.sh), assets/icon.icns
   + tools/gen_icns.py (tools/gen_icon.py made relocatable + importable),
