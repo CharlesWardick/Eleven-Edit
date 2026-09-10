@@ -45,11 +45,14 @@ coding assistant.
   versions (including JRE 8 and JRE 21) have been directly tested and found to
   freeze or crash Windows when running Eleven Edit; the app checks this on
   startup and won't launch the bridge against a JRE below 25.
-- **Windows 10 or Windows 11** — the only platforms tested and supported
-  today. macOS and Linux are untested; the Avid driver and this app's MIDI
-  access are both Windows-only as it stands. Porting to other platforms is
+- **Windows 10 or Windows 11 (64-bit / x64).** The only platforms tested and
+  supported today. macOS and Linux are untested; the Avid driver and this app's
+  MIDI access are both Windows-only as it stands. Porting to other platforms is
   a hoped-for community contribution after open-source release, not
   something the current codebase has been adapted for yet.
+- **Eleven Rack firmware Version 2.0.1, Build 0.1.5.7** — what Eleven Edit is
+  built and tested against. Other firmware versions are untested; the app checks
+  firmware at startup and stops if it does not match.
 
 ### The real prerequisite (and a note on Windows 11)
 
@@ -70,6 +73,19 @@ so if a Windows 11 machine is unstable with the driver installed: keep the Eleve
 Rack off the Windows **default sound device** role, or use the lighter 1.0.11
 driver. The User Manual's Troubleshooting section has the full rundown, including
 a separate Windows 11 note about bank/patch **uploads**.
+
+## Known limitations
+
+- **Expression Pedal / Footswitch jack.** The rear Expression Pedal / Footswitch
+  jack still works normally on the rack — Eleven Edit just can't configure it.
+  Set it up the way you always have (front panel, or Avid's own editor if you can
+  run it); those methods are unaffected.
+- **No Pro Tools integration.** Eleven Edit is a standalone editor, not a plugin,
+  and doesn't tie into Pro Tools sessions.
+
+Both come down to the same thing: the author doesn't have the hardware/setup to
+reverse-engineer and test them safely. They may come in a later build;
+contributions are welcome.
 
 ## Build
 

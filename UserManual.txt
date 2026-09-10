@@ -25,8 +25,11 @@ BEFORE YOU START
 WHAT YOU NEED
 --------------------------------------------------
 
-  - Windows 10 or Windows 11.
+  - Windows 10 or Windows 11 (64-bit / x64).
   - An Avid Eleven Rack, connected over USB and powered on.
+  - Eleven Rack firmware Version 2.0.1, Build 0.1.5.7. This is what Eleven
+    Edit supports; other firmware versions are untested and are stopped at
+    startup — see STARTUP MESSAGES below.
   - The Avid Eleven Rack USB driver installed. Both version 1.0.11 and
     version 1.1.12 are confirmed working; the newer 1.1.12 is fine and
     fully featured, and 1.0.11 also works if you prefer it. You do NOT
@@ -44,6 +47,23 @@ WHAT YOU NEED
   PC is NOT stable with just the driver installed — before Eleven Edit is
   even in the picture — that is a Windows/driver matter to sort out first;
   see "Windows stability and the Avid driver" under Troubleshooting.
+
+
+WHAT ELEVEN EDIT DOES NOT DO (KNOWN LIMITATIONS)
+--------------------------------------------------
+
+  - Expression Pedal / Footswitch jack. The rear Expression Pedal /
+    Footswitch jack still works normally on the rack — Eleven Edit simply
+    does not configure it. Set it up the way you always have (from the
+    rack's front panel, or Avid's own editor if you can run it); those
+    methods are unaffected.
+
+  - No Pro Tools integration. Eleven Edit is a standalone editor, not a
+    plugin, and does not tie into Pro Tools sessions.
+
+  Both come down to the same thing: the author does not have the
+  hardware/setup to reverse-engineer and test these safely. They may come
+  in a later build; contributions are welcome.
 
 
 INSTALLING
