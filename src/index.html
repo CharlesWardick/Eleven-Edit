@@ -2193,6 +2193,7 @@
       <div class="settings-row-controls">
         <div class="settings-select-wrap">
           <select id="audio-buffer-select" class="settings-select">
+            <option value="32">32 samples</option>
             <option value="64">64 samples</option>
             <option value="128">128 samples</option>
             <option value="256">256 samples</option>
@@ -2205,6 +2206,17 @@
     <div class="settings-row">
       <div class="settings-row-controls">
         <div class="settings-path" id="audio-setup-status">Engine off.</div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <div class="settings-path" style="color:var(--accent);line-height:1.5;">
+          ⚠ Set Sample Rate / Buffer <b>here</b>, not in your interface's own ASIO control panel.
+          While the engine is ON, Eleven Edit owns the device exclusively and can't follow changes made
+          in the driver's panel — doing so drops the audio. Turn the engine OFF first if you need the
+          driver panel.
+        </div>
       </div>
     </div>
   </div>

@@ -1114,7 +1114,13 @@ function handleAudioEvent(msg) {
       audioStatus.running = true;
       audioStatus.error = null;
       audioStatus.deviceId = msg.deviceId;
-      logWrite('Audio: engine started (device ' + msg.deviceId + ', ' + msg.rate + 'Hz, ' + msg.frames + ' frames)');
+      audioStatus.rate = msg.rate;
+      audioStatus.frames = msg.frames;             // ACTUAL granted buffer (may differ from requested)
+      audioStatus.requestedFrames = msg.requestedFrames;
+      audioStatus.mode = msg.mode;
+      logWrite('Audio: engine started (device ' + msg.deviceId + ', ' + msg.rate + 'Hz, ' +
+        msg.frames + ' frames' + (msg.requestedFrames && msg.requestedFrames !== msg.frames ?
+        ' [driver snapped from ' + msg.requestedFrames + ']' : '') + ', ' + msg.mode + ')');
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
       break;
     case 'stopped':

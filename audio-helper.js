@@ -130,8 +130,9 @@ function startEngine(o) {
   outRoff = outR - outFirst;
   outBuf = null; // force realloc for the new geometry
 
+  var actualFrames = frames;
   try {
-    rt.openStream(
+    var ret = rt.openStream(
       { deviceId: dev, nChannels: outCount, firstChannel: outFirst },  // output block
       { deviceId: dev, nChannels: inCount,  firstChannel: inFirst },   // input block
       RtAudioFormat.RTAUDIO_SINT16,
@@ -141,6 +142,9 @@ function startEngine(o) {
       onInput,
       null
     );
+    // RtAudio may snap the buffer to the driver's nearest legal size. If audify
+    // returns the granted frame count, report the TRUTH instead of what we asked.
+    if (typeof ret === 'number' && ret > 0) actualFrames = ret;
     rt.start();
   } catch (e) {
     send({ type: 'error', message: 'open/start failed: ' + e.message });
@@ -155,7 +159,7 @@ function startEngine(o) {
     send({ type: 'level', in: v });
   }, 100);
 
-  send({ type: 'started', deviceId: dev, rate: rate, frames: frames,
+  send({ type: 'started', deviceId: dev, rate: rate, frames: actualFrames, requestedFrames: frames,
          mode: stereoIn ? 'stereo' : 'mono', inChannels: inCh, outChannels: outCh });
 }
 
@@ -172,6 +176,7 @@ function listDevices() {
         id: i, name: d.name,
         in: d.inputChannels, out: d.outputChannels, duplex: d.duplexChannels,
         rate: d.preferredSampleRate,
+        sampleRates: d.sampleRates || [],
         defaultIn: d.isDefaultInput, defaultOut: d.isDefaultOutput
       };
     });
@@ -210,5 +215,15 @@ process.stdin.on('end', function () { stopEngine(); process.exit(0); });
 function shutdown() { stopEngine(); process.exit(0); }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+// Graceful fail: if the ASIO stream is pulled out from under us (e.g. the user
+// changes rate/buffer in the interface's own ASIO control panel while running —
+// a driver reset our audio layer can't follow), surface it and exit cleanly so
+// the app flips the engine OFF instead of sitting on a broken stream.
+process.on('uncaughtException', function (e) {
+  send({ type: 'error', message: 'audio stream stopped: ' + (e && e.message ? e.message : e) });
+  stopEngine();
+  process.exit(1);
+});
 
 send({ type: 'ready' });

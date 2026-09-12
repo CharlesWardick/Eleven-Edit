@@ -36,6 +36,8 @@
 
   var running = false;
   var devicesById = {};    // id -> {name, in, out, ...}
+  var actualFrames = null; // buffer the driver actually granted (from 'started')
+  var actualRate   = null;
 
   // --- elements ---
   function $(id) { return document.getElementById(id); }
@@ -173,6 +175,17 @@
     if (out)  { out.innerHTML = '';  for (i = 0; i + 1 < outN; i += 2) out.appendChild(opt(i, 'Output ' + (i + 1) + ' + ' + (i + 2), i === settings.outPair)); }
   }
 
+  var FALLBACK_RATES = [44100, 48000, 88200, 96000];
+  function fillRateSelect(dev) {
+    var sel = $('audio-rate-select');
+    if (!sel) return;
+    var rates = (dev && dev.sampleRates && dev.sampleRates.length) ? dev.sampleRates.slice() : FALLBACK_RATES;
+    // Snap current rate to the device's preferred if it isn't supported here.
+    if (rates.indexOf(settings.rate) === -1) settings.rate = (dev && dev.rate) || rates[0];
+    sel.innerHTML = '';
+    rates.forEach(function (r) { sel.appendChild(opt(r, r + ' Hz', r === settings.rate)); });
+  }
+
   function refreshModeRows() {
     var mono = $('audio-row-mono'), stereo = $('audio-row-stereo');
     if (mono)   mono.style.display   = settings.inputMode === 'mono'   ? 'flex' : 'none';
@@ -198,6 +211,7 @@
       if (sel) sel.value = String(settings.deviceId);
     }
     fillChannelSelects(devicesById[settings.deviceId]);
+    fillRateSelect(devicesById[settings.deviceId]);
     refreshModeRows();
     setupStatus(running ? 'Engine running.' : 'Ready — turn the engine on from the top bar.');
     updateBarLabel();
@@ -209,6 +223,7 @@
   onCtl('audio-device-select', function () {
     settings.deviceId = parseInt(this.value, 10);
     fillChannelSelects(devicesById[settings.deviceId]);
+    fillRateSelect(devicesById[settings.deviceId]);
     saveSettings(); applyIfRunning(); updateBarLabel();
   });
   onCtl('audio-mode-select', function () {
@@ -238,7 +253,9 @@
     if (!elDevLbl) return;
     var dev = settings.deviceId != null ? devicesById[settings.deviceId] : null;
     var name = dev ? dev.name : ('device ' + settings.deviceId);
-    elDevLbl.textContent = name + ' · ' + (settings.rate / 1000) + 'k · ' + settings.frames +
+    var rate = (running && actualRate) ? actualRate : settings.rate;
+    var frames = (running && actualFrames) ? actualFrames : settings.frames;
+    elDevLbl.textContent = name + ' · ' + (rate / 1000) + 'k · ' + frames +
       ' · ' + (settings.inputMode === 'stereo' ? 'stereo' : 'mono');
   }
 
@@ -247,7 +264,17 @@
     api.onAudioStatus(function (s) {
       if (s.error) { log('Audio error: ' + s.error); status('Audio engine error — ' + s.error); setToggleState(false); setupStatus('Error: ' + s.error); return; }
       setToggleState(!!s.running);
-      if (s.running) { status('Audio engine ON.'); updateBarLabel(); setupStatus('Engine running.'); }
+      if (s.running) {
+        actualFrames = s.frames || null;
+        actualRate   = s.rate || null;
+        status('Audio engine ON.');
+        updateBarLabel();
+        var snap = (s.requestedFrames && s.frames && s.requestedFrames !== s.frames)
+          ? ' (driver set ' + s.frames + ', you asked ' + s.requestedFrames + ')' : '';
+        setupStatus('Engine running — ' + (s.rate / 1000) + 'k · ' + s.frames + ' buffer' + snap + '.');
+      } else {
+        actualFrames = null; actualRate = null;
+      }
     });
   }
   if (api.onAudioLevel) {
