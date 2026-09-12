@@ -1039,6 +1039,8 @@ ipcMain.handle('restart-bridge', function() {
 // ════════════════════════════════════════════════════════════════════
 let audioProc   = null;
 let audioStatus = { running: false, error: null, deviceId: null };
+let audioEngineWanted = false;   // true once a start is requested; guards the
+                                 // idle-lister cleanup from killing a starting engine
 
 function findAudioHelper() {
   // Packaged with asar: main.js lives inside app.asar, but audio-helper.js is
@@ -1143,9 +1145,11 @@ function handleAudioEvent(msg) {
       break;
     case 'devices':
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-devices', msg.devices);
-      // If the helper was spawned only to enumerate (engine not running),
-      // shut it back down so it isn't left idling.
-      if (!audioStatus.running) killAudioHelper();
+      // If the helper was spawned only to enumerate (engine neither running nor
+      // being started), shut it back down so it isn't left idling. The
+      // audioEngineWanted guard prevents killing a helper that a concurrent
+      // start (e.g. /AUDIOON) is bringing up on the same process.
+      if (!audioStatus.running && !audioEngineWanted) killAudioHelper();
       break;
     case 'error':
       audioStatus.error = msg.message;
@@ -1157,6 +1161,7 @@ function handleAudioEvent(msg) {
 }
 
 function killAudioHelper(callback) {
+  audioEngineWanted = false;
   if (!audioProc) { if (callback) callback(); return; }
   const proc = audioProc;
   audioProc = null;
@@ -1171,12 +1176,14 @@ function killAudioHelper(callback) {
 
 // engine ON: spawn helper (if needed) and start passthrough on the device.
 ipcMain.handle('audio-start', function (e, opts) {
+  audioEngineWanted = true;
   spawnAudioHelper();
   sendAudioCmd(Object.assign({ cmd: 'start' }, opts || {}));
   return true;
 });
 // engine OFF: fully release the device by killing the helper.
 ipcMain.handle('audio-stop', function () {
+  audioEngineWanted = false;
   killAudioHelper();
   return true;
 });
