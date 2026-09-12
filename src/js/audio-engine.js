@@ -31,7 +31,7 @@
     rate:      48000,
     frames:    128,
     outGain:   100,        // monitor level 0..100 (no input gain — see helper)
-    barPosition: 'top',    // 'top' (under toolbar) | 'bottom' (above status bar)
+    barPosition: 'bottom', // 'bottom' (above status bar, default) | 'top' (under toolbar)
     configured: false      // false until first successful setup → first start is muted
   };
 

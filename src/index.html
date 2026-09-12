@@ -1405,26 +1405,6 @@
   </div>
 </div>
 
-<!-- ══ AUDIO STRIP (v2.0.0) — PERMANENT fixture; toggle is the engine on/off ══ -->
-<div id="audiostrip" class="engine-off">
-  <button id="audio-engine-toggle" class="as-toggle" title="Turn the audio engine on/off">● AUDIO ENGINE OFF</button>
-  <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE</button>
-  <span class="as-grp">
-    <span class="tb-label">sig</span>
-    <span class="as-meters">
-      <span class="as-meter"><i id="audio-meter-l"></i></span>
-      <span class="as-meter"><i id="audio-meter-r"></i></span>
-    </span>
-    <span class="as-clip" id="audio-clip" title="Input clip — click to clear">CLIP</span>
-  </span>
-  <span class="as-grp">
-    <span class="tb-label">VOL</span>
-    <input type="range" id="audio-out" min="0" max="100" value="100">
-    <span class="as-val" id="audio-out-val">100</span>
-  </span>
-  <span class="as-dev" id="audio-dev-label"></span>
-</div>
-
 <!-- ══ CHAIN STRIP ══ -->
 <div id="chainstrip">
 
@@ -2448,6 +2428,28 @@
 </div>
 
 <!-- ══ STATUS BAR ══ -->
+<!-- ══ AUDIO STRIP (v2.0.0) — PERMANENT fixture; toggle is the engine on/off.
+     Default position is bottom (here); JS moves it under the toolbar if the
+     user picks Top in Audio Setup. ══ -->
+<div id="audiostrip" class="engine-off bottom">
+  <button id="audio-engine-toggle" class="as-toggle" title="Turn the audio engine on/off">● AUDIO ENGINE OFF</button>
+  <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE</button>
+  <span class="as-grp">
+    <span class="tb-label">sig</span>
+    <span class="as-meters">
+      <span class="as-meter"><i id="audio-meter-l"></i></span>
+      <span class="as-meter"><i id="audio-meter-r"></i></span>
+    </span>
+    <span class="as-clip" id="audio-clip" title="Input clip — click to clear">CLIP</span>
+  </span>
+  <span class="as-grp">
+    <span class="tb-label">VOL</span>
+    <input type="range" id="audio-out" min="0" max="100" value="100">
+    <span class="as-val" id="audio-out-val">100</span>
+  </span>
+  <span class="as-dev" id="audio-dev-label"></span>
+</div>
+
 <div id="statusbar">
   <span class="sb" style="display:none;">Eleven Edit</span>
   <span class="sb acc" id="status-msg" style="display:none;">Initializing…</span>
