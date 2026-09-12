@@ -402,6 +402,11 @@
       setToggleState(false);   // start in the OFF (dimmed) state
       applyBarVisibility();    // places the bar (top/bottom) or hides it
       updateBarLabel();
+      // /AUDIOON: auto-start on launch, but only if audio was set up before and
+      // the bar is visible (so there's a control to stop it).
+      if (api.audioAutoStart && settings.configured && settings.barVisible) {
+        setTimeout(function () { if (!running) startEngine(); }, 1800);
+      }
       // Prime the device cache once at startup (engine is off here) so the Setup
       // panel always has the list, even if the user turns the engine on before
       // ever opening the panel.

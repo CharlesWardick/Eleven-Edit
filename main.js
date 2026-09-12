@@ -63,6 +63,11 @@ let startupTimeoutSec = null;
   }
 })();
 
+// /AUDIOON — auto-start the audio engine on launch (if a device is already
+// configured). Lets a modded desktop shortcut come up ready to play. Handed to
+// the renderer as a --ee-audio-on argv entry the audio UI reads on load.
+const audioAutoStart = process.argv.some(a => a.toLowerCase() === '/audioon');
+
 // ════════════════════════════════════════════════════════════════════
 // SINGLE INSTANCE LOCK
 // ════════════════════════════════════════════════════════════════════
@@ -1345,7 +1350,12 @@ function createWindow() {
       // /T<seconds> override (see top of file) is handed to the renderer
       // as a process.argv entry preload.js reads synchronously; empty when
       // the flag wasn't passed, so the state.js defaults stand.
-      additionalArguments:  startupTimeoutSec ? ['--ee-startup-timeout-sec=' + startupTimeoutSec] : [],
+      additionalArguments:  (function () {
+        var a = [];
+        if (startupTimeoutSec) a.push('--ee-startup-timeout-sec=' + startupTimeoutSec);
+        if (audioAutoStart)    a.push('--ee-audio-on');
+        return a;
+      })(),
     }
   });
   if (startupTimeoutSec) logWrite('Startup timeout override /T' + startupTimeoutSec + ' active — connect gate + firmware check widened to ' + startupTimeoutSec + 's');

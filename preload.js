@@ -104,6 +104,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return a ? parseInt(a.split('=')[1], 10) : null;
   })(),
 
+  // /AUDIOON launch switch — main.js injects '--ee-audio-on' into the renderer
+  // argv when the flag is present; the audio UI auto-starts the engine on load
+  // if a device is already configured.
+  audioAutoStart: process.argv.some(function (x) { return x === '--ee-audio-on'; }),
+
   platform:   process.platform,
   isElectron: true,
 });
