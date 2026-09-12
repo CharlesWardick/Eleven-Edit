@@ -252,11 +252,12 @@
   function fillBufferSelect() {
     var sel = $('audio-buffer-select');
     if (!sel) return;
-    var rate = settings.rate || 48000;
     sel.innerHTML = '';
+    // No ms here: samples/rate is only one buffer period, not round-trip — the
+    // interface's own panel reports true round-trip latency; showing a partial
+    // number next to it just misleads.
     BUFFERS.forEach(function (n) {
-      var ms = (n / rate * 1000);
-      sel.appendChild(opt(n, n + ' samples (' + ms.toFixed(1) + ' ms)', n === settings.frames));
+      sel.appendChild(opt(n, n + ' samples', n === settings.frames));
     });
   }
 
