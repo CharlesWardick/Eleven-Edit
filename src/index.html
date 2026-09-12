@@ -2050,51 +2050,48 @@
     </div>
     <div style="height:1px;background:var(--border-dim);margin-top:8px;"></div>
 
-    <div class="settings-grid">
-
-      <!-- LEFT COLUMN — files & folders -->
-      <div class="settings-col">
-        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Files &amp; Folders</div>
-
-        <div class="settings-row">
-          <div class="settings-row-label">Captures Folder</div>
-          <div class="settings-row-controls">
-            <button class="settings-btn" id="settings-btn-set-captures">Set Folder…</button>
-            <button class="settings-btn" id="settings-btn-open-captures">Open Folder</button>
-            <div class="settings-path" id="settings-captures-path">—</div>
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-label">Avid Graphics Folder</div>
-          <div class="settings-row-controls">
-            <button class="settings-btn" id="settings-btn-set-avid">Set Folder…</button>
-            <button class="settings-btn" id="settings-btn-scan-avid">Scan Folder</button>
-            <div class="settings-path" id="settings-avid-path">—</div>
-          </div>
-        </div>
-        <div class="settings-row">
-          <div class="settings-row-controls">
-            <div class="settings-path" id="settings-avid-scan-result">Not scanned yet.</div>
-          </div>
-        </div>
-
-        <div class="settings-row">
-          <div class="settings-row-controls">
-            <button class="settings-btn" id="settings-btn-open-logs">Open Logs Folder</button>
-          </div>
-        </div>
-
-        <div class="settings-row" id="settings-win11-row" style="display:none;">
-          <div class="settings-row-label">Windows 11 upload warning</div>
-          <div class="settings-row-controls">
-            <button class="settings-btn" id="settings-btn-win11-warn">—</button>
-            <div class="settings-path" id="settings-win11-status"></div>
-          </div>
-        </div>
+    <!-- TOP: Files & Folders — full width (display-only paths want the room) -->
+    <div class="settings-row">
+      <div class="settings-row-label">Captures Folder</div>
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-set-captures">Set Folder…</button>
+        <button class="settings-btn" id="settings-btn-open-captures">Open Folder</button>
+        <div class="settings-path" id="settings-captures-path">—</div>
       </div>
+    </div>
 
-      <!-- RIGHT COLUMN — rig-wide hardware + audio engine -->
+    <div class="settings-row">
+      <div class="settings-row-label">Avid Graphics Folder</div>
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-set-avid">Set Folder…</button>
+        <button class="settings-btn" id="settings-btn-scan-avid">Scan Folder</button>
+        <div class="settings-path" id="settings-avid-path">—</div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <div class="settings-path" id="settings-avid-scan-result">Not scanned yet.</div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-open-logs">Open Logs Folder</button>
+      </div>
+    </div>
+
+    <div class="settings-row" id="settings-win11-row" style="display:none;">
+      <div class="settings-row-label">Windows 11 upload warning</div>
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-win11-warn">—</button>
+        <div class="settings-path" id="settings-win11-status"></div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--border-dim);margin:4px 0;"></div>
+
+    <!-- LOWER HALF: two columns — rig-wide hardware | audio engine -->
+    <div class="settings-grid">
       <div class="settings-col">
         <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Rig-Wide Hardware Settings</div>
         <!-- Hardware Loop Global Routing (CMD 0x3C) + Digital Output Mode
@@ -2126,8 +2123,10 @@
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin:6px 0 0;font-size:11px;">Audio Engine (v2.0.0)</div>
+      <div class="settings-col">
+        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Audio Engine (v2.0.0)</div>
         <div class="settings-row">
           <div class="settings-row-label">Built-in Audio Passthrough</div>
           <div class="settings-row-controls">
@@ -2135,7 +2134,6 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
