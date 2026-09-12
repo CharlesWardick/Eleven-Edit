@@ -321,6 +321,12 @@
     var mono = $('audio-row-mono'), stereo = $('audio-row-stereo');
     if (mono)   mono.style.display   = settings.inputMode === 'mono'   ? 'flex' : 'none';
     if (stereo) stereo.style.display = settings.inputMode === 'stereo' ? 'flex' : 'none';
+    updateMeterMode();
+  }
+
+  function updateMeterMode() {
+    var m = $('audio-meters');
+    if (m) m.classList.toggle('mono', settings.inputMode === 'mono');
   }
 
   function populateDevices(devices) {

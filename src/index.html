@@ -213,6 +213,10 @@
   }
   /* Two stacked L/R meters */
   #audiostrip .as-meters { display: flex; flex-direction: column; gap: 3px; }
+  /* Mono: one full-height bar instead of two identical ones (same total height,
+     so nothing shifts vertically). */
+  #audiostrip .as-meters.mono .as-meter:nth-child(2) { display: none; }
+  #audiostrip .as-meters.mono .as-meter:first-child { height: 11px; }
   /* Dimmed / inert look when the engine is OFF */
   #audiostrip.engine-off .as-mute,
   #audiostrip.engine-off .as-meters,
@@ -2455,7 +2459,7 @@
   <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE</button>
   <span class="as-grp">
     <span class="tb-label">sig</span>
-    <span class="as-meters">
+    <span class="as-meters" id="audio-meters">
       <span class="as-meter"><i id="audio-meter-l"></i></span>
       <span class="as-meter"><i id="audio-meter-r"></i></span>
     </span>
