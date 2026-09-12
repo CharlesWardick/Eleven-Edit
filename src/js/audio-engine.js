@@ -348,7 +348,9 @@
   if ((b = $('btn-audio-back')))  b.addEventListener('click', backToSettings);
   if ((b = $('btn-audio-close'))) b.addEventListener('click', closeAudioPanel);
   if ((b = $('audio-rescan-btn'))) b.addEventListener('click', function () {
-    if (running) setupStatus('Stop the engine first to rescan devices.');
+    // A device can't be enumerated while it's open, so stop the engine first,
+    // then rescan once it has released (helper kill ~200ms).
+    if (running) { stopEngine(); setupStatus('Engine stopped for rescan…'); setTimeout(requestDevices, 500); }
     else requestDevices();
   });
 
@@ -497,10 +499,13 @@
   function onCtl(id, handler) { var e = $(id); if (e) e.addEventListener('change', handler); }
 
   onCtl('audio-type-select', function () {
+    // Changing device type always stops the engine first (it releases the old
+    // device so the new API can be enumerated cleanly).
+    var wasRunning = running;
+    if (wasRunning) { stopEngine(); setupStatus('Engine stopped — switching device type…'); }
     settings.deviceType = this.value;
     saveSettings();
-    requestDevices();     // scan the new API (or show the 'none' hint)
-    applyIfRunning();
+    setTimeout(requestDevices, wasRunning ? 500 : 0);   // scan the new API (or show 'none')
     updateBarLabel();
   });
   onCtl('audio-device-select', function () {   // ASIO device (by name)
