@@ -128,6 +128,14 @@
 
   function setClip(on) { if (elClip) elClip.classList.toggle('on', on); }
 
+  var errTimer = null;
+  function flashToggleErr() {
+    if (!elToggle) return;
+    elToggle.classList.add('err');
+    if (errTimer) clearTimeout(errTimer);
+    errTimer = setTimeout(function () { if (elToggle) elToggle.classList.remove('err'); }, 4000);
+  }
+
   // Lock the engine toggle between a click and the confirmed state change, so a
   // fast OFF→ON can't spawn a new helper while the old one still holds the
   // device. Safety timeout clears it if no status ever comes back.
@@ -173,6 +181,7 @@
     if (elToggle) {
       elToggle.textContent = on ? '● AUDIO ENGINE ON' : '● AUDIO ENGINE OFF';
       elToggle.classList.toggle('on', on);
+      if (on) elToggle.classList.remove('err');
     }
     if (elStrip) elStrip.classList.toggle('engine-off', !on);
     if (!on) {
@@ -491,7 +500,15 @@
   if (api.onAudioStatus) {
     api.onAudioStatus(function (s) {
       setBusy(false);   // state change confirmed — release the toggle lock
-      if (s.error) { log('Audio error: ' + s.error); status('Audio engine error — ' + s.error); setToggleState(false); setupStatus('Error: ' + s.error); return; }
+      if (s.error) {
+        log('Audio error: ' + s.error);
+        setToggleState(false);
+        flashToggleErr();
+        var hint = 'Audio engine couldn’t start — is your interface on? Turn it on, then click AUDIO ENGINE OFF→ON, or open Audio Setup.';
+        status(hint);
+        setupStatus('Couldn’t start: ' + s.error + ' — check the interface / device, then try again.');
+        return;
+      }
       setToggleState(!!s.running);
       if (s.running) {
         actualFrames = s.frames || null;

@@ -1158,6 +1158,10 @@ function handleAudioEvent(msg) {
       audioStatus.error = msg.message;
       logWrite('Audio: helper error — ' + msg.message);
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+      // Tear the helper down after a failed start so its wedged audio-driver
+      // state can't poison the next attempt (e.g. interface was off, now on).
+      // A fresh helper spawns on the next start, no app restart needed.
+      killAudioHelper();
       break;
     default: break;
   }
