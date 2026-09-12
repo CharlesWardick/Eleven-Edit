@@ -410,6 +410,19 @@
     }
   }
 
+  // Keep channel picks within the current device's real channel counts — a
+  // device with fewer channels (e.g. switching an 18-in ASIO rig to a 2-in
+  // WASAPI/DS device) would otherwise ask for channels that don't exist and
+  // the driver refuses to open ("can't have more than two inputs").
+  function clampChannels(inN, outN) {
+    var before = [settings.inMono, settings.inL, settings.inR, settings.outPair].join('/');
+    if (settings.inMono >= inN) settings.inMono = 0;
+    if (settings.inL    >= inN) settings.inL = 0;
+    if (settings.inR    >= inN) settings.inR = (inN > 1 ? 1 : 0);
+    if (settings.outPair + 1 >= outN) settings.outPair = 0;
+    return before !== [settings.inMono, settings.inL, settings.inR, settings.outPair].join('/');
+  }
+
   function fillChannelSelects(inN, outN) {
     var i;
     var mono = $('audio-in-mono'), l = $('audio-in-l'), r = $('audio-in-r'), out = $('audio-out-select');
@@ -478,7 +491,9 @@
     if (apiName === 'asio') {
       fillDevSelect($('audio-device-select'), devices, settings.asioDevName, function (n) { settings.asioDevName = n; });
       var dev = devByName.asio[settings.asioDevName];
-      fillChannelSelects((dev && dev.in) || 0, (dev && dev.out) || 0);
+      var ain = (dev && dev.in) || 0, aout = (dev && dev.out) || 0;
+      if (clampChannels(ain, aout)) saveSettings();
+      fillChannelSelects(ain, aout);
       fillRateSelect(dev);
     } else {
       var ins  = devices.filter(function (d) { return d.in > 0; });
@@ -486,7 +501,9 @@
       fillDevSelect($('audio-indev-select'),  ins,  settings.inDevName,  function (n) { settings.inDevName = n; });
       fillDevSelect($('audio-outdev-select'), outs, settings.outDevName, function (n) { settings.outDevName = n; });
       var idev = devByName[apiName][settings.inDevName], odev = devByName[apiName][settings.outDevName];
-      fillChannelSelects((idev && idev.in) || 0, (odev && odev.out) || 0);
+      var nin = (idev && idev.in) || 0, nout = (odev && odev.out) || 0;
+      if (clampChannels(nin, nout)) saveSettings();
+      fillChannelSelects(nin, nout);
       fillRateSelect(odev || idev);
     }
     if (deviceMissing()) setupStatus('Selected device isn’t connected — reconnect it or pick another.');
