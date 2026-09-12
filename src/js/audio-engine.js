@@ -118,16 +118,27 @@
   // Chosen but NOT currently present (interface off / unplugged / reshuffled away).
   function deviceMissing() { return namesChosen() && !devicesReady(); }
 
+  function closeDeviceModal() { var m = $('audio-device-modal'); if (m) m.classList.remove('open'); }
   function showInterfaceModal() {
+    var m = $('audio-device-modal'), body = $('audio-device-modal-body');
+    if (!m || !body) { status('Audio device not available — turn on your interface, then toggle the engine.'); return; }
     var t = settings.deviceType;
-    var who = (t === 'asio') ? ('"' + (settings.asioDevName || '') + '"')
-      : ('input "' + (settings.inDevName || '?') + '" / output "' + (settings.outDevName || '?') + '"');
-    var html = '<div style="color:var(--red);margin-bottom:8px;">The audio device ' + who + ' isn’t available right now.</div>'
-      + '<div style="color:#b3b3b3;">Turn on / plug in your interface, then click <b>AUDIO ENGINE OFF→ON</b>, '
-      + 'or open <b>Audio&nbsp;Setup</b> to choose a different device.</div>';
-    if (typeof showModalMessage === 'function') showModalMessage('Audio Device Not Found', html);
-    else { status('Audio device not available — turn on your interface, then toggle the engine.'); }
+    var who = (t === 'asio') ? ('“' + (settings.asioDevName || '') + '”')
+      : ('input “' + (settings.inDevName || '?') + '” / output “' + (settings.outDevName || '?') + '”');
+    body.innerHTML = '<div style="color:var(--red);margin-bottom:8px;">The audio device ' + who + ' isn’t available right now.</div>'
+      + '<div style="color:#b3b3b3;">Turn your interface on, then <b>Try Again</b>. '
+      + 'Or <b>Open Audio Setup</b> to choose a different device.</div>';
+    m.classList.add('open');
   }
+  var bb;
+  if ((bb = $('audio-device-modal-retry'))) bb.addEventListener('click', function () {
+    closeDeviceModal();
+    if (!running && !busy) { setBusy(true); startEngine(); }   // re-scans + starts, or re-shows modal
+  });
+  if ((bb = $('audio-device-modal-setup'))) bb.addEventListener('click', function () {
+    closeDeviceModal();
+    openAudioPanel();
+  });
 
   function startOpts() {
     var ch = deriveChannels();

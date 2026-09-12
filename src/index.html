@@ -1295,6 +1295,9 @@
     align-items: center; justify-content: center;
   }
   #import-confirm-modal.open { display: flex; }
+  #audio-device-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 540; align-items: center; justify-content: center; }
+  #audio-device-modal.open { display: flex; }
+  #audio-device-modal .rack-save-title { font-size: 20px; }
   #win11-gate-modal {
     display: none; position: fixed; inset: 0;
     background: rgba(0,0,0,0.65); z-index: 520;
@@ -2428,6 +2431,18 @@
 </div>
 
 <!-- ══ IMPORT RIGS — CONFIRM MODAL (2026-08-10) ══ -->
+<!-- Audio device-not-found modal (v2.0.0) -->
+<div id="audio-device-modal">
+  <div class="rack-save-box" style="max-width:620px;width:88vw;">
+    <div class="rack-save-title">Audio Device Not Found</div>
+    <div id="audio-device-modal-body" style="font-size:14px;color:var(--text);line-height:1.6;"></div>
+    <div class="rack-save-btns">
+      <button id="audio-device-modal-setup">Open Audio Setup</button>
+      <button id="audio-device-modal-retry" class="rack-save-ok-btn">Try Again</button>
+    </div>
+  </div>
+</div>
+
 <div id="import-confirm-modal">
   <div class="rack-save-box" style="max-width:780px;width:92vw;">
     <div class="rack-save-title" id="import-confirm-title">Import Rigs</div>
