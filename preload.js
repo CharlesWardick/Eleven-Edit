@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onAudioStatus:     (cb)    => ipcRenderer.on('audio-status',  (e, data) => cb(data)),
   onAudioLevel:      (cb)    => ipcRenderer.on('audio-level',   (e, data) => cb(data)),
   onAudioDevices:    (cb)    => ipcRenderer.on('audio-devices', (e, data) => cb(data)),
+  onAudioAutostart:  (cb)    => ipcRenderer.on('audio-autostart', () => cb()),
 
   // Avid editor watchdog
   checkAvidEditor:     ()         => ipcRenderer.invoke('check-avid-editor'),

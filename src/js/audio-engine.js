@@ -38,6 +38,8 @@
 
   var running = false;
   var muted   = false;     // runtime only (not persisted)
+  var busy    = false;     // guards against machine-gunning the engine toggle
+  var busyTimer = null;
   var devicesById = {};    // id -> {name, in, out, ...}
   var lastDevices = null;  // cached scan (ASIO can't be enumerated while a device is open)
   var actualFrames = null; // buffer the driver actually granted (from 'started')
@@ -97,6 +99,16 @@
 
   function setClip(on) { if (elClip) elClip.classList.toggle('on', on); }
 
+  // Lock the engine toggle between a click and the confirmed state change, so a
+  // fast OFF→ON can't spawn a new helper while the old one still holds the
+  // device. Safety timeout clears it if no status ever comes back.
+  function setBusy(b) {
+    busy = b;
+    if (elToggle) { elToggle.style.opacity = b ? '0.6' : ''; elToggle.style.pointerEvents = b ? 'none' : ''; }
+    if (busyTimer) { clearTimeout(busyTimer); busyTimer = null; }
+    if (b) busyTimer = setTimeout(function () { setBusy(false); }, 4000);
+  }
+
   function saveSettings() { if (api.saveAudioSettings) api.saveAudioSettings(settings); }
 
   function applyIfRunning() {
@@ -141,8 +153,24 @@
     }
   }
 
+  // Explicit auto-start (/AUDIOON). Overrides a hidden bar for THIS session
+  // (so there's a control to stop it) without changing the saved preference.
+  function autoStartEngine() {
+    if (!settings.configured || settings.deviceId == null) {
+      log('Audio: auto-start skipped — not configured yet.');
+      return;
+    }
+    if (!settings.barVisible) {
+      settings.barVisible = true;   // session-only override; NOT saved
+      applyBarVisibility();
+      var vsel = $('audio-barvisible-select'); if (vsel) vsel.value = 'shown';
+    }
+    if (!running && !busy) { setBusy(true); startEngine(); }
+  }
+
   function startEngine() {
     if (settings.deviceId == null) {
+      setBusy(false);           // nothing actually started — release the lock
       status('Audio: choose a device and inputs first.');
       openAudioPanel();
       setupStatus('Pick your device and input(s), then turn the engine on.');
@@ -165,7 +193,11 @@
   }
 
   if (elToggle) {
-    elToggle.addEventListener('click', function () { if (running) stopEngine(); else startEngine(); });
+    elToggle.addEventListener('click', function () {
+      if (busy) return;                 // ignore machine-gun clicks mid-transition
+      setBusy(true);
+      if (running) stopEngine(); else startEngine();
+    });
   }
 
   // MUTE toggles (bar + panel mirror; runtime only, not persisted)
@@ -365,6 +397,7 @@
   // --- events from main/helper ---
   if (api.onAudioStatus) {
     api.onAudioStatus(function (s) {
+      setBusy(false);   // state change confirmed — release the toggle lock
       if (s.error) { log('Audio error: ' + s.error); status('Audio engine error — ' + s.error); setToggleState(false); setupStatus('Error: ' + s.error); return; }
       setToggleState(!!s.running);
       if (s.running) {
@@ -394,6 +427,7 @@
     });
   }
   if (api.onAudioDevices) api.onAudioDevices(function (devices) { handleDevices(devices); });
+  if (api.onAudioAutostart) api.onAudioAutostart(function () { autoStartEngine(); });
 
   // --- restore saved settings ---
   document.addEventListener('DOMContentLoaded', function () {
@@ -402,11 +436,11 @@
       setToggleState(false);   // start in the OFF (dimmed) state
       applyBarVisibility();    // places the bar (top/bottom) or hides it
       updateBarLabel();
-      // /AUDIOON: auto-start on launch, but only if audio was set up before and
-      // the bar is visible (so there's a control to stop it).
-      if (api.audioAutoStart && settings.configured && settings.barVisible) {
-        setTimeout(function () { if (!running) startEngine(); }, 1800);
-      }
+      // /AUDIOON: explicit launch intent (cold-start flag, or the live event from
+      // a second-instance launch).
+      log('Audio: /AUDIOON=' + !!api.audioAutoStart + ' configured=' + settings.configured +
+          ' deviceId=' + settings.deviceId + ' barVisible=' + settings.barVisible);
+      if (api.audioAutoStart) setTimeout(autoStartEngine, 1800);
       // Prime the device cache once at startup (engine is off here) so the Setup
       // panel always has the list, even if the user turns the engine on before
       // ever opening the panel.

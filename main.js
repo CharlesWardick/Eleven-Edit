@@ -85,10 +85,16 @@ const gotLock = app.requestSingleInstanceLock();
 // code never runs at all.
 if (!gotLock) { app.quit(); return; }
 
-app.on('second-instance', function() {
+app.on('second-instance', function(event, argv) {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
+  }
+  // A shortcut launched with /AUDIOON while we're already running: the flag
+  // lands here (this process keeps the single-instance lock), so honor it by
+  // asking the live renderer to auto-start audio.
+  if (argv && argv.some(function (a) { return String(a).toLowerCase() === '/audioon'; })) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-autostart');
   }
 });
 
@@ -1408,6 +1414,7 @@ app.commandLine.appendSwitch('enable-blink-features', 'MIDIGetSupportedExtension
 
 app.whenReady().then(function() {
   initLog();
+  logWrite('Launch argv: [' + process.argv.join('] [') + ']  /AUDIOON=' + audioAutoStart);
   launchBridge();
   createSplashWindow();
   createWindow();
