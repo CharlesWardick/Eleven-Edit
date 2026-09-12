@@ -39,6 +39,7 @@ var RtAudioFormat = audify.RtAudioFormat;
 var rt = null;
 var inGain = 0.7;      // 0..1 (from 0..100 slider)
 var outGain = 0.8;
+var muted = false;     // hard output mute (keeps gain values intact)
 var lastPeak = 0;
 var meterTimer = null;
 
@@ -84,8 +85,11 @@ function onInput(pcm) {
     var sR = stereoIn ? pcm.readInt16LE(inBase + inRoff * 2) : sL;
     var aL = sL < 0 ? -sL : sL; if (aL > peak) peak = aL;
     var aR = sR < 0 ? -sR : sR; if (aR > peak) peak = aR;
-    var oL = Math.round(sL * g); if (oL > 32767) oL = 32767; else if (oL < -32768) oL = -32768;
-    var oR = Math.round(sR * g); if (oR > 32767) oR = 32767; else if (oR < -32768) oR = -32768;
+    var oL = 0, oR = 0;
+    if (!muted) {
+      oL = Math.round(sL * g); if (oL > 32767) oL = 32767; else if (oL < -32768) oL = -32768;
+      oR = Math.round(sR * g); if (oR > 32767) oR = 32767; else if (oR < -32768) oR = -32768;
+    }
     var outBase = f * outCount * 2;
     outBuf.writeInt16LE(oL, outBase + outLoff * 2);
     outBuf.writeInt16LE(oR, outBase + outRoff * 2);
@@ -110,6 +114,7 @@ function startEngine(o) {
   var dev = (o.deviceId != null) ? o.deviceId : 0;
   if (o.inGain != null) inGain = o.inGain / 100;
   if (o.outGain != null) outGain = o.outGain / 100;
+  if (o.muted != null) muted = !!o.muted;
 
   // Channel selection (0-based). inChannels = [ch] (mono) or [L,R] (stereo).
   // outChannels = [L,R].
@@ -168,6 +173,8 @@ function setGain(o) {
   if (o.outGain != null) outGain = o.outGain / 100;
 }
 
+function setMute(o) { muted = !!o.muted; }
+
 function listDevices() {
   try {
     var r = new RtAudio(RtAudioApi.WINDOWS_ASIO);
@@ -191,6 +198,7 @@ function handle(msg) {
     case 'start':   startEngine(msg); break;
     case 'stop':    stopEngine(); send({ type: 'stopped' }); break;
     case 'setGain': setGain(msg); break;
+    case 'setMute': setMute(msg); break;
     case 'list':    listDevices(); break;
     default: break;
   }

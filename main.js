@@ -1173,6 +1173,10 @@ ipcMain.handle('audio-set-gain', function (e, gains) {
   sendAudioCmd(Object.assign({ cmd: 'setGain' }, gains || {}));
   return true;
 });
+ipcMain.handle('audio-set-mute', function (e, m) {
+  sendAudioCmd({ cmd: 'setMute', muted: !!(m && m.muted) });
+  return true;
+});
 ipcMain.handle('audio-list-devices', function () {
   spawnAudioHelper();
   sendAudioCmd({ cmd: 'list' });

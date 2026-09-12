@@ -31,10 +31,12 @@
     rate:      48000,
     frames:    128,
     inGain:    70,
-    outGain:   80
+    outGain:   80,
+    configured: false      // false until first successful setup → first start is muted
   };
 
   var running = false;
+  var muted   = false;     // runtime only (not persisted)
   var devicesById = {};    // id -> {name, in, out, ...}
   var actualFrames = null; // buffer the driver actually granted (from 'started')
   var actualRate   = null;
@@ -49,6 +51,8 @@
   var elOutVal = $('audio-out-val');
   var elMeter  = $('audio-meter');
   var elDevLbl = $('audio-dev-label');
+  var elMute   = $('audio-mute-btn');
+  var elClip   = $('audio-clip');
 
   var panelAmp   = $('panel-ampcab');
   var panelSet   = $('panel-settings');
@@ -73,10 +77,19 @@
       frames:   settings.frames,
       inGain:   settings.inGain,
       outGain:  settings.outGain,
+      muted:    muted,
       inChannels:  ch.inChannels,
       outChannels: ch.outChannels
     };
   }
+
+  function updateMuteBtn() {
+    if (!elMute) return;
+    elMute.textContent = muted ? 'MUTED' : 'MUTE';
+    elMute.classList.toggle('muted', muted);
+  }
+
+  function setClip(on) { if (elClip) elClip.classList.toggle('on', on); }
 
   function saveSettings() { if (api.saveAudioSettings) api.saveAudioSettings(settings); }
 
@@ -90,7 +103,7 @@
     running = on;
     if (elToggle) { elToggle.textContent = on ? 'ON' : 'OFF'; elToggle.classList.toggle('on', on); }
     showStrip(on);
-    if (!on && elMeter) elMeter.style.width = '0%';
+    if (!on) { if (elMeter) elMeter.style.width = '0%'; setClip(false); }
   }
 
   function startEngine() {
@@ -100,8 +113,12 @@
       setupStatus('Pick your device and input(s), then turn the engine on.');
       return;
     }
-    log('Audio: requesting engine ON');
-    status('Audio engine starting…');
+    // First-ever bring-up starts MUTED (from the first sample) so nothing blasts.
+    if (!settings.configured) muted = true;
+    updateMuteBtn();
+    setClip(false);
+    log('Audio: requesting engine ON' + (muted ? ' (muted)' : ''));
+    status('Audio engine starting…' + (muted ? ' (muted — raise/unmute when ready)' : ''));
     api.audioStart(startOpts());
   }
 
@@ -115,6 +132,28 @@
   if (elToggle) {
     elToggle.addEventListener('click', function () { if (running) stopEngine(); else startEngine(); });
   }
+
+  // MUTE toggle (runtime only; not persisted)
+  if (elMute) {
+    elMute.addEventListener('click', function () {
+      muted = !muted;
+      updateMuteBtn();
+      if (api.audioSetMute) api.audioSetMute({ muted: muted });
+    });
+  }
+  // Clip latch — click to clear
+  if (elClip) elClip.addEventListener('click', function () { setClip(false); });
+
+  // Restart Engine — close & reopen the stream (recover a silent driver drop)
+  if ((b = $('audio-restart-btn'))) b.addEventListener('click', function () {
+    if (running) { setClip(false); status('Restarting audio engine…'); api.audioStart(startOpts()); }
+    else startEngine();
+  });
+  // Reset First-Run (dev) — re-arm the muted first-time setup
+  if ((b = $('audio-reset-firstrun-btn'))) b.addEventListener('click', function () {
+    settings.configured = false; saveSettings();
+    setupStatus('First-run re-armed — the next engine start will be muted.');
+  });
 
   // --- gain sliders (audio bar) ---
   function wireSlider(el, valEl, key) {
@@ -246,6 +285,7 @@
     if (elOut) elOut.value = settings.outGain;
     if (elInVal)  elInVal.textContent  = settings.inGain;
     if (elOutVal) elOutVal.textContent = settings.outGain;
+    updateMuteBtn();
     refreshModeRows();
   }
 
@@ -267,11 +307,15 @@
       if (s.running) {
         actualFrames = s.frames || null;
         actualRate   = s.rate || null;
-        status('Audio engine ON.');
+        // First successful bring-up → mark configured so future starts aren't auto-muted.
+        if (!settings.configured) { settings.configured = true; saveSettings(); }
+        updateMuteBtn();
+        status('Audio engine ON.' + (muted ? ' (muted)' : ''));
         updateBarLabel();
         var snap = (s.requestedFrames && s.frames && s.requestedFrames !== s.frames)
           ? ' (driver set ' + s.frames + ', you asked ' + s.requestedFrames + ')' : '';
-        setupStatus('Engine running — ' + (s.rate / 1000) + 'k · ' + s.frames + ' buffer' + snap + '.');
+        setupStatus('Engine running — ' + (s.rate / 1000) + 'k · ' + s.frames + ' buffer' + snap +
+          (muted ? ' · MUTED' : '') + '.');
       } else {
         actualFrames = null; actualRate = null;
       }
@@ -279,8 +323,8 @@
   }
   if (api.onAudioLevel) {
     api.onAudioLevel(function (v) {
-      if (!elMeter) return;
-      elMeter.style.width = Math.max(0, Math.min(100, Math.round(v * 100))) + '%';
+      if (elMeter) elMeter.style.width = Math.max(0, Math.min(100, Math.round(v * 100))) + '%';
+      if (v >= 0.99) setClip(true);   // latches until cleared / engine restart
     });
   }
   if (api.onAudioDevices) api.onAudioDevices(function (devices) { populateDevices(devices); });

@@ -211,6 +211,13 @@
   #audiostrip .as-meter { width: 60px; height: 6px; border-radius: 3px; background: #222; overflow: hidden; }
   #audiostrip .as-meter i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--accent)); transition: width 0.08s linear; }
   #audiostrip .as-dev { margin-left: auto; font-size: 10px; color: var(--muted); white-space: nowrap; }
+  #audiostrip .as-mute { background: #1a1a1a; border: 1px solid #666; color: #999; border-radius: 3px;
+    padding: 2px 9px; font-size: 10px; font-weight: bold; letter-spacing: 1px; cursor: pointer; white-space: nowrap; }
+  #audiostrip .as-mute:hover { border-color: var(--accent); color: var(--accent); }
+  #audiostrip .as-mute.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); box-shadow: 0 0 5px rgba(208,48,48,0.4); }
+  #audiostrip .as-clip { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: #4a2020;
+    border: 1px solid #3a1a1a; border-radius: 3px; padding: 1px 5px; cursor: pointer; }
+  #audiostrip .as-clip.on { color: #fff; background: var(--red); border-color: var(--red); box-shadow: 0 0 6px var(--red); }
 
   /* Window +/- */
   .size-btns { display: flex; gap: 3px; }
@@ -1388,12 +1395,14 @@
 <!-- ══ AUDIO STRIP (v2.0.0) — visible only when the engine is ON ══ -->
 <div id="audiostrip" style="display:none;">
   <span class="as-eng">● AUDIO ENGINE ON</span>
+  <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE</button>
   <span class="as-grp">
     <span class="tb-label">IN</span>
     <input type="range" id="audio-in" min="0" max="100" value="70">
     <span class="as-val" id="audio-in-val">70</span>
     <span class="tb-label">sig</span>
     <span class="as-meter"><i id="audio-meter"></i></span>
+    <span class="as-clip" id="audio-clip" title="Clip — click to clear">CLIP</span>
   </span>
   <span class="as-grp">
     <span class="tb-label">OUT</span>
@@ -2193,13 +2202,24 @@
       <div class="settings-row-controls">
         <div class="settings-select-wrap">
           <select id="audio-buffer-select" class="settings-select">
+            <option value="16">16 samples</option>
             <option value="32">32 samples</option>
+            <option value="48">48 samples</option>
             <option value="64">64 samples</option>
+            <option value="96">96 samples</option>
             <option value="128">128 samples</option>
+            <option value="160">160 samples</option>
+            <option value="192">192 samples</option>
             <option value="256">256 samples</option>
-            <option value="512">512 samples</option>
           </select>
         </div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="audio-restart-btn" title="Close and reopen the audio stream (recover after a driver hiccup)">Restart Engine</button>
+        <button class="settings-btn" id="audio-reset-firstrun-btn" title="Dev: re-arm the muted first-run setup">Reset First-Run</button>
       </div>
     </div>
 
