@@ -31,6 +31,7 @@
     rate:      48000,
     frames:    128,
     outGain:   100,        // monitor level 0..100 (no input gain — see helper)
+    barPosition: 'top',    // 'top' (under toolbar) | 'bottom' (above status bar)
     configured: false      // false until first successful setup → first start is muted
   };
 
@@ -43,11 +44,12 @@
 
   // --- elements ---
   function $(id) { return document.getElementById(id); }
-  var elToggle = $('btn-audio');
+  var elToggle = $('audio-engine-toggle');
   var elStrip  = $('audiostrip');
   var elOut    = $('audio-out');
   var elOutVal = $('audio-out-val');
-  var elMeter  = $('audio-meter');
+  var elMeterL = $('audio-meter-l');
+  var elMeterR = $('audio-meter-r');
   var elDevLbl = $('audio-dev-label');
   var elMute   = $('audio-mute-btn');
   var elMuteP  = $('audio-mute-panel');   // mirror copy in the Setup panel
@@ -100,13 +102,31 @@
     if (running) api.audioStart(startOpts());   // helper restarts on new geometry
   }
 
-  function showStrip(show) { if (elStrip) elStrip.style.display = show ? 'flex' : 'none'; }
+  function placeBar() {
+    if (!elStrip) return;
+    var sb = document.getElementById('statusbar');
+    var tb = document.getElementById('topbar');
+    if (settings.barPosition === 'bottom') {
+      elStrip.classList.add('bottom');
+      if (sb && sb.parentNode) sb.parentNode.insertBefore(elStrip, sb);
+    } else {
+      elStrip.classList.remove('bottom');
+      if (tb && tb.parentNode) tb.parentNode.insertBefore(elStrip, tb.nextSibling);
+    }
+  }
 
   function setToggleState(on) {
     running = on;
-    if (elToggle) { elToggle.textContent = on ? 'ON' : 'OFF'; elToggle.classList.toggle('on', on); }
-    showStrip(on);
-    if (!on) { if (elMeter) elMeter.style.width = '0%'; setClip(false); }
+    if (elToggle) {
+      elToggle.textContent = on ? '● AUDIO ENGINE ON' : '● AUDIO ENGINE OFF';
+      elToggle.classList.toggle('on', on);
+    }
+    if (elStrip) elStrip.classList.toggle('engine-off', !on);
+    if (!on) {
+      if (elMeterL) elMeterL.style.width = '0%';
+      if (elMeterR) elMeterR.style.width = '0%';
+      setClip(false);
+    }
   }
 
   function startEngine() {
@@ -303,12 +323,14 @@
   onCtl('audio-in-r',    function () { settings.inR    = parseInt(this.value, 10); saveSettings(); applyIfRunning(); });
   onCtl('audio-out-select', function () { settings.outPair = parseInt(this.value, 10); saveSettings(); applyIfRunning(); });
   onCtl('audio-rate-select',   function () { settings.rate = parseInt(this.value, 10); fillBufferSelect(); saveSettings(); applyIfRunning(); updateBarLabel(); });
+  onCtl('audio-barpos-select', function () { settings.barPosition = this.value; placeBar(); saveSettings(); });
   onCtl('audio-buffer-select', function () { settings.frames = parseInt(this.value, 10); saveSettings(); applyIfRunning(); updateBarLabel(); });
 
   function applySettingsToControls() {
     var e;
     if ((e = $('audio-mode-select')))   e.value = settings.inputMode;
     if ((e = $('audio-rate-select')))   e.value = String(settings.rate);
+    if ((e = $('audio-barpos-select'))) e.value = settings.barPosition;
     fillBufferSelect();
     if (elOut) elOut.value = settings.outGain;
     if (elOutVal) elOutVal.textContent = settings.outGain;
@@ -349,9 +371,12 @@
     });
   }
   if (api.onAudioLevel) {
-    api.onAudioLevel(function (v) {
-      if (elMeter) elMeter.style.width = Math.max(0, Math.min(100, Math.round(v * 100))) + '%';
-      if (v >= 0.99) setClip(true);   // latches until cleared / engine restart
+    api.onAudioLevel(function (lv) {
+      var l = (lv && lv.l != null) ? lv.l : 0;
+      var r = (lv && lv.r != null) ? lv.r : 0;
+      if (elMeterL) elMeterL.style.width = Math.max(0, Math.min(100, Math.round(l * 100))) + '%';
+      if (elMeterR) elMeterR.style.width = Math.max(0, Math.min(100, Math.round(r * 100))) + '%';
+      if (l >= 0.99 || r >= 0.99) setClip(true);   // latches until cleared / engine restart
     });
   }
   if (api.onAudioDevices) api.onAudioDevices(function (devices) { handleDevices(devices); });
@@ -360,6 +385,8 @@
   document.addEventListener('DOMContentLoaded', function () {
     function done() {
       applySettingsToControls();
+      placeBar();
+      setToggleState(false);   // bar is permanent; start in the OFF (dimmed) state
       updateBarLabel();
       // Prime the device cache once at startup (engine is off here) so the Setup
       // panel always has the list, even if the user turns the engine on before

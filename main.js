@@ -1128,7 +1128,7 @@ function handleAudioEvent(msg) {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
       break;
     case 'level':
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-level', msg.in);
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-level', { l: msg.l, r: msg.r });
       break;
     case 'devices':
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-devices', msg.devices);

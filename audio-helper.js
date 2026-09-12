@@ -42,7 +42,8 @@ var outGain = 1.0;     // 0..1 monitor level (from 0..100 slider). No input gain
                        // this is monitoring, not gain-staging — attenuating a
                        // captured signal can't un-clip it, so there's no input knob.
 var muted = false;     // hard output mute (keeps gain value intact)
-var lastPeak = 0;
+var lastPeakL = 0;
+var lastPeakR = 0;
 var meterTimer = null;
 
 // Channel routing (set in startEngine). RtAudio opens a CONTIGUOUS block, so
@@ -67,7 +68,7 @@ function stopEngine() {
     try { rt.closeStream(); } catch (e) {}
     rt = null;
   }
-  lastPeak = 0;
+  lastPeakL = 0; lastPeakR = 0;
 }
 
 // The audio callback: input PCM (interleaved Int16LE) arrives on the opened
@@ -80,13 +81,13 @@ function onInput(pcm) {
   var frames = (pcm.length / (inCount * 2)) | 0;
   var needed = frames * outCount * 2;
   if (!outBuf || outBuf.length !== needed) outBuf = Buffer.alloc(needed); // zero-filled
-  var peak = 0;
+  var peakL = 0, peakR = 0;
   for (var f = 0; f < frames; f++) {
     var inBase = f * inCount * 2;
     var sL = pcm.readInt16LE(inBase + inLoff * 2);
     var sR = stereoIn ? pcm.readInt16LE(inBase + inRoff * 2) : sL;
-    var aL = sL < 0 ? -sL : sL; if (aL > peak) peak = aL;
-    var aR = sR < 0 ? -sR : sR; if (aR > peak) peak = aR;
+    var aL = sL < 0 ? -sL : sL; if (aL > peakL) peakL = aL;
+    var aR = sR < 0 ? -sR : sR; if (aR > peakR) peakR = aR;
     var oL = 0, oR = 0;
     if (!muted) {
       oL = Math.round(sL * g); if (oL > 32767) oL = 32767; else if (oL < -32768) oL = -32768;
@@ -96,7 +97,8 @@ function onInput(pcm) {
     outBuf.writeInt16LE(oL, outBase + outLoff * 2);
     outBuf.writeInt16LE(oR, outBase + outRoff * 2);
   }
-  if (peak > lastPeak) lastPeak = peak;   // hold peak between meter ticks
+  if (peakL > lastPeakL) lastPeakL = peakL;   // hold peaks between meter ticks
+  if (peakR > lastPeakR) lastPeakR = peakR;
   if (rt) { try { rt.write(outBuf); } catch (e) {} }
 }
 
@@ -160,9 +162,8 @@ function startEngine(o) {
 
   // Emit the input meter ~10x/sec (peak since last tick, then reset).
   meterTimer = setInterval(function () {
-    var v = lastPeak / 32768;
-    lastPeak = 0;
-    send({ type: 'level', in: v });
+    send({ type: 'level', l: lastPeakL / 32768, r: lastPeakR / 32768 });
+    lastPeakL = 0; lastPeakR = 0;
   }, 100);
 
   send({ type: 'started', deviceId: dev, rate: rate, frames: actualFrames, requestedFrames: frames,
