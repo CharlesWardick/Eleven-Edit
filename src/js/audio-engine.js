@@ -38,6 +38,7 @@
   var running = false;
   var muted   = false;     // runtime only (not persisted)
   var devicesById = {};    // id -> {name, in, out, ...}
+  var lastDevices = null;  // cached scan (ASIO can't be enumerated while a device is open)
   var actualFrames = null; // buffer the driver actually granted (from 'started')
   var actualRate   = null;
 
@@ -192,11 +193,32 @@
   if ((b = $('settings-btn-audio-setup'))) b.addEventListener('click', openAudioPanel);
   if ((b = $('btn-audio-back')))  b.addEventListener('click', backToSettings);
   if ((b = $('btn-audio-close'))) b.addEventListener('click', closeAudioPanel);
-  if ((b = $('audio-rescan-btn'))) b.addEventListener('click', requestDevices);
+  if ((b = $('audio-rescan-btn'))) b.addEventListener('click', function () {
+    if (running) setupStatus('Stop the engine first to rescan devices.');
+    else requestDevices();
+  });
 
   function requestDevices() {
+    // ASIO can't be enumerated while the engine holds a device — the scan comes
+    // back empty. So only do a live scan when the engine is OFF; otherwise reuse
+    // the cached list.
+    if (running) {
+      if (lastDevices && lastDevices.length) {
+        populateDevices(lastDevices);
+        setupStatus('Engine running — showing last scan. Stop the engine to rescan.');
+      } else {
+        setupStatus('Turn the engine OFF to scan for audio devices.');
+      }
+      return;
+    }
     setupStatus('Scanning devices…');
     if (api.audioListDevices) api.audioListDevices();
+  }
+
+  function handleDevices(devices) {
+    if (devices && devices.length) { lastDevices = devices; populateDevices(devices); }
+    else if (lastDevices && lastDevices.length) { populateDevices(lastDevices); } // ignore a failed/empty scan
+    else { populateDevices([]); }
   }
 
   function opt(value, label, selected) {
@@ -327,11 +349,18 @@
       if (v >= 0.99) setClip(true);   // latches until cleared / engine restart
     });
   }
-  if (api.onAudioDevices) api.onAudioDevices(function (devices) { populateDevices(devices); });
+  if (api.onAudioDevices) api.onAudioDevices(function (devices) { handleDevices(devices); });
 
   // --- restore saved settings ---
   document.addEventListener('DOMContentLoaded', function () {
-    function done() { applySettingsToControls(); updateBarLabel(); }
+    function done() {
+      applySettingsToControls();
+      updateBarLabel();
+      // Prime the device cache once at startup (engine is off here) so the Setup
+      // panel always has the list, even if the user turns the engine on before
+      // ever opening the panel.
+      setTimeout(function () { if (!running) requestDevices(); }, 1500);
+    }
     if (api.getAudioSettings) {
       Promise.resolve(api.getAudioSettings()).then(function (saved) {
         if (saved && typeof saved === 'object') { for (var k in settings) if (saved[k] != null) settings[k] = saved[k]; }
