@@ -16,6 +16,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onBridgeStatus:     (cb)        => ipcRenderer.on('bridge-status', (e, data) => cb(data)),
   removeBridgeStatus: ()          => ipcRenderer.removeAllListeners('bridge-status'),
 
+  // Audio engine (v2.0.0) — audio-helper.js child process, ASIO passthrough.
+  audioStart:        (opts)  => ipcRenderer.invoke('audio-start', opts),
+  audioStop:         ()      => ipcRenderer.invoke('audio-stop'),
+  audioSetGain:      (gains) => ipcRenderer.invoke('audio-set-gain', gains),
+  audioListDevices:  ()      => ipcRenderer.invoke('audio-list-devices'),
+  getAudioStatus:    ()      => ipcRenderer.invoke('get-audio-status'),
+  getAudioSettings:  ()      => ipcRenderer.invoke('get-audio-settings'),
+  saveAudioSettings: (s)     => ipcRenderer.invoke('save-audio-settings', s),
+  onAudioStatus:     (cb)    => ipcRenderer.on('audio-status',  (e, data) => cb(data)),
+  onAudioLevel:      (cb)    => ipcRenderer.on('audio-level',   (e, data) => cb(data)),
+  onAudioDevices:    (cb)    => ipcRenderer.on('audio-devices', (e, data) => cb(data)),
+
   // Avid editor watchdog
   checkAvidEditor:     ()         => ipcRenderer.invoke('check-avid-editor'),
   startWatchdog:       (mode)     => ipcRenderer.invoke('start-watchdog', mode),

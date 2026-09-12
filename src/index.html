@@ -178,6 +178,40 @@
   }
   .amp-toggle-btn.on { background: #1a2a1a; border-color: var(--green); color: var(--green); }
 
+  /* Audio engine toggle (v2.0.0) — matches the Tuner button's look/behaviour */
+  .audio-col { display: flex; flex-direction: column; gap: 2px; align-items: center; flex-shrink: 0; }
+  .audio-toggle {
+    background: #1a1a1a; border: 1px solid #666; color: #999;
+    border-radius: 4px; padding: 5px 16px; font-size: 13px; font-weight: bold;
+    cursor: pointer; white-space: nowrap; letter-spacing: 1px;
+  }
+  .audio-toggle:not(.on):hover { border-color: var(--accent); color: var(--accent); }
+  .audio-toggle.on {
+    background: #1a2a1a; border-color: var(--green); color: var(--green);
+    box-shadow: 0 0 6px rgba(48,192,80,0.35);
+  }
+  .audio-toggle.on:hover { border-color: var(--green); }
+
+  /* Amber-bracketed audio strip — appears under the topbar when engine is ON */
+  #audiostrip {
+    background: #0f0f0f; border-bottom: 2px solid var(--accent-dim);
+    display: flex; align-items: center; gap: 22px; padding: 8px 16px; flex-shrink: 0;
+  }
+  #audiostrip .as-eng { color: var(--green); font-size: 11px; font-weight: bold; letter-spacing: 1px; white-space: nowrap; }
+  #audiostrip .as-grp { display: flex; align-items: center; gap: 7px; }
+  #audiostrip input[type=range] {
+    -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px;
+    background: #333; outline: none; width: 150px;
+  }
+  #audiostrip input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+  }
+  #audiostrip .as-val { font-size: 10px; color: var(--accent); width: 24px; }
+  #audiostrip .as-meter { width: 60px; height: 6px; border-radius: 3px; background: #222; overflow: hidden; }
+  #audiostrip .as-meter i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--accent)); transition: width 0.08s linear; }
+  #audiostrip .as-dev { margin-left: auto; font-size: 10px; color: var(--muted); white-space: nowrap; }
+
   /* Window +/- */
   .size-btns { display: flex; gap: 3px; }
   .size-btn {
@@ -1331,6 +1365,13 @@
     <button id="btn-tuner" title="Toggle the Eleven Rack's built-in tuner">TUNER</button>
     <div class="tdiv"></div>
 
+    <!-- Audio engine toggle (v2.0.0) -->
+    <div class="audio-col">
+      <div class="tb-label">AUDIO</div>
+      <button id="btn-audio" class="audio-toggle" title="Toggle the built-in audio passthrough engine">OFF</button>
+    </div>
+    <div class="tdiv"></div>
+
     <!-- Window +/- -->
     <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
       <div class="tb-label">WINDOW</div>
@@ -1341,6 +1382,24 @@
     </div>
 
   </div>
+</div>
+
+<!-- ══ AUDIO STRIP (v2.0.0) — visible only when the engine is ON ══ -->
+<div id="audiostrip" style="display:none;">
+  <span class="as-eng">● AUDIO ENGINE ON</span>
+  <span class="as-grp">
+    <span class="tb-label">IN</span>
+    <input type="range" id="audio-in" min="0" max="100" value="70">
+    <span class="as-val" id="audio-in-val">70</span>
+    <span class="tb-label">sig</span>
+    <span class="as-meter"><i id="audio-meter"></i></span>
+  </span>
+  <span class="as-grp">
+    <span class="tb-label">OUT</span>
+    <input type="range" id="audio-out" min="0" max="100" value="80">
+    <span class="as-val" id="audio-out-val">80</span>
+  </span>
+  <span class="as-dev" id="audio-dev-label"></span>
 </div>
 
 <!-- ══ CHAIN STRIP ══ -->
@@ -3689,6 +3748,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/sysex-handler.js"></script>
 <script src="js/patch-nav.js"></script>
 <script src="js/rig-balance.js"></script>   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
+<script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v2.0.0 -->
 <script src="js/app-init.js"></script>
 </body>
 </html>

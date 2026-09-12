@@ -1012,6 +1012,162 @@ ipcMain.handle('restart-bridge', function() {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// AUDIO ENGINE (v2.0.0) — audio-helper.js child process
+// The helper does ASIO duplex passthrough via `audify`. It is SPAWNED on
+// engine ON and KILLED on engine OFF — killing fully releases the ASIO
+// device so a DAW can grab it. Mirrors the Java-bridge lifecycle above.
+//
+// The helper runs under Electron's own Node (process.execPath +
+// ELECTRON_RUN_AS_NODE=1), so end users need no separate Node install. Its
+// audify native module is a prebuilt N-API binary, ABI-stable across Node
+// and Electron.
+// ════════════════════════════════════════════════════════════════════
+let audioProc   = null;
+let audioStatus = { running: false, error: null, deviceId: null };
+
+function findAudioHelper() {
+  // Packaged: audio-helper.js sits next to main.js (asar disabled for now, so
+  // it's a real file on disk). Dev (npm start): also alongside main.js.
+  const candidates = [
+    path.join(__dirname, 'audio-helper.js'),
+    path.join(process.resourcesPath || '', 'app', 'audio-helper.js'),
+  ];
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return candidates[0];
+}
+
+function sendAudioCmd(obj) {
+  if (audioProc && audioProc.stdin && audioProc.stdin.writable) {
+    try { audioProc.stdin.write(JSON.stringify(obj) + '\n'); return true; }
+    catch (e) { logWrite('Audio: stdin write failed — ' + e.message); }
+  }
+  return false;
+}
+
+function spawnAudioHelper() {
+  if (audioProc) return; // already running
+  const helperPath = findAudioHelper();
+  try {
+    logWrite('Audio: launching helper ' + helperPath);
+    audioProc = spawn(process.execPath, [helperPath], {
+      cwd: path.dirname(helperPath),
+      windowsHide: true,
+      env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '1' }),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    audioStatus.running = false;
+    audioStatus.error = e.message;
+    logWrite('Audio: helper spawn failed — ' + e.message);
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+    return;
+  }
+
+  // Parse newline-delimited JSON events from the helper's stdout.
+  let outBuf = '';
+  audioProc.stdout.on('data', function (d) {
+    outBuf += d.toString();
+    let idx;
+    while ((idx = outBuf.indexOf('\n')) >= 0) {
+      const line = outBuf.slice(0, idx).trim();
+      outBuf = outBuf.slice(idx + 1);
+      if (!line) continue;
+      let msg = null;
+      try { msg = JSON.parse(line); } catch (e) { continue; }
+      handleAudioEvent(msg);
+    }
+  });
+  audioProc.stderr.on('data', function (d) {
+    logWrite('[audio:err] ' + d.toString().trim());
+  });
+  audioProc.on('error', function (e) {
+    audioStatus.running = false;
+    audioStatus.error = e.message;
+    logWrite('Audio: helper process error — ' + e.message);
+    audioProc = null;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+  });
+  audioProc.on('exit', function (code, signal) {
+    logWrite('Audio: helper exited — code=' + code + ' signal=' + signal);
+    audioProc = null;
+    audioStatus.running = false;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+  });
+}
+
+function handleAudioEvent(msg) {
+  switch (msg.type) {
+    case 'ready':
+      // Helper is up; nothing to do — the start command is sent by audio-start.
+      break;
+    case 'started':
+      audioStatus.running = true;
+      audioStatus.error = null;
+      audioStatus.deviceId = msg.deviceId;
+      logWrite('Audio: engine started (device ' + msg.deviceId + ', ' + msg.rate + 'Hz, ' + msg.frames + ' frames)');
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+      break;
+    case 'stopped':
+      audioStatus.running = false;
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+      break;
+    case 'level':
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-level', msg.in);
+      break;
+    case 'devices':
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-devices', msg.devices);
+      break;
+    case 'error':
+      audioStatus.error = msg.message;
+      logWrite('Audio: helper error — ' + msg.message);
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+      break;
+    default: break;
+  }
+}
+
+function killAudioHelper(callback) {
+  if (!audioProc) { if (callback) callback(); return; }
+  const proc = audioProc;
+  audioProc = null;
+  audioStatus.running = false;
+  try { proc.stdin.write(JSON.stringify({ cmd: 'stop' }) + '\n'); } catch (e) {}
+  // Give it a beat to release the ASIO device, then terminate the process.
+  setTimeout(function () {
+    try { proc.kill(); } catch (e) {}
+    if (callback) callback();
+  }, 200);
+}
+
+// engine ON: spawn helper (if needed) and start passthrough on the device.
+ipcMain.handle('audio-start', function (e, opts) {
+  spawnAudioHelper();
+  sendAudioCmd(Object.assign({ cmd: 'start' }, opts || {}));
+  return true;
+});
+// engine OFF: fully release the device by killing the helper.
+ipcMain.handle('audio-stop', function () {
+  killAudioHelper();
+  return true;
+});
+ipcMain.handle('audio-set-gain', function (e, gains) {
+  sendAudioCmd(Object.assign({ cmd: 'setGain' }, gains || {}));
+  return true;
+});
+ipcMain.handle('audio-list-devices', function () {
+  spawnAudioHelper();
+  sendAudioCmd({ cmd: 'list' });
+  return true;
+});
+ipcMain.handle('get-audio-status', function () { return audioStatus; });
+
+// Audio settings persistence (device + levels + engine-on preference).
+ipcMain.handle('get-audio-settings', function () { return storeGet('audioSettings', null); });
+ipcMain.handle('save-audio-settings', function (e, s) { storeSet('audioSettings', s); return true; });
+
+// ════════════════════════════════════════════════════════════════════
 // PROCESS WATCHDOG — Mode 3 style
 // ════════════════════════════════════════════════════════════════════
 let watchdogInterval   = null;
@@ -1208,6 +1364,7 @@ function createWindow() {
 
   mainWindow.on('close', function() {
     storeSet('windowBounds', mainWindow.getBounds());
+    killAudioHelper();
     killBridge();
     stopWatchdog();
     logClose();
@@ -1227,6 +1384,7 @@ app.whenReady().then(function() {
 
 app.on('window-all-closed', function() {
   stopWatchdog();
+  killAudioHelper();
   killBridge(function() {
     logClose();
     if (process.platform !== 'darwin') app.quit();
@@ -1237,6 +1395,7 @@ let isReallyQuitting = false;
 app.on('before-quit', function(event) {
   if (isReallyQuitting) return; // already cleaned up — let this one through
   event.preventDefault();
+  killAudioHelper();
   killBridge(function() {
     isReallyQuitting = true;
     app.quit();
