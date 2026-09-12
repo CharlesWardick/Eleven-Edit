@@ -32,6 +32,7 @@
     frames:    128,
     outGain:   100,        // monitor level 0..100 (no input gain — see helper)
     barPosition: 'bottom', // 'bottom' (above status bar, default) | 'top' (under toolbar)
+    barVisible:  true,     // false = hide the bar entirely (for non-audio users)
     configured: false      // false until first successful setup → first start is muted
   };
 
@@ -100,6 +101,17 @@
 
   function applyIfRunning() {
     if (running) api.audioStart(startOpts());   // helper restarts on new geometry
+  }
+
+  function applyBarVisibility() {
+    if (!elStrip) return;
+    if (settings.barVisible) {
+      elStrip.style.display = '';       // back to CSS flex
+      placeBar();
+    } else {
+      if (running) stopEngine();        // hiding removes the only engine control → stop it
+      elStrip.style.display = 'none';
+    }
   }
 
   function placeBar() {
@@ -324,6 +336,7 @@
   onCtl('audio-out-select', function () { settings.outPair = parseInt(this.value, 10); saveSettings(); applyIfRunning(); });
   onCtl('audio-rate-select',   function () { settings.rate = parseInt(this.value, 10); fillBufferSelect(); saveSettings(); applyIfRunning(); updateBarLabel(); });
   onCtl('audio-barpos-select', function () { settings.barPosition = this.value; placeBar(); saveSettings(); });
+  onCtl('audio-barvisible-select', function () { settings.barVisible = (this.value === 'shown'); applyBarVisibility(); saveSettings(); });
   onCtl('audio-buffer-select', function () { settings.frames = parseInt(this.value, 10); saveSettings(); applyIfRunning(); updateBarLabel(); });
 
   function applySettingsToControls() {
@@ -331,6 +344,7 @@
     if ((e = $('audio-mode-select')))   e.value = settings.inputMode;
     if ((e = $('audio-rate-select')))   e.value = String(settings.rate);
     if ((e = $('audio-barpos-select'))) e.value = settings.barPosition;
+    if ((e = $('audio-barvisible-select'))) e.value = settings.barVisible ? 'shown' : 'hidden';
     fillBufferSelect();
     if (elOut) elOut.value = settings.outGain;
     if (elOutVal) elOutVal.textContent = settings.outGain;
@@ -385,8 +399,8 @@
   document.addEventListener('DOMContentLoaded', function () {
     function done() {
       applySettingsToControls();
-      placeBar();
-      setToggleState(false);   // bar is permanent; start in the OFF (dimmed) state
+      setToggleState(false);   // start in the OFF (dimmed) state
+      applyBarVisibility();    // places the bar (top/bottom) or hides it
       updateBarLabel();
       // Prime the device cache once at startup (engine is off here) so the Setup
       // panel always has the list, even if the user turns the engine on before
