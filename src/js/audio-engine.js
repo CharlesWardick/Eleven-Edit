@@ -30,8 +30,7 @@
     outPair:   0,          // left channel index of output pair (0 => outputs 1+2)
     rate:      48000,
     frames:    128,
-    inGain:    70,
-    outGain:   80,
+    outGain:   100,        // monitor level 0..100 (no input gain — see helper)
     configured: false      // false until first successful setup → first start is muted
   };
 
@@ -46,9 +45,7 @@
   function $(id) { return document.getElementById(id); }
   var elToggle = $('btn-audio');
   var elStrip  = $('audiostrip');
-  var elIn     = $('audio-in');
   var elOut    = $('audio-out');
-  var elInVal  = $('audio-in-val');
   var elOutVal = $('audio-out-val');
   var elMeter  = $('audio-meter');
   var elDevLbl = $('audio-dev-label');
@@ -77,7 +74,6 @@
       deviceId: settings.deviceId,
       rate:     settings.rate,
       frames:   settings.frames,
-      inGain:   settings.inGain,
       outGain:  settings.outGain,
       muted:    muted,
       inChannels:  ch.inChannels,
@@ -157,19 +153,15 @@
     setupStatus('First-run re-armed — the next engine start will be muted.');
   });
 
-  // --- gain sliders (audio bar) ---
-  function wireSlider(el, valEl, key) {
-    if (!el) return;
-    el.addEventListener('input', function () {
-      var v = parseInt(el.value, 10);
-      settings[key] = v;
-      if (valEl) valEl.textContent = v;
-      if (running && api.audioSetGain) api.audioSetGain({ inGain: settings.inGain, outGain: settings.outGain });
+  // --- monitor level slider (audio bar) ---
+  if (elOut) {
+    elOut.addEventListener('input', function () {
+      settings.outGain = parseInt(elOut.value, 10);
+      if (elOutVal) elOutVal.textContent = settings.outGain;
+      if (running && api.audioSetGain) api.audioSetGain({ outGain: settings.outGain });
       saveSettings();
     });
   }
-  wireSlider(elIn,  elInVal,  'inGain');
-  wireSlider(elOut, elOutVal, 'outGain');
 
   // ── Audio Setup panel ─────────────────────────────────────────────────
   function openAudioPanel() {
@@ -318,9 +310,7 @@
     if ((e = $('audio-mode-select')))   e.value = settings.inputMode;
     if ((e = $('audio-rate-select')))   e.value = String(settings.rate);
     fillBufferSelect();
-    if (elIn)  elIn.value  = settings.inGain;
     if (elOut) elOut.value = settings.outGain;
-    if (elInVal)  elInVal.textContent  = settings.inGain;
     if (elOutVal) elOutVal.textContent = settings.outGain;
     updateMuteBtn();
     refreshModeRows();

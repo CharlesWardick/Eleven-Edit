@@ -15,10 +15,11 @@
  *
  * PROTOCOL (newline-delimited JSON, both directions):
  *   stdin  (commands from main.js):
- *     {"cmd":"start","deviceId":1,"rate":48000,"channels":2,"frames":128,
- *                    "inGain":70,"outGain":80}
+ *     {"cmd":"start","deviceId":1,"rate":48000,"frames":128,"outGain":100,
+ *                    "muted":false,"inChannels":[2],"outChannels":[0,1]}
  *     {"cmd":"stop"}
- *     {"cmd":"setGain","inGain":70,"outGain":80}
+ *     {"cmd":"setGain","outGain":100}
+ *     {"cmd":"setMute","muted":true}
  *     {"cmd":"list"}
  *   stdout (events to main.js):
  *     {"type":"ready"}
@@ -37,9 +38,10 @@ var RtAudioApi = audify.RtAudioApi;
 var RtAudioFormat = audify.RtAudioFormat;
 
 var rt = null;
-var inGain = 0.7;      // 0..1 (from 0..100 slider)
-var outGain = 0.8;
-var muted = false;     // hard output mute (keeps gain values intact)
+var outGain = 1.0;     // 0..1 monitor level (from 0..100 slider). No input gain:
+                       // this is monitoring, not gain-staging — attenuating a
+                       // captured signal can't un-clip it, so there's no input knob.
+var muted = false;     // hard output mute (keeps gain value intact)
 var lastPeak = 0;
 var meterTimer = null;
 
@@ -74,7 +76,7 @@ function stopEngine() {
 // stay silent). Mono input (stereoIn=false) is duplicated to both outputs.
 // We also track the input PEAK (pre-gain) for the UI signal meter.
 function onInput(pcm) {
-  var g = inGain * outGain;
+  var g = outGain;
   var frames = (pcm.length / (inCount * 2)) | 0;
   var needed = frames * outCount * 2;
   if (!outBuf || outBuf.length !== needed) outBuf = Buffer.alloc(needed); // zero-filled
@@ -112,7 +114,6 @@ function startEngine(o) {
   var rate = o.rate || 48000;
   var frames = o.frames || 128;
   var dev = (o.deviceId != null) ? o.deviceId : 0;
-  if (o.inGain != null) inGain = o.inGain / 100;
   if (o.outGain != null) outGain = o.outGain / 100;
   if (o.muted != null) muted = !!o.muted;
 
@@ -169,7 +170,6 @@ function startEngine(o) {
 }
 
 function setGain(o) {
-  if (o.inGain != null) inGain = o.inGain / 100;
   if (o.outGain != null) outGain = o.outGain / 100;
 }
 
