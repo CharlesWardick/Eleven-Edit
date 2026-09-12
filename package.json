@@ -14,8 +14,7 @@
     "productName": "Eleven Edit",
     "asarUnpack": [
       "audio-helper.js",
-      "node_modules/audify/**",
-      "node_modules/node-gyp-build/**"
+      "node_modules/**"
     ],
     "win": {
       "target": "nsis",
