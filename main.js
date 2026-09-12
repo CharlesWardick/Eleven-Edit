@@ -842,8 +842,12 @@ function findBridgeJar() {
     path.join(process.resourcesPath || '', 'ElevenRackBridge.jar'),
     path.join(__dirname, 'ElevenRackBridge.jar'),
   ];
+  logWrite('Bridge: locating jar — resourcesPath=' + (process.resourcesPath || '(none)') + ' __dirname=' + __dirname);
   for (const p of candidates) {
-    if (p && fs.existsSync(p)) return p;
+    let exists = false;
+    try { exists = !!(p && fs.existsSync(p)); } catch (e) {}
+    logWrite('Bridge: jar candidate "' + p + '" exists=' + exists);
+    if (exists) return p;
   }
   return null;
 }
@@ -1026,16 +1030,20 @@ let audioProc   = null;
 let audioStatus = { running: false, error: null, deviceId: null };
 
 function findAudioHelper() {
-  // Packaged: audio-helper.js sits next to main.js (asar disabled for now, so
-  // it's a real file on disk). Dev (npm start): also alongside main.js.
-  const candidates = [
-    path.join(__dirname, 'audio-helper.js'),
-    path.join(process.resourcesPath || '', 'app', 'audio-helper.js'),
-  ];
+  // Packaged with asar: main.js lives inside app.asar, but audio-helper.js is
+  // asarUnpack'd to the sibling app.asar.unpacked (a real file the spawned
+  // Node can read). Dev (npm start): it's just alongside main.js.
+  const direct = path.join(__dirname, 'audio-helper.js');
+  const unpacked = direct.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
+  const candidates = (unpacked !== direct) ? [unpacked, direct] : [direct];
+  logWrite('Audio: locating helper — __dirname=' + __dirname);
   for (const p of candidates) {
-    if (p && fs.existsSync(p)) return p;
+    let exists = false;
+    try { exists = !!(p && fs.existsSync(p)); } catch (e) {}
+    logWrite('Audio: helper candidate "' + p + '" exists=' + exists);
+    if (exists) return p;
   }
-  return candidates[0];
+  return direct;
 }
 
 function sendAudioCmd(obj) {

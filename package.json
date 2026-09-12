@@ -12,7 +12,11 @@
   "build": {
     "appId": "com.wardick.rigrollerplus",
     "productName": "Eleven Edit",
-    "asar": false,
+    "asarUnpack": [
+      "audio-helper.js",
+      "node_modules/audify/**",
+      "node_modules/node-gyp-build/**"
+    ],
     "win": {
       "target": "nsis",
       "icon": "assets/icon.ico"
