@@ -1126,6 +1126,9 @@ function handleAudioEvent(msg) {
       break;
     case 'devices':
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-devices', msg.devices);
+      // If the helper was spawned only to enumerate (engine not running),
+      // shut it back down so it isn't left idling.
+      if (!audioStatus.running) killAudioHelper();
       break;
     case 'error':
       audioStatus.error = msg.message;

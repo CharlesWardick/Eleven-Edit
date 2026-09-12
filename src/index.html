@@ -1199,6 +1199,7 @@
 
   /* ══ SETTINGS PANEL ══ */
   #panel-settings { display: none; flex-direction: column; gap: 18px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; flex-shrink: 0; }
+  #panel-audio-settings { display: none; flex-direction: column; gap: 14px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; flex-shrink: 0; }
   .settings-title { color: var(--accent); font-size: 12px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; border-bottom: 1px solid var(--border-dim); padding-bottom: 8px; }
   .settings-row { display: flex; flex-direction: column; gap: 6px; }
   .settings-row-label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -2109,6 +2110,101 @@
             <option value="3">Split In/Out</option>
           </select>
         </div>
+      </div>
+    </div>
+
+    <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Audio Engine (v2.0.0)</div>
+    <div class="settings-row">
+      <div class="settings-row-label">Built-in Audio Passthrough</div>
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-audio-setup">Audio Setup…</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ AUDIO SETUP PANEL (v2.0.0) — swaps into the panel region ══ -->
+  <div id="panel-audio-settings" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button id="btn-audio-back" title="Back to Settings" style="background:none;border:none;color:var(--accent);font-size:20px;cursor:pointer;line-height:1;padding:0 2px;">‹</button>
+      <div class="settings-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0;flex:1;">Audio Setup</div>
+      <button id="btn-audio-close" title="Close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 2px;">✕</button>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">Audio Device</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-device-select" class="settings-select"><option>Scanning…</option></select>
+        </div>
+        <button class="settings-btn" id="audio-rescan-btn">Rescan</button>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">Input Mode</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-mode-select" class="settings-select">
+            <option value="mono">Mono (one input → both monitors)</option>
+            <option value="stereo">Stereo (left + right inputs)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-row-mono">
+      <div class="settings-row-label">Input</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap"><select id="audio-in-mono" class="settings-select"></select></div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-row-stereo" style="display:none;">
+      <div class="settings-row-label">Input L / R</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap"><select id="audio-in-l" class="settings-select"></select></div>
+        <div class="settings-select-wrap"><select id="audio-in-r" class="settings-select"></select></div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">Output (monitors)</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap"><select id="audio-out-select" class="settings-select"></select></div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">Sample Rate</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-rate-select" class="settings-select">
+            <option value="44100">44100 Hz</option>
+            <option value="48000">48000 Hz</option>
+            <option value="88200">88200 Hz</option>
+            <option value="96000">96000 Hz</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-label">Audio Buffer Size</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-buffer-select" class="settings-select">
+            <option value="64">64 samples</option>
+            <option value="128">128 samples</option>
+            <option value="256">256 samples</option>
+            <option value="512">512 samples</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <div class="settings-path" id="audio-setup-status">Engine off.</div>
       </div>
     </div>
   </div>

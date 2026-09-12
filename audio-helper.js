@@ -42,6 +42,17 @@ var outGain = 0.8;
 var lastPeak = 0;
 var meterTimer = null;
 
+// Channel routing (set in startEngine). RtAudio opens a CONTIGUOUS block, so
+// we open from the lowest to highest selected channel and cherry-pick the
+// ones we want inside the callback. Offsets are positions WITHIN the opened
+// block (0-based).
+var stereoIn  = false;
+var inCount   = 1;   // channels in the opened input block
+var outCount  = 2;   // channels in the opened output block
+var inLoff = 0, inRoff = 0;    // input L/R positions within the input frame
+var outLoff = 0, outRoff = 1;  // output L/R positions within the output frame
+var outBuf = null;             // reused, zero-filled output scratch buffer
+
 function send(obj) {
   try { process.stdout.write(JSON.stringify(obj) + '\n'); } catch (e) {}
 }
@@ -56,24 +67,31 @@ function stopEngine() {
   lastPeak = 0;
 }
 
-// The audio callback: input PCM (interleaved Int16LE) arrives, we apply gain
-// and write it straight back out on the same device. We also track the input
-// PEAK (pre-gain) for the signal meter in the UI.
+// The audio callback: input PCM (interleaved Int16LE) arrives on the opened
+// input block. We pick the selected L/R input channels, apply gain, and place
+// them at the selected L/R OUTPUT channels (all other opened output channels
+// stay silent). Mono input (stereoIn=false) is duplicated to both outputs.
+// We also track the input PEAK (pre-gain) for the UI signal meter.
 function onInput(pcm) {
   var g = inGain * outGain;
-  var n = pcm.length >> 1;             // number of Int16 samples
+  var frames = (pcm.length / (inCount * 2)) | 0;
+  var needed = frames * outCount * 2;
+  if (!outBuf || outBuf.length !== needed) outBuf = Buffer.alloc(needed); // zero-filled
   var peak = 0;
-  for (var i = 0; i < n; i++) {
-    var off = i << 1;
-    var s = pcm.readInt16LE(off);
-    var a = s < 0 ? -s : s;
-    if (a > peak) peak = a;
-    s = Math.round(s * g);
-    if (s > 32767) s = 32767; else if (s < -32768) s = -32768;
-    pcm.writeInt16LE(s, off);
+  for (var f = 0; f < frames; f++) {
+    var inBase = f * inCount * 2;
+    var sL = pcm.readInt16LE(inBase + inLoff * 2);
+    var sR = stereoIn ? pcm.readInt16LE(inBase + inRoff * 2) : sL;
+    var aL = sL < 0 ? -sL : sL; if (aL > peak) peak = aL;
+    var aR = sR < 0 ? -sR : sR; if (aR > peak) peak = aR;
+    var oL = Math.round(sL * g); if (oL > 32767) oL = 32767; else if (oL < -32768) oL = -32768;
+    var oR = Math.round(sR * g); if (oR > 32767) oR = 32767; else if (oR < -32768) oR = -32768;
+    var outBase = f * outCount * 2;
+    outBuf.writeInt16LE(oL, outBase + outLoff * 2);
+    outBuf.writeInt16LE(oR, outBase + outRoff * 2);
   }
   if (peak > lastPeak) lastPeak = peak;   // hold peak between meter ticks
-  if (rt) { try { rt.write(pcm); } catch (e) {} }
+  if (rt) { try { rt.write(outBuf); } catch (e) {} }
 }
 
 function startEngine(o) {
@@ -87,17 +105,35 @@ function startEngine(o) {
     return;
   }
 
-  var channels = o.channels || 2;
   var rate = o.rate || 48000;
   var frames = o.frames || 128;
   var dev = (o.deviceId != null) ? o.deviceId : 0;
   if (o.inGain != null) inGain = o.inGain / 100;
   if (o.outGain != null) outGain = o.outGain / 100;
 
+  // Channel selection (0-based). inChannels = [ch] (mono) or [L,R] (stereo).
+  // outChannels = [L,R].
+  var inCh = (Array.isArray(o.inChannels) && o.inChannels.length) ? o.inChannels : [0];
+  var outCh = (Array.isArray(o.outChannels) && o.outChannels.length >= 2) ? o.outChannels : [0, 1];
+  stereoIn = inCh.length >= 2;
+  var inL = inCh[0], inR = stereoIn ? inCh[1] : inCh[0];
+  var outL = outCh[0], outR = outCh[1];
+
+  var inFirst = Math.min(inL, inR);
+  inCount = Math.max(inL, inR) - inFirst + 1;
+  inLoff = inL - inFirst;
+  inRoff = inR - inFirst;
+
+  var outFirst = Math.min(outL, outR);
+  outCount = Math.max(outL, outR) - outFirst + 1;
+  outLoff = outL - outFirst;
+  outRoff = outR - outFirst;
+  outBuf = null; // force realloc for the new geometry
+
   try {
     rt.openStream(
-      { deviceId: dev, nChannels: channels, firstChannel: 0 },   // output
-      { deviceId: dev, nChannels: channels, firstChannel: 0 },   // input
+      { deviceId: dev, nChannels: outCount, firstChannel: outFirst },  // output block
+      { deviceId: dev, nChannels: inCount,  firstChannel: inFirst },   // input block
       RtAudioFormat.RTAUDIO_SINT16,
       rate,
       frames,
@@ -119,7 +155,8 @@ function startEngine(o) {
     send({ type: 'level', in: v });
   }, 100);
 
-  send({ type: 'started', deviceId: dev, rate: rate, channels: channels, frames: frames });
+  send({ type: 'started', deviceId: dev, rate: rate, frames: frames,
+         mode: stereoIn ? 'stereo' : 'mono', inChannels: inCh, outChannels: outCh });
 }
 
 function setGain(o) {
