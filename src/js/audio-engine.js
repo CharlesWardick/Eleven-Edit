@@ -22,10 +22,10 @@
   if (!api || !api.audioStart) return;
 
   var settings = {
-    deviceType: 'none',    // 'none' | 'asio' | 'wasapi' | 'ds'
-    asioDev:   null,       // ASIO device id (one duplex device)
-    inDev:     null,       // non-ASIO input device id
-    outDev:    null,       // non-ASIO output device id
+    deviceType:  'none',   // 'none' | 'asio' | 'wasapi' | 'ds'
+    asioDevName: null,     // ASIO device NAME (indices reshuffle; names are stable)
+    inDevName:   null,     // non-ASIO input device NAME
+    outDevName:  null,     // non-ASIO output device NAME
     inputMode: 'mono',     // 'mono' | 'stereo'
     inMono:    0,          // 0-based input channel for mono
     inL:       0,
@@ -44,9 +44,12 @@
   var busy    = false;     // guards against machine-gunning the engine toggle
   var busyTimer = null;
   // Per-API device caches (ASIO can't be enumerated while a device is open, so
-  // we keep the last good scan for each API).
-  var devCache = { asio: null, wasapi: null, ds: null };  // arrays
-  var devById  = { asio: {}, wasapi: {}, ds: {} };        // id -> device
+  // we keep the last good scan for each API). Keyed by both id and NAME so we
+  // can resolve a saved name to whatever index it currently occupies.
+  var devCache  = { asio: null, wasapi: null, ds: null };  // arrays
+  var devById   = { asio: {}, wasapi: {}, ds: {} };        // id -> device
+  var devByName = { asio: {}, wasapi: {}, ds: {} };        // name -> device
+  var legacyIdx = { asio: null };  // one-time migration from index-based saves
   var actualFrames = null; // buffer the driver actually granted (from 'started')
   var actualRate   = null;
 
@@ -78,25 +81,52 @@
     return { inChannels: inChannels, outChannels: outChannels };
   }
 
-  // The two device ids for the current type (ASIO = same device for both).
-  function deriveDevices() {
-    if (settings.deviceType === 'asio') return { inDeviceId: settings.asioDev, outDeviceId: settings.asioDev };
-    return { inDeviceId: settings.inDev, outDeviceId: settings.outDev };
-  }
-  function devicesReady() {
-    if (settings.deviceType === 'asio') return settings.asioDev != null;
-    if (settings.deviceType === 'wasapi' || settings.deviceType === 'ds') return settings.inDev != null && settings.outDev != null;
-    return false; // none
+  // Resolve a saved device NAME to its current id (index) via the latest scan.
+  function resolveId(apiName, name) {
+    if (name == null) return null;
+    var d = devByName[apiName] && devByName[apiName][name];
+    return d ? d.id : null;
   }
   function inputDevice() {
-    var t = settings.deviceType;
-    if (t === 'asio') return devById.asio[settings.asioDev];
-    return (devById[t] || {})[settings.inDev];
+    var t = settings.deviceType, name = (t === 'asio') ? settings.asioDevName : settings.inDevName;
+    return (devByName[t] || {})[name];
   }
   function outputDevice() {
+    var t = settings.deviceType, name = (t === 'asio') ? settings.asioDevName : settings.outDevName;
+    return (devByName[t] || {})[name];
+  }
+  // The two device ids for the current type (ASIO = same device for both).
+  function deriveDevices() {
     var t = settings.deviceType;
-    if (t === 'asio') return devById.asio[settings.asioDev];
-    return (devById[t] || {})[settings.outDev];
+    if (t === 'asio') { var id = resolveId('asio', settings.asioDevName); return { inDeviceId: id, outDeviceId: id }; }
+    return { inDeviceId: resolveId(t, settings.inDevName), outDeviceId: resolveId(t, settings.outDevName) };
+  }
+  // A device name has been chosen (may or may not be currently present).
+  function namesChosen() {
+    var t = settings.deviceType;
+    if (t === 'asio') return settings.asioDevName != null;
+    if (t === 'wasapi' || t === 'ds') return settings.inDevName != null && settings.outDevName != null;
+    return false;
+  }
+  // Chosen AND currently present (resolvable to a live device).
+  function devicesReady() {
+    var dv = deriveDevices();
+    if (settings.deviceType === 'asio') return dv.inDeviceId != null;
+    if (settings.deviceType === 'wasapi' || settings.deviceType === 'ds') return dv.inDeviceId != null && dv.outDeviceId != null;
+    return false;
+  }
+  // Chosen but NOT currently present (interface off / unplugged / reshuffled away).
+  function deviceMissing() { return namesChosen() && !devicesReady(); }
+
+  function showInterfaceModal() {
+    var t = settings.deviceType;
+    var who = (t === 'asio') ? ('"' + (settings.asioDevName || '') + '"')
+      : ('input "' + (settings.inDevName || '?') + '" / output "' + (settings.outDevName || '?') + '"');
+    var html = '<div style="color:var(--red);margin-bottom:8px;">The audio device ' + who + ' isn’t available right now.</div>'
+      + '<div style="color:#b3b3b3;">Turn on / plug in your interface, then click <b>AUDIO ENGINE OFF→ON</b>, '
+      + 'or open <b>Audio&nbsp;Setup</b> to choose a different device.</div>';
+    if (typeof showModalMessage === 'function') showModalMessage('Audio Device Not Found', html);
+    else { status('Audio device not available — turn on your interface, then toggle the engine.'); }
   }
 
   function startOpts() {
@@ -194,8 +224,14 @@
   // Explicit auto-start (/AUDIOON). Overrides a hidden bar for THIS session
   // (so there's a control to stop it) without changing the saved preference.
   function autoStartEngine() {
-    if (!settings.configured || !devicesReady()) {
+    if (!settings.configured || !namesChosen()) {
       log('Audio: auto-start skipped — not configured yet.');
+      return;
+    }
+    if (deviceMissing()) {   // /AUDIOON but the interface is off / not present
+      log('Audio: auto-start — device not present.');
+      flashToggleErr();
+      showInterfaceModal();
       return;
     }
     if (!settings.barVisible) {
@@ -207,11 +243,18 @@
   }
 
   function startEngine() {
-    if (settings.deviceType === 'none' || !devicesReady()) {
-      setBusy(false);           // nothing actually started — release the lock
+    if (settings.deviceType === 'none' || !namesChosen()) {
+      setBusy(false);           // nothing chosen yet — send them to setup
       status('Audio: choose a device type and device(s) first.');
       openAudioPanel();
       setupStatus('Pick a Device Type and device(s), then turn the engine on.');
+      return;
+    }
+    if (deviceMissing()) {      // chosen, but not connected right now → modal
+      setBusy(false);
+      flashToggleErr();
+      showInterfaceModal();
+      setupStatus('Selected device isn’t connected — reconnect it or pick another.');
       return;
     }
     // First-ever bring-up starts MUTED (from the first sample) so nothing blasts.
@@ -334,7 +377,13 @@
     if (devices.length) {
       devCache[apiName] = devices;
       devById[apiName] = {};
-      devices.forEach(function (d) { devById[apiName][d.id] = d; });
+      devByName[apiName] = {};
+      devices.forEach(function (d) { devById[apiName][d.id] = d; devByName[apiName][d.name] = d; });
+      // One-time migration: an old index-based ASIO save → resolve to a name now.
+      if (apiName === 'asio' && settings.asioDevName == null && legacyIdx.asio != null && devById.asio[legacyIdx.asio]) {
+        settings.asioDevName = devById.asio[legacyIdx.asio].name;
+        legacyIdx.asio = null; saveSettings();
+      }
     }
     if (apiName === settings.deviceType) populateDevices(apiName);
   }
@@ -389,40 +438,36 @@
     if (apiName === 'none') { updateBarLabel(); return; }
     var devices = devCache[apiName] || [];
 
+    // Fill a device <select> by NAME. If the saved name isn't present, DON'T
+    // silently switch to another device (that's the Windows-reshuffle bug) —
+    // show it as "(not connected)" and keep the saved name so it resolves when
+    // the device returns.
+    function fillDevSelect(sel, list, savedName, setName) {
+      if (!sel) return;
+      sel.innerHTML = '';
+      if (!list.length) { sel.appendChild(opt('', 'No devices found', true)); return; }
+      var present = savedName != null && devByName[apiName][savedName];
+      if (savedName == null) { setName(list[0].name); savedName = list[0].name; }  // first-time default
+      else if (!present) sel.appendChild(opt(savedName, '(not connected) ' + savedName, true));
+      list.forEach(function (d) { sel.appendChild(opt(d.name, d.name, d.name === savedName)); });
+      sel.value = savedName;
+    }
+
     if (apiName === 'asio') {
-      var sel = $('audio-device-select');
-      if (sel) {
-        sel.innerHTML = '';
-        if (!devices.length) { sel.appendChild(opt('', 'No ASIO devices found', true)); setupStatus('No ASIO devices found.'); }
-        else {
-          devices.forEach(function (d) { sel.appendChild(opt(d.id, d.name, d.id === settings.asioDev)); });
-          if (settings.asioDev == null || !devById.asio[settings.asioDev]) { settings.asioDev = devices[0].id; sel.value = String(settings.asioDev); }
-        }
-      }
-      var dev = devById.asio[settings.asioDev];
+      fillDevSelect($('audio-device-select'), devices, settings.asioDevName, function (n) { settings.asioDevName = n; });
+      var dev = devByName.asio[settings.asioDevName];
       fillChannelSelects((dev && dev.in) || 0, (dev && dev.out) || 0);
       fillRateSelect(dev);
     } else {
-      // WASAPI / DirectSound: separate capture (input) + render (output) devices
-      var ins = devices.filter(function (d) { return d.in > 0; });
+      var ins  = devices.filter(function (d) { return d.in > 0; });
       var outs = devices.filter(function (d) { return d.out > 0; });
-      var si = $('audio-indev-select'), so = $('audio-outdev-select');
-      if (si) {
-        si.innerHTML = '';
-        if (!ins.length) si.appendChild(opt('', 'No input devices', true));
-        else { ins.forEach(function (d) { si.appendChild(opt(d.id, d.name, d.id === settings.inDev)); });
-          if (settings.inDev == null || !(devById[apiName][settings.inDev] && devById[apiName][settings.inDev].in > 0)) { settings.inDev = ins[0].id; si.value = String(settings.inDev); } }
-      }
-      if (so) {
-        so.innerHTML = '';
-        if (!outs.length) so.appendChild(opt('', 'No output devices', true));
-        else { outs.forEach(function (d) { so.appendChild(opt(d.id, d.name, d.id === settings.outDev)); });
-          if (settings.outDev == null || !(devById[apiName][settings.outDev] && devById[apiName][settings.outDev].out > 0)) { settings.outDev = outs[0].id; so.value = String(settings.outDev); } }
-      }
-      var idev = devById[apiName][settings.inDev], odev = devById[apiName][settings.outDev];
+      fillDevSelect($('audio-indev-select'),  ins,  settings.inDevName,  function (n) { settings.inDevName = n; });
+      fillDevSelect($('audio-outdev-select'), outs, settings.outDevName, function (n) { settings.outDevName = n; });
+      var idev = devByName[apiName][settings.inDevName], odev = devByName[apiName][settings.outDevName];
       fillChannelSelects((idev && idev.in) || 0, (odev && odev.out) || 0);
       fillRateSelect(odev || idev);
     }
+    if (deviceMissing()) setupStatus('Selected device isn’t connected — reconnect it or pick another.');
     fillBufferSelect();
     setupStatus(running ? 'Engine running.' : 'Ready — turn the engine on from the bar.');
     updateBarLabel();
@@ -438,21 +483,21 @@
     applyIfRunning();
     updateBarLabel();
   });
-  onCtl('audio-device-select', function () {   // ASIO device
-    settings.asioDev = parseInt(this.value, 10);
-    var d = devById.asio[settings.asioDev];
+  onCtl('audio-device-select', function () {   // ASIO device (by name)
+    settings.asioDevName = this.value;
+    var d = devByName.asio[settings.asioDevName];
     fillChannelSelects((d && d.in) || 0, (d && d.out) || 0); fillRateSelect(d);
     saveSettings(); applyIfRunning(); updateBarLabel();
   });
-  onCtl('audio-indev-select', function () {    // non-ASIO input device
-    settings.inDev = parseInt(this.value, 10);
-    var idev = devById[settings.deviceType][settings.inDev], odev = outputDevice();
+  onCtl('audio-indev-select', function () {    // non-ASIO input device (by name)
+    settings.inDevName = this.value;
+    var idev = devByName[settings.deviceType][settings.inDevName], odev = outputDevice();
     fillChannelSelects((idev && idev.in) || 0, (odev && odev.out) || 0);
     saveSettings(); applyIfRunning(); updateBarLabel();
   });
-  onCtl('audio-outdev-select', function () {   // non-ASIO output device
-    settings.outDev = parseInt(this.value, 10);
-    var odev = devById[settings.deviceType][settings.outDev], idev = inputDevice();
+  onCtl('audio-outdev-select', function () {   // non-ASIO output device (by name)
+    settings.outDevName = this.value;
+    var odev = devByName[settings.deviceType][settings.outDevName], idev = inputDevice();
     fillChannelSelects((idev && idev.in) || 0, (odev && odev.out) || 0); fillRateSelect(odev);
     saveSettings(); applyIfRunning(); updateBarLabel();
   });
@@ -559,8 +604,12 @@
       Promise.resolve(api.getAudioSettings()).then(function (saved) {
         if (saved && typeof saved === 'object') {
           for (var k in settings) if (saved[k] != null) settings[k] = saved[k];
-          // Migrate pre-device-type saves (single ASIO deviceId → type=asio).
-          if (saved.deviceType == null && saved.deviceId != null) { settings.deviceType = 'asio'; settings.asioDev = saved.deviceId; }
+          // Migrate index-based saves → names. We can't map an index to a name
+          // until the first scan, so stash it and resolve it in handleDevices.
+          if (settings.asioDevName == null) {
+            if (saved.deviceType == null && saved.deviceId != null) { settings.deviceType = 'asio'; legacyIdx.asio = saved.deviceId; }
+            else if (saved.asioDev != null) { legacyIdx.asio = saved.asioDev; }
+          }
         }
         done();
       }).catch(done);
