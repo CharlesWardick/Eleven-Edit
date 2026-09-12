@@ -53,6 +53,7 @@
   var elMeter  = $('audio-meter');
   var elDevLbl = $('audio-dev-label');
   var elMute   = $('audio-mute-btn');
+  var elMuteP  = $('audio-mute-panel');   // mirror copy in the Setup panel
   var elClip   = $('audio-clip');
 
   var panelAmp   = $('panel-ampcab');
@@ -85,9 +86,14 @@
   }
 
   function updateMuteBtn() {
-    if (!elMute) return;
-    elMute.textContent = muted ? 'MUTED' : 'MUTE';
-    elMute.classList.toggle('muted', muted);
+    if (elMute)  { elMute.textContent  = muted ? 'MUTED' : 'MUTE'; elMute.classList.toggle('muted', muted); }
+    if (elMuteP) { elMuteP.textContent = muted ? 'MUTED' : 'MUTE'; elMuteP.classList.toggle('muted', muted); }
+  }
+
+  function doMuteToggle() {
+    muted = !muted;
+    updateMuteBtn();
+    if (api.audioSetMute) api.audioSetMute({ muted: muted });
   }
 
   function setClip(on) { if (elClip) elClip.classList.toggle('on', on); }
@@ -134,14 +140,9 @@
     elToggle.addEventListener('click', function () { if (running) stopEngine(); else startEngine(); });
   }
 
-  // MUTE toggle (runtime only; not persisted)
-  if (elMute) {
-    elMute.addEventListener('click', function () {
-      muted = !muted;
-      updateMuteBtn();
-      if (api.audioSetMute) api.audioSetMute({ muted: muted });
-    });
-  }
+  // MUTE toggles (bar + panel mirror; runtime only, not persisted)
+  if (elMute)  elMute.addEventListener('click', doMuteToggle);
+  if (elMuteP) elMuteP.addEventListener('click', doMuteToggle);
   // Clip latch — click to clear
   if (elClip) elClip.addEventListener('click', function () { setClip(false); });
 
@@ -247,6 +248,18 @@
     rates.forEach(function (r) { sel.appendChild(opt(r, r + ' Hz', r === settings.rate)); });
   }
 
+  var BUFFERS = [16, 32, 48, 64, 96, 128, 160, 192, 256];
+  function fillBufferSelect() {
+    var sel = $('audio-buffer-select');
+    if (!sel) return;
+    var rate = settings.rate || 48000;
+    sel.innerHTML = '';
+    BUFFERS.forEach(function (n) {
+      var ms = (n / rate * 1000);
+      sel.appendChild(opt(n, n + ' samples (' + ms.toFixed(1) + ' ms)', n === settings.frames));
+    });
+  }
+
   function refreshModeRows() {
     var mono = $('audio-row-mono'), stereo = $('audio-row-stereo');
     if (mono)   mono.style.display   = settings.inputMode === 'mono'   ? 'flex' : 'none';
@@ -273,6 +286,7 @@
     }
     fillChannelSelects(devicesById[settings.deviceId]);
     fillRateSelect(devicesById[settings.deviceId]);
+    fillBufferSelect();
     refreshModeRows();
     setupStatus(running ? 'Engine running.' : 'Ready — turn the engine on from the top bar.');
     updateBarLabel();
@@ -295,14 +309,14 @@
   onCtl('audio-in-l',    function () { settings.inL    = parseInt(this.value, 10); saveSettings(); applyIfRunning(); });
   onCtl('audio-in-r',    function () { settings.inR    = parseInt(this.value, 10); saveSettings(); applyIfRunning(); });
   onCtl('audio-out-select', function () { settings.outPair = parseInt(this.value, 10); saveSettings(); applyIfRunning(); });
-  onCtl('audio-rate-select',   function () { settings.rate = parseInt(this.value, 10); saveSettings(); applyIfRunning(); updateBarLabel(); });
+  onCtl('audio-rate-select',   function () { settings.rate = parseInt(this.value, 10); fillBufferSelect(); saveSettings(); applyIfRunning(); updateBarLabel(); });
   onCtl('audio-buffer-select', function () { settings.frames = parseInt(this.value, 10); saveSettings(); applyIfRunning(); updateBarLabel(); });
 
   function applySettingsToControls() {
     var e;
     if ((e = $('audio-mode-select')))   e.value = settings.inputMode;
     if ((e = $('audio-rate-select')))   e.value = String(settings.rate);
-    if ((e = $('audio-buffer-select'))) e.value = String(settings.frames);
+    fillBufferSelect();
     if (elIn)  elIn.value  = settings.inGain;
     if (elOut) elOut.value = settings.outGain;
     if (elInVal)  elInVal.textContent  = settings.inGain;

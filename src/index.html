@@ -218,6 +218,7 @@
   #audiostrip .as-clip { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: #4a2020;
     border: 1px solid #3a1a1a; border-radius: 3px; padding: 1px 5px; cursor: pointer; }
   #audiostrip .as-clip.on { color: #fff; background: var(--red); border-color: var(--red); box-shadow: 0 0 6px var(--red); }
+  .settings-btn.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); }
 
   /* Window +/- */
   .size-btns { display: flex; gap: 3px; }
@@ -2218,6 +2219,7 @@
 
     <div class="settings-row">
       <div class="settings-row-controls">
+        <button class="settings-btn" id="audio-mute-panel" title="Mute / unmute output">MUTE</button>
         <button class="settings-btn" id="audio-restart-btn" title="Close and reopen the audio stream (recover after a driver hiccup)">Restart Engine</button>
         <button class="settings-btn" id="audio-reset-firstrun-btn" title="Dev: re-arm the muted first-run setup">Reset First-Run</button>
       </div>
