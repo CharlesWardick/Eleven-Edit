@@ -1126,12 +1126,15 @@ function handleAudioEvent(msg) {
     case 'started':
       audioStatus.running = true;
       audioStatus.error = null;
-      audioStatus.deviceId = msg.deviceId;
+      audioStatus.api = msg.api;
+      audioStatus.inDeviceId = msg.inDeviceId;
+      audioStatus.outDeviceId = msg.outDeviceId;
       audioStatus.rate = msg.rate;
       audioStatus.frames = msg.frames;             // ACTUAL granted buffer (may differ from requested)
       audioStatus.requestedFrames = msg.requestedFrames;
       audioStatus.mode = msg.mode;
-      logWrite('Audio: engine started (device ' + msg.deviceId + ', ' + msg.rate + 'Hz, ' +
+      logWrite('Audio: engine started (' + String(msg.api).toUpperCase() + ', in dev ' + msg.inDeviceId +
+        ', out dev ' + msg.outDeviceId + ', ' + msg.rate + 'Hz, ' +
         msg.frames + ' frames' + (msg.requestedFrames && msg.requestedFrames !== msg.frames ?
         ' [driver snapped from ' + msg.requestedFrames + ']' : '') + ', ' + msg.mode + ')');
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
@@ -1144,7 +1147,7 @@ function handleAudioEvent(msg) {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-level', { l: msg.l, r: msg.r });
       break;
     case 'devices':
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-devices', msg.devices);
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-devices', { api: msg.api, devices: msg.devices });
       // If the helper was spawned only to enumerate (engine neither running nor
       // being started), shut it back down so it isn't left idling. The
       // audioEngineWanted guard prevents killing a helper that a concurrent
@@ -1195,9 +1198,9 @@ ipcMain.handle('audio-set-mute', function (e, m) {
   sendAudioCmd({ cmd: 'setMute', muted: !!(m && m.muted) });
   return true;
 });
-ipcMain.handle('audio-list-devices', function () {
+ipcMain.handle('audio-list-devices', function (e, api) {
   spawnAudioHelper();
-  sendAudioCmd({ cmd: 'list' });
+  sendAudioCmd({ cmd: 'list', api: api || 'asio' });
   return true;
 });
 ipcMain.handle('get-audio-status', function () { return audioStatus; });

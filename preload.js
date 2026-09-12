@@ -21,7 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   audioStop:         ()      => ipcRenderer.invoke('audio-stop'),
   audioSetGain:      (gains) => ipcRenderer.invoke('audio-set-gain', gains),
   audioSetMute:      (m)     => ipcRenderer.invoke('audio-set-mute', m),
-  audioListDevices:  ()      => ipcRenderer.invoke('audio-list-devices'),
+  audioListDevices:  (api)   => ipcRenderer.invoke('audio-list-devices', api),
   getAudioStatus:    ()      => ipcRenderer.invoke('get-audio-status'),
   getAudioSettings:  ()      => ipcRenderer.invoke('get-audio-settings'),
   saveAudioSettings: (s)     => ipcRenderer.invoke('save-audio-settings', s),

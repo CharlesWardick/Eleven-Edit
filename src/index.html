@@ -2147,16 +2147,54 @@
 
     <div class="audio-grid">
     <div class="settings-row">
-      <div class="settings-row-label">Audio Device</div>
+      <div class="settings-row-label">Device Type</div>
       <div class="settings-row-controls">
         <div class="settings-select-wrap">
-          <select id="audio-device-select" class="settings-select"><option>Scanning…</option></select>
+          <select id="audio-type-select" class="settings-select">
+            <option value="none">None (audio off)</option>
+            <option value="asio">ASIO (recommended)</option>
+            <option value="wasapi">WASAPI</option>
+            <option value="ds">DirectSound</option>
+          </select>
         </div>
         <button class="settings-btn" id="audio-rescan-btn">Rescan</button>
       </div>
     </div>
 
-    <div class="settings-row">
+    <div class="settings-row" id="audio-none-row">
+      <div class="settings-row-controls">
+        <div class="settings-path">Choose a Device Type above to set up audio.</div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-asio-row" style="display:none;">
+      <div class="settings-row-label">Audio Device</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-device-select" class="settings-select"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-indev-row" style="display:none;">
+      <div class="settings-row-label">Input Device</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-indev-select" class="settings-select"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-outdev-row" style="display:none;">
+      <div class="settings-row-label">Output Device</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-outdev-select" class="settings-select"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-mode-row">
       <div class="settings-row-label">Input Mode</div>
       <div class="settings-row-controls">
         <div class="settings-select-wrap">
@@ -2183,14 +2221,14 @@
       </div>
     </div>
 
-    <div class="settings-row">
+    <div class="settings-row" id="audio-out-row">
       <div class="settings-row-label">Output (monitors)</div>
       <div class="settings-row-controls">
         <div class="settings-select-wrap"><select id="audio-out-select" class="settings-select"></select></div>
       </div>
     </div>
 
-    <div class="settings-row">
+    <div class="settings-row" id="audio-rate-row">
       <div class="settings-row-label">Sample Rate</div>
       <div class="settings-row-controls">
         <div class="settings-select-wrap">
@@ -2204,7 +2242,7 @@
       </div>
     </div>
 
-    <div class="settings-row">
+    <div class="settings-row" id="audio-buffer-row">
       <div class="settings-row-label">Audio Buffer Size</div>
       <div class="settings-row-controls">
         <div class="settings-select-wrap">

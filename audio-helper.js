@@ -37,6 +37,18 @@ var RtAudio = audify.RtAudio;
 var RtAudioApi = audify.RtAudioApi;
 var RtAudioFormat = audify.RtAudioFormat;
 
+// Map a friendly API name to the RtAudio Windows backend. ASIO = one duplex
+// device; WASAPI / DirectSound = separate input + output devices (cross-device
+// duplex, which RtAudio supports — DirectSound syncs cleaner than WASAPI).
+function apiEnum(name) {
+  switch (String(name || 'asio').toLowerCase()) {
+    case 'wasapi':      return RtAudioApi.WINDOWS_WASAPI;
+    case 'ds':
+    case 'directsound': return RtAudioApi.WINDOWS_DS;
+    default:            return RtAudioApi.WINDOWS_ASIO;
+  }
+}
+
 var rt = null;
 var outGain = 1.0;     // 0..1 monitor level (from 0..100 slider). No input gain:
                        // this is monitoring, not gain-staging — attenuating a
@@ -106,16 +118,18 @@ function startEngine(o) {
   stopEngine();  // clean any prior stream first
 
   try {
-    rt = new RtAudio(RtAudioApi.WINDOWS_ASIO);
+    rt = new RtAudio(apiEnum(o.api));
   } catch (e) {
-    send({ type: 'error', message: 'ASIO init failed: ' + e.message });
+    send({ type: 'error', message: String(o.api || 'ASIO').toUpperCase() + ' init failed: ' + e.message });
     rt = null;
     return;
   }
 
   var rate = o.rate || 48000;
   var frames = o.frames || 128;
-  var dev = (o.deviceId != null) ? o.deviceId : 0;
+  // ASIO: one device for both. WASAPI/DS: separate input + output devices.
+  var inDev  = (o.inDeviceId  != null) ? o.inDeviceId  : (o.deviceId != null ? o.deviceId : 0);
+  var outDev = (o.outDeviceId != null) ? o.outDeviceId : (o.deviceId != null ? o.deviceId : 0);
   if (o.outGain != null) outGain = o.outGain / 100;
   if (o.muted != null) muted = !!o.muted;
 
@@ -141,8 +155,8 @@ function startEngine(o) {
   var actualFrames = frames;
   try {
     var ret = rt.openStream(
-      { deviceId: dev, nChannels: outCount, firstChannel: outFirst },  // output block
-      { deviceId: dev, nChannels: inCount,  firstChannel: inFirst },   // input block
+      { deviceId: outDev, nChannels: outCount, firstChannel: outFirst },  // output block
+      { deviceId: inDev,  nChannels: inCount,  firstChannel: inFirst },   // input block
       RtAudioFormat.RTAUDIO_SINT16,
       rate,
       frames,
@@ -166,7 +180,8 @@ function startEngine(o) {
     lastPeakL = 0; lastPeakR = 0;
   }, 100);
 
-  send({ type: 'started', deviceId: dev, rate: rate, frames: actualFrames, requestedFrames: frames,
+  send({ type: 'started', api: o.api || 'asio', inDeviceId: inDev, outDeviceId: outDev,
+         rate: rate, frames: actualFrames, requestedFrames: frames,
          mode: stereoIn ? 'stereo' : 'mono', inChannels: inCh, outChannels: outCh });
 }
 
@@ -176,9 +191,10 @@ function setGain(o) {
 
 function setMute(o) { muted = !!o.muted; }
 
-function listDevices() {
+function listDevices(o) {
+  var apiName = (o && o.api) || 'asio';
   try {
-    var r = new RtAudio(RtAudioApi.WINDOWS_ASIO);
+    var r = new RtAudio(apiEnum(apiName));
     var devices = r.getDevices().map(function (d, i) {
       return {
         id: i, name: d.name,
@@ -188,9 +204,9 @@ function listDevices() {
         defaultIn: d.isDefaultInput, defaultOut: d.isDefaultOutput
       };
     });
-    send({ type: 'devices', api: 'ASIO', devices: devices });
+    send({ type: 'devices', api: apiName, devices: devices });
   } catch (e) {
-    send({ type: 'error', message: 'device list failed: ' + e.message });
+    send({ type: 'error', message: apiName.toUpperCase() + ' device list failed: ' + e.message });
   }
 }
 
@@ -200,7 +216,7 @@ function handle(msg) {
     case 'stop':    stopEngine(); send({ type: 'stopped' }); break;
     case 'setGain': setGain(msg); break;
     case 'setMute': setMute(msg); break;
-    case 'list':    listDevices(); break;
+    case 'list':    listDevices(msg); break;
     default: break;
   }
 }

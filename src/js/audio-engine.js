@@ -22,7 +22,10 @@
   if (!api || !api.audioStart) return;
 
   var settings = {
-    deviceId:  null,       // null until the user picks one (first-run → Setup)
+    deviceType: 'none',    // 'none' | 'asio' | 'wasapi' | 'ds'
+    asioDev:   null,       // ASIO device id (one duplex device)
+    inDev:     null,       // non-ASIO input device id
+    outDev:    null,       // non-ASIO output device id
     inputMode: 'mono',     // 'mono' | 'stereo'
     inMono:    0,          // 0-based input channel for mono
     inL:       0,
@@ -40,8 +43,10 @@
   var muted   = false;     // runtime only (not persisted)
   var busy    = false;     // guards against machine-gunning the engine toggle
   var busyTimer = null;
-  var devicesById = {};    // id -> {name, in, out, ...}
-  var lastDevices = null;  // cached scan (ASIO can't be enumerated while a device is open)
+  // Per-API device caches (ASIO can't be enumerated while a device is open, so
+  // we keep the last good scan for each API).
+  var devCache = { asio: null, wasapi: null, ds: null };  // arrays
+  var devById  = { asio: {}, wasapi: {}, ds: {} };        // id -> device
   var actualFrames = null; // buffer the driver actually granted (from 'started')
   var actualRate   = null;
 
@@ -73,14 +78,38 @@
     return { inChannels: inChannels, outChannels: outChannels };
   }
 
+  // The two device ids for the current type (ASIO = same device for both).
+  function deriveDevices() {
+    if (settings.deviceType === 'asio') return { inDeviceId: settings.asioDev, outDeviceId: settings.asioDev };
+    return { inDeviceId: settings.inDev, outDeviceId: settings.outDev };
+  }
+  function devicesReady() {
+    if (settings.deviceType === 'asio') return settings.asioDev != null;
+    if (settings.deviceType === 'wasapi' || settings.deviceType === 'ds') return settings.inDev != null && settings.outDev != null;
+    return false; // none
+  }
+  function inputDevice() {
+    var t = settings.deviceType;
+    if (t === 'asio') return devById.asio[settings.asioDev];
+    return (devById[t] || {})[settings.inDev];
+  }
+  function outputDevice() {
+    var t = settings.deviceType;
+    if (t === 'asio') return devById.asio[settings.asioDev];
+    return (devById[t] || {})[settings.outDev];
+  }
+
   function startOpts() {
     var ch = deriveChannels();
+    var dv = deriveDevices();
     return {
-      deviceId: settings.deviceId,
-      rate:     settings.rate,
-      frames:   settings.frames,
-      outGain:  settings.outGain,
-      muted:    muted,
+      api:         settings.deviceType,
+      inDeviceId:  dv.inDeviceId,
+      outDeviceId: dv.outDeviceId,
+      rate:        settings.rate,
+      frames:      settings.frames,
+      outGain:     settings.outGain,
+      muted:       muted,
       inChannels:  ch.inChannels,
       outChannels: ch.outChannels
     };
@@ -156,7 +185,7 @@
   // Explicit auto-start (/AUDIOON). Overrides a hidden bar for THIS session
   // (so there's a control to stop it) without changing the saved preference.
   function autoStartEngine() {
-    if (!settings.configured || settings.deviceId == null) {
+    if (!settings.configured || !devicesReady()) {
       log('Audio: auto-start skipped — not configured yet.');
       return;
     }
@@ -169,11 +198,11 @@
   }
 
   function startEngine() {
-    if (settings.deviceId == null) {
+    if (settings.deviceType === 'none' || !devicesReady()) {
       setBusy(false);           // nothing actually started — release the lock
-      status('Audio: choose a device and inputs first.');
+      status('Audio: choose a device type and device(s) first.');
       openAudioPanel();
-      setupStatus('Pick your device and input(s), then turn the engine on.');
+      setupStatus('Pick a Device Type and device(s), then turn the engine on.');
       return;
     }
     // First-ever bring-up starts MUTED (from the first sample) so nothing blasts.
@@ -255,37 +284,54 @@
     else requestDevices();
   });
 
-  function requestDevices() {
-    // ASIO can't be enumerated while the engine holds a device — the scan comes
-    // back empty. So only do a live scan when the engine is OFF; otherwise reuse
-    // the cached list.
-    if (running) {
-      if (lastDevices && lastDevices.length) {
-        populateDevices(lastDevices);
-        setupStatus('Engine running — showing last scan. Stop the engine to rescan.');
-      } else {
-        setupStatus('Turn the engine OFF to scan for audio devices.');
-      }
-      return;
-    }
-    setupStatus('Scanning devices…');
-    if (api.audioListDevices) api.audioListDevices();
-  }
-
-  function handleDevices(devices) {
-    if (devices && devices.length) { lastDevices = devices; populateDevices(devices); }
-    else if (lastDevices && lastDevices.length) { populateDevices(lastDevices); } // ignore a failed/empty scan
-    else { populateDevices([]); }
-  }
-
   function opt(value, label, selected) {
     var o = document.createElement('option');
     o.value = value; o.textContent = label; if (selected) o.selected = true;
     return o;
   }
 
-  function fillChannelSelects(dev) {
-    var inN = (dev && dev.in) || 0, outN = (dev && dev.out) || 0, i;
+  function updateDeviceRows() {
+    var t = settings.deviceType, nonAsio = (t === 'wasapi' || t === 'ds'), cfg = (t !== 'none');
+    function show(id, on) { var e = $(id); if (e) e.style.display = on ? 'flex' : 'none'; }
+    show('audio-none-row',   t === 'none');
+    show('audio-asio-row',   t === 'asio');
+    show('audio-indev-row',  nonAsio);
+    show('audio-outdev-row',  nonAsio);
+    show('audio-mode-row',   cfg);
+    show('audio-out-row',    cfg);
+    show('audio-rate-row',   cfg);
+    show('audio-buffer-row', cfg);
+    if (cfg) refreshModeRows();
+    else { var m = $('audio-row-mono'), s = $('audio-row-stereo'); if (m) m.style.display = 'none'; if (s) s.style.display = 'none'; }
+  }
+
+  function requestDevices(apiArg) {
+    var apiName = apiArg || settings.deviceType;
+    updateDeviceRows();
+    if (apiName === 'none') { setupStatus('No audio device selected.'); return; }
+    // A device can't be enumerated while it's open, so reuse the cache while running.
+    if (running) {
+      if (devCache[apiName] && devCache[apiName].length) { populateDevices(apiName); setupStatus('Engine running — showing last scan. Stop the engine to rescan.'); }
+      else setupStatus('Turn the engine OFF to scan for audio devices.');
+      return;
+    }
+    setupStatus('Scanning ' + apiName.toUpperCase() + ' devices…');
+    if (api.audioListDevices) api.audioListDevices(apiName);
+  }
+
+  function handleDevices(payload) {
+    var apiName = (payload && payload.api) ? payload.api : 'asio';
+    var devices = (payload && payload.devices) ? payload.devices : [];
+    if (devices.length) {
+      devCache[apiName] = devices;
+      devById[apiName] = {};
+      devices.forEach(function (d) { devById[apiName][d.id] = d; });
+    }
+    if (apiName === settings.deviceType) populateDevices(apiName);
+  }
+
+  function fillChannelSelects(inN, outN) {
+    var i;
     var mono = $('audio-in-mono'), l = $('audio-in-l'), r = $('audio-in-r'), out = $('audio-out-select');
     if (mono) { mono.innerHTML = ''; for (i = 0; i < inN; i++) mono.appendChild(opt(i, 'Input ' + (i + 1), i === settings.inMono)); }
     if (l)    { l.innerHTML = '';    for (i = 0; i < inN; i++) l.appendChild(opt(i, 'Input ' + (i + 1), i === settings.inL)); }
@@ -298,7 +344,6 @@
     var sel = $('audio-rate-select');
     if (!sel) return;
     var rates = (dev && dev.sampleRates && dev.sampleRates.length) ? dev.sampleRates.slice() : FALLBACK_RATES;
-    // Snap current rate to the device's preferred if it isn't supported here.
     if (rates.indexOf(settings.rate) === -1) settings.rate = (dev && dev.rate) || rates[0];
     sel.innerHTML = '';
     rates.forEach(function (r) { sel.appendChild(opt(r, r + ' Hz', r === settings.rate)); });
@@ -329,39 +374,77 @@
     if (m) m.classList.toggle('mono', settings.inputMode === 'mono');
   }
 
-  function populateDevices(devices) {
-    devicesById = {};
-    var sel = $('audio-device-select');
-    if (sel) sel.innerHTML = '';
-    if (!devices || !devices.length) {
-      if (sel) sel.appendChild(opt('', 'No ASIO devices found', true));
-      setupStatus('No ASIO devices found.');
-      return;
+  function populateDevices(apiName) {
+    apiName = apiName || settings.deviceType;
+    updateDeviceRows();
+    if (apiName === 'none') { updateBarLabel(); return; }
+    var devices = devCache[apiName] || [];
+
+    if (apiName === 'asio') {
+      var sel = $('audio-device-select');
+      if (sel) {
+        sel.innerHTML = '';
+        if (!devices.length) { sel.appendChild(opt('', 'No ASIO devices found', true)); setupStatus('No ASIO devices found.'); }
+        else {
+          devices.forEach(function (d) { sel.appendChild(opt(d.id, d.name, d.id === settings.asioDev)); });
+          if (settings.asioDev == null || !devById.asio[settings.asioDev]) { settings.asioDev = devices[0].id; sel.value = String(settings.asioDev); }
+        }
+      }
+      var dev = devById.asio[settings.asioDev];
+      fillChannelSelects((dev && dev.in) || 0, (dev && dev.out) || 0);
+      fillRateSelect(dev);
+    } else {
+      // WASAPI / DirectSound: separate capture (input) + render (output) devices
+      var ins = devices.filter(function (d) { return d.in > 0; });
+      var outs = devices.filter(function (d) { return d.out > 0; });
+      var si = $('audio-indev-select'), so = $('audio-outdev-select');
+      if (si) {
+        si.innerHTML = '';
+        if (!ins.length) si.appendChild(opt('', 'No input devices', true));
+        else { ins.forEach(function (d) { si.appendChild(opt(d.id, d.name, d.id === settings.inDev)); });
+          if (settings.inDev == null || !(devById[apiName][settings.inDev] && devById[apiName][settings.inDev].in > 0)) { settings.inDev = ins[0].id; si.value = String(settings.inDev); } }
+      }
+      if (so) {
+        so.innerHTML = '';
+        if (!outs.length) so.appendChild(opt('', 'No output devices', true));
+        else { outs.forEach(function (d) { so.appendChild(opt(d.id, d.name, d.id === settings.outDev)); });
+          if (settings.outDev == null || !(devById[apiName][settings.outDev] && devById[apiName][settings.outDev].out > 0)) { settings.outDev = outs[0].id; so.value = String(settings.outDev); } }
+      }
+      var idev = devById[apiName][settings.inDev], odev = devById[apiName][settings.outDev];
+      fillChannelSelects((idev && idev.in) || 0, (odev && odev.out) || 0);
+      fillRateSelect(odev || idev);
     }
-    devices.forEach(function (d) {
-      devicesById[d.id] = d;
-      if (sel) sel.appendChild(opt(d.id, d.name, d.id === settings.deviceId));
-    });
-    // If nothing chosen yet, default to the first device (user still picks inputs).
-    if (settings.deviceId == null || !devicesById[settings.deviceId]) {
-      settings.deviceId = devices[0].id;
-      if (sel) sel.value = String(settings.deviceId);
-    }
-    fillChannelSelects(devicesById[settings.deviceId]);
-    fillRateSelect(devicesById[settings.deviceId]);
     fillBufferSelect();
-    refreshModeRows();
-    setupStatus(running ? 'Engine running.' : 'Ready — turn the engine on from the top bar.');
+    setupStatus(running ? 'Engine running.' : 'Ready — turn the engine on from the bar.');
     updateBarLabel();
   }
 
   // --- setup control changes ---
   function onCtl(id, handler) { var e = $(id); if (e) e.addEventListener('change', handler); }
 
-  onCtl('audio-device-select', function () {
-    settings.deviceId = parseInt(this.value, 10);
-    fillChannelSelects(devicesById[settings.deviceId]);
-    fillRateSelect(devicesById[settings.deviceId]);
+  onCtl('audio-type-select', function () {
+    settings.deviceType = this.value;
+    saveSettings();
+    requestDevices();     // scan the new API (or show the 'none' hint)
+    applyIfRunning();
+    updateBarLabel();
+  });
+  onCtl('audio-device-select', function () {   // ASIO device
+    settings.asioDev = parseInt(this.value, 10);
+    var d = devById.asio[settings.asioDev];
+    fillChannelSelects((d && d.in) || 0, (d && d.out) || 0); fillRateSelect(d);
+    saveSettings(); applyIfRunning(); updateBarLabel();
+  });
+  onCtl('audio-indev-select', function () {    // non-ASIO input device
+    settings.inDev = parseInt(this.value, 10);
+    var idev = devById[settings.deviceType][settings.inDev], odev = outputDevice();
+    fillChannelSelects((idev && idev.in) || 0, (odev && odev.out) || 0);
+    saveSettings(); applyIfRunning(); updateBarLabel();
+  });
+  onCtl('audio-outdev-select', function () {   // non-ASIO output device
+    settings.outDev = parseInt(this.value, 10);
+    var odev = devById[settings.deviceType][settings.outDev], idev = inputDevice();
+    fillChannelSelects((idev && idev.in) || 0, (odev && odev.out) || 0); fillRateSelect(odev);
     saveSettings(); applyIfRunning(); updateBarLabel();
   });
   onCtl('audio-mode-select', function () {
@@ -379,6 +462,7 @@
 
   function applySettingsToControls() {
     var e;
+    if ((e = $('audio-type-select')))   e.value = settings.deviceType;
     if ((e = $('audio-mode-select')))   e.value = settings.inputMode;
     if ((e = $('audio-rate-select')))   e.value = String(settings.rate);
     if ((e = $('audio-barpos-select'))) e.value = settings.barPosition;
@@ -387,17 +471,20 @@
     if (elOut) elOut.value = settings.outGain;
     if (elOutVal) elOutVal.textContent = settings.outGain;
     updateMuteBtn();
-    refreshModeRows();
+    updateDeviceRows();
   }
 
   function updateBarLabel() {
     if (!elDevLbl) return;
-    var dev = settings.deviceId != null ? devicesById[settings.deviceId] : null;
-    var name = dev ? dev.name : ('device ' + settings.deviceId);
+    if (settings.deviceType === 'none') { elDevLbl.textContent = 'no device'; return; }
+    var idev = inputDevice(), odev = outputDevice();
+    var name = settings.deviceType === 'asio'
+      ? ((idev && idev.name) || 'ASIO device')
+      : ((odev && odev.name) || 'output');
     var rate = (running && actualRate) ? actualRate : settings.rate;
     var frames = (running && actualFrames) ? actualFrames : settings.frames;
-    elDevLbl.textContent = name + ' · ' + (rate / 1000) + 'k · ' + frames +
-      ' · ' + (settings.inputMode === 'stereo' ? 'stereo' : 'mono');
+    elDevLbl.textContent = settings.deviceType.toUpperCase() + ' · ' + name + ' · ' +
+      (rate / 1000) + 'k · ' + frames + ' · ' + (settings.inputMode === 'stereo' ? 'stereo' : 'mono');
   }
 
   // --- events from main/helper ---
@@ -432,7 +519,7 @@
       if (l >= 0.99 || r >= 0.99) setClip(true);   // latches until cleared / engine restart
     });
   }
-  if (api.onAudioDevices) api.onAudioDevices(function (devices) { handleDevices(devices); });
+  if (api.onAudioDevices) api.onAudioDevices(function (payload) { handleDevices(payload); });
   if (api.onAudioAutostart) api.onAudioAutostart(function () { autoStartEngine(); });
 
   // --- restore saved settings ---
@@ -445,16 +532,19 @@
       // /AUDIOON: explicit launch intent (cold-start flag, or the live event from
       // a second-instance launch).
       log('Audio: /AUDIOON=' + !!api.audioAutoStart + ' configured=' + settings.configured +
-          ' deviceId=' + settings.deviceId + ' barVisible=' + settings.barVisible);
+          ' type=' + settings.deviceType + ' barVisible=' + settings.barVisible);
       if (api.audioAutoStart) setTimeout(autoStartEngine, 1800);
-      // Prime the device cache once at startup (engine is off here) so the Setup
-      // panel always has the list, even if the user turns the engine on before
-      // ever opening the panel.
-      setTimeout(function () { if (!running) requestDevices(); }, 1500);
+      // Prime the device cache for the chosen type at startup (engine off here),
+      // so the Setup panel has the list even before it's opened. 'none' → skip.
+      if (settings.deviceType !== 'none') setTimeout(function () { if (!running) requestDevices(); }, 1500);
     }
     if (api.getAudioSettings) {
       Promise.resolve(api.getAudioSettings()).then(function (saved) {
-        if (saved && typeof saved === 'object') { for (var k in settings) if (saved[k] != null) settings[k] = saved[k]; }
+        if (saved && typeof saved === 'object') {
+          for (var k in settings) if (saved[k] != null) settings[k] = saved[k];
+          // Migrate pre-device-type saves (single ASIO deviceId → type=asio).
+          if (saved.deviceType == null && saved.deviceId != null) { settings.deviceType = 'asio'; settings.asioDev = saved.deviceId; }
+        }
         done();
       }).catch(done);
     } else { done(); }
