@@ -228,19 +228,16 @@
       log('Audio: auto-start skipped — not configured yet.');
       return;
     }
-    if (deviceMissing()) {   // /AUDIOON but the interface is off / not present
-      log('Audio: auto-start — device not present.');
-      flashToggleErr();
-      showInterfaceModal();
-      return;
-    }
     if (!settings.barVisible) {
       settings.barVisible = true;   // session-only override; NOT saved
       applyBarVisibility();
       var vsel = $('audio-barvisible-select'); if (vsel) vsel.value = 'shown';
     }
+    // startEngine() re-scans and pops the modal itself if the device is absent.
     if (!running && !busy) { setBusy(true); startEngine(); }
   }
+
+  var pendingStart = false;
 
   function startEngine() {
     if (settings.deviceType === 'none' || !namesChosen()) {
@@ -250,7 +247,15 @@
       setupStatus('Pick a Device Type and device(s), then turn the engine on.');
       return;
     }
-    if (deviceMissing()) {      // chosen, but not connected right now → modal
+    // Re-scan right before starting: an interface's ASIO driver only appears in
+    // the list while it's powered, so the cache goes stale the moment it's
+    // switched on/off. finishStart() runs when the fresh scan lands.
+    if (!running && api.audioListDevices) { pendingStart = true; api.audioListDevices(settings.deviceType); }
+    else finishStart();
+  }
+
+  function finishStart() {
+    if (deviceMissing()) {      // chosen, but still not connected after a fresh scan
       setBusy(false);
       flashToggleErr();
       showInterfaceModal();
@@ -385,7 +390,11 @@
         legacyIdx.asio = null; saveSettings();
       }
     }
-    if (apiName === settings.deviceType) populateDevices(apiName);
+    if (apiName === settings.deviceType) {
+      populateDevices(apiName);
+      // A start was waiting on this fresh scan (interface may have just powered on).
+      if (pendingStart) { pendingStart = false; finishStart(); }
+    }
   }
 
   function fillChannelSelects(inN, outN) {
