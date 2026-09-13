@@ -195,7 +195,16 @@ function listDevices(o) {
   var apiName = (o && o.api) || 'asio';
   try {
     var r = new RtAudio(apiEnum(apiName));
-    var devices = r.getDevices().map(function (d, i) {
+    var raw = r.getDevices();
+    // DIAGNOSTIC: dump exactly what audify/RtAudio returned, before our mapping,
+    // so a session log reveals empty/blank/partial enumeration (e.g. Win11 laptop
+    // returning devices with no channel counts / names / rates). stderr → logged
+    // as [audio:err] by main.js. Permanent, harmless diagnostic.
+    try {
+      console.error('[diag] ' + apiName.toUpperCase() + ' getDevices count=' +
+        (raw ? raw.length : 'null') + ' raw=' + JSON.stringify(raw));
+    } catch (ignore) {}
+    var devices = (raw || []).map(function (d, i) {
       return {
         id: i, name: d.name,
         in: d.inputChannels, out: d.outputChannels, duplex: d.duplexChannels,

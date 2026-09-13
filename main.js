@@ -1147,6 +1147,14 @@ function handleAudioEvent(msg) {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-level', { l: msg.l, r: msg.r });
       break;
     case 'devices':
+      // DIAGNOSTIC: log the enumerated list (count + brief per-device) so the
+      // session log shows what reached the UI, not just what the helper saw.
+      try {
+        var dl = msg.devices || [];
+        logWrite('Audio: devices (' + String(msg.api).toUpperCase() + ') count=' + dl.length +
+          dl.map(function (d) { return ' [' + d.id + ' "' + d.name + '" in=' + d.in + ' out=' + d.out +
+            ' duplex=' + d.duplex + ' rate=' + d.rate + ']'; }).join(''));
+      } catch (ignore) {}
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-devices', { api: msg.api, devices: msg.devices });
       // If the helper was spawned only to enumerate (engine neither running nor
       // being started), shut it back down so it isn't left idling. The
