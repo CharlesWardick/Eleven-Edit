@@ -26,7 +26,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "license": "EULA.txt",
-      "include": "installer/check-java.nsh"
+      "include": "installer/custom-init.nsh"
     },
     "files": [
       "main.js",
@@ -37,6 +37,7 @@
     ],
     "extraResources": [
       "ElevenRackBridge.jar",
+      "vc_redist.x64.exe",
       "LICENSE",
       "NOTICE",
       "UserManual.txt"

@@ -1041,6 +1041,60 @@ let audioProc   = null;
 let audioStatus = { running: false, error: null, deviceId: null };
 let audioEngineWanted = false;   // true once a start is requested; guards the
                                  // idle-lister cleanup from killing a starting engine
+let audioRuntimeMissing = false; // set when the helper reports the native audio
+                                 // runtime (VC++) can't load
+let vcPromptOpen = false;        // guards against stacking VC++ install dialogs
+
+// The bundled Microsoft VC++ redistributable, shipped as an extraResource so it
+// sits next to the app in a packaged build, and in the project root in dev
+// (git-ignored, dropped in locally like ElevenRackBridge.jar). Returns null if
+// not found (e.g. a dev run without the file) → the install prompt degrades to
+// an informational notice.
+function findVcRedist() {
+  const cands = [
+    path.join(process.resourcesPath || '', 'vc_redist.x64.exe'),
+    path.join(__dirname, 'vc_redist.x64.exe'),
+  ];
+  for (const p of cands) {
+    try { if (p && fs.existsSync(p)) return p; } catch (e) {}
+  }
+  return null;
+}
+
+// Loop-proof runtime message: whenever an audio action can't run because the
+// VC++ runtime is missing, explain in plain language and offer a one-click
+// install of the bundled redist. The user can always decline; the editor keeps
+// working. Fires on every audio engage while the runtime is missing, so a user
+// who declined at install (or hid the bar and forgot) always gets the fix put
+// back in front of them the moment they try to use audio again.
+function offerVcRedistInstall() {
+  if (vcPromptOpen || !mainWindow || mainWindow.isDestroyed()) return;
+  const vc = findVcRedist();
+  const buttons = vc ? ['Install now', 'Not now'] : ['OK'];
+  vcPromptOpen = true;
+  dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: buttons,
+    defaultId: 0,
+    cancelId: buttons.length - 1,
+    noLink: true,
+    title: 'Audio engine unavailable',
+    message: 'The built-in audio engine can’t start.',
+    detail: 'It needs the Microsoft Visual C++ runtime, which isn’t installed on this PC. '
+      + 'The rest of Eleven Edit works normally — only the built-in audio engine needs it.'
+      + (vc ? '\n\nInstall it now?' : '\n\nInstall the "Microsoft Visual C++ 2015–2022 Redistributable (x64)" from Microsoft, then try again.'),
+  }).then(function (r) {
+    vcPromptOpen = false;
+    if (vc && r.response === 0) {
+      try {
+        spawn(vc, ['/install', '/passive', '/norestart'], { detached: true, windowsHide: false });
+        logWrite('Audio: launched bundled VC++ redist installer (' + vc + ')');
+      } catch (e) {
+        logWrite('Audio: VC++ redist launch failed — ' + e.message);
+      }
+    }
+  }).catch(function () { vcPromptOpen = false; });
+}
 
 function findAudioHelper() {
   // Packaged with asar: main.js lives inside app.asar, but audio-helper.js is
@@ -1162,9 +1216,22 @@ function handleAudioEvent(msg) {
       // start (e.g. /AUDIOON) is bringing up on the same process.
       if (!audioStatus.running && !audioEngineWanted) killAudioHelper();
       break;
+    case 'selftest':
+      audioRuntimeMissing = !msg.ok;
+      logWrite('Audio: runtime self-test — ' + (msg.ok ? 'OK' : 'MISSING (' + (msg.error || '') + ')'));
+      if (!msg.ok) offerVcRedistInstall();
+      // Idle self-test helper: shut it back down if nothing wants it running.
+      if (!audioStatus.running && !audioEngineWanted) killAudioHelper();
+      break;
     case 'error':
       audioStatus.error = msg.message;
       logWrite('Audio: helper error — ' + msg.message);
+      // Missing native runtime (VC++): not a device error — explain it and offer
+      // the one-click install, loop-proof, on every audio engage until it's fixed.
+      if (msg.code === 'no-runtime') {
+        audioRuntimeMissing = true;
+        offerVcRedistInstall();
+      }
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
       // Tear the helper down after a failed start so its wedged audio-driver
       // state can't poison the next attempt (e.g. interface was off, now on).

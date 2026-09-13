@@ -11,6 +11,10 @@ lerna-debug.log*
 *.class
 *.jar
 
+# Bundled Microsoft VC++ redistributable — a Microsoft binary, kept locally and
+# dropped in beside the project like ElevenRackBridge.jar; not tracked in git.
+vc_redist.x64.exe
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 

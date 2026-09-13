@@ -21,8 +21,11 @@
  *     {"cmd":"setGain","outGain":100}
  *     {"cmd":"setMute","muted":true}
  *     {"cmd":"list"}
+ *     {"cmd":"selftest"}                          // can the native runtime load?
  *   stdout (events to main.js):
  *     {"type":"ready"}
+ *     {"type":"selftest","ok":true}               // ok:false + error if no runtime
+ *     {"type":"error","code":"no-runtime",...}    // VC++ runtime missing
  *     {"type":"started","deviceId":1,"rate":48000,"channels":2,"frames":128}
  *     {"type":"stopped"}
  *     {"type":"level","in":0.42}                 // input peak 0..1, ~10/sec
@@ -32,10 +35,24 @@
 
 'use strict';
 
-var audify = require('audify');
-var RtAudio = audify.RtAudio;
-var RtAudioApi = audify.RtAudioApi;
-var RtAudioFormat = audify.RtAudioFormat;
+// Load the native audio module DEFENSIVELY. On a fresh machine that lacks the
+// Microsoft Visual C++ runtime, audify's native binary can't load (Windows
+// ERR_DLOPEN_FAILED) — previously that CRASHED this helper before it could say
+// anything, leaving the app with empty device lists and no explanation. Now we
+// catch it, keep the helper alive, and answer every command with a structured
+// 'no-runtime' error so main.js can offer to install the runtime.
+// EE_FORCE_NO_AUDIO_RUNTIME=1 simulates the missing-runtime case on a machine
+// that actually has it (so the install prompt / graceful-fail path is testable).
+var audify = null, audifyLoadError = null;
+if (process.env.EE_FORCE_NO_AUDIO_RUNTIME === '1') {
+  audifyLoadError = 'forced missing (EE_FORCE_NO_AUDIO_RUNTIME=1 test override)';
+} else {
+  try { audify = require('audify'); }
+  catch (e) { audifyLoadError = (e && e.message) ? e.message : String(e); }
+}
+var RtAudio = audify && audify.RtAudio;
+var RtAudioApi = audify && audify.RtAudioApi;
+var RtAudioFormat = audify && audify.RtAudioFormat;
 
 // Map a friendly API name to the RtAudio Windows backend. ASIO = one duplex
 // device; WASAPI / DirectSound = separate input + output devices (cross-device
@@ -220,7 +237,21 @@ function listDevices(o) {
 }
 
 function handle(msg) {
-  switch (msg && msg.cmd) {
+  var cmd = msg && msg.cmd;
+  // Self-test: report whether the native audio runtime loaded (used by main.js
+  // to detect a missing VC++ runtime without opening any device).
+  if (cmd === 'selftest') {
+    send({ type: 'selftest', ok: !!audify, error: audifyLoadError });
+    return;
+  }
+  // Any real audio work with no runtime → tell main.js clearly (it offers the
+  // VC++ install) instead of throwing. code:'no-runtime' is the signal.
+  if (!audify) {
+    send({ type: 'error', code: 'no-runtime',
+           message: 'audio runtime unavailable: ' + (audifyLoadError || 'unknown') });
+    return;
+  }
+  switch (cmd) {
     case 'start':   startEngine(msg); break;
     case 'stop':    stopEngine(); send({ type: 'stopped' }); break;
     case 'setGain': setGain(msg); break;
