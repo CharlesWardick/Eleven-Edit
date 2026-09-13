@@ -1045,20 +1045,37 @@ let audioRuntimeMissing = false; // set when the helper reports the native audio
                                  // runtime (VC++) can't load
 let vcPromptOpen = false;        // guards against stacking VC++ install dialogs
 
-// The bundled Microsoft VC++ redistributable, shipped as an extraResource so it
-// sits next to the app in a packaged build, and in the project root in dev
-// (git-ignored, dropped in locally like ElevenRackBridge.jar). Returns null if
-// not found (e.g. a dev run without the file) → the install prompt degrades to
-// an informational notice.
-function findVcRedist() {
+// The bundled Microsoft VC++ redistributable. It's shipped under a NON-.exe name
+// (vcredist-x64.dat) because electron-builder's exe/signing step silently drops a
+// raw .exe from resources; the .dat sails through. In dev it's the plain
+// vc_redist.x64.exe in the project root (git-ignored, dropped in like the jar).
+// Returns the path to whatever we found, or null (→ prompt degrades to a notice).
+function findVcRedistSource() {
   const cands = [
-    path.join(process.resourcesPath || '', 'vc_redist.x64.exe'),
-    path.join(__dirname, 'vc_redist.x64.exe'),
+    path.join(process.resourcesPath || '', 'vcredist-x64.dat'),
+    path.join(__dirname, 'vcredist-x64.dat'),
+    path.join(__dirname, 'vc_redist.x64.exe'),           // dev fallback
   ];
   for (const p of cands) {
     try { if (p && fs.existsSync(p)) return p; } catch (e) {}
   }
   return null;
+}
+
+// Materialize the redist as a real .exe (Windows won't run a .dat) in temp, then
+// return that path. If the source is already an .exe, use it as-is.
+function prepareVcRedistExe() {
+  const src = findVcRedistSource();
+  if (!src) return null;
+  if (src.toLowerCase().endsWith('.exe')) return src;
+  try {
+    const dst = path.join(app.getPath('temp'), 'vc_redist.x64.exe');
+    fs.copyFileSync(src, dst);
+    return dst;
+  } catch (e) {
+    logWrite('Audio: could not stage VC++ redist — ' + e.message);
+    return null;
+  }
 }
 
 // Loop-proof runtime message: whenever an audio action can't run because the
@@ -1069,7 +1086,7 @@ function findVcRedist() {
 // back in front of them the moment they try to use audio again.
 function offerVcRedistInstall() {
   if (vcPromptOpen || !mainWindow || mainWindow.isDestroyed()) return;
-  const vc = findVcRedist();
+  const vc = findVcRedistSource();   // is a redist bundled at all?
   const buttons = vc ? ['Install now', 'Not now'] : ['OK'];
   vcPromptOpen = true;
   dialog.showMessageBox(mainWindow, {
@@ -1086,9 +1103,11 @@ function offerVcRedistInstall() {
   }).then(function (r) {
     vcPromptOpen = false;
     if (vc && r.response === 0) {
+      const exe = prepareVcRedistExe();
+      if (!exe) { logWrite('Audio: VC++ redist unavailable to launch'); return; }
       try {
-        spawn(vc, ['/install', '/passive', '/norestart'], { detached: true, windowsHide: false });
-        logWrite('Audio: launched bundled VC++ redist installer (' + vc + ')');
+        spawn(exe, ['/install', '/passive', '/norestart'], { detached: true, windowsHide: false });
+        logWrite('Audio: launched bundled VC++ redist installer (' + exe + ')');
       } catch (e) {
         logWrite('Audio: VC++ redist launch failed — ' + e.message);
       }

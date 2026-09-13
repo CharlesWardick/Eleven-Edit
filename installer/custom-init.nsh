@@ -55,7 +55,10 @@ Continue installing anyway?" \
   IntCmp $1 20 vcDone vcPrompt vcDone   ; Minor >=20 → done, <20 → prompt
 
   vcPrompt:
-    IfFileExists "$INSTDIR\resources\vc_redist.x64.exe" 0 vcDone   ; nothing to run
+    ; The redist ships as vcredist-x64.dat (a non-.exe name so electron-builder's
+    ; exe/signing step doesn't drop it from resources). Copy it out to a real
+    ; .exe in the temp plugins dir before running it.
+    IfFileExists "$INSTDIR\resources\vcredist-x64.dat" 0 vcDone   ; nothing to run
     MessageBox MB_YESNO|MB_ICONQUESTION \
       "Audio Engine Component$\r$\n$\r$\n\
 Eleven Edit's built-in audio engine needs the Microsoft Visual C++ \
@@ -65,7 +68,8 @@ needs it.$\r$\n$\r$\n\
 Install it now? (You can skip this and install it later; installation will \
 continue either way.)" \
       IDNO vcDone
-    ExecWait '"$INSTDIR\resources\vc_redist.x64.exe" /install /passive /norestart' $2
+    CopyFiles /SILENT "$INSTDIR\resources\vcredist-x64.dat" "$PLUGINSDIR\vc_redist.x64.exe"
+    ExecWait '"$PLUGINSDIR\vc_redist.x64.exe" /install /passive /norestart' $2
 
   vcDone:
 !macroend

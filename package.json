@@ -38,7 +38,7 @@
     ],
     "extraResources": [
       "ElevenRackBridge.jar",
-      "vc_redist.x64.exe",
+      { "from": "vc_redist.x64.exe", "to": "vcredist-x64.dat" },
       "LICENSE",
       "NOTICE",
       "UserManual.txt"
