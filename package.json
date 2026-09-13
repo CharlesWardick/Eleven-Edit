@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "prebuild": "node tools/check-redist.js",
+    "prebuild": "node tools/check-build-assets.js",
     "build": "electron-builder --win --x64",
     "pack": "electron-builder --dir"
   },
