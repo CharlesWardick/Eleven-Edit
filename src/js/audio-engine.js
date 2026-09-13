@@ -415,11 +415,17 @@
   // WASAPI/DS device) would otherwise ask for channels that don't exist and
   // the driver refuses to open ("can't have more than two inputs").
   function clampChannels(inN, outN) {
+    // A count of 0 means the device is absent / not yet known — do NOT touch the
+    // saved channels then (that wiped Input 3/4 → 1/1 while the interface was off).
     var before = [settings.inMono, settings.inL, settings.inR, settings.outPair].join('/');
-    if (settings.inMono >= inN) settings.inMono = 0;
-    if (settings.inL    >= inN) settings.inL = 0;
-    if (settings.inR    >= inN) settings.inR = (inN > 1 ? 1 : 0);
-    if (settings.outPair + 1 >= outN) settings.outPair = 0;
+    if (inN > 0) {
+      if (settings.inMono >= inN) settings.inMono = 0;
+      if (settings.inL    >= inN) settings.inL = 0;
+      if (settings.inR    >= inN) settings.inR = (inN > 1 ? 1 : 0);
+    }
+    if (outN > 0) {
+      if (settings.outPair + 1 >= outN) settings.outPair = 0;
+    }
     return before !== [settings.inMono, settings.inL, settings.inR, settings.outPair].join('/');
   }
 
