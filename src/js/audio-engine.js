@@ -240,7 +240,14 @@
     Promise.resolve(api.audioCheckRuntime()).then(function (r) {
       if (r && r.ok) {
         setDisabled(false);
-        setupStatus('Audio engine enabled — turn it on from the bar.');
+        // Nothing set up yet (fresh, or partial) → take them into Audio Setup to
+        // pick a device, rather than leaving them on an empty bar.
+        if (settings.deviceType === 'none' || !namesChosen()) {
+          openAudioPanel();
+          setupStatus('Audio engine enabled — choose a Device Type and device to finish setup.');
+        } else {
+          setupStatus('Audio engine enabled — turn it on from the bar.');
+        }
         if (cb) cb(true);
       } else {
         setDisabled(true);   // enabled requires a working runtime
