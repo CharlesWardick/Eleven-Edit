@@ -1038,8 +1038,14 @@ ipcMain.handle('restart-bridge', function() {
 // and Electron.
 // ════════════════════════════════════════════════════════════════════
 let audioProc   = null;
+let audioProcs  = new Set();     // EVERY live helper we've spawned. The single
+                                 // audioProc handle can be lost in a scan→start
+                                 // race; this set is the orphan-proof backstop so
+                                 // engine-OFF can always kill a helper that's still
+                                 // holding the ASIO device (see killAllAudioHelpers).
 let audioStatus = { running: false, error: null, deviceId: null };
-let audioEngineWanted = false;   // true once a start is requested; guards the
+let audioEngineWanted = false;   // true once a start is requested (or armed just
+                                 // before the pre-start rescan); guards the
                                  // idle-lister cleanup from killing a starting engine
 let audioRuntimeMissing = false; // set when the helper reports the native audio
                                  // runtime (VC++) can't load
@@ -1143,9 +1149,10 @@ function sendAudioCmd(obj) {
 function spawnAudioHelper() {
   if (audioProc) return; // already running
   const helperPath = findAudioHelper();
+  let proc;
   try {
     logWrite('Audio: launching helper ' + helperPath);
-    audioProc = spawn(process.execPath, [helperPath], {
+    proc = spawn(process.execPath, [helperPath], {
       cwd: path.dirname(helperPath),
       windowsHide: true,
       env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '1' }),
@@ -1158,10 +1165,14 @@ function spawnAudioHelper() {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
     return;
   }
+  audioProc = proc;
+  audioProcs.add(proc);   // register for orphan-proof teardown
 
-  // Parse newline-delimited JSON events from the helper's stdout.
+  // All listeners bind to THIS proc (captured), not the shared audioProc handle —
+  // so a stale helper's exit can't clobber the current one's state, and a lost
+  // handle can't leave a live helper untracked.
   let outBuf = '';
-  audioProc.stdout.on('data', function (d) {
+  proc.stdout.on('data', function (d) {
     outBuf += d.toString();
     let idx;
     while ((idx = outBuf.indexOf('\n')) >= 0) {
@@ -1173,21 +1184,27 @@ function spawnAudioHelper() {
       handleAudioEvent(msg);
     }
   });
-  audioProc.stderr.on('data', function (d) {
+  proc.stderr.on('data', function (d) {
     logWrite('[audio:err] ' + d.toString().trim());
   });
-  audioProc.on('error', function (e) {
-    audioStatus.running = false;
-    audioStatus.error = e.message;
+  proc.on('error', function (e) {
     logWrite('Audio: helper process error — ' + e.message);
-    audioProc = null;
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+    audioProcs.delete(proc);
+    if (audioProc === proc) {
+      audioProc = null;
+      audioStatus.running = false;
+      audioStatus.error = e.message;
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+    }
   });
-  audioProc.on('exit', function (code, signal) {
+  proc.on('exit', function (code, signal) {
     logWrite('Audio: helper exited — code=' + code + ' signal=' + signal);
-    audioProc = null;
-    audioStatus.running = false;
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+    audioProcs.delete(proc);
+    if (audioProc === proc) {
+      audioProc = null;
+      audioStatus.running = false;
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+    }
   });
 }
 
@@ -1255,7 +1272,7 @@ function handleAudioEvent(msg) {
       // Tear the helper down after a failed start so its wedged audio-driver
       // state can't poison the next attempt (e.g. interface was off, now on).
       // A fresh helper spawns on the next start, no app restart needed.
-      killAudioHelper();
+      killAllAudioHelpers();
       break;
     default: break;
   }
@@ -1275,6 +1292,43 @@ function killAudioHelper(callback) {
   }, 200);
 }
 
+// Orphan-proof release: stop AND kill every helper we've ever spawned, not just
+// the one behind the current audioProc handle. This is the hard guarantee that
+// engine-OFF always hands the ASIO device back — even if a scan→start race lost
+// track of a helper that's still holding the device open (the OFF-not-silent bug).
+function killAllAudioHelpers(callback) {
+  audioEngineWanted = false;
+  audioProc = null;
+  audioStatus.running = false;
+  const procs = Array.from(audioProcs);
+  if (!procs.length) { if (callback) callback(); return; }
+  procs.forEach(function (p) {
+    try { p.stdin.write(JSON.stringify({ cmd: 'stop' }) + '\n'); } catch (e) {}
+  });
+  // A beat to release the device, then terminate every one of them.
+  setTimeout(function () {
+    procs.forEach(function (p) { try { p.kill(); } catch (e) {} });
+    if (callback) callback();
+  }, 200);
+}
+
+// Arm: the renderer is about to start the engine and is doing a pre-start device
+// rescan first. Setting audioEngineWanted BEFORE that scan closes the race where
+// the idle-cleanup (fired by the scan's 'devices' event) would otherwise kill and
+// untrack the very helper we're about to run — the root cause of the orphaned
+// helper that kept passing audio after engine-OFF.
+ipcMain.handle('audio-arm', function () {
+  audioEngineWanted = true;
+  return true;
+});
+// Disarm: a start attempt was abandoned before it began (e.g. the chosen device
+// isn't connected after the rescan). Clear the flag and, if nothing is running,
+// tear down the idle helper the scan left behind.
+ipcMain.handle('audio-disarm', function () {
+  audioEngineWanted = false;
+  if (!audioStatus.running) killAllAudioHelpers();
+  return true;
+});
 // engine ON: spawn helper (if needed) and start passthrough on the device.
 ipcMain.handle('audio-start', function (e, opts) {
   audioEngineWanted = true;
@@ -1282,10 +1336,10 @@ ipcMain.handle('audio-start', function (e, opts) {
   sendAudioCmd(Object.assign({ cmd: 'start' }, opts || {}));
   return true;
 });
-// engine OFF: fully release the device by killing the helper.
+// engine OFF: fully release the device by killing EVERY live helper (orphan-proof).
 ipcMain.handle('audio-stop', function () {
   audioEngineWanted = false;
-  killAudioHelper();
+  killAllAudioHelpers();
   return true;
 });
 ipcMain.handle('audio-set-gain', function (e, gains) {
@@ -1509,7 +1563,7 @@ function createWindow() {
 
   mainWindow.on('close', function() {
     storeSet('windowBounds', mainWindow.getBounds());
-    killAudioHelper();
+    killAllAudioHelpers();
     killBridge();
     stopWatchdog();
     logClose();
@@ -1530,7 +1584,7 @@ app.whenReady().then(function() {
 
 app.on('window-all-closed', function() {
   stopWatchdog();
-  killAudioHelper();
+  killAllAudioHelpers();
   killBridge(function() {
     logClose();
     if (process.platform !== 'darwin') app.quit();
@@ -1541,7 +1595,7 @@ let isReallyQuitting = false;
 app.on('before-quit', function(event) {
   if (isReallyQuitting) return; // already cleaned up — let this one through
   event.preventDefault();
-  killAudioHelper();
+  killAllAudioHelpers();
   killBridge(function() {
     isReallyQuitting = true;
     app.quit();

@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeBridgeStatus: ()          => ipcRenderer.removeAllListeners('bridge-status'),
 
   // Audio engine (v2.0.0) — audio-helper.js child process, ASIO passthrough.
+  audioArm:          ()      => ipcRenderer.invoke('audio-arm'),
+  audioDisarm:       ()      => ipcRenderer.invoke('audio-disarm'),
   audioStart:        (opts)  => ipcRenderer.invoke('audio-start', opts),
   audioStop:         ()      => ipcRenderer.invoke('audio-stop'),
   audioSetGain:      (gains) => ipcRenderer.invoke('audio-set-gain', gains),

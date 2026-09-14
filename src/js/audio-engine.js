@@ -261,7 +261,14 @@
     // Re-scan right before starting: an interface's ASIO driver only appears in
     // the list while it's powered, so the cache goes stale the moment it's
     // switched on/off. finishStart() runs when the fresh scan lands.
-    if (!running && api.audioListDevices) { pendingStart = true; api.audioListDevices(settings.deviceType); }
+    // ARM first: tell main a start is coming BEFORE the scan, so the scan's
+    // device event can't trip main's idle-helper cleanup and orphan the helper
+    // we're about to run (the OFF-not-silent bug).
+    if (!running && api.audioListDevices) {
+      pendingStart = true;
+      if (api.audioArm) api.audioArm();
+      api.audioListDevices(settings.deviceType);
+    }
     else finishStart();
   }
 
@@ -269,6 +276,9 @@
     if (deviceMissing()) {      // chosen, but still not connected after a fresh scan
       setBusy(false);
       flashToggleErr();
+      // We armed before the rescan; the start is abandoned, so disarm and let
+      // main tear down the idle scan helper.
+      if (api.audioDisarm) api.audioDisarm();
       showInterfaceModal();
       setupStatus('Selected device isn’t connected — reconnect it or pick another.');
       return;
