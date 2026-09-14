@@ -36,6 +36,10 @@
     outGain:   100,        // monitor level 0..100 (no input gain — see helper)
     barPosition: 'bottom', // 'bottom' (above status bar, default) | 'top' (under toolbar)
     barVisible:  true,     // false = hide the bar entirely (for non-audio users)
+    audioDisabled: false,  // HARD master OFF ("I don't want this feature, period"):
+                           // hides the whole strip, skips the startup device scan,
+                           // ignores /AUDIOON, and suppresses the VC++ install prompt —
+                           // persisted, until re-enabled in Audio Setup.
     configured: false      // false until first successful setup → first start is muted
   };
 
@@ -204,6 +208,17 @@
     }
   }
 
+  // Hard master gate. When disabled: stop any running engine, hide the whole
+  // strip (the toggle lives inside it), and grey the toggle for good measure.
+  // When enabled: restore the strip per the bar-visible preference.
+  function applyDisabledState() {
+    var dis = !!settings.audioDisabled;
+    if (dis && running) stopEngine();
+    if (elToggle) elToggle.classList.toggle('disabled', dis);
+    if (dis) { if (elStrip) elStrip.style.display = 'none'; }
+    else applyBarVisibility();
+  }
+
   function placeBar() {
     if (!elStrip) return;
     var sb = document.getElementById('statusbar');
@@ -235,6 +250,10 @@
   // Explicit auto-start (/AUDIOON). Overrides a hidden bar for THIS session
   // (so there's a control to stop it) without changing the saved preference.
   function autoStartEngine() {
+    if (settings.audioDisabled) {
+      log('Audio: auto-start skipped — engine hard-disabled.');
+      return;
+    }
     if (!settings.configured || !namesChosen()) {
       log('Audio: auto-start skipped — not configured yet.');
       return;
@@ -267,7 +286,7 @@
     if (!running && api.audioListDevices) {
       pendingStart = true;
       if (api.audioArm) api.audioArm();
-      api.audioListDevices(settings.deviceType);
+      api.audioListDevices(settings.deviceType, true);   // user-initiated → prompt allowed
     }
     else finishStart();
   }
@@ -301,6 +320,7 @@
 
   if (elToggle) {
     elToggle.addEventListener('click', function () {
+      if (settings.audioDisabled) return;   // hard-disabled — inert
       if (busy) return;                 // ignore machine-gun clicks mid-transition
       setBusy(true);
       if (running) stopEngine(); else startEngine();
@@ -385,7 +405,10 @@
     else { var m = $('audio-row-mono'), s = $('audio-row-stereo'); if (m) m.style.display = 'none'; if (s) s.style.display = 'none'; }
   }
 
-  function requestDevices(apiArg) {
+  // interactive (default true): whether a missing-runtime result may pop the VC++
+  // install dialog. The silent startup device-prime passes false so a normal
+  // launch never surfaces the prompt behind the rack-connect modal.
+  function requestDevices(apiArg, interactive) {
     var apiName = apiArg || settings.deviceType;
     updateDeviceRows();
     if (apiName === 'none') { setupStatus('No audio device selected.'); return; }
@@ -396,7 +419,7 @@
       return;
     }
     setupStatus('Scanning ' + apiName.toUpperCase() + ' devices…');
-    if (api.audioListDevices) api.audioListDevices(apiName);
+    if (api.audioListDevices) api.audioListDevices(apiName, interactive !== false);
   }
 
   function handleDevices(payload) {
@@ -531,6 +554,16 @@
   // --- setup control changes ---
   function onCtl(id, handler) { var e = $(id); if (e) e.addEventListener('change', handler); }
 
+  onCtl('audio-enabled-select', function () {
+    settings.audioDisabled = (this.value === 'disabled');
+    saveSettings();
+    applyDisabledState();
+    updateBarLabel();
+    setupStatus(settings.audioDisabled
+      ? 'Audio engine disabled — bar hidden, no prompts until you re-enable it here.'
+      : 'Audio engine enabled.');
+  });
+
   onCtl('audio-type-select', function () {
     // Changing device type always stops the engine first (it releases the old
     // device so the new API can be enumerated cleanly).
@@ -574,6 +607,7 @@
 
   function applySettingsToControls() {
     var e;
+    if ((e = $('audio-enabled-select'))) e.value = settings.audioDisabled ? 'disabled' : 'enabled';
     if ((e = $('audio-type-select')))   e.value = settings.deviceType;
     if ((e = $('audio-mode-select')))   e.value = settings.inputMode;
     if ((e = $('audio-rate-select')))   e.value = String(settings.rate);
@@ -647,8 +681,14 @@
     function done() {
       applySettingsToControls();
       setToggleState(false);   // start in the OFF (dimmed) state
-      applyBarVisibility();    // places the bar (top/bottom) or hides it
+      applyDisabledState();    // hide the strip if hard-disabled, else place the bar
       updateBarLabel();
+      // Hard-disabled: no autostart, no startup scan, no VC++ prompt. The feature
+      // is off until the user re-enables it in Audio Setup.
+      if (settings.audioDisabled) {
+        log('Audio: engine hard-disabled — skipping autostart and startup scan.');
+        return;
+      }
       // /AUDIOON: explicit launch intent (cold-start flag, or the live event from
       // a second-instance launch).
       log('Audio: /AUDIOON=' + !!api.audioAutoStart + ' configured=' + settings.configured +
@@ -656,7 +696,9 @@
       if (api.audioAutoStart) setTimeout(autoStartEngine, 1800);
       // Prime the device cache for the chosen type at startup (engine off here),
       // so the Setup panel has the list even before it's opened. 'none' → skip.
-      if (settings.deviceType !== 'none') setTimeout(function () { if (!running) requestDevices(); }, 1500);
+      // SILENT (interactive=false): a missing runtime here must NOT pop the VC++
+      // dialog on a normal launch — that only fires on a user-initiated engage.
+      if (settings.deviceType !== 'none') setTimeout(function () { if (!running) requestDevices(null, false); }, 1500);
     }
     if (api.getAudioSettings) {
       Promise.resolve(api.getAudioSettings()).then(function (saved) {

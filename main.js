@@ -1049,6 +1049,11 @@ let audioEngineWanted = false;   // true once a start is requested (or armed jus
                                  // idle-lister cleanup from killing a starting engine
 let audioRuntimeMissing = false; // set when the helper reports the native audio
                                  // runtime (VC++) can't load
+let audioInteractive = true;     // true when the current audio op is user-initiated
+                                 // (start engine, open Audio Setup, rescan). The
+                                 // silent startup device-prime sets it false so a
+                                 // missing runtime never pops the install dialog on
+                                 // a normal launch.
 let vcPromptOpen = false;        // guards against stacking VC++ install dialogs
 
 // The bundled Microsoft VC++ redistributable. It's shipped under a NON-.exe name
@@ -1091,6 +1096,9 @@ function prepareVcRedistExe() {
 // who declined at install (or hid the bar and forgot) always gets the fix put
 // back in front of them the moment they try to use audio again.
 function offerVcRedistInstall() {
+  // Suppress on non-interactive (silent) audio ops — e.g. the startup device
+  // prime. The dialog must only surface when the user actually engages audio.
+  if (!audioInteractive) { logWrite('Audio: VC++ runtime missing on a silent scan — install prompt suppressed'); return; }
   if (vcPromptOpen || !mainWindow || mainWindow.isDestroyed()) return;
   const vc = findVcRedistSource();   // is a redist bundled at all?
   const buttons = vc ? ['Install now', 'Not now'] : ['OK'];
@@ -1332,6 +1340,7 @@ ipcMain.handle('audio-disarm', function () {
 // engine ON: spawn helper (if needed) and start passthrough on the device.
 ipcMain.handle('audio-start', function (e, opts) {
   audioEngineWanted = true;
+  audioInteractive = true;   // user pressed engine ON → prompt allowed if runtime missing
   spawnAudioHelper();
   sendAudioCmd(Object.assign({ cmd: 'start' }, opts || {}));
   return true;
@@ -1350,7 +1359,8 @@ ipcMain.handle('audio-set-mute', function (e, m) {
   sendAudioCmd({ cmd: 'setMute', muted: !!(m && m.muted) });
   return true;
 });
-ipcMain.handle('audio-list-devices', function (e, api) {
+ipcMain.handle('audio-list-devices', function (e, api, interactive) {
+  audioInteractive = (interactive !== false);   // silent startup prime passes false
   spawnAudioHelper();
   sendAudioCmd({ cmd: 'list', api: api || 'asio' });
   return true;

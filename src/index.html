@@ -211,6 +211,7 @@
   #audiostrip .as-toggle.on {
     background: #12220f; border-color: var(--green); color: var(--green); box-shadow: 0 0 6px rgba(48,192,80,0.3);
   }
+  #audiostrip .as-toggle.disabled { opacity: 0.35; pointer-events: none; border-color: #444; color: #666; box-shadow: none; }
   #audiostrip .as-toggle.err {
     background: #2a0f0f; border-color: var(--red); color: var(--red); box-shadow: 0 0 7px rgba(208,48,48,0.5);
   }
@@ -2152,6 +2153,18 @@
     </div>
 
     <div class="audio-grid">
+    <div class="settings-row">
+      <div class="settings-row-label">Built-in Audio Engine</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-enabled-select" class="settings-select">
+            <option value="enabled">Enabled</option>
+            <option value="disabled">Disabled (hide completely)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <div class="settings-row">
       <div class="settings-row-label">Device Type</div>
       <div class="settings-row-controls">
