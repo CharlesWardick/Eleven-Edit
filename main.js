@@ -1049,11 +1049,8 @@ let audioEngineWanted = false;   // true once a start is requested (or armed jus
                                  // idle-lister cleanup from killing a starting engine
 let audioRuntimeMissing = false; // set when the helper reports the native audio
                                  // runtime (VC++) can't load
-let audioInteractive = true;     // true when the current audio op is user-initiated
-                                 // (start engine, open Audio Setup, rescan). The
-                                 // silent startup device-prime sets it false so a
-                                 // missing runtime never pops the install dialog on
-                                 // a normal launch.
+let audioRuntimeCheckResolve = null; // pending audio-check-runtime resolver (set
+                                     // while a selftest is in flight)
 let vcPromptOpen = false;        // guards against stacking VC++ install dialogs
 
 // The bundled Microsoft VC++ redistributable. It's shipped under a NON-.exe name
@@ -1096,9 +1093,6 @@ function prepareVcRedistExe() {
 // who declined at install (or hid the bar and forgot) always gets the fix put
 // back in front of them the moment they try to use audio again.
 function offerVcRedistInstall() {
-  // Suppress on non-interactive (silent) audio ops — e.g. the startup device
-  // prime. The dialog must only surface when the user actually engages audio.
-  if (!audioInteractive) { logWrite('Audio: VC++ runtime missing on a silent scan — install prompt suppressed'); return; }
   if (vcPromptOpen || !mainWindow || mainWindow.isDestroyed()) return;
   const vc = findVcRedistSource();   // is a redist bundled at all?
   const buttons = vc ? ['Install now', 'Not now'] : ['OK'];
@@ -1263,19 +1257,20 @@ function handleAudioEvent(msg) {
     case 'selftest':
       audioRuntimeMissing = !msg.ok;
       logWrite('Audio: runtime self-test — ' + (msg.ok ? 'OK' : 'MISSING (' + (msg.error || '') + ')'));
-      if (!msg.ok) offerVcRedistInstall();
+      // Resolve a pending audio-check-runtime request with the result. The VC++
+      // install prompt is offered by the RENDERER off this result (single gate),
+      // not auto-fired here.
+      if (audioRuntimeCheckResolve) { audioRuntimeCheckResolve({ ok: !!msg.ok, error: msg.error || null }); audioRuntimeCheckResolve = null; }
       // Idle self-test helper: shut it back down if nothing wants it running.
       if (!audioStatus.running && !audioEngineWanted) killAudioHelper();
       break;
     case 'error':
       audioStatus.error = msg.message;
       logWrite('Audio: helper error — ' + msg.message);
-      // Missing native runtime (VC++): not a device error — explain it and offer
-      // the one-click install, loop-proof, on every audio engage until it's fixed.
-      if (msg.code === 'no-runtime') {
-        audioRuntimeMissing = true;
-        offerVcRedistInstall();
-      }
+      // Missing native runtime (VC++) is now handled solely by the enable-time
+      // runtime check (audio-check-runtime). Here we only surface it quietly as
+      // status — no dialog — so a stray start can't spawn a prompt storm.
+      if (msg.code === 'no-runtime') audioRuntimeMissing = true;
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
       // Tear the helper down after a failed start so its wedged audio-driver
       // state can't poison the next attempt (e.g. interface was off, now on).
@@ -1337,10 +1332,26 @@ ipcMain.handle('audio-disarm', function () {
   if (!audioStatus.running) killAllAudioHelpers();
   return true;
 });
+// Runtime gate: does the native audio runtime (VC++) load? Spawns the helper,
+// runs a selftest, resolves {ok,error}. This is the SINGLE place the runtime is
+// checked — driven by the renderer when the user enables the engine.
+ipcMain.handle('audio-check-runtime', function () {
+  return new Promise(function (resolve) {
+    let settled = false;
+    const done = function (r) { if (settled) return; settled = true; resolve(r); };
+    audioRuntimeCheckResolve = done;   // last caller wins if one was pending
+    spawnAudioHelper();
+    if (!sendAudioCmd({ cmd: 'selftest' })) { audioRuntimeCheckResolve = null; done({ ok: false, error: 'helper unavailable' }); return; }
+    // Safety timeout so a wedged helper can't hang the UI.
+    setTimeout(function () { if (!settled) { audioRuntimeCheckResolve = null; done({ ok: false, error: 'runtime check timed out' }); } }, 4000);
+  });
+});
+// Show the one-click VC++ install prompt (native). Called by the renderer when
+// the enable-time runtime check comes back missing.
+ipcMain.handle('audio-offer-vcredist', function () { offerVcRedistInstall(); return true; });
 // engine ON: spawn helper (if needed) and start passthrough on the device.
 ipcMain.handle('audio-start', function (e, opts) {
   audioEngineWanted = true;
-  audioInteractive = true;   // user pressed engine ON → prompt allowed if runtime missing
   spawnAudioHelper();
   sendAudioCmd(Object.assign({ cmd: 'start' }, opts || {}));
   return true;
@@ -1359,8 +1370,7 @@ ipcMain.handle('audio-set-mute', function (e, m) {
   sendAudioCmd({ cmd: 'setMute', muted: !!(m && m.muted) });
   return true;
 });
-ipcMain.handle('audio-list-devices', function (e, api, interactive) {
-  audioInteractive = (interactive !== false);   // silent startup prime passes false
+ipcMain.handle('audio-list-devices', function (e, api) {
   spawnAudioHelper();
   sendAudioCmd({ cmd: 'list', api: api || 'asio' });
   return true;

@@ -38,38 +38,12 @@ Continue installing anyway?" \
 !macroend
 
 ; ---- Microsoft Visual C++ runtime (needed by the built-in audio engine) ------
-; Detect FIRST via the registry; prompt ONLY if it's missing or too old; allow
-; SKIP; continue with no error either way. The bundled redist also self-no-ops
-; if a newer runtime is already present, so it can never clobber anything.
-;
-; VCRUNTIME140_1.dll (needed by audify's binary) shipped in VC++ 2015-2022
-; build 14.20+, so an OLD redist can read "Installed" yet still lack it —
-; hence we also require Minor >= 20, not just Installed = 1.
+; The installer NO LONGER checks or prompts for the VC++ runtime. The redist is
+; still BUNDLED on disk (vcredist-x64.dat, via package.json extraResources); the
+; app handles the runtime entirely: it's checked ONLY when the user enables the
+; built-in audio engine (first-run prompt, or the Audio Setup switch), and the
+; one-click install is offered from there. This keeps the whole decision in one
+; place, gated on a single condition (the user actually wants audio), instead of
+; firing at install time regardless of intent.
 !macro customInstall
-  SetRegView 64
-  ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X64" "Installed"
-  ReadRegDWORD $1 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X64" "Minor"
-  SetRegView lastused
-
-  StrCmp $0 "1" 0 vcPrompt              ; not installed → prompt
-  IntCmp $1 20 vcDone vcPrompt vcDone   ; Minor >=20 → done, <20 → prompt
-
-  vcPrompt:
-    ; The redist ships as vcredist-x64.dat (a non-.exe name so electron-builder's
-    ; exe/signing step doesn't drop it from resources). Copy it out to a real
-    ; .exe in the temp plugins dir before running it.
-    IfFileExists "$INSTDIR\resources\vcredist-x64.dat" 0 vcDone   ; nothing to run
-    MessageBox MB_YESNO|MB_ICONQUESTION \
-      "Audio Engine Component$\r$\n$\r$\n\
-Eleven Edit's built-in audio engine needs the Microsoft Visual C++ \
-Redistributable (x64), which doesn't appear to be installed on this PC. \
-The editor itself works fine without it — only the built-in audio engine \
-needs it.$\r$\n$\r$\n\
-Install it now? (You can skip this and install it later; installation will \
-continue either way.)" \
-      IDNO vcDone
-    CopyFiles /SILENT "$INSTDIR\resources\vcredist-x64.dat" "$PLUGINSDIR\vc_redist.x64.exe"
-    ExecWait '"$PLUGINSDIR\vc_redist.x64.exe" /install /passive /norestart' $2
-
-  vcDone:
 !macroend

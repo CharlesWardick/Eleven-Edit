@@ -1298,6 +1298,8 @@
   #import-confirm-modal.open { display: flex; }
   #audio-device-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 540; align-items: center; justify-content: center; }
   #audio-device-modal.open { display: flex; }
+  #audio-intent-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 540; align-items: center; justify-content: center; }
+  #audio-intent-modal.open { display: flex; }
   #audio-device-modal .rack-save-title { font-size: 20px; }
   #win11-gate-modal {
     display: none; position: fixed; inset: 0;
@@ -2451,6 +2453,22 @@
     <div class="rack-save-btns">
       <button id="audio-device-modal-setup">Open Audio Setup</button>
       <button id="audio-device-modal-retry" class="rack-save-ok-btn">Try Again</button>
+    </div>
+  </div>
+</div>
+
+<div id="audio-intent-modal">
+  <div class="rack-save-box" style="max-width:600px;width:88vw;">
+    <div class="rack-save-title">Built-in Audio Engine</div>
+    <div style="font-size:14px;color:var(--text);line-height:1.6;">
+      Eleven Edit can pass audio straight through your rig — guitar in, processed sound out —
+      without a DAW or any other app.<br><br>
+      Enable it now? You can change this anytime in <b>Audio Setup</b>. If you enable it, Eleven Edit
+      will check for a small Microsoft runtime component and offer to install it if needed.
+    </div>
+    <div class="rack-save-btns">
+      <button id="audio-intent-no">Not now</button>
+      <button id="audio-intent-yes">Enable audio engine</button>
     </div>
   </div>
 </div>
