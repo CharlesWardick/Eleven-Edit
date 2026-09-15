@@ -4,10 +4,10 @@ A free rig editor and librarian for the Avid Eleven Rack, controlled from your
 computer over USB/MIDI. No iLok and no Avid Eleven Rack Editor required —
 just the Avid USB driver and a connected Eleven Rack.
 
-> **Status:** v1.0.0 — released to the Eleven Rack community, as-is. See the
+> **Status:** v1.1.0 — released to the Eleven Rack community, as-is. See the
 > disclaimer below and **always back up your unit before loading banks.**
 
-![Eleven Edit v1.0.0 — the main patch editor and audition screen, connected to an Eleven Rack](assets/screenshot.png)
+![Eleven Edit v1.1.0 — the main patch editor and audition screen, connected to an Eleven Rack](assets/screenshot.png)
 
 ## What it does
 
