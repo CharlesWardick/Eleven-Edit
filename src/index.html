@@ -2154,16 +2154,30 @@
       <button id="btn-audio-close" title="Close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 2px;">✕</button>
     </div>
 
-    <!-- Master enable/disable: full-width header row ABOVE the 2-column grid so it
-         doesn't shift the device fields' left/right pairing. -->
-    <div class="settings-row" id="audio-enabled-row">
-      <div class="settings-row-label">Built-in Audio Engine</div>
-      <div class="settings-row-controls">
-        <div class="settings-select-wrap">
-          <select id="audio-enabled-select" class="settings-select">
-            <option value="enabled">Enabled</option>
-            <option value="disabled">Disabled (hide completely)</option>
-          </select>
+    <!-- Top row (its own 2-col grid, above the device grid): master enable/disable
+         on the left, Audio Bar Position on the right — fills the header width and
+         keeps the device grid below balanced. -->
+    <div class="audio-grid">
+      <div class="settings-row" id="audio-enabled-row">
+        <div class="settings-row-label">Built-in Audio Engine</div>
+        <div class="settings-row-controls">
+          <div class="settings-select-wrap">
+            <select id="audio-enabled-select" class="settings-select">
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled (hide completely)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">Audio Bar Position</div>
+        <div class="settings-row-controls">
+          <div class="settings-select-wrap">
+            <select id="audio-barpos-select" class="settings-select">
+              <option value="top">Top (under the toolbar)</option>
+              <option value="bottom">Bottom (above the status bar)</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -2295,24 +2309,12 @@
       </div>
     </div>
 
-    <div class="settings-row">
-      <div class="settings-row-label">Audio Bar Position</div>
-      <div class="settings-row-controls">
-        <div class="settings-select-wrap">
-          <select id="audio-barpos-select" class="settings-select">
-            <option value="top">Top (under the toolbar)</option>
-            <option value="bottom">Bottom (above the status bar)</option>
-          </select>
-        </div>
-      </div>
-    </div>
     </div><!-- /.audio-grid -->
 
     <div class="settings-row">
       <div class="settings-row-controls">
         <button class="settings-btn" id="audio-mute-panel" title="Mute / unmute output">MUTE</button>
         <button class="settings-btn" id="audio-restart-btn" title="Close and reopen the audio stream (recover after a driver hiccup)">Restart Engine</button>
-        <button class="settings-btn" id="audio-reset-firstrun-btn" title="Dev: re-arm the muted first-run setup">Reset First-Run</button>
       </div>
     </div>
 
