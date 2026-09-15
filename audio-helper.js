@@ -1,6 +1,7 @@
 /*
  * Eleven Edit — Audio Helper (v1.1.0 audio engine)
  * Copyright (c) 2026 Charles Wardick
+ * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Separate audio-passthrough process, spawned by main.js on engine ON and
  * killed on engine OFF (mirrors the Java MIDI bridge "program within the
@@ -8,10 +9,13 @@
  * passthrough: audio in from the chosen ASIO device -> gain -> audio out on
  * the same device. No DSP beyond a simple volume multiply.
  *
- * NOTE ON LICENSING: `audify` and RtAudio are MIT/permissive, but audify's
- * prebuilt binary contains code compiled against Steinberg's ASIO SDK. That
- * SDK's terms still apply to the shipped binary — to be cleared before ship.
- * Kept as a SEPARATE PROCESS so the boundary stays clean.
+ * LICENSING (see LICENSING.md): this helper is licensed GPL-3.0-or-later,
+ * SEPARATE from the MIT-licensed main app. It loads `audify` (MIT wrapper)
+ * whose prebuilt binary contains code compiled against Steinberg's ASIO SDK,
+ * which is GPLv3-or-proprietary (since 2025-10-15). Eleven Edit takes the free
+ * GPLv3 path for this ASIO-touching component and keeps it a truly separate
+ * process (arms-length stdin/stdout IPC), so the boundary stays clean and the
+ * rest of Eleven Edit remains MIT.
  *
  * PROTOCOL (newline-delimited JSON, both directions):
  *   stdin  (commands from main.js):
