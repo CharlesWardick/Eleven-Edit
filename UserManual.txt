@@ -177,6 +177,59 @@ AUTO ADVANCE
   PAUSE and STOP are available at any time.
 
 
+BUILT-IN AUDIO ENGINE
+--------------------------------------------------
+
+Eleven Edit can pass audio straight through your rig — guitar in, your
+processed tone out to speakers or headphones — with no DAW or other app.
+It is monitoring only: the rack makes the tone, Eleven Edit just routes the
+audio. (New in v1.1.0.)
+
+TURNING IT ON
+  The first time you run Eleven Edit it asks whether to enable the audio
+  engine. You can change this any time in Settings -> Audio Setup, under
+  "Built-in Audio Engine" (Enabled / Disabled). Disabled hides the whole
+  feature; Enabled shows the audio bar.
+
+THE AUDIO BAR
+  When the engine is enabled, a slim bar appears (above the status bar by
+  default). It holds:
+    - AUDIO ENGINE ON / OFF — turns the passthrough on or off. ON grabs the
+      audio device; OFF fully RELEASES it, so a DAW can use the same
+      interface for re-amping. Toggling is instant.
+    - IN / OUT level and an input signal meter.
+    - MUTE — silences the output without releasing the device.
+  You can move the bar to the top of the window from Audio Setup.
+
+AUDIO SETUP (Settings -> Audio Setup)
+  - Device Type — ASIO (recommended, low latency) or WASAPI.
+  - Audio Device — the interface to use. The engine runs input and output on
+    ONE device (one interface, one clock): pick your audio interface, or the
+    Eleven Rack itself if you use it as your interface.
+  - Input Mode — Mono (one input to both monitors) or Stereo, and which
+    input channel(s) to use.
+  - Output (Monitors) — the output pair to send to.
+  - Sample Rate / Audio Buffer Size — set these HERE, not in the interface's
+    own ASIO control panel. While the engine is ON, Eleven Edit owns the
+    device and can't follow changes made in the driver's panel.
+
+START WITH IT RUNNING (optional)
+  Add the flag /AUDIOON to a desktop shortcut (e.g. "Eleven Edit.exe"
+  /AUDIOON) to launch with the engine already on — handy for a "just play
+  guitar" shortcut. It only auto-starts once you have set up a device; if the
+  engine is Disabled, the flag is ignored.
+
+REQUIREMENTS AND DRIVERS
+  - The engine needs the Microsoft Visual C++ runtime. If it is missing,
+    Eleven Edit offers to install it for you when you enable the engine.
+  - For ASIO with the Eleven Rack itself, use Avid USB driver 1.1.11. The
+    newer 1.1.12 "final" driver fails to start ASIO on many Windows versions
+    (and can knock out other older ASIO drivers on the same PC). If ASIO
+    shows no devices or won't start, roll the Avid driver back to 1.1.11,
+    switch Device Type to WASAPI, or use a separate interface whose ASIO
+    driver is current (e.g. Focusrite) with the rack patched into it.
+
+
 SAVING AND LOADING
 --------------------------------------------------
 
@@ -227,6 +280,8 @@ ABOUT / SETTINGS
     - Rig-Wide Hardware Settings — Hardware Loop Global Routing and
       Digital Output Mode, two global (not per-patch) settings that
       live here rather than in the amp/effect panels.
+    - Audio Engine — Audio Setup... opens the built-in audio passthrough
+      configuration (see BUILT-IN AUDIO ENGINE above).
 
   The About box (also bottom right) shows the current version number.
 
@@ -281,6 +336,10 @@ TROUBLESHOOTING
     turn these warnings off under Settings → "Windows 11 upload warning". If
     Microsoft's fix reaches your PC, the first time an upload succeeds Eleven
     Edit notices and stops warning automatically.
+  - Built-in audio engine shows no ASIO devices, or won't start — most
+    often the Avid 1.1.12 driver, which fails to start ASIO on many Windows
+    versions. Use Avid driver 1.1.11 instead, or switch Device Type to
+    WASAPI in Audio Setup. See BUILT-IN AUDIO ENGINE.
   - For anything not covered here, see the project's GitHub page for
     the full technical documentation, or open an issue there.
 
