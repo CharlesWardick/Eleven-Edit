@@ -222,12 +222,15 @@ START WITH IT RUNNING (optional)
 REQUIREMENTS AND DRIVERS
   - The engine needs the Microsoft Visual C++ runtime. If it is missing,
     Eleven Edit offers to install it for you when you enable the engine.
-  - For ASIO with the Eleven Rack itself, use Avid USB driver 1.1.11. The
-    newer 1.1.12 "final" driver fails to start ASIO on many Windows versions
-    (and can knock out other older ASIO drivers on the same PC). If ASIO
-    shows no devices or won't start, roll the Avid driver back to 1.1.11,
-    switch Device Type to WASAPI, or use a separate interface whose ASIO
-    driver is current (e.g. Focusrite) with the rack patched into it.
+  - A note on ASIO. ASIO on Windows is machine-specific — whether a driver
+    starts depends on its version, your Windows build, and what other audio
+    gear/drivers are installed. If your ASIO already works, leave it alone.
+    If it's empty or won't start, the usual cause is the Avid 1.1.12 driver:
+    roll back to 1.1.11, remove dead/legacy ASIO drivers, then reboot and
+    rescan. If ASIO keeps fighting you, switch Device Type to WASAPI — it
+    sidesteps the ASIO mess (slightly higher latency, but it just works).
+    This isn't unique to Eleven Edit; a broken ASIO stack breaks every audio
+    app the same way.
 
 
 SAVING AND LOADING
