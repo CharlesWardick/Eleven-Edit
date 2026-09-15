@@ -178,7 +178,7 @@
   }
   .amp-toggle-btn.on { background: #1a2a1a; border-color: var(--green); color: var(--green); }
 
-  /* Audio engine toggle (v2.0.0) — matches the Tuner button's look/behaviour */
+  /* Audio engine toggle (v1.1.0) — matches the Tuner button's look/behaviour */
   .audio-col { display: flex; flex-direction: column; gap: 2px; align-items: center; flex-shrink: 0; }
   .audio-toggle {
     background: #1a1a1a; border: 1px solid #666; color: #999;
@@ -2135,7 +2135,7 @@
       </div>
 
       <div class="settings-col">
-        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Audio Engine (v2.0.0)</div>
+        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Audio Engine</div>
         <div class="settings-row">
           <div class="settings-row-label">Built-in Audio Passthrough</div>
           <div class="settings-row-controls">
@@ -2146,7 +2146,7 @@
     </div>
   </div>
 
-  <!-- ══ AUDIO SETUP PANEL (v2.0.0) — swaps into the panel region ══ -->
+  <!-- ══ AUDIO SETUP PANEL (v1.1.0) — swaps into the panel region ══ -->
   <div id="panel-audio-settings" style="display:none;">
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="btn-audio-back" title="Back to Settings" style="background:none;border:none;color:var(--accent);font-size:20px;cursor:pointer;line-height:1;padding:0 2px;">‹</button>
@@ -2438,7 +2438,7 @@
 </div>
 
 <!-- ══ IMPORT RIGS — CONFIRM MODAL (2026-08-10) ══ -->
-<!-- Audio device-not-found modal (v2.0.0) -->
+<!-- Audio device-not-found modal (v1.1.0) -->
 <div id="audio-device-modal">
   <div class="rack-save-box" style="max-width:620px;width:88vw;">
     <div class="rack-save-title">Audio Device Not Found</div>
@@ -2534,7 +2534,7 @@
 </div>
 
 <!-- ══ STATUS BAR ══ -->
-<!-- ══ AUDIO STRIP (v2.0.0) — PERMANENT fixture; toggle is the engine on/off.
+<!-- ══ AUDIO STRIP (v1.1.0) — PERMANENT fixture; toggle is the engine on/off.
      Default position is bottom (here); JS moves it under the toolbar if the
      user picks Top in Audio Setup. ══ -->
 <div id="audiostrip" class="engine-off bottom">
@@ -4004,7 +4004,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/sysex-handler.js"></script>
 <script src="js/patch-nav.js"></script>
 <script src="js/rig-balance.js"></script>   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
-<script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v2.0.0 -->
+<script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v1.1.0 -->
 <script src="js/app-init.js"></script>
 </body>
 </html>

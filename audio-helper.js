@@ -1,5 +1,5 @@
 /*
- * Eleven Edit — Audio Helper (v2.0.0 audio engine)
+ * Eleven Edit — Audio Helper (v1.1.0 audio engine)
  * Copyright (c) 2026 Charles Wardick
  *
  * Separate audio-passthrough process, spawned by main.js on engine ON and

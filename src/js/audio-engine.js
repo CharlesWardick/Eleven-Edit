@@ -1,5 +1,5 @@
 /*
- * Eleven Edit — Audio Engine UI wiring (v2.0.0)
+ * Eleven Edit — Audio Engine UI wiring (v1.1.0)
  * Copyright (c) 2026 Charles Wardick
  * SPDX-License-Identifier: MIT
  *

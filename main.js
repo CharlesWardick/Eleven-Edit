@@ -1030,7 +1030,7 @@ ipcMain.handle('restart-bridge', function() {
 });
 
 // ════════════════════════════════════════════════════════════════════
-// AUDIO ENGINE (v2.0.0) — audio-helper.js child process
+// AUDIO ENGINE (v1.1.0) — audio-helper.js child process
 // The helper does ASIO duplex passthrough via `audify`. It is SPAWNED on
 // engine ON and KILLED on engine OFF — killing fully releases the ASIO
 // device so a DAW can grab it. Mirrors the Java-bridge lifecycle above.
