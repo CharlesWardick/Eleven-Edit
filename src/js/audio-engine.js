@@ -35,7 +35,6 @@
     frames:    128,
     outGain:   100,        // monitor level 0..100 (no input gain — see helper)
     barPosition: 'bottom', // 'bottom' (above status bar, default) | 'top' (under toolbar)
-    barVisible:  true,     // false = hide the bar entirely (for non-audio users)
     audioDisabled: false,  // HARD master OFF ("I don't want this feature, period"):
                            // hides the whole strip, skips the startup device scan,
                            // ignores /AUDIOON. Persisted; flipped by the first-run
@@ -199,20 +198,18 @@
     if (running) api.audioStart(startOpts());   // helper restarts on new geometry
   }
 
+  // Show the strip and place it (top/bottom). The strip is shown whenever the
+  // engine is Enabled; the master Enabled/Disabled switch is the only hide control
+  // now (the old separate Audio Bar Shown/Hidden setting was redundant with it).
   function applyBarVisibility() {
     if (!elStrip) return;
-    if (settings.barVisible) {
-      elStrip.style.display = '';       // back to CSS flex
-      placeBar();
-    } else {
-      if (running) stopEngine();        // hiding removes the only engine control → stop it
-      elStrip.style.display = 'none';
-    }
+    elStrip.style.display = '';         // CSS flex
+    placeBar();
   }
 
   // Hard master gate. When disabled: stop any running engine, hide the whole
   // strip (the toggle lives inside it), and grey the toggle for good measure.
-  // When enabled: restore the strip per the bar-visible preference.
+  // When enabled: show the strip.
   function applyDisabledState() {
     var dis = !!settings.audioDisabled;
     if (dis && running) stopEngine();
@@ -309,11 +306,6 @@
     if (!settings.configured || !namesChosen()) {
       log('Audio: auto-start skipped — not configured yet.');
       return;
-    }
-    if (!settings.barVisible) {
-      settings.barVisible = true;   // session-only override; NOT saved
-      applyBarVisibility();
-      var vsel = $('audio-barvisible-select'); if (vsel) vsel.value = 'shown';
     }
     // startEngine() re-scans and pops the modal itself if the device is absent.
     if (!running && !busy) { setBusy(true); startEngine(); }
@@ -650,7 +642,6 @@
   onCtl('audio-out-select', function () { settings.outPair = parseInt(this.value, 10); saveSettings(); applyIfRunning(); });
   onCtl('audio-rate-select',   function () { settings.rate = parseInt(this.value, 10); fillBufferSelect(); saveSettings(); applyIfRunning(); updateBarLabel(); });
   onCtl('audio-barpos-select', function () { settings.barPosition = this.value; placeBar(); saveSettings(); });
-  onCtl('audio-barvisible-select', function () { settings.barVisible = (this.value === 'shown'); applyBarVisibility(); saveSettings(); });
   onCtl('audio-buffer-select', function () { settings.frames = parseInt(this.value, 10); saveSettings(); applyIfRunning(); updateBarLabel(); });
 
   function applySettingsToControls() {
@@ -660,7 +651,6 @@
     if ((e = $('audio-mode-select')))   e.value = settings.inputMode;
     if ((e = $('audio-rate-select')))   e.value = String(settings.rate);
     if ((e = $('audio-barpos-select'))) e.value = settings.barPosition;
-    if ((e = $('audio-barvisible-select'))) e.value = settings.barVisible ? 'shown' : 'hidden';
     fillBufferSelect();
     if (elOut) elOut.value = settings.outGain;
     if (elOutVal) elOutVal.textContent = settings.outGain;
@@ -751,7 +741,7 @@
       // /AUDIOON: explicit launch intent (cold-start flag, or the live event from
       // a second-instance launch).
       log('Audio: /AUDIOON=' + !!api.audioAutoStart + ' configured=' + settings.configured +
-          ' type=' + settings.deviceType + ' barVisible=' + settings.barVisible);
+          ' type=' + settings.deviceType);
       if (api.audioAutoStart) setTimeout(autoStartEngine, 1800);
       // Prime the device cache for the chosen type at startup (engine off here),
       // so the Setup panel has the list even before it's opened. 'none' → skip.
