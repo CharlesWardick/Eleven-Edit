@@ -148,7 +148,7 @@ function qmSetSliderValue(wrap, v127, sendIt) {
   var fill = wrap.querySelector('.qm-fill');
   var val  = wrap.querySelector('.qm-val');
   if (fill) fill.style.width = pct + '%';
-  if (val)  val.textContent  = pct;
+  if (val)  val.textContent  = (wrap.dataset.label || 'Mix') + ' ' + pct;
   if (sendIt) {
     var slotId = parseInt(wrap.dataset.slot, 10);
     var lo = parseInt(wrap.dataset.lo, 10);
@@ -270,6 +270,9 @@ function quickMixAfterChainMap() {
       return;
     }
     wrap.dataset.lo = lo;
+    // Label the readout with the wet control's name: fixed blocks (Reverb/
+    // Delay/FX Loop) use Mix; the host slots' wet control is Depth.
+    wrap.dataset.label = (QM_HOST_SLOTS.indexOf(slotId) !== -1) ? 'Depth' : 'Mix';
     wrap.hidden = !qmShown;
     qmRequestValue(slotId, lo);                  // populate on sight
   });
