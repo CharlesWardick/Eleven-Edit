@@ -417,8 +417,11 @@
      each time chasing where Charlie actually wanted the resulting gap to
      land). */
   #tempo-wrap {
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-    flex-shrink: 0; align-self: center;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    /* 2026-09-16: right-align TEMPO within its column (was centered) so its
+       up/down steppers line up under MAIN VOL's steppers above — the tempo
+       data field is wider and simply extends further left, per Charlie. */
+    flex-shrink: 0; align-self: flex-end;
     margin-top: auto;
     transform: translateY(12px);
   }
@@ -1565,6 +1568,10 @@
       <div class="chain-half slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
       <div class="chain-half slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
     </div>
+    <!-- Hidden caret spacer — reserves the same height every other block's real
+         .chain-open does, so the pill bottom-aligns on the exact shared baseline
+         instead of sitting a caret-height too low (no ▼ for AMP/CAB by design). -->
+    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
   </div>
   <div class="chain-arr"></div>
 
