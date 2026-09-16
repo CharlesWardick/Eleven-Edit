@@ -148,7 +148,12 @@ function qmSetSliderValue(wrap, v127, sendIt) {
   var fill = wrap.querySelector('.qm-fill');
   var val  = wrap.querySelector('.qm-val');
   if (fill) fill.style.width = pct + '%';
-  if (val)  val.textContent  = (wrap.dataset.label || 'Mix') + ' ' + pct;
+  if (val) {
+    var shown = (wrap.dataset.disp === 'pct')
+      ? (Math.round(v127 / 127 * 100) + '%')
+      : (v127 / 127 * 10).toFixed(1);        // 0-10, one decimal (matches the panel)
+    val.textContent = (wrap.dataset.label || 'Mix') + ' ' + shown;
+  }
   if (sendIt) {
     var slotId = parseInt(wrap.dataset.slot, 10);
     var lo = parseInt(wrap.dataset.lo, 10);
@@ -273,6 +278,10 @@ function quickMixAfterChainMap() {
     // Label the readout with the wet control's name: fixed blocks (Reverb/
     // Delay/FX Loop) use Mix; the host slots' wet control is Depth.
     wrap.dataset.label = (QM_HOST_SLOTS.indexOf(slotId) !== -1) ? 'Depth' : 'Mix';
+    // Readout units mirror the block's own panel: FX Loop Mix is a percentage
+    // (loopPct), every other wet control is a plain 0-10 value (delayTen /
+    // the default valDisplay — same formula either way).
+    wrap.dataset.disp = (slotId === SLOT_LOOP) ? 'pct' : 'ten';
     wrap.hidden = !qmShown;
     qmRequestValue(slotId, lo);                  // populate on sight
   });
