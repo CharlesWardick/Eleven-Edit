@@ -300,11 +300,19 @@ function quickMixUpdateActive() {
   });
 }
 
+// Apply the row-taller / reserved-zone layout only while sliders are shown
+// (see #chainstrip.qm-visible in index.html). Off = original 140px row.
+function qmApplyVisibility() {
+  var strip = document.getElementById('chainstrip');
+  if (strip) strip.classList.toggle('qm-visible', qmShown);
+}
+
 // ── Show/hide toggle (Settings checkbox). Hides every slider but keeps their
 // values current so flipping it back on shows correct positions immediately.
 function quickMixSetShown(shown) {
   qmShown = !!shown;
   qmSavePref();
+  qmApplyVisibility();
   Object.keys(QM_SLOT_DOM).forEach(function(slotKey) {
     var slotId = parseInt(slotKey, 10);
     var wrap = document.getElementById('qm-' + QM_SLOT_DOM[slotId]);
@@ -319,6 +327,7 @@ function quickMixSetShown(shown) {
 // ── Wire the Settings checkbox + initial pref on load.
 document.addEventListener('DOMContentLoaded', function() {
   qmLoadPref();
+  qmApplyVisibility();
   var cb = document.getElementById('qm-show-checkbox');
   if (cb) {
     cb.checked = qmShown;

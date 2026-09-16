@@ -282,7 +282,7 @@
        clear AMP/CAB's natural content (122px) plus a few px of headroom —
        a small, bounded bump, not a runaway resize; the effect panels below
        this row are a separate area and are untouched by it. */
-    height: 165px; flex-shrink: 0; overflow-x: hidden;
+    height: 140px; flex-shrink: 0; overflow-x: hidden;
   }
   /* Connector between blocks. FIXED WIDTH regardless of mono/stereo so the row
      never re-flows when a patch changes — stacked horizontal lines, like the
@@ -292,9 +292,8 @@
   .chain-arr {
     flex-shrink: 0; width: 16px; height: 100%;
     display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
-    /* 18px base + 22px Quick Mix reserved zone (see .chain-slot) so the
-       connector bars stay level with the raised block-name pills. */
-    padding-bottom: 40px;
+    padding-bottom: 18px;   /* lifted to 40px under #chainstrip.qm-visible so the
+       connector bars track the raised name pills only while sliders are shown */
   }
   .chain-arr i { display: block; height: 2px; border-radius: 1px; background: #777; }
   /* unknown channel count must NOT look like a confident mono line */
@@ -515,8 +514,16 @@
      .chain-name/.chain-open rely on it to match each other's width;
      .chain-thumb has a fixed width and self-centers. */
   .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0;
-    position: relative; padding-bottom: 22px; }   /* reserved zone for the Quick Mix slider,
-    uniform on EVERY slot so block names stay bottom-aligned whether or not a slider is present */
+    position: relative; }   /* position:relative = anchor for the absolute Quick Mix slider */
+  /* Quick Mix reserved zone + taller row applied ONLY while the sliders are
+     shown (#chainstrip.qm-visible, toggled by quick-mix.js). Hidden => the row
+     reverts to its original 140px with no offset; toggling is the one-time
+     reflow Charlie accepts for a one-time show/hide decision. Uniform on every
+     slot so block names stay bottom-aligned with or without a slider. */
+  #chainstrip.qm-visible { height: 165px; }
+  #chainstrip.qm-visible .chain-slot,
+  #chainstrip.qm-visible .chain-slot-stack { padding-bottom: 22px; }
+  #chainstrip.qm-visible .chain-arr { padding-bottom: 40px; }
 
   /* ── QUICK MIX (v1.2.0) — inline per-block wet-amount slider, injected by
        quick-mix.js under a wet-capable block's name. Dark recessed track
@@ -663,8 +670,8 @@
   .chain-open.panel-open  { background: #2d2200; border-color: var(--accent); color: var(--accent); }
 
   /* AMP+CAB stacked — no ▼ row */
-  .chain-slot-stack { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; gap: 2px;
-    padding-bottom: 22px; }   /* match .chain-slot's Quick Mix reserved zone so AMP/CAB names stay aligned */
+  .chain-slot-stack { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; gap: 2px; }
+  /* AMP/CAB reserved-zone match is applied under #chainstrip.qm-visible above. */
   .chain-name-stack {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
     border-radius: 4px; padding: 4px 13px; font-size: 13px; font-weight: bold;
