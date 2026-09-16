@@ -488,9 +488,12 @@
   #tempo-label { font-size: 10px; color: #777; letter-spacing: 1px; font-weight: bold; }
   #tempo-row { display: flex; align-items: center; gap: 6px; }
   #tempo-box {
-    display: flex; align-items: center; gap: 4px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 4px;
     background: #111; border: 1px solid #666; border-radius: 4px;
-    padding: 3px 8px; cursor: text; outline: none;
+    /* 2026-09-16: min-width + right-packed digits give TEMPO the same visual
+       weight as the PHON/MAIN VOL boxes and land the last digit over the up
+       caret, matching how the VOL boxes sit above their steppers. */
+    padding: 3px 8px; min-width: 62px; cursor: text; outline: none;
     font-family: 'Consolas', monospace; font-size: 15px; font-weight: bold;
     color: var(--accent); line-height: 1;
   }
