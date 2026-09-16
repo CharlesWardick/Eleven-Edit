@@ -2307,7 +2307,7 @@ function setChainThumbImage(thumbWrap, src) {
 function containerForSlot(slotId) {
   if (slotId === SLOT_AMP) {
     const el = document.getElementById('chain-amp');
-    return el ? el.closest('.chain-slot-stack') : null;
+    return el ? el.closest('.chain-slot') : null;   // AMP/CAB is now a single .chain-slot (was .chain-slot-stack)
   }
   const dom = SLOT_ID_TO_DOM[slotId];
   if (!dom) return null;
@@ -2746,7 +2746,7 @@ function setCurrentAmp(key) {
     // full nav behind the dropdown/amp-name-display above it.
     const ampThumb = document.getElementById('chain-amp');
     if (ampThumb && typeof getAmpThumbSrc === 'function') {
-      setChainThumbImage(ampThumb.closest('.chain-slot-stack').querySelector('.chain-thumb'),
+      setChainThumbImage(ampThumb.closest('.chain-slot').querySelector('.chain-thumb'),
         getAmpThumbSrc(key));
     }
   });

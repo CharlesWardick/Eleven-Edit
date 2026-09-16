@@ -537,7 +537,7 @@
   .qm-wrap[hidden] { display: none; }   /* class display:flex would beat the UA [hidden] rule */
   .qm-wrap.qm-active { opacity: 1; }
   .qm-track {
-    width: 100%; height: 7px; border-radius: 4px; position: relative;
+    width: 100%; height: 8px; border-radius: 4px; position: relative;
     background: #0d0d0d; border: 1px solid #000;
     box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
     cursor: default;
@@ -552,7 +552,7 @@
   /* White handle marker riding the fill's right edge (mockup B2). */
   .qm-fill::after {
     content: ""; position: absolute; right: -2px; top: 50%;
-    width: 4px; height: 13px; transform: translateY(-50%);
+    width: 4px; height: 15px; transform: translateY(-50%);
     background: #9a9a9a; border: 1px solid #000; border-radius: 2px;
   }
   .qm-wrap.qm-active .qm-fill::after { background: #e8e8e8; }
@@ -689,6 +689,31 @@
   .chain-name-stack.slot-on:hover  { border-color: var(--green); }
   .chain-name-stack.slot-off:hover { border-color: var(--red); }
   .chain-name-stack.slot-unknown   { background: #2a2a2a; border-color: #666; color: var(--muted); }
+
+  /* AMP/CAB single split-pill (2026-09-16, replaces the vertical stack) — one
+     pill, two side-by-side halves; each half is an independent bypass toggle
+     that keeps its own state colour, with a thin divider between them. Same
+     bottom-anchor + translateY baseline as .chain-name so it lines up with
+     every other pill in the now-uniform single row. */
+  .chain-ampcab-pill {
+    margin-top: auto; transform: translateY(12px);
+    display: flex; align-items: stretch;
+    border: 1px solid #666; border-radius: 4px; overflow: hidden;
+    background: #2a2a2a;
+  }
+  .chain-half {
+    flex: 1; padding: 5px 9px; font-size: 13px; font-weight: bold;
+    text-align: center; white-space: nowrap; cursor: default;
+    color: var(--muted); transition: all 0.15s;
+  }
+  .chain-half + .chain-half { border-left: 1px solid #000; }   /* divider */
+  .chain-half.slot-on,
+  .chain-half.slot-off { cursor: pointer; }
+  .chain-half.slot-on  { background: #1a2a1a; color: #70c070; }
+  .chain-half.slot-off { background: #241414; color: #7a3a3a; text-decoration: line-through; }
+  .chain-half.slot-on:hover  { color: #8ad08a; }
+  .chain-half.slot-off:hover { color: #b05656; }
+  .chain-half.slot-unknown   { background: #2a2a2a; color: var(--muted); }
 
   /* ══ MAIN AREA ══ */
   #main { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -1526,13 +1551,20 @@
   </div>
   <div class="chain-arr"></div>
 
-  <!-- AMP + CAB stacked — bypass only, no ▼. One thumb serves the pair,
-       matching Avid (the amp head graphic is one image, cab is separate
-       below it — real cab graphic is also a later step). -->
-  <div class="chain-slot-stack">
+  <!-- AMP + CAB — one thumb serves the pair (amp head graphic). 2026-09-16:
+       was a vertical STACK (.chain-slot-stack, two labels top/bottom) — the
+       legacy-Avid look that made this block taller than every other and forced
+       the chain-row alignment special-casing. Now a SINGLE-height slot holding
+       ONE pill split into two side-by-side halves (left AMP / right CAB), each
+       an independent bypass toggle keeping its own #chain-amp / #chain-cab id
+       so the existing display fns + click handlers are unchanged. Removes the
+       row offset; every block is now one uniform pill height. -->
+  <div class="chain-slot chain-ampcab">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"><span class="thumb-fallback-label">AMP<br>CAB</span></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
-    <div class="chain-name-stack slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
-    <div class="chain-name-stack slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
+    <div class="chain-ampcab-pill">
+      <div class="chain-half slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
+      <div class="chain-half slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
+    </div>
   </div>
   <div class="chain-arr"></div>
 
