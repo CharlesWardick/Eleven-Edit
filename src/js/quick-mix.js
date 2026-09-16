@@ -121,7 +121,10 @@ function qmEnsureSlider(slotId) {
   track.className = 'qm-track';
   var fill = document.createElement('div');
   fill.className = 'qm-fill';
+  var tick = document.createElement('div');
+  tick.className = 'qm-tick';               // saved-value reference marker
   track.appendChild(fill);
+  track.appendChild(tick);
   var val = document.createElement('div');
   val.className = 'qm-val';
   val.textContent = '—';
@@ -154,6 +157,7 @@ function qmSetSliderValue(wrap, v127, sendIt) {
       : (v127 / 127 * 10).toFixed(1);        // 0-10, one decimal (matches the panel)
     val.textContent = (wrap.dataset.label || 'Mix') + ' ' + shown;
   }
+  qmRefreshMarker(wrap);
   if (sendIt) {
     var slotId = parseInt(wrap.dataset.slot, 10);
     var lo = parseInt(wrap.dataset.lo, 10);
@@ -162,6 +166,25 @@ function qmSetSliderValue(wrap, v127, sendIt) {
       qmMirrorPanel(slotId, lo, v127);
     }
   }
+}
+
+// Position the saved-value reference tick and flag "changed" (value moved off
+// the patch's saved value) — same dirty convention as the knobs/Speaker Breakup.
+function qmRefreshMarker(wrap) {
+  var slotId = parseInt(wrap.dataset.slot, 10);
+  var saved = qmSaved[slotId];
+  var tick = wrap.querySelector('.qm-tick');
+  if (saved === undefined) {
+    if (tick) tick.style.display = 'none';
+    wrap.classList.remove('qm-changed');
+    return;
+  }
+  if (tick) {
+    tick.style.left = (saved / 127 * 100) + '%';
+    tick.style.display = 'block';
+  }
+  var cur = parseInt(wrap.dataset.value, 10);
+  wrap.classList.toggle('qm-changed', !isNaN(cur) && cur !== saved);
 }
 
 // Keep an OPEN panel's own knob in step while dragging the slider. No-op when
@@ -181,7 +204,9 @@ function qmMirrorPanel(slotId, lo, v127) {
 function qmWireSlider(wrap, slotId, track) {
   var dragging = false;
   function isEnabled() { return wrap.classList.contains('qm-active'); }
-  track.addEventListener('mousedown', function(e) {
+  // Drag starts anywhere on the WRAP (track + readout), not just the thin track,
+  // so the hit target is the whole ~20px zone instead of an 8px bar.
+  wrap.addEventListener('mousedown', function(e) {
     if (!isEnabled()) return;
     dragging = true; qmDragSlot = slotId;
     qmSetSliderValue(wrap, qmXToV127(track, e.clientX), true);
