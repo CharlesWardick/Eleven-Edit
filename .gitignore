@@ -145,3 +145,7 @@ captures/
 docs/ElevenEdit_Primer.txt
 docs/ElevenEdit_Session_Log.txt
 docs/ElevenEdit_Archive.txt
+
+# Bundled Microsoft VC++ redistributable — a Microsoft binary, kept locally and
+# not tracked. Prevents it being committed to main when switching branches.
+vc_redist.x64.exe
