@@ -282,7 +282,7 @@
        clear AMP/CAB's natural content (122px) plus a few px of headroom —
        a small, bounded bump, not a runaway resize; the effect panels below
        this row are a separate area and are untouched by it. */
-    height: 140px; flex-shrink: 0; overflow-x: hidden;
+    height: 165px; flex-shrink: 0; overflow-x: hidden;
   }
   /* Connector between blocks. FIXED WIDTH regardless of mono/stereo so the row
      never re-flows when a patch changes — stacked horizontal lines, like the
@@ -512,7 +512,9 @@
      sitting glued on top of a visible caret. align-items stays stretch —
      .chain-name/.chain-open rely on it to match each other's width;
      .chain-thumb has a fixed width and self-centers. */
-  .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; }
+  .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0;
+    position: relative; padding-bottom: 22px; }   /* reserved zone for the Quick Mix slider,
+    uniform on EVERY slot so block names stay bottom-aligned whether or not a slider is present */
 
   /* ── QUICK MIX (v1.2.0) — inline per-block wet-amount slider, injected by
        quick-mix.js under a wet-capable block's name. Dark recessed track
@@ -520,7 +522,8 @@
        a muted amber-dim fill reads as "amount" without shouting. Dims when
        the block is OFF, hidden when the model has no wet control or the
        Settings toggle is off. Fixed heights so nothing dances. */
-  .qm-wrap { margin-top: 4px; display: flex; flex-direction: column; align-items: center;
+  .qm-wrap { position: absolute; left: 0; right: 0; bottom: 3px;
+             display: flex; flex-direction: column; align-items: center;
              gap: 1px; opacity: 0.4; }
   .qm-wrap[hidden] { display: none; }   /* class display:flex would beat the UA [hidden] rule */
   .qm-wrap.qm-active { opacity: 1; }
@@ -650,7 +653,8 @@
   .chain-open.panel-open  { background: #2d2200; border-color: var(--accent); color: var(--accent); }
 
   /* AMP+CAB stacked — no ▼ row */
-  .chain-slot-stack { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; gap: 2px; }
+  .chain-slot-stack { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; gap: 2px;
+    padding-bottom: 22px; }   /* match .chain-slot's Quick Mix reserved zone so AMP/CAB names stay aligned */
   .chain-name-stack {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
     border-radius: 4px; padding: 4px 13px; font-size: 13px; font-weight: bold;
