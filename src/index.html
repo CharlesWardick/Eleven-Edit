@@ -513,6 +513,34 @@
      .chain-name/.chain-open rely on it to match each other's width;
      .chain-thumb has a fixed width and self-centers. */
   .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; }
+
+  /* ── QUICK MIX (v1.2.0) — inline per-block wet-amount slider, injected by
+       quick-mix.js under a wet-capable block's name. Dark recessed track
+       (Charlie's call: darker slot, not the bright orange of the mockup);
+       a muted amber-dim fill reads as "amount" without shouting. Dims when
+       the block is OFF, hidden when the model has no wet control or the
+       Settings toggle is off. Fixed heights so nothing dances. */
+  .qm-wrap { margin-top: 4px; display: flex; flex-direction: column; align-items: center;
+             gap: 1px; opacity: 0.4; }
+  .qm-wrap[hidden] { display: none; }   /* class display:flex would beat the UA [hidden] rule */
+  .qm-wrap.qm-active { opacity: 1; }
+  .qm-track {
+    width: 100%; height: 7px; border-radius: 4px; position: relative;
+    background: #0d0d0d; border: 1px solid #000;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+    cursor: default;
+  }
+  .qm-wrap.qm-active .qm-track { cursor: ew-resize; }
+  .qm-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    border-radius: 4px 0 0 4px;
+    background: linear-gradient(90deg, #3a2c0a, var(--accent-dim));
+  }
+  .qm-wrap.qm-active .qm-fill { background: linear-gradient(90deg, #5a4410, var(--accent)); }
+  .qm-val {
+    font-size: 8px; line-height: 1; color: var(--muted);
+    font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  }
   /* drop-before/drop-after marker removed 7/28 — the live preview (blocks
      actually shifting during the drag) replaced it; see ui.js wireChainDrag */
 
@@ -2142,6 +2170,17 @@
             <button class="settings-btn" id="settings-btn-audio-setup">Audio Setup…</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Quick Mix (v1.2.0) — chain-row inline wet-amount sliders show/hide.
+         App display pref (localStorage), not a rig/hardware setting. -->
+    <div class="settings-row" style="margin-top:10px;">
+      <div class="settings-row-label">Quick Mix sliders (chain-row wet controls)</div>
+      <div class="settings-row-controls">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--muted);font-size:12px;">
+          <input type="checkbox" id="qm-show-checkbox"> Show
+        </label>
       </div>
     </div>
   </div>
@@ -4005,6 +4044,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/patch-nav.js"></script>
 <script src="js/rig-balance.js"></script>   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
 <script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v1.1.0 -->
+<script src="js/quick-mix.js"></script>   <!-- Inline per-block wet-amount sliders on the chain row -->
 <script src="js/app-init.js"></script>
 </body>
 </html>

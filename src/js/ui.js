@@ -2547,6 +2547,8 @@ function refreshBlockBypassDisplays() {
     if (st === undefined) el.classList.add('slot-unknown');
     else el.classList.add(st ? 'slot-on' : 'slot-off');
   });
+  // Quick Mix sliders dim/activate with their block's bypass state.
+  if (typeof quickMixUpdateActive === 'function') quickMixUpdateActive();
 }
 
 // Click a slot label = real bypass toggle.
