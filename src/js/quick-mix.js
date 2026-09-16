@@ -293,12 +293,18 @@ function quickMixAfterChainMap() {
     var lo  = qmWetParamFor(blk);
     var wrap = qmEnsureSlider(slotId);
     if (!wrap) return;
-    qmSaved[slotId] = undefined;                 // new patch/model — re-baseline
+    var prevLo = wrap.dataset.lo;                 // what this slider targeted before
     if (lo === null) {                           // model has no wet control
       delete wrap.dataset.lo;                     // clear stale param from a prior model
+      qmSaved[slotId] = undefined;
       wrap.hidden = true;
       return;
     }
+    // Re-baseline ONLY when the wet param actually changed (a model change) or
+    // this slider is new — NOT on every chain map (edits/reorders also fire one,
+    // and re-baselining there made the saved tick chase the value). A real patch
+    // nav clears qmSaved separately via quickMixClearSaved (capture-scan.js).
+    if (String(lo) !== prevLo) qmSaved[slotId] = undefined;
     wrap.dataset.lo = lo;
     // Label the readout with the wet control's name: fixed blocks (Reverb/
     // Delay/FX Loop) use Mix; the host slots' wet control is Depth.
@@ -311,6 +317,31 @@ function quickMixAfterChainMap() {
     qmRequestValue(slotId, lo);                  // populate on sight
   });
   quickMixUpdateActive();
+}
+
+// ── Patch nav: drop every saved baseline (the old patch's saved values mean
+// nothing for the new one). Called from capture-scan.js's nav-pull clear,
+// alongside clearFxBaselines/clearBreakupBaseline. The values requested on the
+// following chain map re-anchor each qmSaved to the new patch's loaded value.
+function quickMixClearSaved() {
+  qmSaved = {};
+  Object.keys(QM_SLOT_DOM).forEach(function(slotKey) {
+    var wrap = document.getElementById('qm-' + QM_SLOT_DOM[parseInt(slotKey, 10)]);
+    if (wrap) qmRefreshMarker(wrap);   // hides tick, clears "changed" until a value lands
+  });
+}
+
+// ── Save: the current on-screen values BECOME the saved baseline (dirty cleared),
+// same as captureKnobBaselines/clearFxBaselines on a Save. Called from the save
+// handler in sysex-handler.js.
+function quickMixCaptureSaved() {
+  Object.keys(QM_SLOT_DOM).forEach(function(slotKey) {
+    var slotId = parseInt(slotKey, 10);
+    var wrap = document.getElementById('qm-' + QM_SLOT_DOM[slotId]);
+    if (!wrap || wrap.hidden) return;
+    var cur = parseInt(wrap.dataset.value, 10);
+    if (!isNaN(cur)) { qmSaved[slotId] = cur; qmRefreshMarker(wrap); }
+  });
 }
 
 // ── Active (ON, interactive) vs dimmed (OFF/unknown). Called from

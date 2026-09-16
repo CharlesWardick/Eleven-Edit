@@ -275,6 +275,7 @@ async function handleBulkTfxData(data, cmd) {
     clearFxBaselines();       // effect truth is now the saved state:
     if (typeof clearDelayModelBaseline === 'function') clearDelayModelBaseline();  // same, DELAY's own per-model reference
     if (typeof clearBlockModelState === 'function') clearBlockModelState();  // same, generic engine (DIST etc.)
+    if (typeof quickMixCaptureSaved === 'function') quickMixCaptureSaved();  // save = current mix values become the saved baseline
     // Amp cache patch-load snapshot (2026-09-03) — a save makes the just-
     // saved values the new "true" reference, same reasoning as the
     // baseline resets above; the next real hardware reading (the post-save

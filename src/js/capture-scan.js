@@ -232,6 +232,9 @@ function clearStaleReadoutsOnNav() {
   // to protect, so wiping their baseline was only ever making their tick
   // vanish and reappear on every nav for no benefit.
   if (typeof clearBreakupBaseline === 'function') clearBreakupBaseline();
+  // Quick Mix saved-value baselines — same "new patch, old reference is
+  // meaningless" rule; re-anchored by the chain map's value requests.
+  if (typeof quickMixClearSaved === 'function') quickMixClearSaved();
   // Item: a fresh patch is clean — reset the SAVE-button dirty latch.
   if (typeof clearPatchDirty === 'function') clearPatchDirty();
 }
