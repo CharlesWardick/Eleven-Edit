@@ -1,0 +1,125 @@
+ELEVEN EDIT — CHAIN ROW GRAPHICS REFERENCE
+===================================================================
+For anyone who wants to make their own chain-row block artwork.
+
+HOW IT WORKS (read this first)
+-------------------------------------------------------------------
+The little pictures in the signal-chain row are NOT bundled inside Eleven
+Edit. They are Avid's own Eleven Rack plugin images. At startup the app scans
+your Avid install and, for each block, points at the matching PNG on disk.
+
+So to change a graphic you do NOT touch any code. You only need to:
+
+  1. Find the file by its EXACT name in the matching plugin folder (paths below).
+  2. Replace it with your own PNG, keeping the EXACT SAME FILENAME.
+  3. Restart Eleven Edit (the folders are scanned once at startup).
+
+Rules for a clean swap:
+  - Same filename, character-for-character (case may matter on some setups).
+  - Same folder it came from (the family folder listed below).
+  - PNG format. Transparent background looks best (the box behind it is empty).
+  - It is wise to back up the original file first.
+  - If a file is missing or renamed, that block simply shows the plain text
+    placeholder (e.g. "MOD") — nothing breaks.
+
+WHERE THE FILES LIVE
+-------------------------------------------------------------------
+Inside your Avid Eleven Rack install, each family is its own plugin bundle:
+
+  <Avid install>\...\Eleven <Family> UI.aaxplugin\Contents\Resources\Images\<file>.png
+
+The families used by the chain row are:
+  Eleven Modulation UI      Eleven Distortion UI     Eleven Volume UI
+  Eleven EQ UI              Eleven Delay UI          Eleven FX Loop UI
+  Eleven Dynamics UI        Eleven WAH UI            Eleven Reverb UI
+  Eleven AmpsCabs UI        (amps + cabs; Tuner has no flat image)
+
+DISPLAY SPEC (for drawing replacements)
+-------------------------------------------------------------------
+  Display box .......... 60 px wide x 64 px tall (near-square, slightly tall)
+  Fit .................. object-fit: contain — art is fit INSIDE the box,
+                         aspect ratio preserved, never cropped or stretched.
+  Corners .............. 3 px rounded on the displayed image
+  Background ........... transparent recommended (PNG alpha)
+  Recommended art size . 120 x 128 px (2x) for crisp display on hi-DPI screens.
+                         Any aspect ratio works (it is "contain"), but roughly
+                         15:16 fills the box best.
+
+===================================================================
+EFFECT-BLOCK IMAGES  (folder = family, file = exact PNG name)
+Some models intentionally share one image — listed once per file.
+===================================================================
+
+FAMILY: Eleven Modulation UI
+  C1Chorus.png .............. Chorus models
+  multichorus.png ........... Multi-Chorus models
+  MistressFlanger.png ....... Flanger models
+  VibePhaser.png ............ Vibe / Phaser models
+  OrangePhaser.png .......... Orange Phaser models
+  RotSpeaker.png ............ Rotary Speaker models
+
+FAMILY: Eleven EQ UI
+  EQ.png .................... Graphic EQ models
+  ParaEQ.png ................ Parametric EQ models
+
+FAMILY: Eleven Dynamics UI
+  GrayCompressor.png ........ Gray Compressor
+  Dyn3.png .................. other Dynamics models
+
+FAMILY: Eleven Distortion UI   (all 1:1, no sharing)
+  TriKnobFuzz.png ........... Tri-Knob Fuzz
+  BlackOpDist.png ........... Black Op Distortion
+  GreenJVCOD.png ............ Green JVC Overdrive  (note: spelled GreenJVCOD)
+  WhiteBoost.png ............ White Boost
+  DCDistortion.png .......... DC Distortion
+
+FAMILY: Eleven Delay UI
+  TapeEcho.png .............. Tape Echo models
+  BBDelay.png ............... BBD / analog delay models
+  DynDelay.png .............. Dynamic delay models
+
+FAMILY: Eleven WAH UI
+  ShineWah.png .............. Shine Wah
+  BlackWah.png .............. Black Wah
+
+FAMILY: Eleven Reverb UI
+  SpringReverb.png .......... Spring Reverb models
+  StereoReverb.png .......... Stereo / hall reverb models
+
+FAMILY: Eleven Volume UI
+  Volume.png ................ Volume pedal (mono + stereo share this one)
+
+FAMILY: Eleven FX Loop UI
+  FXLoop.png ................ FX Loop (all send/return variants share this one)
+
+FAMILY: (Tuner) — NO IMAGE
+  The Tuner block has no flat PNG in Avid's install, so it always shows the
+  text placeholder. There is nothing to replace for the Tuner.
+
+===================================================================
+AMP IMAGES   (folder: Eleven AmpsCabs UI)
+15 chassis images cover all amp models — several amps share one chassis image.
+===================================================================
+  amp_tweed.png            amp_bass.png             amp_duo.png
+  amp_AC.png               amp_lead800.png          amp_M2.png
+  amp_plx.png              amp_sl100.png            amp_treadplate.png
+  amp_DC_modern.png        amp_DC_vintage.png       amp_lux.png
+  amp_svt.png              amp_bogner.png           amp_DC30.png
+
+===================================================================
+CAB IMAGES   (folder: Eleven AmpsCabs UI)
+Only 5 cab types have art in Avid's install; the others show the placeholder.
+(Note: cab thumbnails are not currently shown in the app — listed for
+completeness in case the feature is enabled by a future contributor.)
+===================================================================
+  cab_1x12_tweed_lux.png ..... 1x12 Tweed Lux
+  cab_2x12_ac_blue.png ....... 2x12 AC Blue
+  cab_2x12_blk_duo.png ....... 2x12 Black Panel Duo
+  cab_4x12_classic_30.png .... 4x12 Classic 30
+  cab_4x12_green_25w.png ..... 4x12 Green 25W
+
+===================================================================
+The authoritative mapping (which model ID uses which file) lives in the code
+at src/js/chain-graphics.js. This document is a reader-friendly summary of it;
+if the two ever disagree, the code is the truth.
+===================================================================
