@@ -1278,10 +1278,14 @@ function handleAudioEvent(msg) {
     case 'error':
       audioStatus.error = msg.message;
       logWrite('Audio: helper error — ' + msg.message);
-      // Missing native runtime (VC++) is now handled solely by the enable-time
-      // runtime check (audio-check-runtime). Here we only surface it quietly as
-      // status — no dialog — so a stray start can't spawn a prompt storm.
-      if (msg.code === 'no-runtime') audioRuntimeMissing = true;
+      // Missing native runtime (VC++): offer the one-click install here too, not
+      // only on the enable-time check. The engine ships ENABLED by default, so a
+      // bar toggle / autostart / /AUDIOON reaches 'start' WITHOUT ever hitting the
+      // enable-time gate — that path used to fail silently (2026-09-17, Charlie:
+      // engine wouldn't start, no prompt, on a VC++-2013-only PC). This is the
+      // ground-truth failure (the runtime genuinely can't load), so surface the
+      // fix from here. vcPromptOpen already caps it at one dialog (no storm).
+      if (msg.code === 'no-runtime') { audioRuntimeMissing = true; offerVcRedistInstall(); }
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
       // Tear the helper down after a failed start so its wedged audio-driver
       // state can't poison the next attempt (e.g. interface was off, now on).
