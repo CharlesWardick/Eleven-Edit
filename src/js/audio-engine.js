@@ -234,31 +234,19 @@
     updateBarLabel();
   }
 
-  // THE single runtime gate. Enabling the engine runs the native-runtime (VC++)
-  // check; only a passing check leaves the engine enabled. Missing → stay
-  // disabled and offer the one-click install. (cb(ok) optional.)
+  // Enable the engine. The VC++ runtime is force-installed by the app installer,
+  // so there's no runtime check here anymore (removed 2026-09-17) — just enable
+  // and, if nothing's set up yet, take the user into Audio Setup to pick a
+  // device. (cb(ok) optional.)
   function requestEnable(cb) {
-    if (!api.audioCheckRuntime) { setDisabled(false); if (cb) cb(true); return; }
-    setupStatus('Checking audio runtime…');
-    Promise.resolve(api.audioCheckRuntime()).then(function (r) {
-      if (r && r.ok) {
-        setDisabled(false);
-        // Nothing set up yet (fresh, or partial) → take them into Audio Setup to
-        // pick a device, rather than leaving them on an empty bar.
-        if (settings.deviceType === 'none' || !namesChosen()) {
-          openAudioPanel();
-          setupStatus('Audio engine enabled — choose a Device Type and device to finish setup.');
-        } else {
-          setupStatus('Audio engine enabled — turn it on from the bar.');
-        }
-        if (cb) cb(true);
-      } else {
-        setDisabled(true);   // enabled requires a working runtime
-        setupStatus('The built-in audio engine needs a Microsoft runtime component. Install it, then set this to Enabled again.');
-        if (api.audioOfferVcredist) api.audioOfferVcredist();
-        if (cb) cb(false);
-      }
-    }).catch(function () { setDisabled(true); if (cb) cb(false); });
+    setDisabled(false);
+    if (settings.deviceType === 'none' || !namesChosen()) {
+      openAudioPanel();
+      setupStatus('Audio engine enabled — choose a Device Type and device to finish setup.');
+    } else {
+      setupStatus('Audio engine enabled — turn it on from the bar.');
+    }
+    if (cb) cb(true);
   }
 
   // First-run intent prompt: "enable the audio engine?" Neutral, no default.

@@ -38,12 +38,25 @@ Continue installing anyway?" \
 !macroend
 
 ; ---- Microsoft Visual C++ runtime (needed by the built-in audio engine) ------
-; The installer NO LONGER checks or prompts for the VC++ runtime. The redist is
-; still BUNDLED on disk (vcredist-x64.dat, via package.json extraResources); the
-; app handles the runtime entirely: it's checked ONLY when the user enables the
-; built-in audio engine (first-run prompt, or the Audio Setup switch), and the
-; one-click install is offered from there. This keeps the whole decision in one
-; place, gated on a single condition (the user actually wants audio), instead of
-; firing at install time regardless of intent.
+; Install the bundled redist at install time, unconditionally and silently —
+; the OEM approach. The Microsoft redist self-checks: if a current-or-newer
+; version is already present it no-ops in about a second, so there's no need for
+; us to detect it first. Running it here GUARANTEES the runtime is present before
+; the app ever launches, so the app carries NO runtime-check / install-prompt
+; logic anymore (that whole app-side path was torn out 2026-09-17 — it fired only
+; on the enable transition and left default-enabled toggles failing silently on a
+; machine without the runtime).
+;
+; The redist ships as vcredist-x64.dat (a non-.exe name — electron-builder's
+; exe/signing step silently drops a raw bundled .exe from resources). Copy it to
+; a real .exe in the plugins temp dir first, then ExecWait it.
 !macro customInstall
+  IfFileExists "$INSTDIR\resources\vcredist-x64.dat" 0 vcDone
+    DetailPrint "Installing Microsoft Visual C++ runtime (needed by the built-in audio engine)…"
+    CopyFiles /SILENT "$INSTDIR\resources\vcredist-x64.dat" "$PLUGINSDIR\vc_redist.x64.exe"
+    ; /quiet = no nested UI; /norestart = never reboot mid-install. The redist
+    ; exits fast and clean when the runtime is already current.
+    ExecWait '"$PLUGINSDIR\vc_redist.x64.exe" /quiet /norestart' $0
+    DetailPrint "Visual C++ runtime installer finished (exit code $0)."
+  vcDone:
 !macroend

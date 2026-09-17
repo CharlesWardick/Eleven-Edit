@@ -1054,85 +1054,14 @@ let audioStatus = { running: false, error: null, deviceId: null };
 let audioEngineWanted = false;   // true once a start is requested (or armed just
                                  // before the pre-start rescan); guards the
                                  // idle-lister cleanup from killing a starting engine
-let audioRuntimeMissing = false; // set when the helper reports the native audio
-                                 // runtime (VC++) can't load
-let audioRuntimeCheckResolve = null; // pending audio-check-runtime resolver (set
-                                     // while a selftest is in flight)
-let vcPromptOpen = false;        // guards against stacking VC++ install dialogs
 
-// The bundled Microsoft VC++ redistributable. It's shipped under a NON-.exe name
-// (vcredist-x64.dat) because electron-builder's exe/signing step silently drops a
-// raw .exe from resources; the .dat sails through. In dev it's the plain
-// vc_redist.x64.exe in the project root (git-ignored, dropped in like the jar).
-// Returns the path to whatever we found, or null (→ prompt degrades to a notice).
-function findVcRedistSource() {
-  const cands = [
-    path.join(process.resourcesPath || '', 'vcredist-x64.dat'),
-    path.join(__dirname, 'vcredist-x64.dat'),
-    path.join(__dirname, 'vc_redist.x64.exe'),           // dev fallback
-  ];
-  for (const p of cands) {
-    try { if (p && fs.existsSync(p)) return p; } catch (e) {}
-  }
-  return null;
-}
-
-// Materialize the redist as a real .exe (Windows won't run a .dat) in temp, then
-// return that path. If the source is already an .exe, use it as-is.
-function prepareVcRedistExe() {
-  const src = findVcRedistSource();
-  if (!src) return null;
-  if (src.toLowerCase().endsWith('.exe')) return src;
-  try {
-    // Stage into a fresh, uniquely-named temp DIR (not a fixed filename in the
-    // shared temp root) so another process can't pre-plant or swap the exe
-    // between this copy and the spawn below (TOCTOU / file-plant hardening).
-    const stageDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'ee-vcredist-'));
-    const dst = path.join(stageDir, 'vc_redist.x64.exe');
-    fs.copyFileSync(src, dst);
-    return dst;
-  } catch (e) {
-    logWrite('Audio: could not stage VC++ redist — ' + e.message);
-    return null;
-  }
-}
-
-// Loop-proof runtime message: whenever an audio action can't run because the
-// VC++ runtime is missing, explain in plain language and offer a one-click
-// install of the bundled redist. The user can always decline; the editor keeps
-// working. Fires on every audio engage while the runtime is missing, so a user
-// who declined at install (or hid the bar and forgot) always gets the fix put
-// back in front of them the moment they try to use audio again.
-function offerVcRedistInstall() {
-  if (vcPromptOpen || !mainWindow || mainWindow.isDestroyed()) return;
-  const vc = findVcRedistSource();   // is a redist bundled at all?
-  const buttons = vc ? ['Install now', 'Not now'] : ['OK'];
-  vcPromptOpen = true;
-  dialog.showMessageBox(mainWindow, {
-    type: 'warning',
-    buttons: buttons,
-    defaultId: 0,
-    cancelId: buttons.length - 1,
-    noLink: true,
-    title: 'Audio engine unavailable',
-    message: 'The built-in audio engine can’t start.',
-    detail: 'It needs the Microsoft Visual C++ runtime, which isn’t installed on this PC. '
-      + 'The rest of Eleven Edit works normally — only the built-in audio engine needs it.'
-      + (vc ? '\n\nInstall it now?' : '\n\nInstall the "Microsoft Visual C++ 2015–2022 Redistributable (x64)" from Microsoft, then try again.'),
-  }).then(function (r) {
-    vcPromptOpen = false;
-    if (vc && r.response === 0) {
-      const exe = prepareVcRedistExe();
-      if (!exe) { logWrite('Audio: VC++ redist unavailable to launch'); return; }
-      try {
-        spawn(exe, ['/install', '/passive', '/norestart'], { detached: true, windowsHide: false });
-        logWrite('Audio: launched bundled VC++ redist installer (' + exe + ')');
-      } catch (e) {
-        logWrite('Audio: VC++ redist launch failed — ' + e.message);
-      }
-    }
-  }).catch(function () { vcPromptOpen = false; });
-}
+// NOTE (2026-09-17): the app-side VC++ runtime check + one-click install prompt
+// were removed. The installer now force-installs the Microsoft VC++ redist
+// silently at install time (installer/custom-init.nsh customInstall), so the
+// runtime is guaranteed present before the app ever runs. The helper just loads
+// audify directly; if audio can't start it's a real audio reason (device/driver),
+// not a missing runtime. The redist is still bundled (vcredist-x64.dat) purely
+// for the installer to run.
 
 function findAudioHelper() {
   // Packaged with asar: main.js lives inside app.asar, but audio-helper.js is
@@ -1265,27 +1194,9 @@ function handleAudioEvent(msg) {
       // start (e.g. /AUDIOON) is bringing up on the same process.
       if (!audioStatus.running && !audioEngineWanted) killAudioHelper();
       break;
-    case 'selftest':
-      audioRuntimeMissing = !msg.ok;
-      logWrite('Audio: runtime self-test — ' + (msg.ok ? 'OK' : 'MISSING (' + (msg.error || '') + ')'));
-      // Resolve a pending audio-check-runtime request with the result. The VC++
-      // install prompt is offered by the RENDERER off this result (single gate),
-      // not auto-fired here.
-      if (audioRuntimeCheckResolve) { audioRuntimeCheckResolve({ ok: !!msg.ok, error: msg.error || null }); audioRuntimeCheckResolve = null; }
-      // Idle self-test helper: shut it back down if nothing wants it running.
-      if (!audioStatus.running && !audioEngineWanted) killAudioHelper();
-      break;
     case 'error':
       audioStatus.error = msg.message;
       logWrite('Audio: helper error — ' + msg.message);
-      // Missing native runtime (VC++): offer the one-click install here too, not
-      // only on the enable-time check. The engine ships ENABLED by default, so a
-      // bar toggle / autostart / /AUDIOON reaches 'start' WITHOUT ever hitting the
-      // enable-time gate — that path used to fail silently (2026-09-17, Charlie:
-      // engine wouldn't start, no prompt, on a VC++-2013-only PC). This is the
-      // ground-truth failure (the runtime genuinely can't load), so surface the
-      // fix from here. vcPromptOpen already caps it at one dialog (no storm).
-      if (msg.code === 'no-runtime') { audioRuntimeMissing = true; offerVcRedistInstall(); }
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
       // Tear the helper down after a failed start so its wedged audio-driver
       // state can't poison the next attempt (e.g. interface was off, now on).
@@ -1347,23 +1258,6 @@ ipcMain.handle('audio-disarm', function () {
   if (!audioStatus.running) killAllAudioHelpers();
   return true;
 });
-// Runtime gate: does the native audio runtime (VC++) load? Spawns the helper,
-// runs a selftest, resolves {ok,error}. This is the SINGLE place the runtime is
-// checked — driven by the renderer when the user enables the engine.
-ipcMain.handle('audio-check-runtime', function () {
-  return new Promise(function (resolve) {
-    let settled = false;
-    const done = function (r) { if (settled) return; settled = true; resolve(r); };
-    audioRuntimeCheckResolve = done;   // last caller wins if one was pending
-    spawnAudioHelper();
-    if (!sendAudioCmd({ cmd: 'selftest' })) { audioRuntimeCheckResolve = null; done({ ok: false, error: 'helper unavailable' }); return; }
-    // Safety timeout so a wedged helper can't hang the UI.
-    setTimeout(function () { if (!settled) { audioRuntimeCheckResolve = null; done({ ok: false, error: 'runtime check timed out' }); } }, 4000);
-  });
-});
-// Show the one-click VC++ install prompt (native). Called by the renderer when
-// the enable-time runtime check comes back missing.
-ipcMain.handle('audio-offer-vcredist', function () { offerVcRedistInstall(); return true; });
 // engine ON: spawn helper (if needed) and start passthrough on the device.
 ipcMain.handle('audio-start', function (e, opts) {
   audioEngineWanted = true;
