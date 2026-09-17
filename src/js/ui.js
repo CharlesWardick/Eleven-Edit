@@ -2543,9 +2543,10 @@ function refreshBlockBypassDisplays() {
     const el = document.getElementById('chain-' + dom);
     if (!el) return;
     const st = blockBypass[blk.slotId];
+    const cls = (st === undefined) ? 'slot-unknown' : (st ? 'slot-on' : 'slot-off');
     el.classList.remove('slot-on','slot-off','slot-unknown');
-    if (st === undefined) el.classList.add('slot-unknown');
-    else el.classList.add(st ? 'slot-on' : 'slot-off');
+    el.classList.add(cls);
+    paintSlotLed(el, cls);
   });
   // Quick Mix sliders dim/activate with their block's bypass state.
   if (typeof quickMixUpdateActive === 'function') quickMixUpdateActive();
@@ -2579,10 +2580,38 @@ function updateAmpBypassDisplay(isOn) {
   if (navPaintDeferred) { navPendingPaints.push(function() { updateAmpBypassDisplay(isOn); }); return; }
   const el = document.getElementById('chain-amp');
   if (!el) return;
+  const cls = (isOn === null || isOn === undefined) ? 'slot-unknown' : (isOn ? 'slot-on' : 'slot-off');
   el.classList.remove('slot-on','slot-off','slot-unknown');
-  if (isOn === null || isOn === undefined) el.classList.add('slot-unknown');
-  else el.classList.add(isOn ? 'slot-on' : 'slot-off');
+  el.classList.add(cls);
+  // The AMP/CAB pair shares one thumb (the amp head) — its LED tracks the AMP
+  // bypass state (CAB has no separate module/LED of its own).
+  paintSlotLed(el, cls);
 }
+
+// Mirror a chain block's bypass state onto its enclosing .chain-slot, so the
+// no-graphics module's status LED (a CSS rule keyed off .chain-slot.slot-*) can
+// light green (engaged) / red (bypassed) / dark (unknown). Harmless when a real
+// Avid graphic is showing instead of the placeholder — the LED lives in the
+// placeholder, which is then hidden.
+function paintSlotLed(el, cls) {
+  const slot = el && el.closest && el.closest('.chain-slot');
+  if (!slot) return;
+  slot.classList.remove('slot-on','slot-off','slot-unknown');
+  slot.classList.add(cls);
+}
+
+// Inject the status LED into each no-graphics chain module once at load. Kept in
+// JS (not the static markup) so it lands in every slot's placeholder uniformly,
+// including the AMP/CAB slot, without editing a dozen repeated markup blocks.
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.chain-thumb-placeholder').forEach(function(ph) {
+    if (!ph.querySelector('.chain-led')) {
+      const led = document.createElement('i');
+      led.className = 'chain-led';
+      ph.insertBefore(led, ph.firstChild);
+    }
+  });
+});
 
 function updateCabBypassDisplay(isOn) {
   if (navPaintDeferred) { navPendingPaints.push(function() { updateCabBypassDisplay(isOn); }); return; }

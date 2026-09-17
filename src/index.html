@@ -606,7 +606,7 @@
      both cases Charlie asked for, no separate "no-graphics" treatment
      needed. See updateChainSelectionRing() below for what sets this. */
   .chain-thumb.chain-selected {
-    border-radius: 5px;
+    border-radius: 7px;
     box-shadow: 0 0 0 2px var(--accent);
   }
   /* 7/28: #2a2a2a dashed on #161616 (against #chainstrip's #181818) was
@@ -614,21 +614,37 @@
      they are there". Matches the existing knob-wrapper treatment used in
      the DIST/REVERB panels (#1e1e1e fill, #555 border) so it reads clearly
      without being a bright, distracting box. */
+  /* 2026-09-17 (Charlie): no-Avid-graphics chain modules restyled from a faint
+     dashed box into a raised hardware-style button (mockup "variant B") with a
+     status LED — green when the block is engaged, red when bypassed. The
+     real-graphics path (.chain-thumb-img) is untouched. The LED is injected once
+     (ui.js) and driven off the enclosing .chain-slot's slot-on/off/unknown. */
   .chain-thumb-placeholder {
-    width: 100%; height: 100%; border-radius: 3px;
-    border: 1px dashed #555; background: #1e1e1e;
+    position: relative;
+    width: 100%; height: 100%; border-radius: 7px;
+    background: linear-gradient(to bottom, #333 0%, #242424 48%, #1b1b1b 100%);
+    border: 1px solid #4a4a4a; border-top-color: #5a5a5a;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 2px rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center;
     text-align: center; padding: 2px; overflow: hidden;
   }
+  /* status LED — dark grey until the bypass state is known, then coloured. */
+  .chain-thumb-placeholder .chain-led {
+    position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #3a3a3a; box-shadow: inset 0 0 1px #000; pointer-events: none;
+  }
+  .chain-slot.slot-on  .chain-thumb-placeholder .chain-led { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .chain-slot.slot-off .chain-thumb-placeholder .chain-led { background: var(--red);   box-shadow: 0 0 5px var(--red); }
   /* Block name shown inside an empty placeholder (2026-09-05) — no Avid
      graphics folder found, so the dashed box otherwise carries no
      identity at all. Plain/neutral on purpose (not the chain-row pill's
      green/red) — this just labels the drag handle, the pill underneath
      already carries the real state color. */
   .chain-thumb-placeholder .thumb-fallback-label {
-    font-size: 10px; font-weight: 600; letter-spacing: .03em;
-    color: #777; line-height: 1.2; font-family: inherit;
-    pointer-events: none;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    color: #c2c2c2; line-height: 1.2; font-family: inherit;
+    pointer-events: none; margin-top: 7px;   /* sit below the LED */
   }
   /* 7/29: real Avid pedal/amp graphic, shown instead of the dashed
      placeholder once chain-graphics.js resolves a src for that block's
