@@ -634,7 +634,7 @@
      already carries the real state color. */
   .chain-thumb-placeholder .thumb-fallback-label {
     font-size: 10px; font-weight: 600; letter-spacing: .03em;
-    color: #777; line-height: 1.2; font-family: inherit;
+    color: var(--label); line-height: 1.2; font-family: inherit;
     pointer-events: none;
   }
   /* 7/29: real Avid pedal/amp graphic, shown instead of the dashed
@@ -904,11 +904,12 @@
      just above the connector at the tap point. When both taps land on the same
      connector they offset left/right so they don't stack. */
   .chain-arr { position: relative; }
-  /* Plain small white number, no badge/ball (Charlie's call) — sits just inside
-     the top of the connector so it isn't clipped by the chain-strip top edge. */
+  /* Plain small number, no badge/ball (Charlie's call) — sits just inside the
+     top of the connector so it isn't clipped by the chain-strip top edge. Colour
+     matches the To Amp panel's own 1/2 source numbers (.toamp-src-num). */
   .toamp-tap {
     position: absolute; top: 1px; left: 50%; transform: translateX(-50%);
-    color: #fff; font: bold 11px/1 'Consolas', monospace; text-align: center;
+    color: var(--label); font: bold 11px/1 'Consolas', monospace; text-align: center;
     z-index: 6; pointer-events: none; text-shadow: 0 0 2px #000, 0 0 3px #000;
   }
   .toamp-tap.tap-left  { transform: translateX(-50%) translateX(-6px); }
