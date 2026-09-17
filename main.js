@@ -147,10 +147,14 @@ ipcMain.handle('set-win11-startup-ack', function() {
 // ════════════════════════════════════════════════════════════════════
 let logStream = null;
 let logPath   = null;
-// Logging is ON BY DEFAULT for now (dev/beta convenience — no /LOGS flag needed
-// to capture a session). /NOLOGS opts out. Revisit before a wide release if the
-// always-on logs become a concern.
-const logsEnabled = !process.argv.some(a => a.toLowerCase() === '/nologs');
+// Logging is OFF BY DEFAULT (2026-09-17, Charlie): it's a pure troubleshooting
+// tool, nothing useful day-to-day, and there's no log rotation/maintenance — so
+// always-on would just quietly fill the disk. Opt IN with the /LOGS launch flag
+// when you need a session captured for debugging. ALL the logging code below is
+// intentionally kept intact (initLog/logWrite/logClose, the renderer appLog IPC)
+// — this line is the only gate; flipping the flag re-engages everything. Handy
+// during later dev; not a shipped everyday feature.
+const logsEnabled = process.argv.some(a => a.toLowerCase() === '/logs');
 
 function initLog() {
   if (!logsEnabled) return;
