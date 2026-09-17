@@ -1084,7 +1084,11 @@ function prepareVcRedistExe() {
   if (!src) return null;
   if (src.toLowerCase().endsWith('.exe')) return src;
   try {
-    const dst = path.join(app.getPath('temp'), 'vc_redist.x64.exe');
+    // Stage into a fresh, uniquely-named temp DIR (not a fixed filename in the
+    // shared temp root) so another process can't pre-plant or swap the exe
+    // between this copy and the spawn below (TOCTOU / file-plant hardening).
+    const stageDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'ee-vcredist-'));
+    const dst = path.join(stageDir, 'vc_redist.x64.exe');
     fs.copyFileSync(src, dst);
     return dst;
   } catch (e) {

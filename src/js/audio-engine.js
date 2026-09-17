@@ -124,12 +124,18 @@
   function deviceMissing() { return namesChosen() && !devicesReady(); }
 
   function closeDeviceModal() { var m = $('audio-device-modal'); if (m) m.classList.remove('open'); }
+  // Device names come from OS/driver enumeration — escape before putting them in
+  // innerHTML so a crafted driver name can't inject markup into the modal.
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
   function showInterfaceModal() {
     var m = $('audio-device-modal'), body = $('audio-device-modal-body');
     if (!m || !body) { status('Audio device not available — turn on your interface, then toggle the engine.'); return; }
     var t = settings.deviceType;
-    var who = (t === 'asio') ? ('“' + (settings.asioDevName || '') + '”')
-      : ('input “' + (settings.inDevName || '?') + '” / output “' + (settings.outDevName || '?') + '”');
+    var who = (t === 'asio') ? ('“' + esc(settings.asioDevName || '') + '”')
+      : ('input “' + esc(settings.inDevName || '?') + '” / output “' + esc(settings.outDevName || '?') + '”');
     body.innerHTML = '<div style="color:var(--red);margin-bottom:8px;">The audio device ' + who + ' isn’t available right now.</div>'
       + '<div style="color:#b3b3b3;">Turn your interface on, then <b>Try Again</b>. '
       + 'Or <b>Open Audio Setup</b> to choose a different device.</div>';
