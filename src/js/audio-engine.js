@@ -138,7 +138,8 @@
       : ('input “' + esc(settings.inDevName || '?') + '” / output “' + esc(settings.outDevName || '?') + '”');
     body.innerHTML = '<div style="color:var(--red);margin-bottom:8px;">The audio device ' + who + ' isn’t available right now.</div>'
       + '<div style="color:#b3b3b3;">Turn your interface on, then <b>Try Again</b>. '
-      + 'Or <b>Open Audio Setup</b> to choose a different device.</div>';
+      + 'Or <b>Open Audio Setup</b> to choose a different device. '
+      + 'Or <b>Ignore</b> to carry on without the audio engine.</div>';
     m.classList.add('open');
   }
   var bb;
@@ -149,6 +150,14 @@
   if ((bb = $('audio-device-modal-setup'))) bb.addEventListener('click', function () {
     closeDeviceModal();
     openAudioPanel();
+  });
+  // Ignore: just dismiss and land at the main editor with the engine off — the
+  // same place you'd be if the device had been found and you hadn't turned audio
+  // on. For the intentional "launch with the interface off" case (incl. /AUDIOON).
+  if ((bb = $('audio-device-modal-ignore'))) bb.addEventListener('click', function () {
+    closeDeviceModal();
+    setBusy(false);
+    setToggleState(false);   // engine stays OFF, toggle reads OFF
   });
 
   function startOpts() {
