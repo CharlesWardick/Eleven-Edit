@@ -11,6 +11,23 @@ For the full technical background (protocol details, hardware research,
 etc.) see the project's GitHub page.
 
 
+WHAT'S NEW IN v1.1.0
+--------------------------------------------------
+  - Built-in audio engine: one-button ASIO/WASAPI passthrough from your
+    rig to your speakers — no DAW or third-party app needed. See
+    BUILT-IN AUDIO ENGINE below.
+  - Quick Mix: a slim wet-amount slider on each active effect block, right
+    in the chain row. See QUICK MIX below.
+  - Chain row: AMP and CAB are now one split pill (left = AMP, right =
+    CAB), with a general layout tidy-up.
+  - Session logging is now OFF by default; opt in with the /LOGS flag (see
+    COMMAND-LINE FLAGS).
+  - The installer now sets up the Microsoft Visual C++ runtime the audio
+    engine needs, automatically (skipped if you already have it).
+  A shorter version of this list is in RELEASE_NOTES.md and on the GitHub
+  release page.
+
+
 BEFORE YOU START
 --------------------------------------------------
 
@@ -148,6 +165,18 @@ CHAIN ROW
   to open that block's controls below; drag it to reorder the chain —
   the icon handles both jobs.
 
+QUICK MIX (per-block wet sliders)
+  A slim slider appears under the name of every active block that has a
+  "wet" control — Reverb, Delay, FX Loop, and the Mod/FX1/FX2 slots when
+  the loaded model has one (e.g. Chorus, Flanger, MultiChorus). It lets
+  you trim that block's wet amount right in the chain row without opening
+  its panel. Drag it, roll the mouse wheel over it, or double-click to
+  snap back to the value saved with the patch. An amber tick marks that
+  saved value, and the slider turns red once you move away from it. A
+  bypassed block shows its slider dimmed; a model with no wet control
+  shows no slider. Turn the whole feature on or off in Settings → Chain
+  Row → "Quick Mix Sliders / Show".
+
 AMP PANEL
   Amp Model, Cab, Mic, and Axis (on/off-axis mic placement) dropdowns,
   plus Speaker Breakup and True-Z. Below that: Gate, To Amp, and Volumes
@@ -214,10 +243,10 @@ AUDIO SETUP (Settings -> Audio Setup)
     device and can't follow changes made in the driver's panel.
 
 START WITH IT RUNNING (optional)
-  Add the flag /AUDIOON to a desktop shortcut (e.g. "Eleven Edit.exe"
-  /AUDIOON) to launch with the engine already on — handy for a "just play
-  guitar" shortcut. It only auto-starts once you have set up a device; if the
-  engine is Disabled, the flag is ignored.
+  Add the flag /AUDIOON to a desktop shortcut to launch with the engine
+  already on — handy for a "just play guitar" shortcut. It only auto-starts
+  once you have set up a device; if the engine is Disabled, the flag is
+  ignored. See COMMAND-LINE FLAGS for this and the other startup flags.
 
 REQUIREMENTS AND DRIVERS
   - The engine needs the Microsoft Visual C++ runtime. The Eleven Edit installer
@@ -290,6 +319,29 @@ ABOUT / SETTINGS
   The About box (also bottom right) shows the current version number.
 
   The ? button opens this manual.
+
+
+COMMAND-LINE FLAGS (optional)
+--------------------------------------------------
+
+  These are optional startup switches. Add one or more to a desktop
+  shortcut's target, after the quotes around the program (for example:
+  "C:\...\Eleven Edit.exe" /AUDIOON). They are not case-sensitive. Keep a
+  plain shortcut with no flags for normal use.
+
+    - /AUDIOON  Start with the built-in audio engine already running —
+                only if you have already set up an audio device, otherwise
+                it is ignored. Good for a dedicated "just play" shortcut.
+    - /LOGS     Write a session log to disk for troubleshooting. Logging
+                is OFF by default; add this only when you want to capture a
+                session (find the file via Settings → Open Logs Folder).
+    - /T<sec>   Widen the startup wait on a slow PC, in seconds, written
+                with no space and no colon: /T30, /T60 (range 3-120). Use
+                it if "Eleven Rack not found" appears on a slow machine
+                even though the rack is connected.
+    - /NOGPU    Force software rendering. Only needed on some virtual
+                machines that flash white at startup; leave it off on real
+                hardware.
 
 
 TROUBLESHOOTING
