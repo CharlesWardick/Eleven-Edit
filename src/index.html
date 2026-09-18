@@ -178,6 +178,79 @@
   }
   .amp-toggle-btn.on { background: #1a2a1a; border-color: var(--green); color: var(--green); }
 
+  /* Audio engine toggle (v1.1.0) — matches the Tuner button's look/behaviour */
+  .audio-col { display: flex; flex-direction: column; gap: 2px; align-items: center; flex-shrink: 0; }
+  .audio-toggle {
+    background: #1a1a1a; border: 1px solid #666; color: #999;
+    border-radius: 4px; padding: 5px 16px; font-size: 13px; font-weight: bold;
+    cursor: pointer; white-space: nowrap; letter-spacing: 1px;
+  }
+  .audio-toggle:not(.on):hover { border-color: var(--accent); color: var(--accent); }
+  .audio-toggle.on {
+    background: #1a2a1a; border-color: var(--green); color: var(--green);
+    box-shadow: 0 0 6px rgba(48,192,80,0.35);
+  }
+  .audio-toggle.on:hover { border-color: var(--green); }
+
+  /* Amber-bracketed audio strip — appears under the topbar when engine is ON */
+  #audiostrip {
+    background: #0f0f0f; border-bottom: 2px solid var(--accent-dim);
+    display: flex; align-items: center; gap: 22px; padding: 8px 16px; flex-shrink: 0;
+  }
+  #audiostrip.bottom { border-bottom: none; border-top: 2px solid var(--accent-dim); }
+  #audiostrip .as-grp { display: flex; align-items: center; gap: 7px; }
+  /* Engine toggle (fixed width so ON/OFF text never resizes the box) */
+  #audiostrip .as-toggle {
+    background: #141414; border: 1px solid var(--border-dim); color: var(--muted);
+    border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: bold; letter-spacing: 1px;
+    cursor: pointer; white-space: nowrap; text-align: center; flex-shrink: 0;
+    /* fixed width >= "● AUDIO ENGINE OFF" so ON/OFF never resizes the box */
+    width: 178px; box-sizing: border-box;
+  }
+  #audiostrip .as-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  #audiostrip .as-toggle.on {
+    background: #12220f; border-color: var(--green); color: var(--green); box-shadow: 0 0 6px rgba(48,192,80,0.3);
+  }
+  #audiostrip .as-toggle.disabled { opacity: 0.35; pointer-events: none; border-color: #444; color: #666; box-shadow: none; }
+  #audiostrip .as-toggle.err {
+    background: #2a0f0f; border-color: var(--red); color: var(--red); box-shadow: 0 0 7px rgba(208,48,48,0.5);
+  }
+  /* Two stacked L/R meters */
+  #audiostrip .as-meters { display: flex; flex-direction: column; gap: 3px; }
+  /* Mono: one full-height bar instead of two identical ones (same total height,
+     so nothing shifts vertically). */
+  #audiostrip .as-meters.mono .as-meter:nth-child(2) { display: none; }
+  #audiostrip .as-meters.mono .as-meter:first-child { height: 11px; }
+  /* Dimmed / inert look when the engine is OFF */
+  #audiostrip.engine-off .as-mute,
+  #audiostrip.engine-off .as-meters,
+  #audiostrip.engine-off input[type=range],
+  #audiostrip.engine-off .as-val { opacity: 0.4; }
+  #audiostrip.engine-off .as-mute { pointer-events: none; }
+  #audiostrip input[type=range] {
+    -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px;
+    background: #333; outline: none; width: 150px;
+  }
+  #audiostrip input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+  }
+  #audiostrip .as-val { font-size: 10px; color: var(--accent); width: 24px; }
+  #audiostrip .as-meter { width: 64px; height: 4px; border-radius: 2px; background: #222; overflow: hidden; }
+  #audiostrip .as-meter i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--accent)); transition: width 0.08s linear; }
+  #audiostrip .as-dev { margin-left: auto; font-size: 10px; color: var(--muted); white-space: nowrap; }
+  #audiostrip .as-mute { background: #1a1a1a; border: 1px solid #666; color: #999; border-radius: 3px;
+    padding: 2px 9px; font-size: 10px; font-weight: bold; letter-spacing: 1px; cursor: pointer; white-space: nowrap;
+    width: 62px; box-sizing: border-box; text-align: center; flex-shrink: 0; }
+  #audiostrip .as-mute:hover { border-color: var(--accent); color: var(--accent); }
+  #audiostrip .as-mute.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); box-shadow: 0 0 5px rgba(208,48,48,0.4); }
+  #audiostrip .as-clip { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: #4a2020;
+    border: 1px solid #3a1a1a; border-radius: 3px; padding: 1px 5px; cursor: pointer; }
+  #audiostrip .as-clip.on { color: #fff; background: var(--red); border-color: var(--red); box-shadow: 0 0 6px var(--red); }
+  .settings-btn.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); }
+  /* Panel MUTE mirror: fixed width so MUTE/MUTED doesn't shift the row */
+  #audio-mute-panel { width: 84px; box-sizing: border-box; text-align: center; }
+
   /* Window +/- */
   .size-btns { display: flex; gap: 3px; }
   .size-btn {
@@ -219,7 +292,8 @@
   .chain-arr {
     flex-shrink: 0; width: 16px; height: 100%;
     display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
-    padding-bottom: 18px;
+    padding-bottom: 18px;   /* lifted to 40px under #chainstrip.qm-visible so the
+       connector bars track the raised name pills only while sliders are shown */
   }
   .chain-arr i { display: block; height: 2px; border-radius: 1px; background: #777; }
   /* unknown channel count must NOT look like a confident mono line */
@@ -343,8 +417,11 @@
      each time chasing where Charlie actually wanted the resulting gap to
      land). */
   #tempo-wrap {
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-    flex-shrink: 0; align-self: center;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    /* 2026-09-16: right-align TEMPO within its column (was centered) so its
+       up/down steppers line up under MAIN VOL's steppers above — the tempo
+       data field is wider and simply extends further left, per Charlie. */
+    flex-shrink: 0; align-self: flex-end;
     margin-top: auto;
     transform: translateY(12px);
   }
@@ -411,9 +488,12 @@
   #tempo-label { font-size: 10px; color: #777; letter-spacing: 1px; font-weight: bold; }
   #tempo-row { display: flex; align-items: center; gap: 6px; }
   #tempo-box {
-    display: flex; align-items: center; gap: 4px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 4px;
     background: #111; border: 1px solid #666; border-radius: 4px;
-    padding: 3px 8px; cursor: text; outline: none;
+    /* 2026-09-16: min-width + right-packed digits give TEMPO the same visual
+       weight as the PHON/MAIN VOL boxes and land the last digit over the up
+       caret, matching how the VOL boxes sit above their steppers. */
+    padding: 3px 8px; min-width: 62px; cursor: text; outline: none;
     font-family: 'Consolas', monospace; font-size: 15px; font-weight: bold;
     color: var(--accent); line-height: 1;
   }
@@ -439,7 +519,66 @@
      sitting glued on top of a visible caret. align-items stays stretch —
      .chain-name/.chain-open rely on it to match each other's width;
      .chain-thumb has a fixed width and self-centers. */
-  .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; }
+  .chain-slot { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0;
+    position: relative; }   /* position:relative = anchor for the absolute Quick Mix slider */
+  /* Quick Mix reserved zone + taller row applied ONLY while the sliders are
+     shown (#chainstrip.qm-visible, toggled by quick-mix.js). Hidden => the row
+     reverts to its original 140px with no offset; toggling is the one-time
+     reflow Charlie accepts for a one-time show/hide decision. Uniform on every
+     slot so block names stay bottom-aligned with or without a slider. */
+  #chainstrip.qm-visible { height: 165px; }
+  #chainstrip.qm-visible .chain-slot,
+  #chainstrip.qm-visible .chain-slot-stack { padding-bottom: 22px; }
+  #chainstrip.qm-visible .chain-arr { padding-bottom: 40px; }
+
+  /* ── QUICK MIX (v1.2.0) — inline per-block wet-amount slider, injected by
+       quick-mix.js under a wet-capable block's name. Dark recessed track
+       (Charlie's call: darker slot, not the bright orange of the mockup);
+       a muted amber-dim fill reads as "amount" without shouting. Dims when
+       the block is OFF, hidden when the model has no wet control or the
+       Settings toggle is off. Fixed heights so nothing dances. */
+  .qm-wrap { position: absolute; left: 0; right: 0; bottom: 3px;
+             display: flex; flex-direction: column; align-items: center;
+             gap: 1px; opacity: 0.4; }
+  .qm-wrap[hidden] { display: none; }   /* class display:flex would beat the UA [hidden] rule */
+  .qm-wrap.qm-active { opacity: 1; cursor: ew-resize; }
+  .qm-track {
+    width: 100%; height: 8px; border-radius: 4px; position: relative;
+    background: #0d0d0d; border: 1px solid #000;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+    cursor: default;
+  }
+  /* Saved-value reference tick (amber) — where double-click returns to; mirrors
+     the knob/Speaker-Breakup baseline marker. Hidden until the saved value is known. */
+  .qm-tick {
+    position: absolute; top: -2px; bottom: -2px; width: 2px;
+    transform: translateX(-50%); background: var(--accent);
+    pointer-events: none; display: none; border-radius: 1px;
+  }
+  .qm-wrap.qm-active .qm-track { cursor: ew-resize; }
+  .qm-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    border-radius: 4px 0 0 4px;
+    background: linear-gradient(90deg, #3a2c0a, var(--accent-dim));
+  }
+  .qm-wrap.qm-active .qm-fill { background: linear-gradient(90deg, #5a4410, var(--accent)); }
+  /* White handle marker riding the fill's right edge (mockup B2). */
+  .qm-fill::after {
+    content: ""; position: absolute; right: -2px; top: 50%;
+    width: 4px; height: 15px; transform: translateY(-50%);
+    background: #7c7c7c; border: 1px solid #000; border-radius: 2px;
+  }
+  .qm-wrap.qm-active .qm-fill::after { background: #b0b0b0; }
+  .qm-val {
+    font-size: 9px; line-height: 1; color: #a8a8a8;
+    font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  }
+  .qm-wrap.qm-active .qm-val { color: #cfcfcf; }
+  /* "Changed" cue — value moved off the patch's saved value (dirty), same red
+     convention as the knobs/Speaker Breakup; clears when back at saved. Placed
+     after the qm-active rules so it wins when both classes are present. */
+  .qm-wrap.qm-changed .qm-fill::after { background: #e83828; }
+  .qm-wrap.qm-changed .qm-val { color: #e8705f; }
   /* drop-before/drop-after marker removed 7/28 — the live preview (blocks
      actually shifting during the drag) replaced it; see ui.js wireChainDrag */
 
@@ -467,7 +606,7 @@
      both cases Charlie asked for, no separate "no-graphics" treatment
      needed. See updateChainSelectionRing() below for what sets this. */
   .chain-thumb.chain-selected {
-    border-radius: 5px;
+    border-radius: 7px;
     box-shadow: 0 0 0 2px var(--accent);
   }
   /* 7/28: #2a2a2a dashed on #161616 (against #chainstrip's #181818) was
@@ -475,9 +614,16 @@
      they are there". Matches the existing knob-wrapper treatment used in
      the DIST/REVERB panels (#1e1e1e fill, #555 border) so it reads clearly
      without being a bright, distracting box. */
+  /* 2026-09-17 (Charlie): no-Avid-graphics chain modules restyled from a faint
+     dashed box into a raised hardware-style button (mockup "variant A"). The
+     real-graphics path (.chain-thumb-img) is untouched; the amber selection ring
+     (.chain-thumb.chain-selected) still marks the open block. No status LED —
+     it read as a click-to-toggle target and muddled the AMP/CAB block. */
   .chain-thumb-placeholder {
-    width: 100%; height: 100%; border-radius: 3px;
-    border: 1px dashed #555; background: #1e1e1e;
+    width: 100%; height: 100%; border-radius: 7px;
+    background: linear-gradient(to bottom, #333 0%, #242424 48%, #1b1b1b 100%);
+    border: 1px solid #4a4a4a; border-top-color: #5a5a5a;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 1px 2px rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center;
     text-align: center; padding: 2px; overflow: hidden;
   }
@@ -488,7 +634,7 @@
      already carries the real state color. */
   .chain-thumb-placeholder .thumb-fallback-label {
     font-size: 10px; font-weight: 600; letter-spacing: .03em;
-    color: #777; line-height: 1.2; font-family: inherit;
+    color: var(--label); line-height: 1.2; font-family: inherit;
     pointer-events: none;
   }
   /* 7/29: real Avid pedal/amp graphic, shown instead of the dashed
@@ -550,6 +696,7 @@
 
   /* AMP+CAB stacked — no ▼ row */
   .chain-slot-stack { display: flex; flex-direction: column; align-items: stretch; flex-shrink: 0; gap: 2px; }
+  /* AMP/CAB reserved-zone match is applied under #chainstrip.qm-visible above. */
   .chain-name-stack {
     background: #2a2a2a; border: 1px solid #666; color: var(--muted);
     border-radius: 4px; padding: 4px 13px; font-size: 13px; font-weight: bold;
@@ -567,6 +714,31 @@
   .chain-name-stack.slot-on:hover  { border-color: var(--green); }
   .chain-name-stack.slot-off:hover { border-color: var(--red); }
   .chain-name-stack.slot-unknown   { background: #2a2a2a; border-color: #666; color: var(--muted); }
+
+  /* AMP/CAB single split-pill (2026-09-16, replaces the vertical stack) — one
+     pill, two side-by-side halves; each half is an independent bypass toggle
+     that keeps its own state colour, with a thin divider between them. Same
+     bottom-anchor + translateY baseline as .chain-name so it lines up with
+     every other pill in the now-uniform single row. */
+  .chain-ampcab-pill {
+    margin-top: auto; transform: translateY(12px);
+    display: flex; align-items: stretch;
+    border: 1px solid #666; border-radius: 4px; overflow: hidden;
+    background: #2a2a2a;
+  }
+  .chain-half {
+    flex: 1; padding: 5px 9px; font-size: 13px; font-weight: bold;
+    text-align: center; white-space: nowrap; cursor: default;
+    color: var(--muted); transition: all 0.15s;
+  }
+  .chain-half + .chain-half { border-left: 1px solid #000; }   /* divider */
+  .chain-half.slot-on,
+  .chain-half.slot-off { cursor: pointer; }
+  .chain-half.slot-on  { background: #1a2a1a; color: #70c070; }
+  .chain-half.slot-off { background: #241414; color: #7a3a3a; text-decoration: line-through; }
+  .chain-half.slot-on:hover  { color: #8ad08a; }
+  .chain-half.slot-off:hover { color: #b05656; }
+  .chain-half.slot-unknown   { background: #2a2a2a; color: var(--muted); }
 
   /* ══ MAIN AREA ══ */
   #main { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -732,11 +904,12 @@
      just above the connector at the tap point. When both taps land on the same
      connector they offset left/right so they don't stack. */
   .chain-arr { position: relative; }
-  /* Plain small white number, no badge/ball (Charlie's call) — sits just inside
-     the top of the connector so it isn't clipped by the chain-strip top edge. */
+  /* Plain small number, no badge/ball (Charlie's call) — sits just inside the
+     top of the connector so it isn't clipped by the chain-strip top edge. Colour
+     matches the To Amp panel's own 1/2 source numbers (.toamp-src-num). */
   .toamp-tap {
     position: absolute; top: 1px; left: 50%; transform: translateX(-50%);
-    color: #fff; font: bold 11px/1 'Consolas', monospace; text-align: center;
+    color: var(--label); font: bold 11px/1 'Consolas', monospace; text-align: center;
     z-index: 6; pointer-events: none; text-shadow: 0 0 2px #000, 0 0 3px #000;
   }
   .toamp-tap.tap-left  { transform: translateX(-50%) translateX(-6px); }
@@ -1165,6 +1338,10 @@
 
   /* ══ SETTINGS PANEL ══ */
   #panel-settings { display: none; flex-direction: column; gap: 18px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; flex-shrink: 0; }
+  #panel-settings .settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 340px)); gap: 18px 48px; align-items: start; }
+  #panel-settings .settings-col { display: flex; flex-direction: column; gap: 18px; }
+  #panel-audio-settings { display: none; flex-direction: column; gap: 14px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; flex-shrink: 0; }
+  #panel-audio-settings .audio-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 320px)); gap: 14px 56px; align-items: start; }
   .settings-title { color: var(--accent); font-size: 12px; font-weight: bold; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; border-bottom: 1px solid var(--border-dim); padding-bottom: 8px; }
   .settings-row { display: flex; flex-direction: column; gap: 6px; }
   .settings-row-label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1219,6 +1396,11 @@
     align-items: center; justify-content: center;
   }
   #import-confirm-modal.open { display: flex; }
+  #audio-device-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 540; align-items: center; justify-content: center; }
+  #audio-device-modal.open { display: flex; }
+  #audio-intent-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 540; align-items: center; justify-content: center; }
+  #audio-intent-modal.open { display: flex; }
+  #audio-device-modal .rack-save-title { font-size: 20px; }
   #win11-gate-modal {
     display: none; position: fixed; inset: 0;
     background: rgba(0,0,0,0.65); z-index: 520;
@@ -1395,13 +1577,24 @@
   </div>
   <div class="chain-arr"></div>
 
-  <!-- AMP + CAB stacked — bypass only, no ▼. One thumb serves the pair,
-       matching Avid (the amp head graphic is one image, cab is separate
-       below it — real cab graphic is also a later step). -->
-  <div class="chain-slot-stack">
+  <!-- AMP + CAB — one thumb serves the pair (amp head graphic). 2026-09-16:
+       was a vertical STACK (.chain-slot-stack, two labels top/bottom) — the
+       legacy-Avid look that made this block taller than every other and forced
+       the chain-row alignment special-casing. Now a SINGLE-height slot holding
+       ONE pill split into two side-by-side halves (left AMP / right CAB), each
+       an independent bypass toggle keeping its own #chain-amp / #chain-cab id
+       so the existing display fns + click handlers are unchanged. Removes the
+       row offset; every block is now one uniform pill height. -->
+  <div class="chain-slot chain-ampcab">
     <div class="chain-thumb" title="Drag to reorder"><div class="chain-thumb-placeholder"><span class="thumb-fallback-label">AMP<br>CAB</span></div><img class="chain-thumb-img" style="display:none;width:100%;height:100%;object-fit:contain;border-radius:3px;" alt=""></div>
-    <div class="chain-name-stack slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
-    <div class="chain-name-stack slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
+    <div class="chain-ampcab-pill">
+      <div class="chain-half slot-unknown" id="chain-amp" title="Click to bypass/enable the amp">AMP</div>
+      <div class="chain-half slot-unknown" id="chain-cab" title="Click to bypass/enable the cab">CAB</div>
+    </div>
+    <!-- Hidden caret spacer — reserves the same height every other block's real
+         .chain-open does, so the pill bottom-aligns on the exact shared baseline
+         instead of sitting a caret-height too low (no ▼ for AMP/CAB by design). -->
+    <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
   </div>
   <div class="chain-arr"></div>
 
@@ -1977,6 +2170,7 @@
     </div>
     <div style="height:1px;background:var(--border-dim);margin-top:8px;"></div>
 
+    <!-- TOP: Files & Folders — full width (display-only paths want the room) -->
     <div class="settings-row">
       <div class="settings-row-label">Captures Folder</div>
       <div class="settings-row-controls">
@@ -2015,40 +2209,242 @@
     </div>
 
     <div style="height:1px;background:var(--border-dim);margin:4px 0;"></div>
-    <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Rig-Wide Hardware Settings</div>
-    <!-- Hardware Loop Global Routing (CMD 0x3C) + Digital Output Mode
-         (CMD 0x35) — 2026-09-02, moved here off the GLOBALS box (Amp/Cab
-         panel), which itself had moved them in from FX LOOP the same day.
-         GLOBAL/rig settings, not per-patch — read on connect via
-         sendFxLoopRoutingQuery / sendOutputModeQuery, same as before; only
-         the markup moved, change-listener code (this file, further down)
-         is unchanged and still keyed off these same element ids. Rig
-         hardware controls, not app settings like the rest of this panel,
-         but far less frequently touched than GLOBALS' two toggles, which
-         is why they ended up here instead of forcing that box wider or
-         taller for their sake. -->
+
+    <!-- LOWER HALF: two columns — rig-wide hardware | audio engine -->
+    <div class="settings-grid">
+      <div class="settings-col">
+        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Rig-Wide Hardware Settings</div>
+        <!-- Hardware Loop Global Routing (CMD 0x3C) + Digital Output Mode
+             (CMD 0x35) — GLOBAL/rig settings, not per-patch; read on connect
+             via sendFxLoopRoutingQuery / sendOutputModeQuery. Change-listener
+             code (further down this file) is keyed off these same element ids. -->
+        <div class="settings-row">
+          <div class="settings-row-label">Hardware Loop Global Routing</div>
+          <div class="settings-row-controls">
+            <div class="settings-select-wrap">
+              <select id="fxloop-routing-select" class="settings-select">
+                <option value="0">Mono L</option>
+                <option value="1">Mono/Stereo</option>
+                <option value="2">Stereo</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">Digital Output Mode</div>
+          <div class="settings-row-controls">
+            <div class="settings-select-wrap">
+              <select id="output-mode-select" class="settings-select">
+                <option value="0">DAW</option>
+                <option value="1">Mirror Analog</option>
+                <option value="2">Rig Outputs</option>
+                <option value="3">Split In/Out</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-col">
+        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Audio Engine</div>
+        <div class="settings-row">
+          <div class="settings-row-label">Built-in Audio Passthrough</div>
+          <div class="settings-row-controls">
+            <button class="settings-btn" id="settings-btn-audio-setup">Audio Setup…</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Mix (v1.2.0) — chain-row inline wet-amount sliders show/hide.
+           App display pref (localStorage), not a rig/hardware setting. -->
+      <div class="settings-col">
+        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Chain Row</div>
+        <div class="settings-row">
+          <div class="settings-row-label">Quick Mix sliders</div>
+          <div class="settings-row-controls">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--muted);font-size:12px;">
+              <input type="checkbox" id="qm-show-checkbox"> Show
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ AUDIO SETUP PANEL (v1.1.0) — swaps into the panel region ══ -->
+  <div id="panel-audio-settings" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button id="btn-audio-back" title="Back to Settings" style="background:none;border:none;color:var(--accent);font-size:20px;cursor:pointer;line-height:1;padding:0 2px;">‹</button>
+      <div class="settings-title" style="margin-bottom:0;border-bottom:none;padding-bottom:0;flex:1;">Audio Setup</div>
+      <button id="btn-audio-close" title="Close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 2px;">✕</button>
+    </div>
+
+    <!-- Top row (its own 2-col grid, above the device grid): master enable/disable
+         on the left, Audio Bar Position on the right — fills the header width and
+         keeps the device grid below balanced. -->
+    <div class="audio-grid">
+      <div class="settings-row" id="audio-enabled-row">
+        <div class="settings-row-label">Built-in Audio Engine</div>
+        <div class="settings-row-controls">
+          <div class="settings-select-wrap">
+            <select id="audio-enabled-select" class="settings-select">
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled (hide completely)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label">Audio Bar Position</div>
+        <div class="settings-row-controls">
+          <div class="settings-select-wrap">
+            <select id="audio-barpos-select" class="settings-select">
+              <option value="top">Top (under the toolbar)</option>
+              <option value="bottom">Bottom (above the status bar)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="audio-grid">
     <div class="settings-row">
-      <div class="settings-row-label">Hardware Loop Global Routing</div>
+      <div class="settings-row-label">Device Type</div>
       <div class="settings-row-controls">
         <div class="settings-select-wrap">
-          <select id="fxloop-routing-select" class="settings-select">
-            <option value="0">Mono L</option>
-            <option value="1">Mono/Stereo</option>
-            <option value="2">Stereo</option>
+          <select id="audio-type-select" class="settings-select">
+            <option value="none">None (audio off)</option>
+            <option value="asio">ASIO (recommended)</option>
+            <option value="wasapi">WASAPI</option>
+          </select>
+        </div>
+        <button class="settings-btn" id="audio-rescan-btn">Rescan</button>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-none-row">
+      <div class="settings-row-controls">
+        <div class="settings-path">Choose a Device Type above to set up audio.</div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-asio-row" style="display:none;">
+      <div class="settings-row-label">Audio Device</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-device-select" class="settings-select"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-indev-row" style="display:none;">
+      <div class="settings-row-label">Input Device</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-indev-select" class="settings-select"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-outdev-row" style="display:none;">
+      <div class="settings-row-label">Output Device</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-outdev-select" class="settings-select"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-mode-row">
+      <div class="settings-row-label">Input Mode</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-mode-select" class="settings-select">
+            <option value="mono">Mono (one input → both monitors)</option>
+            <option value="stereo">Stereo (left + right inputs)</option>
           </select>
         </div>
       </div>
     </div>
-    <div class="settings-row">
-      <div class="settings-row-label">Digital Output Mode</div>
+
+    <div class="settings-row" id="audio-row-mono">
+      <div class="settings-row-label">Input</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap"><select id="audio-in-mono" class="settings-select"></select></div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-row-stereo" style="display:none;">
+      <div class="settings-row-label">Input L / R</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap"><select id="audio-in-l" class="settings-select"></select></div>
+        <div class="settings-select-wrap"><select id="audio-in-r" class="settings-select"></select></div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-out-row">
+      <div class="settings-row-label">Output (monitors)</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap"><select id="audio-out-select" class="settings-select"></select></div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-rate-row">
+      <div class="settings-row-label">Sample Rate</div>
       <div class="settings-row-controls">
         <div class="settings-select-wrap">
-          <select id="output-mode-select" class="settings-select">
-            <option value="0">DAW</option>
-            <option value="1">Mirror Analog</option>
-            <option value="2">Rig Outputs</option>
-            <option value="3">Split In/Out</option>
+          <select id="audio-rate-select" class="settings-select">
+            <option value="44100">44100 Hz</option>
+            <option value="48000">48000 Hz</option>
+            <option value="88200">88200 Hz</option>
+            <option value="96000">96000 Hz</option>
           </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-row" id="audio-buffer-row">
+      <div class="settings-row-label">Audio Buffer Size</div>
+      <div class="settings-row-controls">
+        <div class="settings-select-wrap">
+          <select id="audio-buffer-select" class="settings-select">
+            <option value="16">16 samples</option>
+            <option value="32">32 samples</option>
+            <option value="48">48 samples</option>
+            <option value="64">64 samples</option>
+            <option value="96">96 samples</option>
+            <option value="128">128 samples</option>
+            <option value="160">160 samples</option>
+            <option value="192">192 samples</option>
+            <option value="256">256 samples</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+
+    </div><!-- /.audio-grid -->
+
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="audio-mute-panel" title="Mute / unmute output">MUTE</button>
+        <button class="settings-btn" id="audio-restart-btn" title="Close and reopen the audio stream (recover after a driver hiccup)">Restart Engine</button>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <div class="settings-path" id="audio-setup-status">Engine off.</div>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div class="settings-row-controls">
+        <div class="settings-path" style="color:var(--accent);line-height:1.5;">
+          ⚠ Set Sample Rate / Buffer <b>here</b>, not in your interface's own ASIO control panel.
+          While the engine is ON, Eleven Edit owns the device exclusively and can't follow changes made
+          in the driver's panel — doing so drops the audio. Turn the engine OFF first if you need the
+          driver panel.
         </div>
       </div>
     </div>
@@ -2167,6 +2563,35 @@
 </div>
 
 <!-- ══ IMPORT RIGS — CONFIRM MODAL (2026-08-10) ══ -->
+<!-- Audio device-not-found modal (v1.1.0) -->
+<div id="audio-device-modal">
+  <div class="rack-save-box" style="max-width:620px;width:88vw;">
+    <div class="rack-save-title">Audio Device Not Found</div>
+    <div id="audio-device-modal-body" style="font-size:14px;color:var(--text);line-height:1.6;"></div>
+    <div class="rack-save-btns">
+      <button id="audio-device-modal-ignore">Ignore</button>
+      <button id="audio-device-modal-setup">Open Audio Setup</button>
+      <button id="audio-device-modal-retry" class="rack-save-ok-btn">Try Again</button>
+    </div>
+  </div>
+</div>
+
+<div id="audio-intent-modal">
+  <div class="rack-save-box" style="max-width:600px;width:88vw;">
+    <div class="rack-save-title">Built-in Audio Engine</div>
+    <div style="font-size:14px;color:var(--text);line-height:1.6;">
+      Eleven Edit can pass audio straight through your rig — guitar in, processed sound out —
+      without a DAW or any other app.<br><br>
+      Enable it now? You can change this anytime in <b>Audio Setup</b>. If you enable it, Eleven Edit
+      will check for a small Microsoft runtime component and offer to install it if needed.
+    </div>
+    <div class="rack-save-btns">
+      <button id="audio-intent-no">Not now</button>
+      <button id="audio-intent-yes">Enable audio engine</button>
+    </div>
+  </div>
+</div>
+
 <div id="import-confirm-modal">
   <div class="rack-save-box" style="max-width:780px;width:92vw;">
     <div class="rack-save-title" id="import-confirm-title">Import Rigs</div>
@@ -2235,6 +2660,28 @@
 </div>
 
 <!-- ══ STATUS BAR ══ -->
+<!-- ══ AUDIO STRIP (v1.1.0) — PERMANENT fixture; toggle is the engine on/off.
+     Default position is bottom (here); JS moves it under the toolbar if the
+     user picks Top in Audio Setup. ══ -->
+<div id="audiostrip" class="engine-off bottom">
+  <button id="audio-engine-toggle" class="as-toggle" title="Turn the audio engine on/off">● AUDIO ENGINE OFF</button>
+  <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE</button>
+  <span class="as-grp">
+    <span class="tb-label">sig</span>
+    <span class="as-meters" id="audio-meters">
+      <span class="as-meter"><i id="audio-meter-l"></i></span>
+      <span class="as-meter"><i id="audio-meter-r"></i></span>
+    </span>
+    <span class="as-clip" id="audio-clip" title="Input clip — click to clear">CLIP</span>
+  </span>
+  <span class="as-grp">
+    <span class="tb-label">VOL</span>
+    <input type="range" id="audio-out" min="0" max="100" value="100">
+    <span class="as-val" id="audio-out-val">100</span>
+  </span>
+  <span class="as-dev" id="audio-dev-label"></span>
+</div>
+
 <div id="statusbar">
   <span class="sb" style="display:none;">Eleven Edit</span>
   <span class="sb acc" id="status-msg" style="display:none;">Initializing…</span>
@@ -2354,12 +2801,6 @@
       <p>Java WebSocket bridge (ElevenRackBridge.jar) owns all MIDI hardware access via javax.sound.midi.
       Electron renderer communicates over ws://localhost:57121.
       Built with <a href="https://claude.com/claude-code" target="_blank">Claude Code</a>, Anthropic's AI coding assistant.</p>
-    </div>
-    <div class="about-section">
-      <h3>Startup Flags</h3>
-      <p><strong>/LOGS</strong> — enable session logging.<br>
-      <strong>/NOGPU</strong> — force software rendering (for VMs with a
-      splash-screen white-flash bug; not needed on real hardware).</p>
     </div>
     <div class="about-section">
       <h3>Protocol Research Credit</h3>
@@ -3689,6 +4130,8 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/sysex-handler.js"></script>
 <script src="js/patch-nav.js"></script>
 <script src="js/rig-balance.js"></script>   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
+<script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v1.1.0 -->
+<script src="js/quick-mix.js"></script>   <!-- Inline per-block wet-amount sliders on the chain row -->
 <script src="js/app-init.js"></script>
 </body>
 </html>

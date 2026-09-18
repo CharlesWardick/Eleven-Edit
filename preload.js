@@ -16,6 +16,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onBridgeStatus:     (cb)        => ipcRenderer.on('bridge-status', (e, data) => cb(data)),
   removeBridgeStatus: ()          => ipcRenderer.removeAllListeners('bridge-status'),
 
+  // Audio engine (v1.1.0) — audio-helper.js child process, ASIO passthrough.
+  audioArm:          ()      => ipcRenderer.invoke('audio-arm'),
+  audioDisarm:       ()      => ipcRenderer.invoke('audio-disarm'),
+  audioStart:        (opts)  => ipcRenderer.invoke('audio-start', opts),
+  audioStop:         ()      => ipcRenderer.invoke('audio-stop'),
+  audioSetGain:      (gains) => ipcRenderer.invoke('audio-set-gain', gains),
+  audioSetMute:      (m)     => ipcRenderer.invoke('audio-set-mute', m),
+  audioListDevices:  (api)   => ipcRenderer.invoke('audio-list-devices', api),
+  getAudioStatus:    ()      => ipcRenderer.invoke('get-audio-status'),
+  getAudioSettings:  ()      => ipcRenderer.invoke('get-audio-settings'),
+  saveAudioSettings: (s)     => ipcRenderer.invoke('save-audio-settings', s),
+  onAudioStatus:     (cb)    => ipcRenderer.on('audio-status',  (e, data) => cb(data)),
+  onAudioLevel:      (cb)    => ipcRenderer.on('audio-level',   (e, data) => cb(data)),
+  onAudioDevices:    (cb)    => ipcRenderer.on('audio-devices', (e, data) => cb(data)),
+  onAudioAutostart:  (cb)    => ipcRenderer.on('audio-autostart', () => cb()),
+
   // Avid editor watchdog
   checkAvidEditor:     ()         => ipcRenderer.invoke('check-avid-editor'),
   startWatchdog:       (mode)     => ipcRenderer.invoke('start-watchdog', mode),
@@ -90,6 +106,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     var a = process.argv.find(function (x) { return x.indexOf('--ee-startup-timeout-sec=') === 0; });
     return a ? parseInt(a.split('=')[1], 10) : null;
   })(),
+
+  // /AUDIOON launch switch — main.js injects '--ee-audio-on' into the renderer
+  // argv when the flag is present; the audio UI auto-starts the engine on load
+  // if a device is already configured.
+  audioAutoStart: process.argv.some(function (x) { return x === '--ee-audio-on'; }),
 
   platform:   process.platform,
   isElectron: true,

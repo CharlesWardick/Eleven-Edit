@@ -1,0 +1,273 @@
+/*
+ * Eleven Edit — Audio Helper (v1.1.0 audio engine)
+ * Copyright (c) 2026 Charles Wardick
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Separate audio-passthrough process, spawned by main.js on engine ON and
+ * killed on engine OFF (mirrors the Java MIDI bridge "program within the
+ * program" pattern). Uses `audify` (RtAudio) for low-latency ASIO duplex
+ * passthrough: audio in from the chosen ASIO device -> gain -> audio out on
+ * the same device. No DSP beyond a simple volume multiply.
+ *
+ * LICENSING (see LICENSING.md): this helper is licensed GPL-3.0-or-later,
+ * SEPARATE from the MIT-licensed main app. It loads `audify` (MIT wrapper)
+ * whose prebuilt binary contains code compiled against Steinberg's ASIO SDK,
+ * which is GPLv3-or-proprietary (since 2025-10-15). Eleven Edit takes the free
+ * GPLv3 path for this ASIO-touching component and keeps it a truly separate
+ * process (arms-length stdin/stdout IPC), so the boundary stays clean and the
+ * rest of Eleven Edit remains MIT.
+ *
+ * PROTOCOL (newline-delimited JSON, both directions):
+ *   stdin  (commands from main.js):
+ *     {"cmd":"start","deviceId":1,"rate":48000,"frames":128,"outGain":100,
+ *                    "muted":false,"inChannels":[2],"outChannels":[0,1]}
+ *     {"cmd":"stop"}
+ *     {"cmd":"setGain","outGain":100}
+ *     {"cmd":"setMute","muted":true}
+ *     {"cmd":"list"}
+ *   stdout (events to main.js):
+ *     {"type":"ready"}
+ *     {"type":"started","deviceId":1,"rate":48000,"channels":2,"frames":128}
+ *     {"type":"stopped"}
+ *     {"type":"level","in":0.42}                 // input peak 0..1, ~10/sec
+ *     {"type":"devices","api":"ASIO","devices":[...]}
+ *     {"type":"error","message":"..."}
+ */
+
+'use strict';
+
+// Load the native audio module. The installer force-installs the Microsoft VC++
+// runtime silently at install time (installer/custom-init.nsh), so the runtime
+// audify's prebuilt binary links against is guaranteed present before this ever
+// runs — no defensive load / runtime self-test needed anymore (that whole path
+// was removed 2026-09-17 along with the app-side install prompt).
+var audify = require('audify');
+var RtAudio = audify.RtAudio;
+var RtAudioApi = audify.RtAudioApi;
+var RtAudioFormat = audify.RtAudioFormat;
+
+// Map a friendly API name to the RtAudio Windows backend. ASIO = one duplex
+// device; WASAPI / DirectSound = separate input + output devices (cross-device
+// duplex, which RtAudio supports — DirectSound syncs cleaner than WASAPI).
+function apiEnum(name) {
+  switch (String(name || 'asio').toLowerCase()) {
+    case 'wasapi':      return RtAudioApi.WINDOWS_WASAPI;
+    case 'ds':
+    case 'directsound': return RtAudioApi.WINDOWS_DS;
+    default:            return RtAudioApi.WINDOWS_ASIO;
+  }
+}
+
+var rt = null;
+var outGain = 1.0;     // 0..1 monitor level (from 0..100 slider). No input gain:
+                       // this is monitoring, not gain-staging — attenuating a
+                       // captured signal can't un-clip it, so there's no input knob.
+var muted = false;     // hard output mute (keeps gain value intact)
+var lastPeakL = 0;
+var lastPeakR = 0;
+var meterTimer = null;
+
+// Channel routing (set in startEngine). RtAudio opens a CONTIGUOUS block, so
+// we open from the lowest to highest selected channel and cherry-pick the
+// ones we want inside the callback. Offsets are positions WITHIN the opened
+// block (0-based).
+var stereoIn  = false;
+var inCount   = 1;   // channels in the opened input block
+var outCount  = 2;   // channels in the opened output block
+var inLoff = 0, inRoff = 0;    // input L/R positions within the input frame
+var outLoff = 0, outRoff = 1;  // output L/R positions within the output frame
+var outBuf = null;             // reused, zero-filled output scratch buffer
+
+function send(obj) {
+  try { process.stdout.write(JSON.stringify(obj) + '\n'); } catch (e) {}
+}
+
+function stopEngine() {
+  if (meterTimer) { clearInterval(meterTimer); meterTimer = null; }
+  if (rt) {
+    try { rt.stop(); } catch (e) {}
+    try { rt.closeStream(); } catch (e) {}
+    rt = null;
+  }
+  lastPeakL = 0; lastPeakR = 0;
+}
+
+// The audio callback: input PCM (interleaved Int16LE) arrives on the opened
+// input block. We pick the selected L/R input channels, apply gain, and place
+// them at the selected L/R OUTPUT channels (all other opened output channels
+// stay silent). Mono input (stereoIn=false) is duplicated to both outputs.
+// We also track the input PEAK (pre-gain) for the UI signal meter.
+function onInput(pcm) {
+  var g = outGain;
+  var frames = (pcm.length / (inCount * 2)) | 0;
+  var needed = frames * outCount * 2;
+  if (!outBuf || outBuf.length !== needed) outBuf = Buffer.alloc(needed); // zero-filled
+  var peakL = 0, peakR = 0;
+  for (var f = 0; f < frames; f++) {
+    var inBase = f * inCount * 2;
+    var sL = pcm.readInt16LE(inBase + inLoff * 2);
+    var sR = stereoIn ? pcm.readInt16LE(inBase + inRoff * 2) : sL;
+    var aL = sL < 0 ? -sL : sL; if (aL > peakL) peakL = aL;
+    var aR = sR < 0 ? -sR : sR; if (aR > peakR) peakR = aR;
+    var oL = 0, oR = 0;
+    if (!muted) {
+      oL = Math.round(sL * g); if (oL > 32767) oL = 32767; else if (oL < -32768) oL = -32768;
+      oR = Math.round(sR * g); if (oR > 32767) oR = 32767; else if (oR < -32768) oR = -32768;
+    }
+    var outBase = f * outCount * 2;
+    outBuf.writeInt16LE(oL, outBase + outLoff * 2);
+    outBuf.writeInt16LE(oR, outBase + outRoff * 2);
+  }
+  if (peakL > lastPeakL) lastPeakL = peakL;   // hold peaks between meter ticks
+  if (peakR > lastPeakR) lastPeakR = peakR;
+  if (rt) { try { rt.write(outBuf); } catch (e) {} }
+}
+
+function startEngine(o) {
+  stopEngine();  // clean any prior stream first
+
+  try {
+    rt = new RtAudio(apiEnum(o.api));
+  } catch (e) {
+    send({ type: 'error', message: String(o.api || 'ASIO').toUpperCase() + ' init failed: ' + e.message });
+    rt = null;
+    return;
+  }
+
+  var rate = o.rate || 48000;
+  var frames = o.frames || 128;
+  // ASIO: one device for both. WASAPI/DS: separate input + output devices.
+  var inDev  = (o.inDeviceId  != null) ? o.inDeviceId  : (o.deviceId != null ? o.deviceId : 0);
+  var outDev = (o.outDeviceId != null) ? o.outDeviceId : (o.deviceId != null ? o.deviceId : 0);
+  if (o.outGain != null) outGain = o.outGain / 100;
+  if (o.muted != null) muted = !!o.muted;
+
+  // Channel selection (0-based). inChannels = [ch] (mono) or [L,R] (stereo).
+  // outChannels = [L,R].
+  var inCh = (Array.isArray(o.inChannels) && o.inChannels.length) ? o.inChannels : [0];
+  var outCh = (Array.isArray(o.outChannels) && o.outChannels.length >= 2) ? o.outChannels : [0, 1];
+  stereoIn = inCh.length >= 2;
+  var inL = inCh[0], inR = stereoIn ? inCh[1] : inCh[0];
+  var outL = outCh[0], outR = outCh[1];
+
+  var inFirst = Math.min(inL, inR);
+  inCount = Math.max(inL, inR) - inFirst + 1;
+  inLoff = inL - inFirst;
+  inRoff = inR - inFirst;
+
+  var outFirst = Math.min(outL, outR);
+  outCount = Math.max(outL, outR) - outFirst + 1;
+  outLoff = outL - outFirst;
+  outRoff = outR - outFirst;
+  outBuf = null; // force realloc for the new geometry
+
+  var actualFrames = frames;
+  try {
+    var ret = rt.openStream(
+      { deviceId: outDev, nChannels: outCount, firstChannel: outFirst },  // output block
+      { deviceId: inDev,  nChannels: inCount,  firstChannel: inFirst },   // input block
+      RtAudioFormat.RTAUDIO_SINT16,
+      rate,
+      frames,
+      'ee-audio-passthrough',
+      onInput,
+      null
+    );
+    // RtAudio may snap the buffer to the driver's nearest legal size. If audify
+    // returns the granted frame count, report the TRUTH instead of what we asked.
+    if (typeof ret === 'number' && ret > 0) actualFrames = ret;
+    rt.start();
+  } catch (e) {
+    send({ type: 'error', message: 'open/start failed: ' + e.message });
+    stopEngine();
+    return;
+  }
+
+  // Emit the input meter ~10x/sec (peak since last tick, then reset).
+  meterTimer = setInterval(function () {
+    send({ type: 'level', l: lastPeakL / 32768, r: lastPeakR / 32768 });
+    lastPeakL = 0; lastPeakR = 0;
+  }, 100);
+
+  send({ type: 'started', api: o.api || 'asio', inDeviceId: inDev, outDeviceId: outDev,
+         rate: rate, frames: actualFrames, requestedFrames: frames,
+         mode: stereoIn ? 'stereo' : 'mono', inChannels: inCh, outChannels: outCh });
+}
+
+function setGain(o) {
+  if (o.outGain != null) outGain = o.outGain / 100;
+}
+
+function setMute(o) { muted = !!o.muted; }
+
+function listDevices(o) {
+  var apiName = (o && o.api) || 'asio';
+  try {
+    var r = new RtAudio(apiEnum(apiName));
+    var raw = r.getDevices();
+    // DIAGNOSTIC: dump exactly what audify/RtAudio returned, before our mapping,
+    // so a session log reveals empty/blank/partial enumeration (e.g. Win11 laptop
+    // returning devices with no channel counts / names / rates). stderr → logged
+    // as [audio:err] by main.js. Permanent, harmless diagnostic.
+    try {
+      console.error('[diag] ' + apiName.toUpperCase() + ' getDevices count=' +
+        (raw ? raw.length : 'null') + ' raw=' + JSON.stringify(raw));
+    } catch (ignore) {}
+    var devices = (raw || []).map(function (d, i) {
+      return {
+        id: i, name: d.name,
+        in: d.inputChannels, out: d.outputChannels, duplex: d.duplexChannels,
+        rate: d.preferredSampleRate,
+        sampleRates: d.sampleRates || [],
+        defaultIn: d.isDefaultInput, defaultOut: d.isDefaultOutput
+      };
+    });
+    send({ type: 'devices', api: apiName, devices: devices });
+  } catch (e) {
+    send({ type: 'error', message: apiName.toUpperCase() + ' device list failed: ' + e.message });
+  }
+}
+
+function handle(msg) {
+  var cmd = msg && msg.cmd;
+  switch (cmd) {
+    case 'start':   startEngine(msg); break;
+    case 'stop':    stopEngine(); send({ type: 'stopped' }); break;
+    case 'setGain': setGain(msg); break;
+    case 'setMute': setMute(msg); break;
+    case 'list':    listDevices(msg); break;
+    default: break;
+  }
+}
+
+// --- stdin: newline-delimited JSON commands ---
+var buf = '';
+process.stdin.on('data', function (d) {
+  buf += d.toString();
+  var idx;
+  while ((idx = buf.indexOf('\n')) >= 0) {
+    var line = buf.slice(0, idx).trim();
+    buf = buf.slice(idx + 1);
+    if (!line) continue;
+    var msg = null;
+    try { msg = JSON.parse(line); } catch (e) { continue; }
+    handle(msg);
+  }
+});
+process.stdin.on('end', function () { stopEngine(); process.exit(0); });
+
+function shutdown() { stopEngine(); process.exit(0); }
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+// Graceful fail: if the ASIO stream is pulled out from under us (e.g. the user
+// changes rate/buffer in the interface's own ASIO control panel while running —
+// a driver reset our audio layer can't follow), surface it and exit cleanly so
+// the app flips the engine OFF instead of sitting on a broken stream.
+process.on('uncaughtException', function (e) {
+  send({ type: 'error', message: 'audio stream stopped: ' + (e && e.message ? e.message : e) });
+  stopEngine();
+  process.exit(1);
+});
+
+send({ type: 'ready' });

@@ -11,6 +11,16 @@ lerna-debug.log*
 *.class
 *.jar
 
+# Locally-kept build binaries (ElevenRackBridge.jar, vc_redist.x64.exe) will be
+# consolidated here in v1.1.1 — single ignore rule, identical on every branch.
+# The folder is ignored now so future dev work carries it; the actual files move
+# in during 1.1.1 (per-file *.jar / vc_redist lines drop out then).
+assets-local/
+
+# Bundled Microsoft VC++ redistributable — a Microsoft binary, kept locally and
+# dropped in beside the project like ElevenRackBridge.jar; not tracked in git.
+vc_redist.x64.exe
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
@@ -145,7 +155,3 @@ captures/
 docs/ElevenEdit_Primer.txt
 docs/ElevenEdit_Session_Log.txt
 docs/ElevenEdit_Archive.txt
-
-# Bundled Microsoft VC++ redistributable — a Microsoft binary, kept locally and
-# not tracked. Prevents it being committed to main when switching branches.
-vc_redist.x64.exe

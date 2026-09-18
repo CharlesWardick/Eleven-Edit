@@ -63,6 +63,11 @@ let startupTimeoutSec = null;
   }
 })();
 
+// /AUDIOON — auto-start the audio engine on launch (if a device is already
+// configured). Lets a modded desktop shortcut come up ready to play. Handed to
+// the renderer as a --ee-audio-on argv entry the audio UI reads on load.
+const audioAutoStart = process.argv.some(a => a.toLowerCase() === '/audioon');
+
 // ════════════════════════════════════════════════════════════════════
 // SINGLE INSTANCE LOCK
 // ════════════════════════════════════════════════════════════════════
@@ -80,10 +85,16 @@ const gotLock = app.requestSingleInstanceLock();
 // code never runs at all.
 if (!gotLock) { app.quit(); return; }
 
-app.on('second-instance', function() {
+app.on('second-instance', function(event, argv) {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
+  }
+  // A shortcut launched with /AUDIOON while we're already running: the flag
+  // lands here (this process keeps the single-instance lock), so honor it by
+  // asking the live renderer to auto-start audio.
+  if (argv && argv.some(function (a) { return String(a).toLowerCase() === '/audioon'; })) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-autostart');
   }
 });
 
@@ -136,6 +147,13 @@ ipcMain.handle('set-win11-startup-ack', function() {
 // ════════════════════════════════════════════════════════════════════
 let logStream = null;
 let logPath   = null;
+// Logging is OFF BY DEFAULT (2026-09-17, Charlie): it's a pure troubleshooting
+// tool, nothing useful day-to-day, and there's no log rotation/maintenance — so
+// always-on would just quietly fill the disk. Opt IN with the /LOGS launch flag
+// when you need a session captured for debugging. ALL the logging code below is
+// intentionally kept intact (initLog/logWrite/logClose, the renderer appLog IPC)
+// — this line is the only gate; flipping the flag re-engages everything. Handy
+// during later dev; not a shipped everyday feature.
 const logsEnabled = process.argv.some(a => a.toLowerCase() === '/logs');
 
 function initLog() {
@@ -842,8 +860,12 @@ function findBridgeJar() {
     path.join(process.resourcesPath || '', 'ElevenRackBridge.jar'),
     path.join(__dirname, 'ElevenRackBridge.jar'),
   ];
+  logWrite('Bridge: locating jar — resourcesPath=' + (process.resourcesPath || '(none)') + ' __dirname=' + __dirname);
   for (const p of candidates) {
-    if (p && fs.existsSync(p)) return p;
+    let exists = false;
+    try { exists = !!(p && fs.existsSync(p)); } catch (e) {}
+    logWrite('Bridge: jar candidate "' + p + '" exists=' + exists);
+    if (exists) return p;
   }
   return null;
 }
@@ -1012,6 +1034,263 @@ ipcMain.handle('restart-bridge', function() {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// AUDIO ENGINE (v1.1.0) — audio-helper.js child process
+// The helper does ASIO duplex passthrough via `audify`. It is SPAWNED on
+// engine ON and KILLED on engine OFF — killing fully releases the ASIO
+// device so a DAW can grab it. Mirrors the Java-bridge lifecycle above.
+//
+// The helper runs under Electron's own Node (process.execPath +
+// ELECTRON_RUN_AS_NODE=1), so end users need no separate Node install. Its
+// audify native module is a prebuilt N-API binary, ABI-stable across Node
+// and Electron.
+// ════════════════════════════════════════════════════════════════════
+let audioProc   = null;
+let audioProcs  = new Set();     // EVERY live helper we've spawned. The single
+                                 // audioProc handle can be lost in a scan→start
+                                 // race; this set is the orphan-proof backstop so
+                                 // engine-OFF can always kill a helper that's still
+                                 // holding the ASIO device (see killAllAudioHelpers).
+let audioStatus = { running: false, error: null, deviceId: null };
+let audioEngineWanted = false;   // true once a start is requested (or armed just
+                                 // before the pre-start rescan); guards the
+                                 // idle-lister cleanup from killing a starting engine
+
+// NOTE (2026-09-17): the app-side VC++ runtime check + one-click install prompt
+// were removed. The installer now force-installs the Microsoft VC++ redist
+// silently at install time (installer/custom-init.nsh customInstall), so the
+// runtime is guaranteed present before the app ever runs. The helper just loads
+// audify directly; if audio can't start it's a real audio reason (device/driver),
+// not a missing runtime. The redist is still bundled (vcredist-x64.dat) purely
+// for the installer to run.
+
+function findAudioHelper() {
+  // Packaged with asar: main.js lives inside app.asar, but audio-helper.js is
+  // asarUnpack'd to the sibling app.asar.unpacked (a real file the spawned
+  // Node can read). Dev (npm start): it's just alongside main.js.
+  const direct = path.join(__dirname, 'audio-helper.js');
+  const unpacked = direct.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
+  const candidates = (unpacked !== direct) ? [unpacked, direct] : [direct];
+  logWrite('Audio: locating helper — __dirname=' + __dirname);
+  for (const p of candidates) {
+    let exists = false;
+    try { exists = !!(p && fs.existsSync(p)); } catch (e) {}
+    logWrite('Audio: helper candidate "' + p + '" exists=' + exists);
+    if (exists) return p;
+  }
+  return direct;
+}
+
+function sendAudioCmd(obj) {
+  if (audioProc && audioProc.stdin && audioProc.stdin.writable) {
+    try { audioProc.stdin.write(JSON.stringify(obj) + '\n'); return true; }
+    catch (e) { logWrite('Audio: stdin write failed — ' + e.message); }
+  }
+  return false;
+}
+
+function spawnAudioHelper() {
+  if (audioProc) return; // already running
+  const helperPath = findAudioHelper();
+  let proc;
+  try {
+    logWrite('Audio: launching helper ' + helperPath);
+    proc = spawn(process.execPath, [helperPath], {
+      cwd: path.dirname(helperPath),
+      windowsHide: true,
+      env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '1' }),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    audioStatus.running = false;
+    audioStatus.error = e.message;
+    logWrite('Audio: helper spawn failed — ' + e.message);
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+    return;
+  }
+  audioProc = proc;
+  audioProcs.add(proc);   // register for orphan-proof teardown
+
+  // All listeners bind to THIS proc (captured), not the shared audioProc handle —
+  // so a stale helper's exit can't clobber the current one's state, and a lost
+  // handle can't leave a live helper untracked.
+  let outBuf = '';
+  proc.stdout.on('data', function (d) {
+    outBuf += d.toString();
+    let idx;
+    while ((idx = outBuf.indexOf('\n')) >= 0) {
+      const line = outBuf.slice(0, idx).trim();
+      outBuf = outBuf.slice(idx + 1);
+      if (!line) continue;
+      let msg = null;
+      try { msg = JSON.parse(line); } catch (e) { continue; }
+      handleAudioEvent(msg);
+    }
+  });
+  proc.stderr.on('data', function (d) {
+    logWrite('[audio:err] ' + d.toString().trim());
+  });
+  proc.on('error', function (e) {
+    logWrite('Audio: helper process error — ' + e.message);
+    audioProcs.delete(proc);
+    if (audioProc === proc) {
+      audioProc = null;
+      audioStatus.running = false;
+      audioStatus.error = e.message;
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+    }
+  });
+  proc.on('exit', function (code, signal) {
+    logWrite('Audio: helper exited — code=' + code + ' signal=' + signal);
+    audioProcs.delete(proc);
+    if (audioProc === proc) {
+      audioProc = null;
+      audioStatus.running = false;
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+    }
+  });
+}
+
+function handleAudioEvent(msg) {
+  switch (msg.type) {
+    case 'ready':
+      // Helper is up; nothing to do — the start command is sent by audio-start.
+      break;
+    case 'started':
+      audioStatus.running = true;
+      audioStatus.error = null;
+      audioStatus.api = msg.api;
+      audioStatus.inDeviceId = msg.inDeviceId;
+      audioStatus.outDeviceId = msg.outDeviceId;
+      audioStatus.rate = msg.rate;
+      audioStatus.frames = msg.frames;             // ACTUAL granted buffer (may differ from requested)
+      audioStatus.requestedFrames = msg.requestedFrames;
+      audioStatus.mode = msg.mode;
+      logWrite('Audio: engine started (' + String(msg.api).toUpperCase() + ', in dev ' + msg.inDeviceId +
+        ', out dev ' + msg.outDeviceId + ', ' + msg.rate + 'Hz, ' +
+        msg.frames + ' frames' + (msg.requestedFrames && msg.requestedFrames !== msg.frames ?
+        ' [driver snapped from ' + msg.requestedFrames + ']' : '') + ', ' + msg.mode + ')');
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+      break;
+    case 'stopped':
+      audioStatus.running = false;
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+      break;
+    case 'level':
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-level', { l: msg.l, r: msg.r });
+      break;
+    case 'devices':
+      // DIAGNOSTIC: log the enumerated list (count + brief per-device) so the
+      // session log shows what reached the UI, not just what the helper saw.
+      try {
+        var dl = msg.devices || [];
+        logWrite('Audio: devices (' + String(msg.api).toUpperCase() + ') count=' + dl.length +
+          dl.map(function (d) { return ' [' + d.id + ' "' + d.name + '" in=' + d.in + ' out=' + d.out +
+            ' duplex=' + d.duplex + ' rate=' + d.rate + ']'; }).join(''));
+      } catch (ignore) {}
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-devices', { api: msg.api, devices: msg.devices });
+      // If the helper was spawned only to enumerate (engine neither running nor
+      // being started), shut it back down so it isn't left idling. The
+      // audioEngineWanted guard prevents killing a helper that a concurrent
+      // start (e.g. /AUDIOON) is bringing up on the same process.
+      if (!audioStatus.running && !audioEngineWanted) killAudioHelper();
+      break;
+    case 'error':
+      audioStatus.error = msg.message;
+      logWrite('Audio: helper error — ' + msg.message);
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-status', audioStatus);
+      // Tear the helper down after a failed start so its wedged audio-driver
+      // state can't poison the next attempt (e.g. interface was off, now on).
+      // A fresh helper spawns on the next start, no app restart needed.
+      killAllAudioHelpers();
+      break;
+    default: break;
+  }
+}
+
+function killAudioHelper(callback) {
+  audioEngineWanted = false;
+  if (!audioProc) { if (callback) callback(); return; }
+  const proc = audioProc;
+  audioProc = null;
+  audioStatus.running = false;
+  try { proc.stdin.write(JSON.stringify({ cmd: 'stop' }) + '\n'); } catch (e) {}
+  // Give it a beat to release the ASIO device, then terminate the process.
+  setTimeout(function () {
+    try { proc.kill(); } catch (e) {}
+    if (callback) callback();
+  }, 200);
+}
+
+// Orphan-proof release: stop AND kill every helper we've ever spawned, not just
+// the one behind the current audioProc handle. This is the hard guarantee that
+// engine-OFF always hands the ASIO device back — even if a scan→start race lost
+// track of a helper that's still holding the device open (the OFF-not-silent bug).
+function killAllAudioHelpers(callback) {
+  audioEngineWanted = false;
+  audioProc = null;
+  audioStatus.running = false;
+  const procs = Array.from(audioProcs);
+  if (!procs.length) { if (callback) callback(); return; }
+  procs.forEach(function (p) {
+    try { p.stdin.write(JSON.stringify({ cmd: 'stop' }) + '\n'); } catch (e) {}
+  });
+  // A beat to release the device, then terminate every one of them.
+  setTimeout(function () {
+    procs.forEach(function (p) { try { p.kill(); } catch (e) {} });
+    if (callback) callback();
+  }, 200);
+}
+
+// Arm: the renderer is about to start the engine and is doing a pre-start device
+// rescan first. Setting audioEngineWanted BEFORE that scan closes the race where
+// the idle-cleanup (fired by the scan's 'devices' event) would otherwise kill and
+// untrack the very helper we're about to run — the root cause of the orphaned
+// helper that kept passing audio after engine-OFF.
+ipcMain.handle('audio-arm', function () {
+  audioEngineWanted = true;
+  return true;
+});
+// Disarm: a start attempt was abandoned before it began (e.g. the chosen device
+// isn't connected after the rescan). Clear the flag and, if nothing is running,
+// tear down the idle helper the scan left behind.
+ipcMain.handle('audio-disarm', function () {
+  audioEngineWanted = false;
+  if (!audioStatus.running) killAllAudioHelpers();
+  return true;
+});
+// engine ON: spawn helper (if needed) and start passthrough on the device.
+ipcMain.handle('audio-start', function (e, opts) {
+  audioEngineWanted = true;
+  spawnAudioHelper();
+  sendAudioCmd(Object.assign({ cmd: 'start' }, opts || {}));
+  return true;
+});
+// engine OFF: fully release the device by killing EVERY live helper (orphan-proof).
+ipcMain.handle('audio-stop', function () {
+  audioEngineWanted = false;
+  killAllAudioHelpers();
+  return true;
+});
+ipcMain.handle('audio-set-gain', function (e, gains) {
+  sendAudioCmd(Object.assign({ cmd: 'setGain' }, gains || {}));
+  return true;
+});
+ipcMain.handle('audio-set-mute', function (e, m) {
+  sendAudioCmd({ cmd: 'setMute', muted: !!(m && m.muted) });
+  return true;
+});
+ipcMain.handle('audio-list-devices', function (e, api) {
+  spawnAudioHelper();
+  sendAudioCmd({ cmd: 'list', api: api || 'asio' });
+  return true;
+});
+ipcMain.handle('get-audio-status', function () { return audioStatus; });
+
+// Audio settings persistence (device + levels + engine-on preference).
+ipcMain.handle('get-audio-settings', function () { return storeGet('audioSettings', null); });
+ipcMain.handle('save-audio-settings', function (e, s) { storeSet('audioSettings', s); return true; });
+
+// ════════════════════════════════════════════════════════════════════
 // PROCESS WATCHDOG — Mode 3 style
 // ════════════════════════════════════════════════════════════════════
 let watchdogInterval   = null;
@@ -1168,7 +1447,12 @@ function createWindow() {
       // /T<seconds> override (see top of file) is handed to the renderer
       // as a process.argv entry preload.js reads synchronously; empty when
       // the flag wasn't passed, so the state.js defaults stand.
-      additionalArguments:  startupTimeoutSec ? ['--ee-startup-timeout-sec=' + startupTimeoutSec] : [],
+      additionalArguments:  (function () {
+        var a = [];
+        if (startupTimeoutSec) a.push('--ee-startup-timeout-sec=' + startupTimeoutSec);
+        if (audioAutoStart)    a.push('--ee-audio-on');
+        return a;
+      })(),
     }
   });
   if (startupTimeoutSec) logWrite('Startup timeout override /T' + startupTimeoutSec + ' active — connect gate + firmware check widened to ' + startupTimeoutSec + 's');
@@ -1208,6 +1492,7 @@ function createWindow() {
 
   mainWindow.on('close', function() {
     storeSet('windowBounds', mainWindow.getBounds());
+    killAllAudioHelpers();
     killBridge();
     stopWatchdog();
     logClose();
@@ -1220,6 +1505,7 @@ app.commandLine.appendSwitch('enable-blink-features', 'MIDIGetSupportedExtension
 
 app.whenReady().then(function() {
   initLog();
+  logWrite('Launch argv: [' + process.argv.join('] [') + ']  /AUDIOON=' + audioAutoStart);
   launchBridge();
   createSplashWindow();
   createWindow();
@@ -1227,6 +1513,7 @@ app.whenReady().then(function() {
 
 app.on('window-all-closed', function() {
   stopWatchdog();
+  killAllAudioHelpers();
   killBridge(function() {
     logClose();
     if (process.platform !== 'darwin') app.quit();
@@ -1237,6 +1524,7 @@ let isReallyQuitting = false;
 app.on('before-quit', function(event) {
   if (isReallyQuitting) return; // already cleaned up — let this one through
   event.preventDefault();
+  killAllAudioHelpers();
   killBridge(function() {
     isReallyQuitting = true;
     app.quit();

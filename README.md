@@ -4,10 +4,10 @@ A free rig editor and librarian for the Avid Eleven Rack, controlled from your
 computer over USB/MIDI. No iLok and no Avid Eleven Rack Editor required —
 just the Avid USB driver and a connected Eleven Rack.
 
-> **Status:** v1.0.0 — released to the Eleven Rack community, as-is. See the
+> **Status:** v1.1.0 — released to the Eleven Rack community, as-is. See the
 > disclaimer below and **always back up your unit before loading banks.**
 
-![Eleven Edit v1.0.0 — the main patch editor and audition screen, connected to an Eleven Rack](assets/screenshot.png)
+![Eleven Edit v1.1.0 — the main patch editor and audition screen, connected to an Eleven Rack](assets/screenshot.png)
 
 ## What it does
 
@@ -37,10 +37,12 @@ coding assistant.
 ## Requirements
 
 - An Avid Eleven Rack connected over USB.
-- The Avid Eleven Rack USB driver installed — **v1.1.12 (recommended) or
-  v1.0.11** both work. Eleven Edit talks through the operating system's MIDI
-  layer, so it is driver-version-agnostic; any working Avid driver is fine, and
-  the Avid Eleven Rack Editor itself is not needed, just its driver.
+- The Avid Eleven Rack USB driver installed. For **patch editing**, Eleven Edit
+  talks through the operating system's MIDI layer, so it is driver-version-
+  agnostic — **v1.1.12 or v1.0.11** both work, and the Avid Eleven Rack Editor
+  itself is not needed, just its driver. (The optional built-in **audio engine**
+  is fussier about ASIO — see *A note on ASIO on Windows* below; driver **1.1.11**
+  is preferred for ASIO there.)
 - A Java runtime for the bridge — **JRE 25 or newer required.** Older
   versions (including JRE 8 and JRE 21) have been directly tested and found to
   freeze or crash Windows when running Eleven Edit; the app checks this on
@@ -73,6 +75,42 @@ so if a Windows 11 machine is unstable with the driver installed: keep the Eleve
 Rack off the Windows **default sound device** role, or use the lighter 1.0.11
 driver. The User Manual's Troubleshooting section has the full rundown, including
 a separate Windows 11 note about bank/patch **uploads**.
+
+### A note on ASIO on Windows
+
+Eleven Edit v1.1.0 adds an optional built-in audio engine that passes your rig's
+sound through to speakers/headphones. It can use **ASIO** (low latency) or
+**WASAPI**. ASIO on Windows is powerful but famously machine-specific: whether a
+given ASIO driver initializes cleanly depends on the exact driver version, your
+Windows edition/build, and what other audio gear and drivers are installed — it
+is not something any app fully controls, Eleven Edit included.
+
+**If your ASIO already works, leave it alone.** If you have a Focusrite (or the
+Rack itself) enumerating and passing sound the way you like, you fought this
+battle already and won — don't change drivers chasing a "better" setup.
+
+**If ASIO is empty, won't start, or "just vanished,"** the most common cause is
+the Avid Eleven Rack **1.1.12** "final" driver, which fails to start ASIO on many
+modern Windows setups — and can take other older ASIO drivers down with it on the
+same PC. Things worth trying, roughly in order:
+
+1. Roll the Avid driver back to **1.1.11**.
+2. Remove other dead/legacy ASIO drivers you don't use.
+3. Reboot, then rescan in **Audio Setup**.
+
+One of these usually brings it back — but there is no promise which, because every
+machine's audio stack is a little different.
+
+**When ASIO fights you, use WASAPI.** In Audio Setup, switch *Device Type* to
+WASAPI — it sidesteps the ASIO driver mess entirely. Latency is a touch higher,
+but for monitoring your rig it is perfectly usable and it "just works" far more
+often.
+
+None of this is unique to Eleven Edit — a broken ASIO stack breaks every audio app
+the same way (the Rack's ASIO failures reproduce in other hosts such as Reaper).
+Eleven Edit just gives you WASAPI as a no-drama alternative. This is the same
+family of "the Avid driver, not Eleven Edit" caveats as the Windows-stability note
+above.
 
 ## Known limitations
 

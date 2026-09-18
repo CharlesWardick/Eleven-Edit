@@ -275,6 +275,7 @@ async function handleBulkTfxData(data, cmd) {
     clearFxBaselines();       // effect truth is now the saved state:
     if (typeof clearDelayModelBaseline === 'function') clearDelayModelBaseline();  // same, DELAY's own per-model reference
     if (typeof clearBlockModelState === 'function') clearBlockModelState();  // same, generic engine (DIST etc.)
+    if (typeof quickMixCaptureSaved === 'function') quickMixCaptureSaved();  // save = current mix values become the saved baseline
     // Amp cache patch-load snapshot (2026-09-03) — a save makes the just-
     // saved values the new "true" reference, same reasoning as the
     // baseline resets above; the next real hardware reading (the post-save
@@ -759,6 +760,9 @@ function handleChainMap(data) {
     if (typeof refreshFxLoopPanelAfterChainMap === 'function') refreshFxLoopPanelAfterChainMap();
     if (typeof refreshDelayPanelAfterChainMap === 'function') refreshDelayPanelAfterChainMap();
     if (typeof refreshFxHostPanelAfterChainMap === 'function') refreshFxHostPanelAfterChainMap();
+    // Quick Mix: rebuild the inline wet sliders for the new chain (which
+    // blocks have a wet control, re-baseline, re-query values on sight).
+    if (typeof quickMixAfterChainMap === 'function') quickMixAfterChainMap();
     // Release the post-nav pull's wait: currentParamHi and currentChain are
     // now valid, so amp-block queries can safely be addressed.
     chainMapRxSeq++;
@@ -1090,6 +1094,11 @@ function handleParamReadback(data) {
     maybePauseRollerOnEdit('CMD 0x11 param change (0x' + paramLo.toString(16).padStart(2,'0') +
       ' ' + prevVal + '->' + val + ')', /*skipSettleGuard*/ true);
   }
+
+  // ── QUICK MIX — feed every param broadcast to the inline wet sliders,
+  // independent of any open panel (the sliders show for engaged blocks with
+  // no panel open). No-op unless instId/paramLo matches a block's wet param.
+  if (typeof quickMixOnParam === 'function') quickMixOnParam(instId, paramLo, val);
 
   // ── DIST parameter routing — handled before the amp-only instId guard
   // so DIST broadcasts (different handle) are not silently discarded.
