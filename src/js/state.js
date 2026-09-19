@@ -72,9 +72,12 @@ const SILENT_READ_MAX_ATTEMPTS = 3;   // re-request a silent slot this many time
 // space->null in a patch body during a full-bank export -> rack rejects on
 // re-import). A small fixed WALL-CLOCK gap after each reply gives the new stack
 // time to settle; being real-time it is CPU-speed-independent (a fast PC gets
-// the same breather). 104 slots * 30ms ~= 3s added to a full backup. Tune up if
-// a machine still drops bytes.
-const EXPORT_SLOT_GAP_MS = 30;
+// the same breather). 104 slots * 100ms ~= 10s added to a full backup — trivial
+// for a backup, and reliability beats speed here. History: 30ms cut Win11
+// corruption from 2 patches to 1 (proving pacing is the right lever), so raised
+// to 100ms for margin. Raise further (or add per-patch verify) if any machine
+// still drops a byte.
+const EXPORT_SLOT_GAP_MS = 100;
 
 // ── Bank import ("Import Rigs…") cancel flag + rack-rejection signal.
 // importCancelRequested is set by the shared overlay Cancel button and read
