@@ -143,6 +143,14 @@ async function exportAllRigsSilent(bankName, targetDir) {
     const filename = (count === 0 ? safeName : safeName + '-' + count) + '.tfx';
 
     entries.push({ bank: slotLabel(slot), filename: filename, bodyArray: Array.from(result.body) });
+
+    // Settle gap before the next slot request. The old zero-gap lock-step is
+    // byte-perfect on Win10 but lets Win11's new MIDI stack drop a byte under
+    // the sustained rhythm. A small fixed real-time pause fixes it CPU-agnostic.
+    // (Skip after the last slot and when cancelling.)
+    if (slot < MAX_SLOT && !exportCancelRequested) {
+      await new Promise((r) => setTimeout(r, EXPORT_SLOT_GAP_MS));
+    }
   }
 
   if (overlay) overlay.classList.remove('open');

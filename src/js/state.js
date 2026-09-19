@@ -65,6 +65,16 @@ let pendingSilentSlot     = null;
 let pendingSilentResolve  = null;
 const SILENT_READ_TIMEOUT_MS  = 2000; // per-attempt wait for a 12 00 reply before retrying (generous for a slow PC)
 const SILENT_READ_MAX_ATTEMPTS = 3;   // re-request a silent slot this many times before giving up on it
+// Settle gap between slot reads during a bank export. The original lock-step
+// (reply = sync, no gap) mirrors Avid Editor's Win10 bank-export SysEx timing
+// and is byte-perfect on Win10's classic MIDI stack. Win11's new "Windows MIDI
+// Services" stack drops a byte under that back-to-back rhythm (observed: one
+// space->null in a patch body during a full-bank export -> rack rejects on
+// re-import). A small fixed WALL-CLOCK gap after each reply gives the new stack
+// time to settle; being real-time it is CPU-speed-independent (a fast PC gets
+// the same breather). 104 slots * 30ms ~= 3s added to a full backup. Tune up if
+// a machine still drops bytes.
+const EXPORT_SLOT_GAP_MS = 30;
 
 // ── Bank import ("Import Rigs…") cancel flag + rack-rejection signal.
 // importCancelRequested is set by the shared overlay Cancel button and read
