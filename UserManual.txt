@@ -382,9 +382,9 @@ TROUBLESHOOTING
     your rack with errors. The same patches and banks import fine on
     Windows 10, or on a Windows 11 PC that has not received that update.
     Microsoft is fixing this; until it reaches your PC, use Windows 10 for
-    uploading patches/banks. (Reading, editing, saving patches to the rack,
-    exporting a backup, and saving to disk are NOT affected and work
-    normally on any Windows.) A rack front-panel "Bad Patch Data" message is
+    uploading patches/banks. (Reading, editing, and saving patches to the
+    rack, and saving a patch to disk, are NOT affected and work normally on
+    any Windows.) A rack front-panel "Bad Patch Data" message is
     harmless and clears the moment you change patches.
     On a PC with this new MIDI system, Eleven Edit tells you up front: a
     one-time notice at startup, and a reminder each time you click Load TFX
@@ -392,6 +392,17 @@ TROUBLESHOOTING
     turn these warnings off under Settings → "Windows 11 upload warning". If
     Microsoft's fix reaches your PC, the first time an upload succeeds Eleven
     Edit notices and stops warning automatically.
+  - Bank export on the newest Windows 11 — on the very latest Windows 11
+    builds (the same new "Windows MIDI Services" MIDI system as above), a full
+    Export All Rigs can occasionally garble a patch or two while reading them
+    back from the rack, so the exported .tfx for those slots is not quite
+    right. Nothing is lost silently: when you later re-import that backup, the
+    rack rejects the bad patch and Eleven Edit tells you exactly which slot(s)
+    were skipped (the rest import normally). If it happens, just re-export, or
+    export those patches individually, or make the backup on Windows 10.
+    Windows 10 is unaffected. Like the upload issue above, this is the Windows
+    MIDI layer, not Eleven Edit — and since most people export/import only
+    when first setting up, most will never see it.
   - Built-in audio engine shows no ASIO devices, or won't start — most
     often the Avid 1.1.12 driver, which fails to start ASIO on many Windows
     versions. Use Avid driver 1.1.11 instead, or switch Device Type to
