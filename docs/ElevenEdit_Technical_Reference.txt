@@ -947,26 +947,40 @@ CMD 0x35 — Output mode (GLOBAL). QUERY: F0 13 0B 0F 01 35 F7 -> reply
   setOutputModeDisplay). Query added to requestFullState. TESTED LIVE +
   CONFIRMED (v1.3.80; labels finalized to "Mirror Analog"/"Rig Outputs" in
   v1.3.81). [SEND/RECV/QUERY/BCAST]
-CMD 0x3D — Input Selector. BROADCAST: F0 13 0B 0F 02 3D [val] F7 (value at
-  data[6], NOT data[7]=F7). QUERY: F0 13 0B 0F 01 3D F7 -> reply
-  F0 13 0B 0F 12 3D [val] F7 (value at data[6]). Values: 0x00=Guitar, 0x02=Mic,
-  0x03=Line L, 0x04=Line R, 0x05=Line L+R, 0x06=Dig L, 0x07=Dig R, 0x08=Dig L+R,
-  0x12=Re-Amp. Broadcast fires on input change only (not startup/patch change),
-  but the QUERY works any time and is how Avid reads input on connect.
-  *** QUERY FORM CONFIRMED 2026-08-30 — RETRACTS the prior "no query form,
-  broadcast on change only" note. *** Evidence: four of the author's cold-start
-  captures (Avid_Start_On_Guitar/On_Mic/Line_LR/Digital_LR.pcapng), decoded by
-  hand — every one sends 01 3D in the initial state sweep before any user action
-  and gets back 12 3D 00 / 02 / 05 / 08 respectively. The chain map (CMD 0x21)
-  also mirrors input in its first block byte (37=Guitar In, 38=Mic In). So Avid
-  does NOT persist input in config; it just asks the rack. [SEND/RECV/QUERY/BCAST]
-  INPUT IS GLOBAL, NOT PER-PATCH — confirmed 7/27/2026 (the author): it never
-  changes with the patch, only when the user changes input. So input CCs
-  (65/66/67) must NOT mark the patch dirty (same category as To Amp source);
-  sendCC only lights the SAVE latch for PER_PATCH_CCS = [17] (Rig Vol). The app
-  now reflects the live global input on connect via sendInputSelectorQuery()
-  (01 3D) in requestFullState(), no longer forcing Guitar (2026-08-30, Sec 21
-  deferred 1c resolved; TESTED LIVE + CONFIRMED, v1.3.78).
+CMD 0x3D — Input Selector. GLOBAL, not per-patch. Four directions:
+    SET:       F0 13 0B 0F 00 3D [val] F7   (host -> rack, changes the input)
+    BROADCAST: F0 13 0B 0F 02 3D [val] F7   (echo on change; value at data[6])
+    QUERY:     F0 13 0B 0F 01 3D F7
+    REPLY:     F0 13 0B 0F 12 3D [val] F7   (to a query; value at data[6])
+  VALUES (all nine, hardware-confirmed on the wire — AE_Input_Walk.pcapng,
+  2026-09-20, a full Avid-editor dropdown sweep parsed with tools/parse_capture.py):
+    0x00 Guitar    0x01 Re-Amp    0x02 Mic
+    0x03 Line L    0x04 Line R    0x05 Line L+R
+    0x06 Dig L     0x07 Dig R     0x08 Dig L+R
+  *** CORRECTION 2026-09-20: Re-Amp is 0x01, NOT 0x12. *** The old "0x12=Re-Amp"
+  was wrong — 0x12 is the REPLY direction byte (12 3D), mistaken for a value. The
+  wire shows Re-Amp = 3D 01. Line/Dig L/R/L+R (03-08) are unchanged and now
+  confirmed discretely (earlier we only ever had a Line_LR / Digital_LR capture,
+  so L-only and R-only were never actually observed — hence the app long shipped
+  only a collapsed LINE/DIGITAL button).
+  *** SEND RECIPE 2026-09-20: to change the input, send the PAIR 00 3D [val] then
+  02 3D [val] (~25ms apart, nothing else between — exactly what Avid emits per
+  dropdown change). Sending ONLY the 02 (broadcast) form collapses Line/Digital
+  to L+R regardless of [val] (probe v1); the pair lands the discrete channel
+  (probe v2, hardware-confirmed). The rack echoes its own 02 3D [val] back after
+  a SET, which the app uses to re-affirm the UI. [SEND/RECV/QUERY/BCAST]
+  QUERY: works any time; Avid sends 01 3D in its cold-start state sweep (four
+  Avid_Start_On_* captures, 2026-08-30) and gets 12 3D 00/02/05/08. The chain map
+  (CMD 0x21) also mirrors input in its first block byte (37=Guitar In, 38=Mic In).
+  Avid does NOT persist input in config — it just asks the rack.
+  INPUT IS GLOBAL, NOT PER-PATCH (confirmed 7/27/2026): it never changes with the
+  patch, only when the user changes input, so it must NOT mark the patch dirty.
+  The app reflects the live global input on connect via sendInputSelectorQuery()
+  (01 3D) in requestFullState(), no longer forcing Guitar (2026-08-30, TESTED LIVE
+  + CONFIRMED v1.3.78). HISTORY: pre-v1.2.0 the app SET input via MIDI CC 65/66/67
+  (coarse — category only, could not reach Line/Dig L vs R). v1.2.0 sends CMD 0x3D
+  directly (sendInputSelectorSet, the pair above) for the full nine-input set and
+  the L/R input pills; the CC path is retired for input.
 CMD 0x40 — Tuner. See Section 9. [SEND/RECV]
 CMD 0x41 — Tuner companion broadcast. Safe to ignore.
 CMD 0x50 — Rig tempo, in microseconds per beat, as four 6-bit digits.
