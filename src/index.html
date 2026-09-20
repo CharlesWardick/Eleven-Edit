@@ -4008,18 +4008,19 @@ document.getElementById('btn-about').addEventListener('click', async function() 
   // Read live from package.json (main.js's app.getVersion(), same source as
   // the session-log banner, Bug Report #2) rather than a hand-maintained
   // "Phase N" string that goes stale the moment nobody remembers to bump it.
-  if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
-    const v = await window.electronAPI.getAppVersion();
-    document.getElementById('about-version').textContent = 'Version ' + v;
+  if (window.electronAPI && typeof window.electronAPI.getBuildInfo === 'function') {
+    const info = await window.electronAPI.getBuildInfo();
+    document.getElementById('about-version').textContent =
+      'Version ' + info.version + ' (build ' + info.build + ')';
   }
 });
 // Put the version in the window title bar at STARTUP (not only when About is
 // opened). Display text only — the app's real name in package.json is
 // untouched — so a running build is identifiable at a glance.
 (function setTitleBarVersion() {
-  if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
-    window.electronAPI.getAppVersion().then(function(v) {
-      document.title = 'Eleven Edit  v' + v;
+  if (window.electronAPI && typeof window.electronAPI.getBuildInfo === 'function') {
+    window.electronAPI.getBuildInfo().then(function(info) {
+      document.title = 'Eleven Edit  v' + info.version + ' (build ' + info.build + ')';
     }).catch(function(){});
   }
 })();

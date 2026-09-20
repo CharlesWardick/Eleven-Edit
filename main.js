@@ -8,6 +8,10 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const { exec, execFile, spawn } = require('child_process');
+// package.json is the single source of truth for version + build number.
+// buildNumber auto-increments on each packaged build (tools/bump-build.js,
+// run from the "prebuild" npm hook); app.getVersion() supplies the version.
+const pkg = require('./package.json');
 
 // EXPERIMENTAL, 2026-08-03: Charlie reported a separate dark flash, sized
 // like the main window, appearing BEFORE the splash on a cold start only
@@ -104,6 +108,10 @@ app.on('second-instance', function(event, argv) {
 const startupMode = 3;
 ipcMain.handle('get-startup-mode', function() { return startupMode; });
 ipcMain.handle('get-app-version', function() { return app.getVersion(); });
+// Full build info for the title bar + About box: { version, build }.
+ipcMain.handle('get-build-info', function() {
+  return { version: app.getVersion(), build: pkg.buildNumber };
+});
 
 // ── Windows 11 "new MIDI stack" detection (Phase B, "Gate and Wait") ──
 // The new in-box Windows MIDI Services stack corrupts the large SysEx a patch
@@ -180,8 +188,8 @@ function initLog() {
     // (bumped every session per Primer convention), so this banner is
     // always the actual running build, not a string someone has to remember
     // to update by hand.
-    logWrite('=== Eleven Edit (v' + app.getVersion() + ') Session Start ' +
-      now.toLocaleString() + ' ===');
+    logWrite('=== Eleven Edit (v' + app.getVersion() + ' build ' + pkg.buildNumber +
+      ') Session Start ' + now.toLocaleString() + ' ===');
     logWrite('Log: ' + logPath);
     logWrite('userData: ' + userDataPath);
     console.log('Log file: ' + logPath);
