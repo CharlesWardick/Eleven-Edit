@@ -40,8 +40,8 @@
       "assets/**/*"
     ],
     "extraResources": [
-      "ElevenRackBridge.jar",
-      { "from": "vc_redist.x64.exe", "to": "vcredist-x64.dat" },
+      { "from": "assets-local/ElevenRackBridge.jar", "to": "ElevenRackBridge.jar" },
+      { "from": "assets-local/vc_redist.x64.exe", "to": "vcredist-x64.dat" },
       "LICENSE",
       "NOTICE",
       "UserManual.txt"

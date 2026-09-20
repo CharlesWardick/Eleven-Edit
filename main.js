@@ -862,10 +862,13 @@ function parseJavaMajorVersion(versionOutput) {
 }
 
 function findBridgeJar() {
-  // Packaged build: jar sits next to the exe as an extraResource.
-  // Dev (npm start): jar sits alongside main.js.
+  // Packaged build: jar sits next to the exe as an extraResource (copied there
+  // from assets-local/ at build time — see package.json extraResources).
+  // Dev (npm start): jar sits in assets-local/ (its home as of v1.2.0), with the
+  // old project-root location kept as a fallback for existing checkouts.
   const candidates = [
     path.join(process.resourcesPath || '', 'ElevenRackBridge.jar'),
+    path.join(__dirname, 'assets-local', 'ElevenRackBridge.jar'),
     path.join(__dirname, 'ElevenRackBridge.jar'),
   ];
   logWrite('Bridge: locating jar — resourcesPath=' + (process.resourcesPath || '(none)') + ' __dirname=' + __dirname);

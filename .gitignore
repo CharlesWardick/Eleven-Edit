@@ -11,10 +11,11 @@ lerna-debug.log*
 *.class
 *.jar
 
-# Locally-kept build binaries (ElevenRackBridge.jar, vc_redist.x64.exe) will be
-# consolidated here in v1.1.1 — single ignore rule, identical on every branch.
-# The folder is ignored now so future dev work carries it; the actual files move
-# in during 1.1.1 (per-file *.jar / vc_redist lines drop out then).
+# Locally-kept build binaries (ElevenRackBridge.jar, vc_redist.x64.exe) live here
+# as of v1.2.0 — single ignore rule, identical on every branch. The build reads
+# them from assets-local/ (package.json extraResources + tools/check-build-assets.js;
+# dev jar lookup falls back to it in main.js). The root *.jar / vc_redist.x64.exe
+# lines below stay as belt-and-suspenders for old checkouts.
 assets-local/
 
 # Bundled Microsoft VC++ redistributable — a Microsoft binary, kept locally and
