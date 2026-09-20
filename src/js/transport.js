@@ -742,6 +742,21 @@ function sendInputSelectorQuery() {
   appLog('sendInputSelectorQuery: reading global input selector (01 3D)');
   return sendHex('F0 13 0B 0F 01 3D F7');
 }
+// ── CMD 0x3D SET — Input selector write (v1.2.0). Avid fires a PAIR per change:
+// the SET form 00 3D [val] then the broadcast echo 02 3D [val] (~25ms apart,
+// nothing else between — AE_Input_Walk capture, 2026-09-20). Sending only the
+// 02 form collapses Line/Digital to L+R regardless of val (probe v1); the pair
+// lands the discrete channel (probe v2, hardware-confirmed). The rack echoes its
+// own 02 3D [val] back, which handleInputSelectorBroadcast uses to re-affirm the
+// UI. GLOBAL, not per-patch → sent via sendHex, no dirty latch.
+// Values: Guitar 00 · Re-Amp 01 · Mic 02 · Line L/R/L+R 03/04/05 · Dig L/R/L+R 06/07/08.
+function sendInputSelectorSet(val) {
+  if (!bridgeMidiReady) return;
+  const vh = val.toString(16).padStart(2,'0');
+  appLog('sendInputSelectorSet: 0x' + vh + ' (00 3D + 02 3D pair)');
+  sendHex('F0 13 0B 0F 00 3D ' + vh + ' F7');
+  return sendHex('F0 13 0B 0F 02 3D ' + vh + ' F7');
+}
 // ── CMD 0x3C — FX Loop routing (GLOBAL). Query/set/broadcast, same shape as
 // 0x3D. QUERY: F0 13 0B 0F 01 3C F7 -> reply 12 3C [val] (value at data[6]).
 // SET: F0 13 0B 0F 00 3C [val] F7. BROADCAST/echo on change: 02 3C [val].
@@ -1037,9 +1052,10 @@ function runPacedBurst(fn) {
 }
 
 // CCs that carry PER-PATCH values (so a change should light the SAVE latch).
-// Only Rig Volume (CC 17) qualifies. Input select (CC 65/66/67) is a GLOBAL
-// hardware setting and the Tuner (CC 69) is transient — neither belongs to the
-// patch, so they must NOT mark it dirty. (7/27)
+// Only Rig Volume (CC 17) qualifies. The Tuner (CC 69) is transient and does not
+// belong to the patch, so it must NOT mark it dirty. (7/27) — Input select no
+// longer goes through here at all: v1.2.0 sends CMD 0x3D directly via
+// sendInputSelectorSet (also global, also no dirty latch).
 var PER_PATCH_CCS = [17];
 
 async function sendCC(cc, val) {

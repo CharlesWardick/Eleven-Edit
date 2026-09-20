@@ -790,23 +790,62 @@ function valToAmpVol(v127) {
 // ════════════════════════════════════════════════════════════════════
 // STARTUP
 // ════════════════════════════════════════════════════════════════════
-function setInputButtons(inputVal) {
-  const isGuitar = (inputVal === 0x00);
-  const isMic    = (inputVal === 0x02);
-  const isLine   = (inputVal === 0x03 || inputVal === 0x04 || inputVal === 0x05);
-  const isDig    = (inputVal === 0x06 || inputVal === 0x07 || inputVal === 0x08);
-  document.getElementById('btn-input-guitar').classList.toggle('active', isGuitar);
-  document.getElementById('btn-input-mic').classList.toggle('active',    isMic);
-  document.getElementById('btn-input-line').classList.toggle('active',   isLine);
-  document.getElementById('btn-input-dig').classList.toggle('active',    isDig);
+// Input selector value maps (v1.2.0). ONE source of truth for the send-side
+// (app-init.js pill logic) and the read-side (below): Line L/R/L+R = 03/04/05,
+// Digital L/R/L+R = 06/07/08. Hardware-confirmed (AE_Input_Walk, 2026-09-20).
+const INPUT_PILL_VALS = { line: { L:0x03, R:0x04, LR:0x05 }, dig: { L:0x06, R:0x07, LR:0x08 } };
+// Compact labels for the passive chain-strip clone (fixed 92px box).
+const INPUT_CLONE_LABELS = {
+  0x00:'GUITAR', 0x01:'RE-AMP', 0x02:'MIC',
+  0x03:'LINE L', 0x04:'LINE R', 0x05:'LINE L+R',
+  0x06:'DIG L',  0x07:'DIG R',  0x08:'DIG L+R'
+};
 
-  // Passive clone at the start of the chain strip (7/28) — same source of
-  // truth as the buttons above, updated in the same place so it can never
-  // drift out of sync with them.
+// Light the input controls from a CMD 0x3D value. Drives the GUITAR/MIC/RE-AMP
+// single buttons, the LINE/DIGITAL pills (L / R / both), and the chain clone.
+// inputVal = -1 (or unknown) = neutral: nothing lit, headers blank.
+function setInputButtons(inputVal) {
+  document.getElementById('btn-input-guitar').classList.toggle('active', inputVal === 0x00);
+  document.getElementById('btn-input-mic').classList.toggle('active',    inputVal === 0x02);
+  document.getElementById('btn-input-reamp').classList.toggle('active',  inputVal === 0x01);
+
+  setInputPill('line', 'Line',    inputVal);
+  setInputPill('dig',  'Digital', inputVal);
+
+  // Passive clone at the start of the chain strip — same source of truth as
+  // the controls above, updated here so it can never drift out of sync.
   const cloneEl = document.getElementById('chain-input-wrap');
-  if (cloneEl) {
-    cloneEl.textContent = isGuitar ? 'GUITAR' : isMic ? 'MIC' : isLine ? 'LINE' : isDig ? 'DIGITAL' : '--';
+  if (cloneEl) cloneEl.textContent = INPUT_CLONE_LABELS[inputVal] || '--';
+}
+
+// One L/R pill: light L / R / both and set the state header text.
+function setInputPill(grp, label, val) {
+  const m = INPUT_PILL_VALS[grp];
+  const lOn = (val === m.L || val === m.LR);
+  const rOn = (val === m.R || val === m.LR);
+  document.getElementById('seg-' + grp + '-l').classList.toggle('lit', lOn);
+  document.getElementById('seg-' + grp + '-r').classList.toggle('lit', rOn);
+  const head = document.getElementById('head-' + grp);
+  head.textContent = (lOn && rOn) ? label + ' L+R' : lOn ? label + ' L' : rOn ? label + ' R' : '—';
+  head.classList.toggle('on', lOn || rOn);
+}
+
+// 2-button toggle: given the clicked channel and what's currently lit, return the
+// CMD 0x3D value to send. Enter on the clicked channel; one lit + click the other
+// = both (L+R); both lit + click one = just that one; click the only-lit one = no
+// change. There is always at least one channel lit while the pill is the active
+// input — you leave it by choosing GUITAR/MIC/RE-AMP or the other pill.
+function nextInputPillValue(grp, clicked) {
+  const lLit = document.getElementById('seg-' + grp + '-l').classList.contains('lit');
+  const rLit = document.getElementById('seg-' + grp + '-r').classList.contains('lit');
+  let combo;
+  if (!lLit && !rLit)      combo = clicked;                 // enter on clicked channel
+  else if (lLit && rLit)   combo = clicked;                 // from both -> just clicked
+  else {
+    const cur = lLit ? 'L' : 'R';
+    combo = (cur === clicked) ? cur : 'LR';                 // same -> keep; other -> both
   }
+  return INPUT_PILL_VALS[grp][combo];
 }
 
 // ── Avid editor state — purely informational now. The Java bridge owns

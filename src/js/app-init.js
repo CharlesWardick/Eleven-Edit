@@ -253,13 +253,23 @@ async function init() {
     sendParamWrite(0x05, val);
   });
 
-  // ── Input selector ──
-  const INPUT_BTNS = ['btn-input-guitar','btn-input-mic','btn-input-line','btn-input-dig'];
-  INPUT_BTNS.forEach(id => {
-    document.getElementById(id).addEventListener('click', function() {
-      INPUT_BTNS.forEach(bid => document.getElementById(bid).classList.remove('active'));
-      this.classList.add('active');
-      sendCC(parseInt(this.dataset.cc), parseInt(this.dataset.ccval));
+  // ── Input selector (v1.2.0) ── GUITAR/MIC/RE-AMP are single-value; LINE/DIGITAL
+  // are 2-button pills (L / R / both = L+R). Both paths send the CMD 0x3D pair via
+  // sendInputSelectorSet (transport.js) and light optimistically; the rack's own
+  // 02 3D echo re-affirms through handleInputSelectorBroadcast. Input is GLOBAL,
+  // not per-patch, so nothing marks the patch dirty.
+  document.querySelectorAll('#input-group .input-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const val = parseInt(this.dataset.input, 16);
+      sendInputSelectorSet(val);
+      setInputButtons(val);
+    });
+  });
+  document.querySelectorAll('#input-group .seg').forEach(seg => {
+    seg.addEventListener('click', function() {
+      const val = nextInputPillValue(this.dataset.grp, this.dataset.ch);
+      sendInputSelectorSet(val);
+      setInputButtons(val);
     });
   });
 
