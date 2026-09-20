@@ -9,8 +9,10 @@ const path = require('path');
 const fs   = require('fs');
 const { exec, execFile, spawn } = require('child_process');
 // package.json is the single source of truth for version + build number.
-// buildNumber auto-increments on each packaged build (tools/bump-build.js,
-// run from the "prebuild" npm hook); app.getVersion() supplies the version.
+// buildNumber is a manual code-revision marker — bumped in package.json (and
+// build.buildVersion kept in sync as 1.2.0.N) whenever the code changes, NOT
+// per compile, so repeated local builds don't churn git. app.getVersion() gives
+// the version; pkg.buildNumber feeds the title bar / About / log banner.
 const pkg = require('./package.json');
 
 // EXPERIMENTAL, 2026-08-03: Charlie reported a separate dark flash, sized
