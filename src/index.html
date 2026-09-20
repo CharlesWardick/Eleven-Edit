@@ -2616,9 +2616,10 @@
         new MIDI system active.</div>
       <div>Uploading patches or banks to the rack may fail — a known Windows&nbsp;11
         bug that corrupts large transfers (it is not your patches, and not this app).
-        Reading, editing, saving to the rack, and backups all work normally. The same
-        uploads work on Windows&nbsp;10, or on a Windows&nbsp;11 PC that hasn't taken
-        the update yet.</div>
+        Reading, editing, and saving to the rack work normally. A full-bank backup
+        can occasionally be affected too — you'll see any bad patch flagged when you
+        re-import it. The same uploads work on Windows&nbsp;10, or on a
+        Windows&nbsp;11 PC that hasn't taken the update yet.</div>
       <div style="margin-top:8px;">You can try anyway — if Microsoft has fixed it,
         it just works, and Eleven Edit will stop warning you.</div>
     </div>
@@ -4034,7 +4035,8 @@ function maybeShowWin11StartupNotice() {
     + '<div style="color:#b3b3b3;">Because of a known Windows&nbsp;11 bug, <b>uploading '
     + 'patches or banks to the rack may fail</b> on this PC — it corrupts large transfers. '
     + 'It is not your patches, and not this app. Everything else — reading, editing, saving '
-    + 'to the rack, and backups — works normally.</div>'
+    + 'to the rack — works normally. A full-bank backup can rarely garble a patch too, but '
+    + 're-importing flags any bad slot, so nothing is lost silently.</div>'
     + '<div style="color:#b3b3b3;margin-top:8px;">You’ll get a reminder each time you '
     + 'try to upload, and you can turn these warnings off in Settings. The same uploads work '
     + 'on Windows&nbsp;10 or an un-updated Windows&nbsp;11; if Microsoft fixes it, Eleven Edit '
