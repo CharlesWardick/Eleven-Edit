@@ -283,67 +283,189 @@ async function loadTfxFromDisk() {
     const body = result.body;
     const name = extractNameFromBody(body) || result.filename.replace(/\.tfx$/i, '');
     appLog('Loading TFX: ' + result.filename + ' (' + body.length + ' bytes) -> "' + name + '"');
-    setStatus('Loading ' + name + '...');
-
-    // 1. Bulk patch write — same 7-bit encoding we already trust for
-    // reading, confirmed as the correct INVERSE against real Avid
-    // traffic (see encode7bit in protocol.js)
-    const rejectsBefore = (typeof rackBadPatchCount !== 'undefined') ? rackBadPatchCount : 0;
-    const encoded = encode7bit(body);
-    const hexBulk = 'F0 13 0B 0F 00 01 '
-      + encoded.map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ')
-      + ' F7';
-    sendHex(hexBulk);
-
-    // Detect a rejection (CMD 0x78). A single Load TFX rejection can lag the
-    // write by up to ~2s (observed on a broken Win11 stack), so wait a wide
-    // window before deciding — a shorter one wrongly reported "Loaded" when the
-    // reject arrived late. A good load produces no 0x78 and simply proceeds.
-    await sleep(2500);
-
-    // If the rack rejected the body, don't pretend it loaded: stop here without
-    // writing the name or repainting, and report honestly.
-    if ((typeof rackBadPatchCount !== 'undefined') && rackBadPatchCount > rejectsBefore) {
-      setStatus('Load failed — the rack rejected "' + name + '" (bad patch data).');
-      appLog('Load TFX REJECTED by rack (CMD 0x78): "' + name + '" — patch NOT loaded.');
-      // A status line here gets overwritten by background scans, so raise a
-      // modal the user must dismiss (same generic modal the importer uses).
-      if (typeof showModalMessage === 'function') {
-        showModalMessage('Load Failed',
-          '<div style="color:var(--red);margin-bottom:8px;">The rack rejected &ldquo;' + name
-          + '&rdquo; — bad patch data. Nothing was loaded.</div>'
-          + '<div style="color:#b3b3b3;">Either this TFX is corrupt (it fails on any '
-          + 'system), or on Windows&nbsp;11 the new MIDI stack corrupted it in transit. '
-          + 'The rack still holds its previous patch, and any front-panel error clears as '
-          + 'soon as you change patches.</div>');
-      }
-      return;
-    }
-
-    // 2. Name write — separate step, matching the confirmed capture
-    sendHex('F0 13 0B 0F 00 05 ' + asciiToHexBytes(name) + ' 00 F7');
-
-    currentPatchName = name;
-    const nameEl = document.getElementById('patch-name');
-    if (nameEl) { nameEl.textContent = name; nameEl.classList.add('live'); }
-
-    // Refresh amp/gate/amp-out readback now that new content is loaded —
-    // same pull we already trust from every other navigation.
-    await sleep(300);
-    requestPatchStateAfterNav();
-
-    setStatus('Loaded "' + name + '" — memory only, not saved to any slot yet');
-    // Loaded content is uncommitted, so the patch is dirty — light SAVE.
-    if (typeof markPatchDirty === 'function') markPatchDirty();
-    appLog('Load complete: ' + name);
-    // A successful upload proves the MIDI stack is fine — auto-disable the
-    // Windows 11 warning (Gate and Wait self-heal).
-    if (typeof win11GateNoteUploadSuccess === 'function') win11GateNoteUploadSuccess();
+    await uploadTfxBodyToEditBuffer(body, name);
   } catch(e) {
     appLog('Load TFX error: ' + e.message);
     setStatus('Load TFX error: ' + e.message);
   }
 }
+
+// Upload a patch body into the rack's EDIT BUFFER (preview / audition — NOT
+// committed to any slot). Shared by Load TFX (dialog) and the drag-drop "Try"
+// choice. Returns true on success, false if the rack rejected the body.
+async function uploadTfxBodyToEditBuffer(body, name) {
+  setStatus('Loading ' + name + '...');
+  // 1. Bulk patch write — same 7-bit encoding we already trust for reading,
+  // confirmed as the correct INVERSE against real Avid traffic (encode7bit).
+  const rejectsBefore = (typeof rackBadPatchCount !== 'undefined') ? rackBadPatchCount : 0;
+  const encoded = encode7bit(body);
+  const hexBulk = 'F0 13 0B 0F 00 01 '
+    + encoded.map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ')
+    + ' F7';
+  sendHex(hexBulk);
+
+  // Detect a rejection (CMD 0x78). A single Load TFX rejection can lag the
+  // write by up to ~2s (observed on a broken Win11 stack), so wait a wide
+  // window before deciding. A good load produces no 0x78 and simply proceeds.
+  await sleep(2500);
+  if ((typeof rackBadPatchCount !== 'undefined') && rackBadPatchCount > rejectsBefore) {
+    setStatus('Load failed — the rack rejected "' + name + '" (bad patch data).');
+    appLog('Load TFX REJECTED by rack (CMD 0x78): "' + name + '" — patch NOT loaded.');
+    if (typeof showModalMessage === 'function') {
+      showModalMessage('Load Failed',
+        '<div style="color:var(--red);margin-bottom:8px;">The rack rejected &ldquo;' + name
+        + '&rdquo; — bad patch data. Nothing was loaded.</div>'
+        + '<div style="color:#b3b3b3;">Either this TFX is corrupt (it fails on any '
+        + 'system), or on Windows&nbsp;11 the new MIDI stack corrupted it in transit. '
+        + 'The rack still holds its previous patch, and any front-panel error clears as '
+        + 'soon as you change patches.</div>');
+    }
+    return false;
+  }
+
+  // 2. Name write — separate step, matching the confirmed capture
+  sendHex('F0 13 0B 0F 00 05 ' + asciiToHexBytes(name) + ' 00 F7');
+
+  currentPatchName = name;
+  const nameEl = document.getElementById('patch-name');
+  if (nameEl) { nameEl.textContent = name; nameEl.classList.add('live'); }
+
+  // Refresh amp/gate/amp-out readback now that new content is loaded.
+  await sleep(300);
+  requestPatchStateAfterNav();
+
+  setStatus('Loaded "' + name + '" — memory only, not saved to any slot yet');
+  if (typeof markPatchDirty === 'function') markPatchDirty();
+  appLog('Load complete: ' + name);
+  // A successful upload proves the MIDI stack is fine — self-heal the Win11 note.
+  if (typeof win11GateNoteUploadSuccess === 'function') win11GateNoteUploadSuccess();
+  return true;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DRAG-DROP a .tfx from the OS onto a USER jump-list slot (v1.2.0)
+// A quick visual "load a TFX here" — drop a single .tfx onto a user cell
+// (A1–Z4) and choose Write (commit to that slot) or Try (audition via the
+// edit buffer, needs a manual Save). Factory side is read-only. Reuses the
+// same TFX precheck as Load TFX (main.js load-tfx-bytes) and the proven
+// single-slot writer (importSlotEntry, bank-transfer.js). Drop LISTENERS are
+// wired on the cells in index.html buildNameTable; the 3-way modal is
+// #tfx-drop-modal. Single-slot only — this is NOT a bank manager.
+// ════════════════════════════════════════════════════════════════════
+var pendingTfxDrop = null;   // { body, name, filename, slot }
+
+function tfxEsc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+async function handleTfxDropOnCell(e, rawSlot) {
+  // Factory side is read-only — a note, not a silent vanish.
+  if (matrixSpace !== 0) { setStatus('Factory patches are read-only — drop onto a user slot (A1–Z4).'); return; }
+  if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
+  var files = e.dataTransfer && e.dataTransfer.files;
+  if (!files || files.length === 0) return;
+  if (files.length > 1) { setStatus('Drop one .tfx at a time.'); return; }
+  var file = files[0];
+  if (!/\.tfx$/i.test(file.name)) { setStatus('Not a .tfx file: ' + file.name); return; }
+
+  var slot = spaceRawToSlot(0, rawSlot);   // unified USER slot number
+  setStatus('Reading ' + file.name + '...');
+  var buf;
+  try { buf = new Uint8Array(await file.arrayBuffer()); }
+  catch (err) { setStatus('Could not read ' + file.name); return; }
+
+  // Same precheck as Load TFX (magic header + structural preflight, main.js).
+  var res = await window.electronAPI.loadTfxBytes({ bytes: Array.from(buf), filename: file.name });
+  if (!res || !res.ok) {
+    var msg = (res && res.error) ? res.error : 'Unknown error.';
+    if (typeof showModalMessage === 'function') {
+      showModalMessage('Not a valid TFX',
+        '<div style="color:var(--red);margin-bottom:8px;">This file was not loaded.</div>'
+        + '<div style="color:#b3b3b3;">' + tfxEsc(msg) + '</div>');
+    } else setStatus('Invalid TFX: ' + msg);
+    return;
+  }
+
+  var name = extractNameFromBody(new Uint8Array(res.body)) || res.filename.replace(/\.tfx$/i, '');
+  pendingTfxDrop = { body: res.body, name: name, filename: res.filename, slot: slot };
+  showTfxDropModal(slot, name, res.filename);
+}
+
+function showTfxDropModal(slot, name, filename) {
+  var label = (typeof slotLabel === 'function') ? slotLabel(slot) : String(slot);
+  var occupant = (patchNameCache[slot] !== undefined && patchNameCache[slot] !== '' && !/^-empty-|^-unused-/.test(patchNameCache[slot]))
+    ? patchNameCache[slot] : null;
+  var titleEl = document.getElementById('tfx-drop-title');
+  var bodyEl = document.getElementById('tfx-drop-body');
+  if (titleEl) titleEl.textContent = 'Drop TFX → ' + label;
+  if (bodyEl) {
+    bodyEl.innerHTML =
+      '<div style="margin-bottom:6px;"><b style="color:var(--accent);">' + tfxEsc(filename) + '</b>'
+      + ' &nbsp;·&nbsp; patch name &ldquo;' + tfxEsc(name) + '&rdquo;</div>'
+      + '<div>' + (occupant
+          ? 'Slot <b>' + label + '</b> currently holds &ldquo;' + tfxEsc(occupant) + '&rdquo;. '
+            + '<span style="color:var(--red);">Write to slot overwrites it.</span>'
+          : 'Slot <b>' + label + '</b> is empty.')
+      + '</div>'
+      + '<div style="margin-top:8px;color:#8a8a8a;">'
+      + '<b>Write to slot</b> saves it into ' + label + ' now. '
+      + '<b>Try</b> loads it to audition — you Save it yourself afterwards.</div>';
+  }
+  var m = document.getElementById('tfx-drop-modal');
+  if (m) m.classList.add('open');
+}
+
+function closeTfxDropModal() {
+  var m = document.getElementById('tfx-drop-modal');
+  if (m) m.classList.remove('open');
+  pendingTfxDrop = null;
+}
+
+async function tfxDropWrite() {
+  var d = pendingTfxDrop;
+  closeTfxDropModal();
+  if (!d) return;
+  if (typeof stopRollerForBankOp === 'function') stopRollerForBankOp('TFX drop write');
+  var label = slotLabel(d.slot);
+  setStatus('Writing "' + d.name + '" to ' + label + '...');
+  // Single-slot write via the proven importer: bulk write to the slot, watch
+  // for a reject, write the name (from inside the TFX), refresh the cell.
+  var outcome = await importSlotEntry({ bank: label, body: d.body, filename: d.filename });
+  if (outcome === 'ok') {
+    setStatus('Wrote "' + d.name + '" to ' + label + '.');
+    appLog('TFX drop: wrote "' + d.name + '" to ' + label);
+  } else if (outcome === 'rejected') {
+    if (typeof showModalMessage === 'function') {
+      showModalMessage('Write Rejected',
+        '<div style="color:var(--red);margin-bottom:8px;">The rack rejected &ldquo;' + tfxEsc(d.name)
+        + '&rdquo; — slot ' + label + ' was not changed.</div>'
+        + '<div style="color:#b3b3b3;">Either this TFX is corrupt, or on Windows&nbsp;11 the new MIDI '
+        + 'stack corrupted it in transit. Any front-panel error clears as soon as you change patches.</div>');
+    }
+    setStatus('Write rejected — ' + label + ' unchanged.');
+  } else {
+    setStatus('Write skipped — ' + label + '.');
+  }
+}
+
+async function tfxDropTry() {
+  var d = pendingTfxDrop;
+  closeTfxDropModal();
+  if (!d) return;
+  if (typeof stopRollerForBankOp === 'function') stopRollerForBankOp('TFX drop try');
+  await uploadTfxBodyToEditBuffer(d.body, d.name);
+}
+
+(function wireTfxDropButtons() {
+  var w = document.getElementById('tfx-drop-write');
+  var t = document.getElementById('tfx-drop-try');
+  var c = document.getElementById('tfx-drop-cancel');
+  if (w) w.addEventListener('click', tfxDropWrite);
+  if (t) t.addEventListener('click', tfxDropTry);
+  if (c) c.addEventListener('click', closeTfxDropModal);
+})();
 
 // targetSlot (2026-08-11, Save to a Different Slot): optional — defaults
 // to currentSlot, same as always, when omitted. Protocol is identical

@@ -607,6 +607,35 @@ ipcMain.handle('read-import-bank', function(e, sourcePath) {
   }
 });
 
+// Validate a raw .tfx buffer and return its body, or an error. Shared by the
+// Load TFX dialog and the drag-drop-to-slot feature so both run the IDENTICAL
+// precheck (magic header + structural preflight) before anything is sent to the
+// rack. `srcLabel` is just for the log line.
+function validateTfxRaw(raw, srcLabel) {
+  // Only files WE saved are supported for now — same 56-byte header, same magic
+  // string, every time (see save-tfx above). A file from a different source
+  // (Avid's own export, an old library file) may use a different header — not
+  // guessed at here, scoped out for a safer first version.
+  if (raw.length < 56) {
+    return { ok: false, error: 'File too short to be a valid TFX (need at least 56 bytes)' };
+  }
+  const magic = raw.toString('ascii', 8, 24);
+  if (magic.indexOf('DigiElv') !== 0) {
+    return { ok: false, error: 'This file doesn\'t look like one captured by this app (missing expected header). Loading files from other sources isn\'t supported yet.' };
+  }
+  // Same structural pre-flight the bank importer runs — catch a grossly corrupt
+  // patch (truncated / no amp block) before it is ever sent to the rack.
+  const bodyBuf = raw.slice(56);
+  const structProblem = tfxStructuralProblem(bodyBuf);
+  if (structProblem) {
+    logWrite('TFX refused (structural): ' + srcLabel + ' — ' + structProblem);
+    return { ok: false, error: 'This patch looks corrupt (' + structProblem + ') and would be rejected by the rack. Not sent.' };
+  }
+  const body = Array.from(bodyBuf);
+  logWrite('TFX validated: ' + srcLabel + ' (' + raw.length + ' bytes, body=' + body.length + ')');
+  return { ok: true, body: body };
+}
+
 ipcMain.handle('load-tfx-dialog', async function() {
   try {
     const win = BrowserWindow.getAllWindows()[0];
@@ -620,37 +649,26 @@ ipcMain.handle('load-tfx-dialog', async function() {
       return { ok: false, canceled: true };
     }
     const fpath = result.filePaths[0];
-    const raw = fs.readFileSync(fpath);
-
-    // Only files WE saved are supported for now — same 56-byte header,
-    // same magic string, every time (see save-tfx above). A file from
-    // a different source (Avid's own export, an old library file) may
-    // use a different header entirely — deliberately not guessed at
-    // here, scoped out for a safer first version.
-    if (raw.length < 56) {
-      return { ok: false, error: 'File too short to be a valid TFX (need at least 56 bytes)' };
-    }
-    const magic = raw.toString('ascii', 8, 24);
-    if (magic.indexOf('DigiElv') !== 0) {
-      return { ok: false, error: 'This file doesn\'t look like one captured by this app (missing expected header). Loading files from other sources isn\'t supported yet.' };
-    }
-
-    // Same structural pre-flight the bank importer runs — catch a grossly
-    // corrupt patch (truncated / no amp block) here too, before it is ever
-    // sent to the rack, rather than only discovering it from the rack's
-    // runtime "Bad Patch Data" rejection.
-    const bodyBuf = raw.slice(56);
-    const structProblem = tfxStructuralProblem(bodyBuf);
-    if (structProblem) {
-      logWrite('TFX load refused (structural): ' + fpath + ' — ' + structProblem);
-      return { ok: false, error: 'This patch looks corrupt (' + structProblem + ') and would be rejected by the rack. Not sent.' };
-    }
-
-    const body = Array.from(bodyBuf);
-    logWrite('TFX loaded for upload: ' + fpath + ' (' + raw.length + ' bytes, body=' + body.length + ')');
-    return { ok: true, path: fpath, filename: path.basename(fpath), body: body };
+    const v = validateTfxRaw(fs.readFileSync(fpath), fpath);
+    if (!v.ok) return v;
+    return { ok: true, path: fpath, filename: path.basename(fpath), body: v.body };
   } catch(e) {
     logWrite('TFX load error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
+// Drag-drop-to-slot: the renderer reads the dropped file's bytes (no path
+// dependency) and hands them here with the filename. Same validation as the
+// dialog path — returns the patch body on success.
+ipcMain.handle('load-tfx-bytes', async function(_e, arg) {
+  try {
+    if (!arg || !arg.bytes) return { ok: false, error: 'No file data received.' };
+    const v = validateTfxRaw(Buffer.from(arg.bytes), arg.filename || '(dropped file)');
+    if (!v.ok) return v;
+    return { ok: true, filename: arg.filename || 'dropped.tfx', body: v.body };
+  } catch(e) {
+    logWrite('TFX drop-load error: ' + e.message);
     return { ok: false, error: e.message };
   }
 });

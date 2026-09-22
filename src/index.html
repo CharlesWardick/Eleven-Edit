@@ -1414,6 +1414,19 @@
     align-items: center; justify-content: center;
   }
   #import-confirm-modal.open { display: flex; }
+  /* Drag-drop TFX→slot choice — same shell, but ABOVE the jump list (z 600). */
+  #tfx-drop-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65); z-index: 620;
+    align-items: center; justify-content: center;
+  }
+  #tfx-drop-modal.open { display: flex; }
+  #tfx-drop-modal .rack-save-title { font-size: 20px; }
+  /* Highlight a user cell while a file is dragged over it. */
+  .matrix-name-cell.drop-hot {
+    border-color: var(--green) !important;
+    box-shadow: inset 0 0 0 2px var(--green); background: #0a2a0a; color: var(--green);
+  }
   #audio-device-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 540; align-items: center; justify-content: center; }
   #audio-device-modal.open { display: flex; }
   #audio-intent-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 540; align-items: center; justify-content: center; }
@@ -2653,6 +2666,21 @@
   </div>
 </div>
 
+<!-- ══ DRAG-DROP TFX → SLOT choice (v1.2.0) ══ Shown when a .tfx is dropped
+     onto a user jump-list cell. Write = commit to that slot; Try = audition
+     via the edit buffer (manual Save after). See capture-scan.js. -->
+<div id="tfx-drop-modal">
+  <div class="rack-save-box" style="max-width:560px;width:92vw;">
+    <div class="rack-save-title" id="tfx-drop-title">Drop TFX</div>
+    <div id="tfx-drop-body" style="font-size:14px;color:#b3b3b3;line-height:1.6;margin:8px 0 4px;"></div>
+    <div class="rack-save-btns">
+      <button id="tfx-drop-cancel">Cancel</button>
+      <button id="tfx-drop-try">Try (audition)</button>
+      <button id="tfx-drop-write" class="rack-save-ok-btn">Write to slot</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ WINDOWS 11 UPLOAD PRE-GATE (2026-09-06, "Gate and Wait") ══ -->
 <div id="win11-gate-modal">
   <div class="rack-save-box" style="max-width:780px;width:92vw;">
@@ -3507,12 +3535,33 @@ window.addEventListener('load', function() {
         document.getElementById('slot-matrix').classList.remove('open');
         if (typeof goToSlot === 'function') goToSlot(unified);
       }; })(rawSlot));
+      // Drag-drop a .tfx onto a USER cell (v1.2.0) — see capture-scan.js.
+      // Highlight only user cells (matrixSpace 0); factory drops fall through
+      // to a read-only note. preventDefault on dragover makes the cell a valid
+      // drop target so the drop fires here (not the window navigate guard).
+      td.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        if (matrixSpace === 0) this.classList.add('drop-hot');
+      });
+      td.addEventListener('dragleave', function() { this.classList.remove('drop-hot'); });
+      td.addEventListener('drop', (function(raw) { return function(e) {
+        e.preventDefault(); e.stopPropagation();
+        this.classList.remove('drop-hot');
+        if (typeof handleTfxDropOnCell === 'function') handleTfxDropOnCell(e, raw);
+      }; })(rawSlot));
       row.appendChild(td);
     }
     tbody.appendChild(row);
   }
   table.appendChild(tbody);
 })();
+
+// Global guard: a file dropped ANYWHERE other than a handled jump-list cell
+// would otherwise make Chromium navigate the window to that file (blanking the
+// app). Swallow stray drag/drop at the window level; the cell handlers above
+// call stopPropagation so real TFX-onto-slot drops still work. (v1.2.0)
+window.addEventListener('dragover', function(e) { e.preventDefault(); });
+window.addEventListener('drop', function(e) { e.preventDefault(); });
 
 // Update matrix current-slot highlight whenever nav changes. A cell only
 // rings if it's showing the SAME space as currentSlot — e.g. browsing
