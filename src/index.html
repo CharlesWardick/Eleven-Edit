@@ -72,10 +72,17 @@
   #topbar {
     background: #0d0d0d; border-bottom: 2px solid var(--accent-dim);
     display: flex; align-items: center; padding: 0 16px; gap: 10px;
-    height: 68px; flex-shrink: 0; overflow: hidden;
+    height: 82px; flex-shrink: 0; overflow: hidden;   /* 68->82 (2026-09-22): give the header room to breathe */
   }
-  .app-title  { color: var(--accent); font-size: 18px; font-weight: bold; letter-spacing: 1px; white-space: nowrap; }
-  .app-sub    { color: var(--muted);  font-size: 11px; letter-spacing: 0.5px; white-space: nowrap; }
+  /* Brand block (2026-09-22) — social-card look: ELEVEN RACK eyebrow + orange
+     dash, two-tone "Eleven Edit" wordmark (Eleven white / Edit orange). */
+  .brand      { display: flex; flex-direction: column; justify-content: center; flex-shrink: 0; }
+  .eyebrow    { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 2px;
+                color: var(--muted); text-transform: uppercase; font-weight: 600; margin-bottom: 3px; }
+  .eyebrow .dash { width: 18px; height: 3px; border-radius: 2px; background: var(--accent); display: inline-block; }
+  .wordmark   { font-weight: 800; letter-spacing: 0.5px; line-height: 1; color: #fff; font-size: 22px; white-space: nowrap; }
+  .wordmark .edit { color: var(--accent); }
+  .app-sub    { color: var(--muted);  font-size: 11px; letter-spacing: 0.5px; white-space: nowrap; margin-top: 3px; }
   .tdiv       { width: 1px; height: 36px; background: var(--border-dim); flex-shrink: 0; }
   .tb-label   { font-size: 11px; color: var(--muted); white-space: nowrap; }
   .flex-row   { display: flex; align-items: center; gap: 8px; }
@@ -1333,7 +1340,9 @@
   #scan-progress-text { font-size: 13px; color: var(--text); font-family: 'Consolas', monospace; }
   #scan-progress-track { background: var(--raised); border: 1px solid var(--border2); border-radius: 4px; height: 10px; overflow: hidden; }
   #scan-progress-bar { background: var(--accent-dim); height: 100%; width: 0%; transition: width 0.15s linear; }
-  .about-version { font-size: 13px; color: var(--text-dark); letter-spacing: 1px; margin-top: -8px; }
+  .about-version { font-size: 13px; color: var(--text-dark); letter-spacing: 1px; margin-top: 6px; }
+  .about-tagline { font-size: 13px; color: #b3b3b3; margin-top: 10px; line-height: 1.5; }
+  .about-disclaimer { font-size: 11px; color: #666; margin-top: 8px; line-height: 1.5; }
   .about-section h3 { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
   .about-section p  { color: var(--text-dim); font-size: 14px; line-height: 1.7; }
   .about-section a  { color: var(--accent-dim); text-decoration: none; }
@@ -1491,8 +1500,9 @@
 
 <!-- ══ TOP BAR ══ -->
 <div id="topbar">
-  <div>
-    <div class="app-title">Eleven Edit</div>
+  <div class="brand">
+    <div class="eyebrow"><span class="dash"></span>ELEVEN RACK</div>
+    <div class="wordmark">Eleven <span class="edit">Edit</span></div>
     <div class="app-sub">Patch AUDITION &amp; EDITOR</div>
   </div>
   <div class="tdiv"></div>
@@ -2867,8 +2877,12 @@
 <!-- ══ ABOUT ══ -->
 <div id="about-overlay">
   <div id="about-box">
-    <h2>Eleven Edit</h2>
+    <div class="eyebrow" style="margin-bottom:8px;"><span class="dash"></span>ELEVEN RACK</div>
+    <div class="wordmark" style="font-size:30px;">Eleven <span class="edit">Edit</span></div>
     <div class="about-version" id="about-version">Version —</div>
+    <div class="about-tagline">A modern patch editor for the Avid Eleven Rack — Windows 10 &amp; 11.</div>
+    <div class="about-disclaimer">Independent, unofficial — not affiliated with or endorsed by Avid.
+      Avid and Eleven Rack are trademarks of their respective owners.</div>
     <div class="about-section">
       <h3>Design &amp; Concept</h3>
       <p>Charles Wardick — <a href="mailto:charles.wardick@gmail.com">charles.wardick@gmail.com</a><br>
