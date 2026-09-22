@@ -411,7 +411,7 @@ function showTfxDropModal(slot, name, filename) {
       + '</div>'
       + '<div style="margin-top:8px;color:#8a8a8a;">'
       + '<b>Write to slot</b> saves it into ' + label + ' now. '
-      + '<b>Try</b> loads it to audition — you Save it yourself afterwards.</div>';
+      + '<b>Try</b> loads it at ' + label + ' to audition — the lit SAVE commits it there.</div>';
   }
   var m = document.getElementById('tfx-drop-modal');
   if (m) m.classList.add('open');
@@ -455,6 +455,10 @@ async function tfxDropTry() {
   closeTfxDropModal();
   if (!d) return;
   if (typeof stopRollerForBankOp === 'function') stopRollerForBankOp('TFX drop try');
+  // Jump to the DROPPED slot first (recall it, set it current), then load the
+  // dropped patch into the edit buffer to audition — so the lit SAVE afterwards
+  // commits to that slot, not wherever the user happened to be. (2026-09-22 fix)
+  if (typeof goToSlot === 'function') { goToSlot(d.slot); await sleep(350); }
   await uploadTfxBodyToEditBuffer(d.body, d.name);
 }
 
