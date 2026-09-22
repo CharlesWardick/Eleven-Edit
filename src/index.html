@@ -1148,7 +1148,13 @@
        this overlay opens ON TOP OF the Save modal, not instead of it, so it
        needs to actually win that stack. */
     z-index: 600; box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-    width: 640px; max-width: 92vw; max-height: 70vh;
+    width: 640px; max-width: 92vw;
+    /* Fill the available window height (top offset + a small bottom gap),
+       not a fixed 70vh — a 70vh cap was shorter than the real window on many
+       sizes, forcing a scrollbar even when all 26 rows would fit. Now the
+       #matrix-scroll bar only appears when the rows genuinely overflow the
+       window (small windows / larger font). 2026-09-22, Charlie's ask. */
+    max-height: calc(100vh - 62px - 14px);
   }
   #slot-matrix.open { display: flex; }
   .matrix-header {
@@ -1187,16 +1193,16 @@
   #matrix-name-table col.row-label-col { width: 28px; }
   #matrix-name-table th {
     position: sticky; top: 0; background: #1a1a1a; color: var(--muted);
-    font-size: 11px; font-weight: normal; padding: 3px 8px; text-align: left;
+    font-size: 12px; font-weight: normal; padding: 3px 8px; text-align: left;
   }
   #matrix-name-table td.row-label {
-    color: var(--accent-dim); font-size: 11px; font-weight: bold;
+    color: var(--accent-dim); font-size: 12px; font-weight: bold;
     font-family: 'Consolas', monospace; padding: 2px 8px 2px 2px; text-align: right;
     vertical-align: middle;
   }
   #matrix-name-table td.matrix-name-cell {
     background: #222; border: 1px solid #383838; cursor: pointer;
-    padding: 2px 8px; font-size: 12px; color: var(--text);
+    padding: 2px 8px; font-size: 13px; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     max-width: 1px; /* forces the cell to respect its column width, not the text */
   }
