@@ -1407,10 +1407,13 @@
     align-items: center; justify-content: center;
   }
   #export-dirty-modal.open { display: flex; }
-  /* Import Rigs confirm — same shell again */
+  /* Import Rigs confirm — same shell again. z-index 630 so it sits ABOVE the
+     jump list (600) and the TFX-drop choice (620): showModalMessage uses this
+     shell for the drag-drop precheck error and Write-reject notices, which are
+     raised while the jump list is still open. */
   #import-confirm-modal {
     display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.65); z-index: 500;
+    background: rgba(0,0,0,0.65); z-index: 630;
     align-items: center; justify-content: center;
   }
   #import-confirm-modal.open { display: flex; }
