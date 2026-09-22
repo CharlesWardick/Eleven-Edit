@@ -436,6 +436,8 @@ async function tfxDropWrite() {
   if (outcome === 'ok') {
     setStatus('Wrote "' + d.name + '" to ' + label + '.');
     appLog('TFX drop: wrote "' + d.name + '" to ' + label);
+    // Navigate to the slot we just wrote so the user lands on the result.
+    if (typeof goToSlot === 'function') goToSlot(d.slot);
   } else if (outcome === 'rejected') {
     if (typeof showModalMessage === 'function') {
       showModalMessage('Write Rejected',
