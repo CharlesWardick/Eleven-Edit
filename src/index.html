@@ -328,45 +328,29 @@
      the last block, preceded by its own connector line (#mono-connector).
      margin-left:auto lives on that connector's wrapper so the whole
      end-group (connector + badge + tempo) parks at the right. */
+  /* Stereo/Mono restyled to a compact "S | M" physical button (build 14, Charlie).
+     One raised tile (same family as the chain pills); the ACTIVE letter brightens
+     — S green = stereo, M amber = mono — and the other stays dim, with no full
+     highlight fill. The #mono-connector line beside it still doubles the cue
+     (two lines = stereo, one = mono). Keeps the shared bottom-align baseline
+     (margin-top:auto + the Charlie-confirmed translateY(12px)). */
   #mono-indicator {
-    font-size: 13px; font-weight: bold; letter-spacing: 1px;
-    padding: 5px 8px; border-radius: 3px; align-self: center;
-    border: 1px solid; white-space: nowrap; flex-shrink: 0;
-    cursor: pointer;
-    /* 7/28: pins to the bottom of its wrapping .chain-slot, same mechanism
-       as .chain-name — see #chainstrip's comment.
-       7/28, later same day: still felt "too high" at that flush-bottom
-       position. Rather than guess another number, rendered four concrete
-       options (0/6/12/18px further down) and had Charlie pick directly off
-       the pictures — he chose 12px, confirming it matched how the row
-       looked for years before the 7/28 chain-row graphics rework. Verified
-       pixel-for-pixel against the approved render before shipping (Session
-       Log has the full story, including an earlier wrong attempt that
-       swapped the hidden caret's markup order instead — reverted, this
-       plain translateY on the ORIGINAL markup is the whole fix). Treat
-       12px as Charlie's confirmed answer, not a placeholder. */
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    font-size: 13px; font-weight: bold; letter-spacing: 0.5px;
+    padding: 5px 10px; border-radius: 6px; align-self: center;
+    white-space: nowrap; flex-shrink: 0; cursor: pointer;
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    border: 1px solid #0c0f14;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     margin-top: auto;
     transform: translateY(12px);
-    /* Fixed width so the badge does not resize between the 6-letter STEREO
-       and 4-letter MONO. Sized for STEREO and centred.
-       7/28: widened 58px -> 70px to match #chain-input-wrap's width — Charlie
-       noted it looked smaller than its "bookend" counterpart at the other
-       end of the row. Font-size/padding bumped 11px/3px -> 13px/5px same
-       day to match .chain-name's real weight — the two were already
-       bottom-aligned correctly, but the smaller type read as "too high"
-       (lighter, less visual weight) next to the taller pedal-thumb labels. */
-    width: 70px; text-align: center; box-sizing: border-box;
-    /* letter-spacing adds a phantom gap after the final letter, pulling the
-       text optically left; asymmetric padding puts the space back on the
-       right so STEREO/MONO look centred. */
-    padding-left: 6px; padding-right: 10px;
+    width: 56px; text-align: center; box-sizing: border-box;
   }
-  #mono-indicator.mono-active   { color: #e0a020; border-color: #a07010; background: #2a1f00;
-    /* MONO is shorter, so nudge its text right to sit under STEREO's optically */
-    padding-left: 9px; padding-right: 7px; }
-  #mono-indicator.mono-active:hover { background: #3a2f00; }
-  #mono-indicator.mono-inactive { color: #70c070; border-color: #3a7a3a; background: #1a2a1a; }
-  #mono-indicator.mono-inactive:hover { background: #223522; }
+  #mono-indicator:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+  #mono-indicator .sm-div { color: #4a4a4a; font-weight: normal; }
+  #mono-indicator .sm-s, #mono-indicator .sm-m { color: #6a6a6a; transition: color 0.12s; }
+  #mono-indicator.mono-inactive .sm-s { color: #6fe08a; text-shadow: 0 0 8px rgba(74,222,128,.35); }
+  #mono-indicator.mono-active   .sm-m { color: #e0a020; text-shadow: 0 0 8px rgba(224,160,32,.35); }
 
   /* Connector INTO the badge — same stacked-line style as a between-block
      .chain-arr, but its line count tracks the BADGE state, not a block's
@@ -389,22 +373,24 @@
      #chain-input-connector is always a single line (mono) — it represents
      one signal entering the chain, never two, regardless of the chain's own
      stereo/mono state further down the line. */
-  #chain-input-wrap {
-    font-size: 13px; font-weight: bold; letter-spacing: 1px;
-    padding: 5px 8px; border-radius: 3px; align-self: center;
-    border: 1px solid var(--green); white-space: nowrap; flex-shrink: 0;
-    background: #0a2a0a; color: var(--green);
-    /* 7/28: pins to the bottom of its wrapping .chain-slot — see
-       #mono-indicator / #chainstrip's comments for the full reasoning
-       (font-size/padding bumped 11px/3px -> 13px/5px same day, to match).
-       Same translateY(12px) nudge as #mono-indicator, for the same reason —
-       keep these two in sync if the value ever changes. */
-    margin-top: auto;
-    transform: translateY(12px);
-    /* Fixed width sized for the longest label ("LINE L+R", v1.2.0) so the row
-       doesn't shift as the input changes. */
-    width: 92px; text-align: center; box-sizing: border-box;
+  /* Input selector cell (build 14): an "INPUT" tag fills the thumbnail slot
+     (mockup B2) with the dropdown bottom-aligned under it on the same baseline
+     as every other block's label (margin-top:auto + the shared translateY(12px)). */
+  .chain-input-tag {
+    height: 64px; margin-bottom: 4px; flex-shrink: 0; align-self: center;
+    display: flex; align-items: flex-end; justify-content: center; padding-bottom: 2px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em; color: var(--label);
+    pointer-events: none;
   }
+  #chain-input-select {
+    margin-top: auto; transform: translateY(12px);
+    width: 112px; box-sizing: border-box; flex-shrink: 0; align-self: center;
+    background: #0f0f0f; color: var(--green);
+    border: 1px solid #3a7a3a; border-radius: 4px;
+    font-size: 12px; font-weight: bold; padding: 4px 6px; cursor: pointer;
+  }
+  #chain-input-select:hover { border-color: var(--green); }
+  #chain-input-select:focus { outline: none; border-color: var(--green); }
   /* 7/28 history: an earlier pass wrapped this and #mono-indicator in a
      .chain-label-group + spacer to bottom-align them with the taller
      pedal-thumb slots — reverted same day, Charlie: they "lost their
@@ -660,37 +646,32 @@
      placeholder once chain-graphics.js resolves a src for that block's
      model — see ui.js applyChainOrder and chain-graphics.js getChainThumbSrc. */
   .chain-thumb-img { pointer-events: none; }
+  /* Chain-row pills restyled into PHYSICAL PUSH-BUTTONS (build 14, Charlie) —
+     raised dark tiles with an inset top highlight, an inner bottom shadow and a
+     drop shadow, that visually depress on :active. State semantics unchanged:
+     ON = green text + a soft green ring; OFF = recessed, muted, strikethrough.
+     Geometry (padding baseline, margin-top:auto, translateY(12px)) is kept from
+     the 7/28 alignment work so every label still lands on the shared baseline;
+     horizontal padding trimmed 13px -> 11px to keep the row from over-widening. */
   .chain-name {
-    background: #2a2a2a; border: 1px solid #666; color: var(--muted);
-    /* 2026-08-27, Charlie's call: carets removed as a distinct click target
-       (thumb-click has done that job since 8/2/2026 — see the ▼-forwarding
-       comment below), so the label is now a standalone pill, not a top cap
-       glued to a caret below it. Full radius, real bottom border. */
-    border-radius: 4px;
-    padding: 5px 13px; font-size: 13px; font-weight: bold;
-    cursor: pointer; white-space: nowrap; text-align: center; transition: all 0.15s;
-    /* 7/28: pins the label+caret group to the BOTTOM of the now fixed-height
-       .chain-slot — the gap above (between thumb and label) is what
-       absorbs the slot's height, not the thumb's own position. */
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    border: 1px solid #0c0f14; color: var(--muted);
+    border-radius: 6px;
+    padding: 5px 11px; font-size: 13px; font-weight: bold;
+    cursor: pointer; white-space: nowrap; text-align: center; transition: color 0.12s, box-shadow 0.12s;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     margin-top: auto;
-    /* 2026-08-27: .chain-open (still real in the DOM, still the click
-       target thumb-clicks forward to and what the selection ring's
-       MutationObserver watches — see below) is now visibility:hidden, not
-       removed, so it keeps reserving its real height and nothing reflows.
-       That alone would leave .chain-name sitting exactly where it always
-       has, flush against the now-invisible caret — the SAME translateY(12px)
-       nudge GUITAR/STEREO/TEMPO already use for this exact reason (their
-       hidden-caret position read "too high" until Charlie picked this
-       value off four rendered options, 7/28 — see #mono-indicator's CSS
-       comment) is applied here too, so every label on the row lands on the
-       same visual baseline instead of three different hand-tuned ones. */
     transform: translateY(12px);
   }
-  .chain-name.slot-on  { background: #1a2a1a; border-color: #3a7a3a; color: #70c070; }
-  .chain-name.slot-off { background: #241414; border-color: #5a2020; color: #7a3a3a; text-decoration: line-through; }
-  .chain-name.slot-on:hover  { border-color: var(--green); }
-  .chain-name.slot-off:hover { border-color: var(--red); }
-  .chain-name.slot-unknown   { background: #2a2a2a; border-color: #666; color: var(--muted); }
+  .chain-name:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+  .chain-name.slot-on  { color: #6fe08a;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .chain-name.slot-off { color: #8a5050; text-decoration: line-through;
+    background: linear-gradient(180deg, #242830 0%, #191c22 60%, #141014 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05), inset 0 -3px 7px rgba(0,0,0,.5); }
+  .chain-name.slot-on:hover  { color: #8ff0a4; }
+  .chain-name.slot-off:hover { color: #b56a6a; }
+  .chain-name.slot-unknown   { color: var(--muted); }
 
   /* 2026-08-27, Charlie's call: carets removed VISUALLY only — every
      .chain-open stays in the DOM at full size (real height, not
@@ -739,25 +720,28 @@
      that keeps its own state colour, with a thin divider between them. Same
      bottom-anchor + translateY baseline as .chain-name so it lines up with
      every other pill in the now-uniform single row. */
+  /* AMP/CAB split pill — same physical-button housing as .chain-name (build 14),
+     one raised tile with two independently-lit halves and a divider between. */
   .chain-ampcab-pill {
     margin-top: auto; transform: translateY(12px);
     display: flex; align-items: stretch;
-    border: 1px solid #666; border-radius: 4px; overflow: hidden;
-    background: #2a2a2a;
+    border: 1px solid #0c0f14; border-radius: 6px; overflow: hidden;
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
   }
   .chain-half {
     flex: 1; padding: 5px 9px; font-size: 13px; font-weight: bold;
     text-align: center; white-space: nowrap; cursor: default;
-    color: var(--muted); transition: all 0.15s;
+    color: var(--muted); transition: color 0.12s, background 0.12s;
   }
-  .chain-half + .chain-half { border-left: 1px solid #000; }   /* divider */
+  .chain-half + .chain-half { border-left: 1px solid #0c0f14; box-shadow: inset 1px 0 0 rgba(255,255,255,.05); }   /* divider */
   .chain-half.slot-on,
   .chain-half.slot-off { cursor: pointer; }
-  .chain-half.slot-on  { background: #1a2a1a; color: #70c070; }
-  .chain-half.slot-off { background: #241414; color: #7a3a3a; text-decoration: line-through; }
-  .chain-half.slot-on:hover  { color: #8ad08a; }
-  .chain-half.slot-off:hover { color: #b05656; }
-  .chain-half.slot-unknown   { background: #2a2a2a; color: var(--muted); }
+  .chain-half.slot-on  { color: #6fe08a; background: rgba(74,222,128,.10); }
+  .chain-half.slot-off { color: #8a5050; background: rgba(0,0,0,.25); text-decoration: line-through; }
+  .chain-half.slot-on:hover  { color: #8ff0a4; }
+  .chain-half.slot-off:hover { color: #b56a6a; }
+  .chain-half.slot-unknown   { color: var(--muted); background: transparent; }
 
   /* ══ MAIN AREA ══ */
   #main { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -1552,37 +1536,10 @@
          Guitar 00 · Mic 02 · Re-Amp 01 · Line L/R/L+R 03/04/05 · Dig L/R/L+R 06/07/08.
          Global/not-per-patch — no dirty latch. Top-aligned as a group so the
          INPUT/LINE/DIGITAL tags share a plane while TUNER/WINDOW stay centered. -->
-    <div id="input-group" style="display:flex; align-items:flex-start; gap:12px; align-self:flex-start; padding-top:6px;">
-      <div class="in-col">
-        <div class="in-tag">INPUT</div>
-        <div class="in-single">
-          <button class="input-btn active" id="btn-input-guitar" data-input="0x00">GUITAR</button>
-          <button class="input-btn"        id="btn-input-mic"    data-input="0x02">MIC</button>
-          <button class="input-btn"        id="btn-input-reamp"  data-input="0x01">RE-AMP</button>
-        </div>
-      </div>
-      <div class="in-col">
-        <div class="in-tag">LINE</div>
-        <div class="pill">
-          <div class="pill-head" id="head-line">—</div>
-          <div class="pill-row">
-            <button class="seg" id="seg-line-l" data-grp="line" data-ch="L">L</button>
-            <button class="seg" id="seg-line-r" data-grp="line" data-ch="R">R</button>
-          </div>
-        </div>
-      </div>
-      <div class="in-col">
-        <div class="in-tag">DIGITAL</div>
-        <div class="pill">
-          <div class="pill-head" id="head-dig">—</div>
-          <div class="pill-row">
-            <button class="seg" id="seg-dig-l" data-grp="dig" data-ch="L">L</button>
-            <button class="seg" id="seg-dig-r" data-grp="dig" data-ch="R">R</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="tdiv"></div>
+    <!-- Input selector moved into the chain row (build 14) as a single dropdown
+         of all 9 inputs — see #chain-input-select in the chain strip. The old
+         header GUITAR/MIC/RE-AMP buttons + LINE/DIGITAL L/R pills were removed so
+         this header area reads clean. Send path (CMD 0x3D pair) is unchanged. -->
 
     <!-- Tuner -->
     <button id="btn-tuner" title="Toggle the Eleven Rack's built-in tuner">TUNER</button>
@@ -1613,8 +1570,26 @@
        with a REAL .chain-open caret, hidden via visibility — reusing the
        actual element guarantees the same height as a real caret by
        construction, instead of guessing a spacer number a third time. -->
+  <!-- Input selector (build 14): the 9 rack inputs as ONE dropdown at the start
+       of the chain, replacing the old read-only clone AND the removed header
+       buttons/pills. "INPUT" tag sits in the thumbnail slot above it (mockup B2).
+       Input is GLOBAL (not per-patch); the CMD 0x3D pair send path is unchanged.
+       Option values are the raw 0x3D bytes (decimal); -1 = unknown until the
+       rack answers the connect-time query. -->
   <div class="chain-slot">
-    <div id="chain-input-wrap" title="Active input (mirrors the INPUT buttons above) — read-only">GUITAR</div>
+    <div class="chain-input-tag" aria-hidden="true">INPUT</div>
+    <select id="chain-input-select" title="Rack input (global — not saved per patch)">
+      <option value="-1">—</option>
+      <option value="0">Guitar</option>
+      <option value="1">Re-Amp</option>
+      <option value="2">Mic</option>
+      <option value="3">Line L</option>
+      <option value="4">Line R</option>
+      <option value="5">Line L+R</option>
+      <option value="6">Digital L</option>
+      <option value="7">Digital R</option>
+      <option value="8">Digital L+R</option>
+    </select>
     <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
   </div>
   <div id="chain-input-connector" class="chain-arr" title="Input"><i></i></div>
@@ -1713,7 +1688,7 @@
        same baseline as every other block's label, instead of floating at
        true vertical center of the now much-taller row. -->
   <div class="chain-slot">
-    <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono">STEREO</div>
+    <div id="mono-indicator" class="mono-inactive" title="Click to toggle Stereo/Mono"><span class="sm-s">S</span><span class="sm-div">|</span><span class="sm-m">M</span></div>
     <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
   </div>
 
@@ -3078,7 +3053,11 @@ function updateChainSelectionRing() {
     slot = openBtn.closest('.chain-slot');
   } else {
     var ampLabel = document.getElementById('chain-amp');
-    slot = ampLabel ? ampLabel.closest('.chain-slot-stack') : null;
+    // AMP/CAB migrated from a .chain-slot-stack to a single-height .chain-slot
+    // (split pill) on 2026-09-16 — the old .chain-slot-stack selector then
+    // matched nothing, so AMP/CAB's thumb never got the selection ring even
+    // as the default view. Match its real wrapper (Charlie, build 14).
+    slot = ampLabel ? ampLabel.closest('.chain-slot') : null;
   }
   var thumb = slot ? slot.querySelector('.chain-thumb') : null;
   if (thumb) thumb.classList.add('chain-selected');

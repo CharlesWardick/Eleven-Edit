@@ -253,25 +253,20 @@ async function init() {
     sendParamWrite(0x05, val);
   });
 
-  // ── Input selector (v1.2.0) ── GUITAR/MIC/RE-AMP are single-value; LINE/DIGITAL
-  // are 2-button pills (L / R / both = L+R). Both paths send the CMD 0x3D pair via
-  // sendInputSelectorSet (transport.js) and light optimistically; the rack's own
+  // ── Input selector (build 14) ── the 9 rack inputs as one dropdown in the
+  // chain row (option value = raw 0x3D byte). Sends the CMD 0x3D pair via
+  // sendInputSelectorSet (transport.js) and lights optimistically; the rack's own
   // 02 3D echo re-affirms through handleInputSelectorBroadcast. Input is GLOBAL,
   // not per-patch, so nothing marks the patch dirty.
-  document.querySelectorAll('#input-group .input-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const val = parseInt(this.dataset.input, 16);
+  const inputSel = document.getElementById('chain-input-select');
+  if (inputSel) {
+    inputSel.addEventListener('change', function() {
+      const val = parseInt(this.value, 10);
+      if (val < 0) return;
       sendInputSelectorSet(val);
       setInputButtons(val);
     });
-  });
-  document.querySelectorAll('#input-group .seg').forEach(seg => {
-    seg.addEventListener('click', function() {
-      const val = nextInputPillValue(this.dataset.grp, this.dataset.ch);
-      sendInputSelectorSet(val);
-      setInputButtons(val);
-    });
-  });
+  }
 
   // Input is GLOBAL and the rack answers a 01 3D query on connect (confirmed
   // 2026-08-30 against Avid's own startup captures), so we no longer force
