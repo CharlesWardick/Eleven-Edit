@@ -204,9 +204,10 @@
   /* Physical push-buttons (build 21) — BRIGHT / TREMOLO amp toggles; off = neutral,
      on = green text + green ring (same family as the chain-row buttons). */
   .amp-toggle-btn {
+    position: relative;
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: #999;
-    border-radius: 6px; padding: 4px 13px; font-size: 12px; font-weight: bold;
+    border-radius: 6px; padding: 4px 13px 8px; font-size: 12px; font-weight: bold;
     cursor: pointer; white-space: nowrap;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
@@ -1128,7 +1129,7 @@
     box-shadow: inset 0 0 1px rgba(0,0,0,.9); pointer-events: none;
     transition: background 0.12s, box-shadow 0.12s;
   }
-  .as-toggle.on .ind-bar, .tog-btn.on .ind-bar {
+  .as-toggle.on .ind-bar, .tog-btn.on .ind-bar, .amp-toggle-btn.on .ind-bar {
     background: linear-gradient(90deg, #1f8f3c, #6fe08a 50%, #1f8f3c);
     box-shadow: 0 0 7px rgba(48,192,80,.85), 0 0 2px rgba(140,255,170,.7);
   }
@@ -2220,8 +2221,8 @@
                knobs. Each item is shown only when the current amp has it, so
                a 3-knob Tweed shows none of them and a DC shows all three. -->
           <div id="amp-toggles-row" class="amp-tog-stack" style="display:none;">
-            <button id="btn-bright" class="amp-toggle-btn" style="display:none;">BRIGHT</button>
-            <button id="btn-trem"   class="amp-toggle-btn" style="display:none;">TREMOLO</button>
+            <button id="btn-bright" class="amp-toggle-btn" style="display:none;"><span class="amp-tog-lbl">BRIGHT</span><span class="ind-bar"></span></button>
+            <button id="btn-trem"   class="amp-toggle-btn" style="display:none;">TREMOLO<span class="ind-bar"></span></button>
             <div id="sync-group" style="display:none;">
               <div class="stack-label">Sync</div>
               <select id="sync-select"

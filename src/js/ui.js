@@ -975,7 +975,9 @@ function updateBrightVisibility(ampKey) {
     // toggle MOD while Crunch and Clean call it Bright.
     if (hasBright) {
       const bk = ap.knobs.find(k => k.lo === 0x0E);
-      btn.textContent = (bk && bk.label ? bk.label : 'Bright').toUpperCase();
+      // Set the label span only, so the indicator bar span survives.
+      const lbl = btn.querySelector('.amp-tog-lbl');
+      if (lbl) lbl.textContent = (bk && bk.label ? bk.label : 'Bright').toUpperCase();
     }
   }
   const tbtn = document.getElementById('btn-trem');
