@@ -277,11 +277,16 @@
 
   /* Window +/- */
   .size-btns { display: flex; gap: 3px; }
+  /* Physical push-buttons (build 18) — WINDOW +/- in the shared raised-tile family. */
   .size-btn {
-    background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--muted);
-    border-radius: 3px; padding: 2px 8px; font-size: 14px; font-weight: bold; cursor: pointer; line-height: 1;
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    border: 1px solid #0c0f14; color: var(--muted);
+    border-radius: 6px; padding: 2px 8px; font-size: 14px; font-weight: bold; cursor: pointer; line-height: 1;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
+    transition: color 0.12s, box-shadow 0.12s;
   }
-  .size-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .size-btn:hover { color: var(--accent); }
+  .size-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
 
   /* ══ CHAIN STRIP ══ */
   #chainstrip {
@@ -884,15 +889,22 @@
      Amber/lit when active, dim outline when off, "?" appended while state
      is unknown (2026-08-30). */
   .globals-stack { display: flex; flex-direction: column; gap: 8px; }
+  /* Physical push-buttons (build 18) — GLOBALS toggles (Cab Always Off / Cabinet
+     Resonance); off = neutral, on = green ring. */
   .glob-tog {
     display: flex; align-items: center; gap: 8px; min-width: 150px;
-    padding: 4px 13px; background: #1a1a1a; border: 1px solid #666;
-    border-radius: 4px; color: #999; font-size: 12px; font-weight: bold;
+    padding: 4px 13px; background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    border: 1px solid #0c0f14;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
+    border-radius: 6px; color: #999; font-size: 12px; font-weight: bold;
     text-transform: uppercase; cursor: pointer; font-family: inherit;
+    transition: color 0.12s, box-shadow 0.12s;
   }
-  .glob-tog:hover { border-color: var(--accent); }
+  .glob-tog:hover { color: var(--accent); }
+  .glob-tog:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .glob-tog .dot { display: none; }
-  .glob-tog.tog-on { border-color: var(--green); color: var(--green); background: #1a2a1a; }
+  .glob-tog.tog-on { color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
   .glob-tog.tog-unknown .glab::after { content: ' ?'; color: var(--muted); }
   /* Settings-panel dropdowns (Hardware Loop Global Routing, Digital Output
      Mode) — rig-wide/hardware controls, not app settings (folders, logs)
@@ -1037,8 +1049,12 @@
     display: none;   /* JS shows this once a baseline (dataset.orig) exists */
   }
   .sctrl-val    { font-size: 12px; color: var(--accent); font-weight: bold; min-width: 32px; font-family: 'Consolas', monospace; }
-  .tog-btn { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--muted); border-radius: 4px; padding: 4px 13px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center; }
-  .tog-btn.on { background: #1a3a1a; border-color: var(--green); color: var(--green); }
+  /* Physical push-button (build 18) — AXIS toggle; off = neutral, on = green ring. */
+  .tog-btn { background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); border: 1px solid #0c0f14; color: var(--muted); border-radius: 6px; padding: 4px 13px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45); transition: color 0.12s, box-shadow 0.12s; }
+  .tog-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+  .tog-btn.on { color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
   .ctrl-tog { display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .ctrl-tog label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
 
