@@ -188,9 +188,10 @@
   /* Physical push-button (build 15) — same raised-tile family as the chain-row
      pills. Off = neutral dim; on = green text + soft green ring. */
   #btn-tuner {
+    position: relative;
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: #999;
-    border-radius: 6px; padding: 5px 16px; font-size: 13px; font-weight: bold;
+    border-radius: 6px; padding: 5px 16px 8px; font-size: 13px; font-weight: bold;
     cursor: pointer; white-space: nowrap; letter-spacing: 1px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
@@ -952,7 +953,7 @@
      Resonance); off = neutral, on = green ring. */
   .glob-tog {
     display: flex; align-items: center; gap: 8px; min-width: 150px;
-    padding: 4px 13px; background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    position: relative; padding: 4px 13px 8px; background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     border-radius: 6px; color: #999; font-size: 12px; font-weight: bold;
@@ -1129,7 +1130,8 @@
     box-shadow: inset 0 0 1px rgba(0,0,0,.9); pointer-events: none;
     transition: background 0.12s, box-shadow 0.12s;
   }
-  .as-toggle.on .ind-bar, .tog-btn.on .ind-bar, .amp-toggle-btn.on .ind-bar {
+  .as-toggle.on .ind-bar, .tog-btn.on .ind-bar, .amp-toggle-btn.on .ind-bar,
+  #btn-tuner.on .ind-bar, .glob-tog.tog-on .ind-bar {
     background: linear-gradient(90deg, #1f8f3c, #30c050 50%, #1f8f3c);
     box-shadow: 0 0 7px rgba(48,192,80,.85), 0 0 2px rgba(140,255,170,.7);
   }
@@ -1724,7 +1726,7 @@
          this header area reads clean. Send path (CMD 0x3D pair) is unchanged. -->
 
     <!-- Tuner -->
-    <button id="btn-tuner" title="Toggle the Eleven Rack's built-in tuner">TUNER</button>
+    <button id="btn-tuner" title="Toggle the Eleven Rack's built-in tuner">TUNER<span class="ind-bar"></span></button>
     <div class="tdiv"></div>
 
     <!-- Window +/- -->
@@ -2143,11 +2145,11 @@
             <div class="globals-stack">
               <button type="button" class="glob-tog knob-disabled tog-unknown" id="cab-off-tog"
                       title="Master cabinet bypass — engaged means no cab on any output (CMD 0x38)">
-                <span class="dot"></span><span class="glab">Cab Always Off</span>
+                <span class="dot"></span><span class="glab">Cab Always Off</span><span class="ind-bar"></span>
               </button>
               <button type="button" class="glob-tog knob-disabled tog-unknown" id="reso-tog"
                       title="Amp-out pre-cab resonance/impedance sim, audible with cabs off or when To Amp Source is set to Amp Output (before the cab) — undocumented in Avid's manual and not exposed in Avid's own editor (CMD 0x3F)">
-                <span class="dot"></span><span class="glab">Cabinet Resonance</span>
+                <span class="dot"></span><span class="glab">Cabinet Resonance</span><span class="ind-bar"></span>
               </button>
             </div>
           </div>
