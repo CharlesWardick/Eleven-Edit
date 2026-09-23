@@ -233,7 +233,7 @@
   #audiostrip .as-grp { display: flex; align-items: center; gap: 7px; }
   /* Engine toggle (fixed width so ON/OFF text never resizes the box) */
   #audiostrip .as-toggle {
-    background: #141414; border: 1px solid var(--border-dim); color: var(--muted);
+    background: #1a1a1a; border: 1px solid #666; color: #999;
     border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: bold; letter-spacing: 1px;
     cursor: pointer; white-space: nowrap; text-align: center; flex-shrink: 0;
     /* fixed width >= "● AUDIO ENGINE OFF" so ON/OFF never resizes the box */
@@ -241,7 +241,7 @@
   }
   #audiostrip .as-toggle:hover { border-color: var(--accent); color: var(--accent); }
   #audiostrip .as-toggle.on {
-    background: #12220f; border-color: var(--green); color: var(--green); box-shadow: 0 0 6px rgba(48,192,80,0.3);
+    background: #1a2a1a; border-color: var(--green); color: var(--green); box-shadow: 0 0 6px rgba(48,192,80,0.3);
   }
   #audiostrip .as-toggle.disabled { opacity: 0.35; pointer-events: none; border-color: #444; color: #666; box-shadow: none; }
   #audiostrip .as-toggle.err {
@@ -275,7 +275,7 @@
     padding: 2px 9px; font-size: 10px; font-weight: bold; letter-spacing: 1px; cursor: pointer; white-space: nowrap;
     width: 62px; box-sizing: border-box; text-align: center; flex-shrink: 0; }
   #audiostrip .as-mute:hover { border-color: var(--accent); color: var(--accent); }
-  #audiostrip .as-mute.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); box-shadow: 0 0 5px rgba(208,48,48,0.4); }
+  #audiostrip .as-mute.muted { background: #2a1414; border-color: var(--red); color: var(--red); box-shadow: 0 0 5px rgba(208,48,48,0.4); }
   #audiostrip .as-clip { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: #4a2020;
     border: 1px solid #3a1a1a; border-radius: 3px; padding: 1px 5px; cursor: pointer; }
   #audiostrip .as-clip.on { color: #fff; background: var(--red); border-color: var(--red); box-shadow: 0 0 6px var(--red); }
