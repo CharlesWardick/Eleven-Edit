@@ -119,13 +119,18 @@
 
   /* Patch name */
   #patch-name-box {
-    background: #111; border: 1px solid var(--accent-dim); color: var(--accent);
+    /* Recessed amber LCD — sunken screen (matches the value-readout wells) that
+       mimics the Eleven Rack's own orange display. */
+    background: linear-gradient(180deg, #0c0a06, #16120a); border: 1px solid #2a1e08; color: #ffc24d;
+    box-shadow: inset 0 2px 7px rgba(0,0,0,.9), inset 0 0 14px rgba(224,160,32,.10),
+                0 0 0 1px rgba(224,160,32,.12), 0 0 10px rgba(224,160,32,.12);
     padding: 5px 18px; border-radius: 4px; font-size: 20px; font-weight: bold;
     width: 270px; text-align: center; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    flex-shrink: 0; transition: box-shadow 0.15s;
   }
-  #patch-name-box:hover { border-color: var(--accent); }
+  #patch-name-box:hover { box-shadow: inset 0 2px 7px rgba(0,0,0,.9), inset 0 0 16px rgba(224,160,32,.14),
+                0 0 0 1px rgba(224,160,32,.22), 0 0 14px rgba(224,160,32,.20); }
   /* Ellipsis truncation lives on the NAME itself, not the outer box
      (2026-08-28). ALSO (same day, 2nd round) — .hint moved from absolutely
      positioned below the box into normal flow, stacked under the name via
@@ -138,10 +143,10 @@
   #patch-name {
     display: inline-block; max-width: 100%;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    cursor: text;
+    cursor: text; text-shadow: 0 0 10px rgba(255,180,60,.45);
   }
   #patch-name:hover { text-decoration: underline dotted; text-decoration-color: var(--accent-dim); }
-  #patch-name-box .hint { font-size: 10px; font-weight: normal; color: var(--text); white-space: nowrap; pointer-events: none; margin-top: 2px; }
+  #patch-name-box .hint { font-size: 10px; font-weight: normal; color: var(--accent-dim); white-space: nowrap; pointer-events: none; margin-top: 2px; }
   #patch-name-edit {
     background: #1a1400; border: 1px solid var(--accent); color: var(--accent);
     font: inherit; text-align: center; width: 100%; border-radius: 3px; outline: none;
