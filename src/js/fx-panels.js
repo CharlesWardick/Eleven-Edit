@@ -1033,15 +1033,7 @@ function renderVolKnobs(mid) {
         tglDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
         const lbl = document.createElement('label');
         lbl.textContent = cell.label;
-        const btn = document.createElement('button');
-        btn.id = 'vol-tgl-' + loHex;
-        btn.dataset.value = '0';
-        btn.dataset.base = 'fx';
-        btn.className = 'fx-toggle';
-        btn.textContent = cell.options[0];
-        btn.addEventListener('click', function() {
-          var cur = parseInt(btn.dataset.value) || 0;
-          var newVal = (cur === 0) ? 127 : 0;
+        const btn = buildFxToggle('vol-tgl-' + loHex, cell.options, function(newVal) {
           updateVolKnob(cell.lo, newVal);
           if (typeof sendVolParamWrite === 'function') sendVolParamWrite(cell.lo, newVal);
         });
@@ -1088,8 +1080,7 @@ function updateVolKnob(paramLo, val) {
     const btn = document.getElementById('vol-tgl-' + loHex);
     if (btn) {
       btn.dataset.orig  = fxBaselineSetIfUnset(SLOT_VOL, loHex, val);
-      btn.dataset.value = val;
-      btn.textContent   = (val === 0) ? toggleOptions[0] : toggleOptions[1];
+      paintFxToggle(btn, val);
     }
     return;
   }
@@ -1373,6 +1364,61 @@ function delayAllCells(model) {
   return cells;
 }
 
+// ── FX toggle controls (2026-09-23) ──────────────────────────────────────
+// Two hardware-honest shapes for a binary FX param, chosen by its options:
+//   • Off/On pair  → single lit button with an indicator LED (.fx-onoff),
+//     joining the amp BRIGHT/TREMOLO family.
+//   • two named alts (Chorus/Vibrato, Linear/Log, …) → a stacked two-button
+//     pill (.fx-pill-v), the active alternative lit.
+// The underlying write is unchanged (options[0] = value 0, options[1] = 127).
+function fxToggleIsOnOff(options) {
+  if (!options || options.length < 2) return false;
+  var a = String(options[0]).toLowerCase(), b = String(options[1]).toLowerCase();
+  return (a === 'off' && b === 'on') || (a === 'on' && b === 'off');
+}
+// Update a toggle control's visual state from a raw value (0 / non-0).
+function paintFxToggle(el, val) {
+  if (!el) return;
+  el.dataset.value = val;
+  if (el.dataset.kind === 'onoff') {
+    el.classList.toggle('on', val !== 0);
+  } else {
+    var segs = el.querySelectorAll('.seg');
+    if (segs.length === 2) {
+      segs[0].classList.toggle('lit', val === 0);
+      segs[1].classList.toggle('lit', val !== 0);
+    }
+  }
+}
+// Build a toggle control. writeFn(newVal) performs the model-specific write.
+// Returns the element that carries `id` + dataset.value (repaint via paintFxToggle).
+function buildFxToggle(id, options, writeFn) {
+  var onoff = fxToggleIsOnOff(options);
+  var el;
+  if (onoff) {
+    el = document.createElement('button');
+    el.className = 'fx-onoff';
+    el.innerHTML = '<span class="led"></span>ON';
+    el.addEventListener('click', function () {
+      var cur = parseInt(el.dataset.value) || 0;
+      writeFn(cur === 0 ? 127 : 0);
+    });
+  } else {
+    el = document.createElement('div');
+    el.className = 'fx-pill-v';
+    var s0 = document.createElement('button'); s0.type = 'button'; s0.className = 'seg'; s0.textContent = options[0];
+    var s1 = document.createElement('button'); s1.type = 'button'; s1.className = 'seg'; s1.textContent = options[1];
+    s0.addEventListener('click', function () { writeFn(0); });
+    s1.addEventListener('click', function () { writeFn(127); });
+    el.appendChild(s0); el.appendChild(s1);
+  }
+  el.id = id;
+  el.dataset.base = 'fx';
+  el.dataset.kind = onoff ? 'onoff' : 'pill';
+  paintFxToggle(el, 0);
+  return el;
+}
+
 // Render one DELAY cell (knob/toggle/delaySync/select/spacer) into rowDiv.
 // Extracted so both a flat row and a group box's sub-rows share one path.
 function renderDelayCell(cell, rowDiv) {
@@ -1389,15 +1435,7 @@ function renderDelayCell(cell, rowDiv) {
     tglDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
     const lbl = document.createElement('label');
     lbl.textContent = cell.label;
-    const btn = document.createElement('button');
-    btn.id = 'delay-tgl-' + loHex;
-    btn.dataset.value = '0';
-    btn.dataset.base = 'fx';
-    btn.className = 'fx-toggle';
-    btn.textContent = cell.options[0];
-    btn.addEventListener('click', function() {
-      var cur = parseInt(btn.dataset.value) || 0;
-      var newVal = (cur === 0) ? 127 : 0;
+    const btn = buildFxToggle('delay-tgl-' + loHex, cell.options, function(newVal) {
       updateDelayKnob(cell.lo, newVal);
       if (typeof sendDelayParamWrite === 'function') sendDelayParamWrite(cell.lo, newVal);
     });
@@ -1619,10 +1657,8 @@ function paintDelayCellIntoRefs(cellsByLo, cell, model, loHex, val) {
   if (!entry) return;
   if (entry.kind === 'toggle') {
     if (entry.el) {
-      const toggleOptions = cell.options || ['Off','On'];
       entry.el.dataset.orig  = model ? delayBaselineSetIfUnset(model.mid, loHex, val) : val;
-      entry.el.dataset.value = val;
-      entry.el.textContent   = (val === 0) ? toggleOptions[0] : toggleOptions[1];
+      paintFxToggle(entry.el, val);
     }
     if (model && model.rows) {
       delayAllCells(model).forEach(function(c) {
@@ -1723,10 +1759,8 @@ function updateDelayKnob(paramLo, val) {
   if (cell && cell.toggle) {
     const btn = document.getElementById('delay-tgl-' + loHex);
     if (btn) {
-      const toggleOptions = cell.options || ['Off','On'];
       btn.dataset.orig  = model ? delayBaselineSetIfUnset(model.mid, loHex, val) : val;
-      btn.dataset.value = val;
-      deferDelayPaintOrRun(function() { btn.textContent = (val === 0) ? toggleOptions[0] : toggleOptions[1]; });
+      deferDelayPaintOrRun(function() { paintFxToggle(btn, val); });
     }
     // Re-render any knob whose display formula depends on THIS toggle
     // (Expanded Delay rescaling the Delay knob's ms range, 2026-08-27) —
@@ -2326,15 +2360,7 @@ function renderFxHostCell(cell, rowDiv) {
         tglDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
         const lbl = document.createElement('label');
         lbl.textContent = cell.label;
-        const btn = document.createElement('button');
-        btn.id = 'fxhost-tgl-' + loHex;
-        btn.dataset.value = '0';
-        btn.dataset.base = 'fx';
-        btn.className = 'fx-toggle';
-        btn.textContent = cell.options[0];
-        btn.addEventListener('click', function() {
-          const cur = parseInt(btn.dataset.value) || 0;
-          const newVal = (cur === 0) ? 127 : 0;
+        const btn = buildFxToggle('fxhost-tgl-' + loHex, cell.options, function(newVal) {
           updateFxHostKnob(cell.lo, newVal);
           if (bridgeMidiReady) sendFxHostParamWrite(openFxHostSlot, cell.lo, newVal);
         });
@@ -2607,8 +2633,7 @@ function paintFxHostCellIntoRefs(entry, cell, model, loHex, val) {
   if (entry.kind === 'toggle') {
     if (entry.el) {
       entry.el.dataset.orig  = model ? blockBaselineSetIfUnset(openFxHostSlot, model.mid, loHex, val) : val;
-      entry.el.dataset.value = val;
-      entry.el.textContent   = (val === 0) ? cell.options[0] : cell.options[1];
+      paintFxToggle(entry.el, val);
     }
     return;
   }
@@ -2683,10 +2708,7 @@ function updateFxHostKnob(paramLo, val) {
     const btn = document.getElementById('fxhost-tgl-' + loHex);
     if (btn) {
       btn.dataset.orig  = model ? blockBaselineSetIfUnset(openFxHostSlot, model.mid, loHex, val) : val;
-      btn.dataset.value = val;
-      deferFxHostPaintOrRun(function() {
-        btn.textContent = (val === 0) ? cell.options[0] : cell.options[1];
-      });
+      deferFxHostPaintOrRun(function() { paintFxToggle(btn, val); });
     }
     if (fxHostArrivalGate) fxHostArrivalGate.markSeen(paramLo);
     return;

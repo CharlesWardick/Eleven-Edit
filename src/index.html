@@ -1611,17 +1611,35 @@
   .rack-save-ok-btn { border-color: #0c0f14 !important; color: #6fe08a !important;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4) !important; }
   .rack-save-ok-btn:hover { color: #8ff0a4 !important; }
-  /* Per-FX-panel A/B toggle buttons (VOL pedal, DELAY sync, etc. — injected by
-     fx-panels.js). Raised tile; label shows the current state, so no lit ring. */
-  .fx-toggle {
-    min-width: 70px; padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: var(--text);
+  /* Per-FX-panel binary toggles (injected by fx-panels.js), two hardware-honest
+     shapes chosen by the param's options (see buildFxToggle):
+       .fx-pill-v  = two named alternatives stacked, active lit green
+       .fx-onoff   = single Off/On button with an indicator LED */
+  .fx-pill-v {
+    display: flex; flex-direction: column; min-width: 70px; border: 1px solid #0c0f14;
+    border-radius: 4px; overflow: hidden; background: #0d0d0d;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.7);
+  }
+  .fx-pill-v .seg {
+    padding: 5px 12px; font-size: 11px; font-weight: bold; cursor: pointer; color: #888;
+    text-align: center; background: transparent; border: none; border-bottom: 1px solid #0c0f14;
+    transition: color 0.12s, background 0.12s;
+  }
+  .fx-pill-v .seg:last-child { border-bottom: none; }
+  .fx-pill-v .seg:hover { color: #ccc; }
+  .fx-pill-v .seg.lit { color: #6fe08a; background: #12240f; box-shadow: inset 0 0 8px rgba(48,192,80,.30); }
+  .fx-onoff {
+    display: flex; align-items: center; justify-content: center; gap: 7px; min-width: 70px;
+    padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; color: #888;
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); border: 1px solid #0c0f14;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
   }
-  .fx-toggle:hover { color: #fff; }
-  .fx-toggle:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+  .fx-onoff .led { width: 8px; height: 8px; border-radius: 50%; background: #2a2a2a; box-shadow: inset 0 0 2px rgba(0,0,0,.8); }
+  .fx-onoff:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+  .fx-onoff.on { color: #6fe08a;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .fx-onoff.on .led { background: #30e070; box-shadow: 0 0 6px rgba(48,224,112,.8); }
 </style>
 </head>
 <body>
