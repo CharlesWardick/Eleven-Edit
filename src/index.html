@@ -100,16 +100,13 @@
   .patch-nav { display: flex; flex-direction: column; gap: 3px; align-items: center; flex-shrink: 0; }
   .patch-nav-row { display: flex; gap: 4px; align-items: center; }
   .nav-btn {
-    background: #1a1a1a; border: 1px solid #666; color: #999;
-    border-radius: 3px; padding: 3px 9px; font-size: 12px; font-weight: bold;
-    cursor: pointer; white-space: nowrap;
+    background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--muted);
+    border-radius: 3px; padding: 3px 9px; font-size: 12px; cursor: pointer; white-space: nowrap;
   }
   .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .nav-btn:active { filter: brightness(0.85); transform: translateY(1px); }
   .nav-slot {
-    background: #080808; border: 1px solid #333; padding: 2px 10px;
+    background: #111; border: 1px solid #666; padding: 2px 10px;
     border-radius: 3px; font-size: 14px; font-weight: bold; min-width: 28px; text-align: center;
-    box-shadow: inset 0 1px 4px rgba(0,0,0,0.8);
   }
   #nav-bank-slot { color: var(--accent); }
   #nav-patch-slot { color: var(--accent); }
