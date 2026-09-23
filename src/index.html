@@ -72,18 +72,18 @@
   #topbar {
     background: #0d0d0d; border-bottom: 2px solid var(--accent-dim);
     display: flex; align-items: center; padding: 0 16px; gap: 10px;
-    height: 82px; flex-shrink: 0; overflow: hidden;   /* 68->82 (2026-09-22): give the header room to breathe */
+    height: 104px; flex-shrink: 0; overflow: hidden;   /* 68->82 (2026-09-22); 82->104 (build 50): scale the header up to match the panels below */
   }
   /* Brand block (2026-09-22) — social-card look: ELEVEN RACK eyebrow + orange
      dash, two-tone "Eleven Edit" wordmark (Eleven white / Edit orange). */
   .brand      { display: flex; flex-direction: column; justify-content: center; flex-shrink: 0; }
-  .eyebrow    { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: 2px;
-                color: var(--muted); text-transform: uppercase; font-weight: 600; margin-bottom: 3px; }
-  .eyebrow .dash { width: 18px; height: 3px; border-radius: 2px; background: var(--accent); display: inline-block; }
-  .wordmark   { font-weight: 800; letter-spacing: 0.5px; line-height: 1; color: #fff; font-size: 22px; white-space: nowrap; }
+  .eyebrow    { display: flex; align-items: center; gap: 9px; font-size: 12px; letter-spacing: 2.5px;
+                color: var(--muted); text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
+  .eyebrow .dash { width: 22px; height: 3px; border-radius: 2px; background: var(--accent); display: inline-block; }
+  .wordmark   { font-weight: 800; letter-spacing: 0.5px; line-height: 1; color: #fff; font-size: 28px; white-space: nowrap; }
   .wordmark .edit { color: var(--accent); }
-  .app-sub    { color: var(--muted);  font-size: 11px; letter-spacing: 0.5px; white-space: nowrap; margin-top: 3px; }
-  .tdiv       { width: 1px; height: 36px; background: var(--border-dim); flex-shrink: 0; }
+  .app-sub    { color: var(--muted);  font-size: 13px; letter-spacing: 0.5px; white-space: nowrap; margin-top: 4px; }
+  .tdiv       { width: 1px; height: 46px; background: var(--border-dim); flex-shrink: 0; }
   .tb-label   { font-size: 11px; color: var(--muted); white-space: nowrap; }
   .flex-row   { display: flex; align-items: center; gap: 8px; }
   .ml-auto    { margin-left: auto; }
@@ -102,16 +102,16 @@
   .nav-btn {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: var(--muted);
-    border-radius: 3px; padding: 3px 9px; font-size: 12px; cursor: pointer; white-space: nowrap;
+    border-radius: 3px; padding: 4px 12px; font-size: 14px; cursor: pointer; white-space: nowrap;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
   }
   .nav-btn:hover { color: #ccc; }
   .nav-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .nav-slot {
-    background: #0b0b0b; border: 1px solid #000; padding: 2px 0;
-    border-radius: 3px; font-size: 14px; font-weight: bold;
-    width: 36px; text-align: center; box-sizing: border-box;
+    background: #0b0b0b; border: 1px solid #000; padding: 3px 0;
+    border-radius: 3px; font-size: 16px; font-weight: bold;
+    width: 42px; text-align: center; box-sizing: border-box;
     box-shadow: inset 0 2px 5px rgba(0,0,0,.85), inset 0 -1px 0 rgba(255,255,255,.05);
   }
   #nav-bank-slot { color: var(--accent); }
@@ -124,8 +124,8 @@
     background: linear-gradient(180deg, #0c0a06, #16120a); border: 1px solid #2a1e08; color: #ffc24d;
     box-shadow: inset 0 2px 7px rgba(0,0,0,.9), inset 0 0 14px rgba(224,160,32,.10),
                 0 0 0 1px rgba(224,160,32,.12), 0 0 10px rgba(224,160,32,.12);
-    padding: 5px 18px; border-radius: 4px; font-size: 20px; font-weight: bold;
-    width: 270px; text-align: center; cursor: pointer;
+    padding: 7px 22px; border-radius: 4px; font-size: 25px; font-weight: bold;
+    width: 330px; text-align: center; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     flex-shrink: 0; transition: box-shadow 0.15s;
   }
@@ -146,7 +146,7 @@
     cursor: text; text-shadow: 0 0 10px rgba(255,180,60,.45);
   }
   #patch-name:hover { text-decoration: underline dotted; text-decoration-color: var(--accent-dim); }
-  #patch-name-box .hint { font-size: 10px; font-weight: normal; color: var(--text); white-space: nowrap; pointer-events: none; margin-top: 2px; }
+  #patch-name-box .hint { font-size: 12px; font-weight: normal; color: var(--text); white-space: nowrap; pointer-events: none; margin-top: 2px; }
   #patch-name-edit {
     background: #1a1400; border: 1px solid var(--accent); color: var(--accent);
     font: inherit; text-align: center; width: 100%; border-radius: 3px; outline: none;
@@ -196,7 +196,7 @@
     position: relative;
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: #999;
-    border-radius: 6px; padding: 5px 16px 8px; font-size: 13px; font-weight: bold;
+    border-radius: 6px; padding: 7px 20px 9px; font-size: 15px; font-weight: bold;
     cursor: pointer; white-space: nowrap; letter-spacing: 1px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
@@ -334,7 +334,7 @@
   .size-btn {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: var(--muted);
-    border-radius: 6px; padding: 2px 8px; font-size: 14px; font-weight: bold; cursor: pointer; line-height: 1;
+    border-radius: 6px; padding: 3px 10px; font-size: 16px; font-weight: bold; cursor: pointer; line-height: 1;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
   }
