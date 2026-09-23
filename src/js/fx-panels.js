@@ -1037,11 +1037,8 @@ function renderVolKnobs(mid) {
         btn.id = 'vol-tgl-' + loHex;
         btn.dataset.value = '0';
         btn.dataset.base = 'fx';
-        btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
-          + 'border:1px solid #666;border-radius:4px;color:var(--fg);cursor:pointer;font-size:12px;';
+        btn.className = 'fx-toggle';
         btn.textContent = cell.options[0];
-        btn.addEventListener('mouseover', function() { this.style.borderColor = '#aaa'; });
-        btn.addEventListener('mouseout',  function() { this.style.borderColor = '#666'; });
         btn.addEventListener('click', function() {
           var cur = parseInt(btn.dataset.value) || 0;
           var newVal = (cur === 0) ? 127 : 0;
@@ -1396,11 +1393,8 @@ function renderDelayCell(cell, rowDiv) {
     btn.id = 'delay-tgl-' + loHex;
     btn.dataset.value = '0';
     btn.dataset.base = 'fx';
-    btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
-      + 'border:1px solid #666;border-radius:4px;color:var(--fg);cursor:pointer;font-size:12px;';
+    btn.className = 'fx-toggle';
     btn.textContent = cell.options[0];
-    btn.addEventListener('mouseover', function() { this.style.borderColor = '#aaa'; });
-    btn.addEventListener('mouseout',  function() { this.style.borderColor = '#666'; });
     btn.addEventListener('click', function() {
       var cur = parseInt(btn.dataset.value) || 0;
       var newVal = (cur === 0) ? 127 : 0;
@@ -2336,11 +2330,8 @@ function renderFxHostCell(cell, rowDiv) {
         btn.id = 'fxhost-tgl-' + loHex;
         btn.dataset.value = '0';
         btn.dataset.base = 'fx';
-        btn.style.cssText = 'min-width:70px;padding:6px 10px;background:#2a2a2a;'
-          + 'border:1px solid #666;border-radius:4px;color:var(--fg);cursor:pointer;font-size:12px;';
+        btn.className = 'fx-toggle';
         btn.textContent = cell.options[0];
-        btn.addEventListener('mouseover', function() { this.style.borderColor = '#aaa'; });
-        btn.addEventListener('mouseout',  function() { this.style.borderColor = '#666'; });
         btn.addEventListener('click', function() {
           const cur = parseInt(btn.dataset.value) || 0;
           const newVal = (cur === 0) ? 127 : 0;
