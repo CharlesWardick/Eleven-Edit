@@ -1124,21 +1124,29 @@
   #progress-bg { background:var(--raised); border:1px solid var(--border); border-radius:3px; height:7px; overflow:hidden; }
   #progress-bar { height:100%; width:0%; background:var(--accent); border-radius:3px; transition:width 0.1s linear; }
   #progress-label { font-family:'Consolas',monospace; font-size:10px; color:var(--text-dim); text-align:right; }
+  /* Physical push-buttons (build 17) — AUTO ADVANCE START/PAUSE/STOP in the same
+     raised-tile family; each keeps its color (START green / PAUSE amber / STOP
+     red) and gets a matching lit ring in its active (running / paused) state. */
   .auto-btn {
-    background:var(--raised); border:2px solid var(--border2); color:var(--text-dim);
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    border: 1px solid #0c0f14; color: var(--text-dim);
     font-family:'Segoe UI','Arial',sans-serif; font-size:12px; font-weight:700;
     letter-spacing:1px; padding:8px 13px; border-radius:6px; cursor:pointer;
-    transition:all 0.15s; text-transform:uppercase; white-space:nowrap;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
+    transition: color 0.12s, box-shadow 0.12s; text-transform:uppercase; white-space:nowrap;
   }
-  .auto-btn:disabled { opacity:0.25; cursor:default; }
-  #btn-start { border-color:var(--green-dim); color:var(--green); }
-  #btn-start:hover:not(:disabled) { background:#0a2a15; border-color:var(--green); }
-  #btn-start.running { background:#0a2a15; border-color:var(--green); color:var(--green); }
-  #btn-pause { border-color:var(--accent-dim); color:var(--accent); }
-  #btn-pause:hover:not(:disabled) { background:#1a1200; border-color:var(--accent); }
-  #btn-pause.paused { background:#1a1200; border-color:var(--accent); }
-  #btn-stop { border-color:#5a2020; color:var(--red); }
-  #btn-stop:hover:not(:disabled) { background:#2a0a0a; border-color:var(--red); }
+  .auto-btn:disabled { opacity:0.35; cursor:default; }
+  .auto-btn:active:not(:disabled) { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+  #btn-start { color:var(--green); }
+  #btn-start:hover:not(:disabled) { color:#8ff0a4; }
+  #btn-start.running { color:var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  #btn-pause { color:var(--accent); }
+  #btn-pause:hover:not(:disabled) { color:#ffc24d; }
+  #btn-pause.paused { color:var(--accent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(224,160,32,.32), 0 0 12px rgba(224,160,32,.20), 0 3px 6px rgba(0,0,0,.4); }
+  #btn-stop { color:var(--red); }
+  #btn-stop:hover:not(:disabled) { color:#ff6a5c; }
 
   /* ══ SLOT MATRIX ══ */
   /* #slot-matrix is now a column: a fixed header (title + Close, never
@@ -2526,9 +2534,9 @@
       <span style="font-size:inherit;color:#999;font-weight:600;">TO</span>
       <select id="range-to" style="background:#2a2a2a;border:1px solid #666;color:#e0a020;font-family:'Consolas',monospace;font-size:inherit;padding:4px 8px;border-radius:4px;min-width:64px;"></select>
       <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
-      <button id="btn-start" style="background:#1e1e1e;border:2px solid #1a6b3a;color:#30c050;font-size:inherit;font-weight:700;letter-spacing:1px;padding:6px 13px;border-radius:6px;cursor:pointer;white-space:nowrap;">▶ START</button>
-      <button id="btn-pause" disabled style="background:#1e1e1e;border:2px solid #a07010;color:#e0a020;font-size:inherit;font-weight:700;letter-spacing:1px;padding:6px 13px;border-radius:6px;cursor:pointer;white-space:nowrap;opacity:0.45;">⏸ PAUSE</button>
-      <button id="btn-stop"  disabled style="background:#1e1e1e;border:2px solid #5a2020;color:#d03030;font-size:inherit;font-weight:700;letter-spacing:1px;padding:6px 13px;border-radius:6px;cursor:pointer;white-space:nowrap;opacity:0.45;">■ STOP</button>
+      <button id="btn-start" class="auto-btn">▶ START</button>
+      <button id="btn-pause" class="auto-btn" disabled>⏸ PAUSE</button>
+      <button id="btn-stop"  class="auto-btn" disabled>■ STOP</button>
       <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
       <span style="font-size:inherit;color:#999;">EVERY</span>
       <select id="interval-select" style="background:#2a2a2a;border:1px solid #666;color:#e0a020;font-family:'Consolas',monospace;font-size:inherit;padding:4px 6px;border-radius:4px;width:52px;text-align:center;">
