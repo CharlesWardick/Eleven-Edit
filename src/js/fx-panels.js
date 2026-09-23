@@ -1398,7 +1398,7 @@ function buildFxToggle(id, options, writeFn) {
   if (onoff) {
     el = document.createElement('button');
     el.className = 'fx-onoff';
-    el.innerHTML = '<span class="led"></span>ON';
+    el.innerHTML = '<span>ON</span><span class="led"></span>';
     el.addEventListener('click', function () {
       var cur = parseInt(el.dataset.value) || 0;
       writeFn(cur === 0 ? 127 : 0);
