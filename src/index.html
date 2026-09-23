@@ -517,11 +517,14 @@
   #mvol-box:focus, #pvol-box:focus { border-color: var(--accent); }
   #mvol-steps, #pvol-steps { display: flex; flex-direction: column; gap: 1px; }
   #mvol-steps div, #pvol-steps div {
-    font-size: 8px; line-height: 8px; color: #999; cursor: pointer;
-    border: 1px solid #555; border-radius: 2px; padding: 1px 4px; background: #2a2a2a;
-    user-select: none;
+    font-size: 8px; line-height: 8px; color: #bbb; cursor: pointer;
+    border: 1px solid #0c0f14; border-radius: 2px; padding: 1px 4px;
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 1px 2px rgba(0,0,0,.5);
+    user-select: none; transition: color 0.12s;
   }
-  #mvol-steps div:hover, #pvol-steps div:hover { color: var(--accent); border-color: var(--accent); }
+  #mvol-steps div:hover, #pvol-steps div:hover { color: #eee; }
+  #mvol-steps div:active, #pvol-steps div:active { box-shadow: inset 0 2px 4px rgba(0,0,0,.6); }
   .mute-row { display: flex; gap: 4px; }
   /* Physical push-button (build 15) — same raised-tile family as the chain-row
      pills. Resting (unmuted) = green text; muted = red text + soft red ring. */
