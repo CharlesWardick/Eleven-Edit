@@ -297,7 +297,7 @@
   /* Settings-panel single-action buttons → physical tile (scoped to specific IDs;
      the win11-warn toggle + display-only rows stay flat). Audio Setup MUTE +
      Restart Engine share the same face; MUTE adds a red ring when muted. */
-  #audio-mute-panel, #audio-restart-btn,
+  #audio-mute-panel, #audio-restart-btn, #settings-btn-audio-setup,
   #settings-btn-set-captures, #settings-btn-open-captures,
   #settings-btn-set-avid, #settings-btn-scan-avid, #settings-btn-open-logs {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
@@ -305,11 +305,11 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
   }
-  #audio-mute-panel:hover, #audio-restart-btn:hover,
+  #audio-mute-panel:hover, #audio-restart-btn:hover, #settings-btn-audio-setup:hover,
   #settings-btn-set-captures:hover, #settings-btn-open-captures:hover,
   #settings-btn-set-avid:hover, #settings-btn-scan-avid:hover, #settings-btn-open-logs:hover {
     border-color: #0c0f14; color: #fff; }
-  #audio-mute-panel:active, #audio-restart-btn:active,
+  #audio-mute-panel:active, #audio-restart-btn:active, #settings-btn-audio-setup:active,
   #settings-btn-set-captures:active, #settings-btn-open-captures:active,
   #settings-btn-set-avid:active, #settings-btn-scan-avid:active, #settings-btn-open-logs:active {
     box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
