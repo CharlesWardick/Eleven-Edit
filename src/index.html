@@ -793,12 +793,13 @@
                    min-width: 132px; padding-top: 8px; }   /* gap was 8px, padding-top was
                    18px — both trimmed to match the tick-style knobs' smaller 70px (was
                    80px) box, 2026-09-03 */
-  /* SYNC dropdown (build 21) — the resting box gets the physical tile face to
-     match the row; the native arrow + OS-drawn option list stay as-is. */
+  /* SYNC dropdown — kept on its ORIGINAL dark styling (build 22). A gradient
+     background on a native <select> bleeds into the OS-drawn option list and
+     washed out its fore/back colors + highlight, so the tile look is not applied
+     to dropdowns; the resting box stays dark like every other native select. */
   .amp-tog-stack select {
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); color: var(--text);
-    border: 1px solid #0c0f14; border-radius: 6px; padding: 4px 8px; font-size: 12px; width: 100%;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
+    background: #1a1a1a; color: var(--text); border: 1px solid var(--border-dim);
+    border-radius: 4px; padding: 4px 8px; font-size: 12px; width: 100%;
   }
   .amp-tog-stack select:disabled { opacity: 0.75; cursor: default; }
   .amp-tog-stack .stack-label { font-size: 11px; color: var(--label);
