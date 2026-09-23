@@ -399,15 +399,13 @@
     font-size: 10px; font-weight: 700; letter-spacing: 0.14em; color: var(--label);
     pointer-events: none;
   }
+  /* colours/border/padding/font come from the shared .ctrl-dd select rule so the
+     input dropdown matches every other dropdown; only chain-row layout is local. */
   #chain-input-select {
     margin-top: auto; transform: translateY(12px);
     width: 112px; box-sizing: border-box; flex-shrink: 0; align-self: center;
-    background: #0f0f0f; color: var(--green);
-    border: 1px solid #3a7a3a; border-radius: 4px;
-    font-size: 12px; font-weight: bold; padding: 4px 6px; cursor: pointer;
+    cursor: pointer;
   }
-  #chain-input-select:hover { border-color: var(--green); }
-  #chain-input-select:focus { outline: none; border-color: var(--green); }
   /* 7/28 history: an earlier pass wrapped this and #mono-indicator in a
      .chain-label-group + spacer to bottom-align them with the taller
      pedal-thumb slots — reverted same day, Charlie: they "lost their
@@ -809,7 +807,9 @@
   /* Dropdowns */
   .ctrl-dd { display: flex; flex-direction: column; gap: 3px; }
   .ctrl-dd label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
-  .ctrl-dd select { background: #1a1a1a; color: var(--text); border: 1px solid var(--border-dim); border-radius: 4px; padding: 4px 8px; font-size: 13px; }
+  /* Shared dropdown look — AMP MODEL / CAB / MIC / TRUE-Z / FX pickers, and the
+     chain INPUT dropdown (build 23), so every native <select> reads the same. */
+  .ctrl-dd select, #chain-input-select { background: #1a1a1a; color: var(--text); border: 1px solid var(--border-dim); border-radius: 4px; padding: 4px 8px; font-size: 13px; }
 
   /* "Loaded" option marker (2026-09-02, Charlie's ask) — bold + --blue on
      whichever <option> matches the value a dropdown showed right after the
