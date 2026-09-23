@@ -1629,19 +1629,26 @@
   .fx-pill-v .seg:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .fx-pill-v .seg.lit { color: #6fe08a;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
-  /* Square on/off button: text over a centered indicator LED (layout B). */
+  /* Compact on/off button carrying a rack-style illuminated lens (like the real
+     Eleven Rack DIST/REV/FX buttons): lit green = on, dark = off. The param name
+     is the caption above, so the button needs no text. */
   .fx-onoff {
-    width: 60px; height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 6px; border-radius: 5px; font-size: 12px; font-weight: bold; cursor: pointer; color: #8a8a8a;
+    display: flex; align-items: center; justify-content: center; min-width: 70px; padding: 9px 12px;
+    border-radius: 5px; cursor: pointer;
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); border: 1px solid #0c0f14;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
-    transition: color 0.12s, box-shadow 0.12s;
+    transition: box-shadow 0.12s;
   }
-  .fx-onoff .led { width: 9px; height: 9px; border-radius: 50%; background: #2a2a2a; box-shadow: inset 0 0 2px rgba(0,0,0,.85); }
+  .fx-onoff .lens {
+    width: 30px; height: 12px; border-radius: 6px; background: #0e140d;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.85), inset 0 0 3px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.04);
+    transition: background 0.12s, box-shadow 0.12s;
+  }
   .fx-onoff:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .fx-onoff.on { color: #6fe08a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
-  .fx-onoff.on .led { background: #30e070; box-shadow: 0 0 6px rgba(48,224,112,.85); }
+  .fx-onoff.on .lens {
+    background: linear-gradient(180deg, #8affb0 0%, #33e070 45%, #17b84e 100%);
+    box-shadow: 0 0 10px rgba(48,224,112,.9), 0 0 5px rgba(140,255,170,.8), inset 0 1px 1px rgba(255,255,255,.55), inset 0 -1px 2px rgba(0,80,30,.6);
+  }
 </style>
 </head>
 <body>
