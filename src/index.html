@@ -33,9 +33,66 @@
     --blue:        #3498db;
     --section-hdr: #2e2e2e;
     --divider:     #1e1e1e;
+
+    /* ── BUTTON SYSTEM tokens (build 19) — the physical push-button look lives
+       here ONCE. Every button/pill/toggle in the app pulls its face, border,
+       shadow and lit-ring from these, instead of each rule pasting the same
+       gradients. Change the feel of every button by editing these four/seven
+       values. See the ".btn-phys" grouped selector just below :root. ── */
+    --btn-face:        linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    --btn-face-off:    linear-gradient(180deg, #242830 0%, #191c22 60%, #141014 100%);
+    --btn-border:      #0c0f14;
+    --btn-radius:      6px;
+    --btn-shadow:      inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
+    --btn-shadow-press: inset 0 2px 6px rgba(0,0,0,.6);
+    --btn-shadow-off:  inset 0 1px 0 rgba(255,255,255,.05), inset 0 -3px 7px rgba(0,0,0,.5);
+    --ring-green:      inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4);
+    --ring-red:        inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(224,74,63,.35), 0 0 12px rgba(224,74,63,.22), 0 3px 6px rgba(0,0,0,.4);
+    --ring-amber:      inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(224,160,32,.32), 0 0 12px rgba(224,160,32,.20), 0 3px 6px rgba(0,0,0,.4);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ════════════════════════════════════════════════════════════════════
+     BUTTON SYSTEM (build 19) — ONE source of truth for the physical
+     push-button look. This grouped base gives every button/pill/toggle its
+     face + border + shadow + radius; each control's own rule elsewhere keeps
+     ONLY what is unique to it (padding, font-size, min-width, text color) and,
+     for on-states, points box-shadow at a --ring-* token. Nothing here changes
+     behaviour and no element's class name changed, so the JS that toggles
+     .slot-on / .mute-active / .running / .tog-on / .on is untouched.
+     To restyle every button at once, edit the --btn-*/--ring-* tokens above.
+     ════════════════════════════════════════════════════════════════════ */
+  .chain-name, .chain-ampcab-pill, #mono-indicator, #btn-tuner, .mute-btn,
+  .bt-btn, .auto-btn, .size-btn, .tog-btn, .glob-tog, .nav-btn, .settings-btn,
+  .rack-save-btns button, #chain-input-select, #mvol-steps div, #pvol-steps div,
+  #tempo-steps div, .dock-btn, #audiostrip .as-toggle, #audiostrip .as-mute {
+    background: var(--btn-face);
+    border: 1px solid var(--btn-border);
+    border-radius: var(--btn-radius);
+    box-shadow: var(--btn-shadow);
+    transition: color 0.12s, box-shadow 0.12s;
+  }
+  /* pressed look — shared */
+  .chain-name:active, #mono-indicator:active, #btn-tuner:active,
+  .mute-btn:active, .bt-btn:active, .auto-btn:active:not(:disabled), .size-btn:active,
+  .tog-btn:active, .glob-tog:active, .nav-btn:active, .settings-btn:active,
+  .rack-save-btns button:active, .dock-btn:active, #mvol-steps div:active,
+  #pvol-steps div:active, #tempo-steps div:active,
+  #audiostrip .as-toggle:active:not(.disabled), #audiostrip .as-mute:active {
+    box-shadow: var(--btn-shadow-press);
+  }
+  /* lit-ring on-states — grouped by color */
+  .chain-name.slot-on, #btn-tuner.on, .tog-btn.on, .glob-tog.tog-on,
+  #btn-start.running, #audiostrip .as-toggle.on {
+    box-shadow: var(--ring-green);
+  }
+  .mute-btn.mute-active, #audiostrip .as-mute.muted, #audiostrip .as-toggle.err {
+    box-shadow: var(--ring-red);
+  }
+  #btn-pause.paused, .dock-btn.locked {
+    box-shadow: var(--ring-amber);
+  }
 
   /* Global dark scrollbar (2026-08-03, Charlie's ask) — applies to EVERY
      scrollable element (Jump List, monitor panel, any future one), not
@@ -99,11 +156,9 @@
   /* Patch nav */
   .patch-nav { display: flex; flex-direction: column; gap: 3px; align-items: center; flex-shrink: 0; }
   .patch-nav-row { display: flex; gap: 4px; align-items: center; }
-  .nav-btn {
-    background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--muted);
-    border-radius: 3px; padding: 3px 9px; font-size: 12px; cursor: pointer; white-space: nowrap;
-  }
-  .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* face from BUTTON SYSTEM base */
+  .nav-btn { color: var(--muted); padding: 3px 9px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .nav-btn:hover { color: var(--accent); }
   .nav-slot {
     background: #111; border: 1px solid #666; padding: 2px 10px;
     border-radius: 3px; font-size: 14px; font-weight: bold; min-width: 28px; text-align: center;
@@ -179,19 +234,12 @@
   .seg.lit   { background: #0a2a0a; color: var(--green); box-shadow: inset 0 0 6px rgba(48,192,80,.35); }
 
   /* Tuner button */
-  /* Physical push-button (build 15) — same raised-tile family as the chain-row
-     pills. Off = neutral dim; on = green text + soft green ring. */
+  /* face + green ring from BUTTON SYSTEM base; off = neutral dim */
   #btn-tuner {
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: #999;
-    border-radius: 6px; padding: 5px 16px; font-size: 13px; font-weight: bold;
+    color: #999; padding: 5px 16px; font-size: 13px; font-weight: bold;
     cursor: pointer; white-space: nowrap; letter-spacing: 1px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
-    transition: color 0.12s, box-shadow 0.12s;
   }
-  #btn-tuner:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  #btn-tuner.on { color: #6fe08a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  #btn-tuner.on { color: #6fe08a; }
   #btn-tuner:not(.on):hover { color: var(--accent); }
   #btn-tuner.on:hover { color: #8ff0a4; }
 
@@ -224,21 +272,18 @@
   #audiostrip.bottom { border-bottom: none; border-top: 2px solid var(--accent-dim); }
   #audiostrip .as-grp { display: flex; align-items: center; gap: 7px; }
   /* Engine toggle (fixed width so ON/OFF text never resizes the box) */
+  /* face + on/err rings from BUTTON SYSTEM base — AUDIO ENGINE toggle */
   #audiostrip .as-toggle {
-    background: #141414; border: 1px solid var(--border-dim); color: var(--muted);
-    border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: bold; letter-spacing: 1px;
+    color: var(--muted);
+    padding: 3px 10px; font-size: 11px; font-weight: bold; letter-spacing: 1px;
     cursor: pointer; white-space: nowrap; text-align: center; flex-shrink: 0;
     /* fixed width >= "● AUDIO ENGINE OFF" so ON/OFF never resizes the box */
     width: 178px; box-sizing: border-box;
   }
-  #audiostrip .as-toggle:hover { border-color: var(--accent); color: var(--accent); }
-  #audiostrip .as-toggle.on {
-    background: #12220f; border-color: var(--green); color: var(--green); box-shadow: 0 0 6px rgba(48,192,80,0.3);
-  }
-  #audiostrip .as-toggle.disabled { opacity: 0.35; pointer-events: none; border-color: #444; color: #666; box-shadow: none; }
-  #audiostrip .as-toggle.err {
-    background: #2a0f0f; border-color: var(--red); color: var(--red); box-shadow: 0 0 7px rgba(208,48,48,0.5);
-  }
+  #audiostrip .as-toggle:hover { color: var(--accent); }
+  #audiostrip .as-toggle.on { color: var(--green); }
+  #audiostrip .as-toggle.disabled { opacity: 0.35; pointer-events: none; color: #666; box-shadow: none; }
+  #audiostrip .as-toggle.err { color: var(--red); }
   /* Two stacked L/R meters */
   #audiostrip .as-meters { display: flex; flex-direction: column; gap: 3px; }
   /* Mono: one full-height bar instead of two identical ones (same total height,
@@ -263,30 +308,24 @@
   #audiostrip .as-meter { width: 64px; height: 4px; border-radius: 2px; background: #222; overflow: hidden; }
   #audiostrip .as-meter i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--accent)); transition: width 0.08s linear; }
   #audiostrip .as-dev { margin-left: auto; font-size: 10px; color: var(--muted); white-space: nowrap; }
-  #audiostrip .as-mute { background: #1a1a1a; border: 1px solid #666; color: #999; border-radius: 3px;
+  /* face + muted ring from BUTTON SYSTEM base — audio-strip MUTE */
+  #audiostrip .as-mute { color: #999;
     padding: 2px 9px; font-size: 10px; font-weight: bold; letter-spacing: 1px; cursor: pointer; white-space: nowrap;
     width: 62px; box-sizing: border-box; text-align: center; flex-shrink: 0; }
-  #audiostrip .as-mute:hover { border-color: var(--accent); color: var(--accent); }
-  #audiostrip .as-mute.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); box-shadow: 0 0 5px rgba(208,48,48,0.4); }
+  #audiostrip .as-mute:hover { color: var(--accent); }
+  #audiostrip .as-mute.muted { color: var(--red); }
   #audiostrip .as-clip { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: #4a2020;
     border: 1px solid #3a1a1a; border-radius: 3px; padding: 1px 5px; cursor: pointer; }
   #audiostrip .as-clip.on { color: #fff; background: var(--red); border-color: var(--red); box-shadow: 0 0 6px var(--red); }
-  .settings-btn.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); }
+  .settings-btn.muted { color: var(--red); box-shadow: var(--ring-red); }
   /* Panel MUTE mirror: fixed width so MUTE/MUTED doesn't shift the row */
   #audio-mute-panel { width: 84px; box-sizing: border-box; text-align: center; }
 
   /* Window +/- */
   .size-btns { display: flex; gap: 3px; }
-  /* Physical push-buttons (build 18) — WINDOW +/- in the shared raised-tile family. */
-  .size-btn {
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: var(--muted);
-    border-radius: 6px; padding: 2px 8px; font-size: 14px; font-weight: bold; cursor: pointer; line-height: 1;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
-    transition: color 0.12s, box-shadow 0.12s;
-  }
+  /* face from BUTTON SYSTEM base */
+  .size-btn { color: var(--muted); padding: 2px 8px; font-size: 14px; font-weight: bold; cursor: pointer; line-height: 1; }
   .size-btn:hover { color: var(--accent); }
-  .size-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
 
   /* ══ CHAIN STRIP ══ */
   #chainstrip {
@@ -344,19 +383,16 @@
      highlight fill. The #mono-connector line beside it still doubles the cue
      (two lines = stereo, one = mono). Keeps the shared bottom-align baseline
      (margin-top:auto + the Charlie-confirmed translateY(12px)). */
+  /* face from BUTTON SYSTEM base; S|M spans coloured per state */
   #mono-indicator {
     display: flex; align-items: center; justify-content: center; gap: 5px;
     font-size: 13px; font-weight: bold; letter-spacing: 0.5px;
-    padding: 5px 10px; border-radius: 6px; align-self: center;
+    padding: 5px 10px; align-self: center;
     white-space: nowrap; flex-shrink: 0; cursor: pointer;
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     margin-top: auto;
     transform: translateY(12px);
     width: 56px; text-align: center; box-sizing: border-box;
   }
-  #mono-indicator:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #mono-indicator .sm-div { color: #4a4a4a; font-weight: normal; }
   #mono-indicator .sm-s, #mono-indicator .sm-m { color: #6a6a6a; transition: color 0.12s; }
   #mono-indicator.mono-inactive .sm-s { color: #6fe08a; text-shadow: 0 0 8px rgba(74,222,128,.35); }
@@ -392,15 +428,14 @@
     font-size: 10px; font-weight: 700; letter-spacing: 0.14em; color: var(--label);
     pointer-events: none;
   }
+  /* face from BUTTON SYSTEM base; green text marks the active input */
   #chain-input-select {
     margin-top: auto; transform: translateY(12px);
     width: 112px; box-sizing: border-box; flex-shrink: 0; align-self: center;
-    background: #0f0f0f; color: var(--green);
-    border: 1px solid #3a7a3a; border-radius: 4px;
+    color: var(--green);
     font-size: 12px; font-weight: bold; padding: 4px 6px; cursor: pointer;
   }
-  #chain-input-select:hover { border-color: var(--green); }
-  #chain-input-select:focus { outline: none; border-color: var(--green); }
+  #chain-input-select:focus { outline: none; }
   /* 7/28 history: an earlier pass wrapped this and #mono-indicator in a
      .chain-label-group + spacer to bottom-align them with the taller
      pedal-thumb slots — reverted same day, Charlie: they "lost their
@@ -471,27 +506,22 @@
   }
   #mvol-box:focus, #pvol-box:focus { border-color: var(--accent); }
   #mvol-steps, #pvol-steps { display: flex; flex-direction: column; gap: 1px; }
+  /* face from BUTTON SYSTEM base; tighter radius for these tiny steppers */
   #mvol-steps div, #pvol-steps div {
     font-size: 8px; line-height: 8px; color: #999; cursor: pointer;
-    border: 1px solid #555; border-radius: 2px; padding: 1px 4px; background: #2a2a2a;
-    user-select: none;
+    border-radius: 3px; padding: 1px 4px; user-select: none;
   }
-  #mvol-steps div:hover, #pvol-steps div:hover { color: var(--accent); border-color: var(--accent); }
+  #mvol-steps div:hover, #pvol-steps div:hover { color: var(--accent); }
   .mute-row { display: flex; gap: 4px; }
   /* Physical push-button (build 15) — same raised-tile family as the chain-row
      pills. Resting (unmuted) = green text; muted = red text + soft red ring. */
+  /* face from base; resting (unmuted) green, muted = red text + red ring (base) */
   .mute-btn {
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: #6fe08a; border-radius: 6px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
-    padding: 3px 9px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;
-    cursor: pointer; white-space: nowrap; transition: color 0.12s, box-shadow 0.12s;
+    color: #6fe08a; padding: 3px 9px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;
+    cursor: pointer; white-space: nowrap;
   }
-  .mute-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .mute-btn:hover { color: #8ff0a4; }
-  /* Lit when muted — matches Avid's dim-normally/lit-when-muting behaviour. */
-  .mute-btn.mute-active { color: var(--red);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(224,74,63,.35), 0 0 12px rgba(224,74,63,.22), 0 3px 6px rgba(0,0,0,.4); }
+  .mute-btn.mute-active { color: var(--red); }
   .mute-btn.mute-active:hover { color: #ff6a5c; }
   /* 7/29, 6th pass: TEMPO anchors to the strip's true right edge on its
      own — STEREO/#mono-connector deliberately do NOT carry margin-left:auto
@@ -523,12 +553,12 @@
   #tempo-box .tempo-seg.seg-on { background: #4a3400; color: #ffc040; }
   #tempo-box .tempo-dot { color: #a07010; }
   #tempo-steps { display: flex; flex-direction: column; gap: 1px; }
+  /* face from BUTTON SYSTEM base; tighter radius for these tiny steppers */
   #tempo-steps div {
     font-size: 8px; line-height: 8px; color: #999; cursor: pointer;
-    border: 1px solid #555; border-radius: 2px; padding: 1px 4px; background: #2a2a2a;
-    user-select: none;
+    border-radius: 3px; padding: 1px 4px; user-select: none;
   }
-  #tempo-steps div:hover { color: var(--accent); border-color: var(--accent); }
+  #tempo-steps div:hover { color: var(--accent); }
 
   /* Standard slot: drag-handle thumb, then label, then a ▼ still present in
      the DOM underneath but visibility:hidden as of 2026-08-27 (see
@@ -666,22 +696,17 @@
      Geometry (padding baseline, margin-top:auto, translateY(12px)) is kept from
      the 7/28 alignment work so every label still lands on the shared baseline;
      horizontal padding trimmed 13px -> 11px to keep the row from over-widening. */
+  /* face/border/shadow/radius come from the BUTTON SYSTEM base (top of file) */
   .chain-name {
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: var(--muted);
-    border-radius: 6px;
+    color: var(--muted);
     padding: 5px 11px; font-size: 13px; font-weight: bold;
-    cursor: pointer; white-space: nowrap; text-align: center; transition: color 0.12s, box-shadow 0.12s;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
+    cursor: pointer; white-space: nowrap; text-align: center;
     margin-top: auto;
     transform: translateY(12px);
   }
-  .chain-name:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .chain-name.slot-on  { color: #6fe08a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .chain-name.slot-on  { color: #6fe08a; }
   .chain-name.slot-off { color: #8a5050; text-decoration: line-through;
-    background: linear-gradient(180deg, #242830 0%, #191c22 60%, #141014 100%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.05), inset 0 -3px 7px rgba(0,0,0,.5); }
+    background: var(--btn-face-off); box-shadow: var(--btn-shadow-off); }
   .chain-name.slot-on:hover  { color: #8ff0a4; }
   .chain-name.slot-off:hover { color: #b56a6a; }
   .chain-name.slot-unknown   { color: var(--muted); }
@@ -735,12 +760,10 @@
      every other pill in the now-uniform single row. */
   /* AMP/CAB split pill — same physical-button housing as .chain-name (build 14),
      one raised tile with two independently-lit halves and a divider between. */
+  /* housing face/border/shadow from the BUTTON SYSTEM base */
   .chain-ampcab-pill {
     margin-top: auto; transform: translateY(12px);
-    display: flex; align-items: stretch;
-    border: 1px solid #0c0f14; border-radius: 6px; overflow: hidden;
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
+    display: flex; align-items: stretch; overflow: hidden;
   }
   .chain-half {
     flex: 1; padding: 5px 9px; font-size: 13px; font-weight: bold;
@@ -889,22 +912,15 @@
      Amber/lit when active, dim outline when off, "?" appended while state
      is unknown (2026-08-30). */
   .globals-stack { display: flex; flex-direction: column; gap: 8px; }
-  /* Physical push-buttons (build 18) — GLOBALS toggles (Cab Always Off / Cabinet
-     Resonance); off = neutral, on = green ring. */
+  /* face + green ring from BUTTON SYSTEM base — GLOBALS toggles */
   .glob-tog {
     display: flex; align-items: center; gap: 8px; min-width: 150px;
-    padding: 4px 13px; background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
-    border-radius: 6px; color: #999; font-size: 12px; font-weight: bold;
+    padding: 4px 13px; color: #999; font-size: 12px; font-weight: bold;
     text-transform: uppercase; cursor: pointer; font-family: inherit;
-    transition: color 0.12s, box-shadow 0.12s;
   }
   .glob-tog:hover { color: var(--accent); }
-  .glob-tog:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .glob-tog .dot { display: none; }
-  .glob-tog.tog-on { color: var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .glob-tog.tog-on { color: var(--green); }
   .glob-tog.tog-unknown .glab::after { content: ' ?'; color: var(--muted); }
   /* Settings-panel dropdowns (Hardware Loop Global Routing, Digital Output
      Mode) — rig-wide/hardware controls, not app settings (folders, logs)
@@ -966,13 +982,13 @@
      glyph on the knob labels themselves (also his call — undocumented UI
      detail he didn't want, and it shifted the label text off-center). */
   .tone-dock { display: flex; flex-direction: column; gap: 6px; align-self: flex-start; margin-top: 2px; }
+  /* face + amber ring (locked) from BUTTON SYSTEM base — amp-rail lock/reset/# */
   .dock-btn {
-    width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--border-dim);
-    background: #1a1a1a; color: var(--muted); font-size: 13px; cursor: pointer;
+    width: 28px; height: 28px; color: var(--muted); font-size: 13px; cursor: pointer;
     display: flex; align-items: center; justify-content: center; padding: 0;
   }
-  .dock-btn:hover { border-color: var(--accent-dim); color: var(--text); }
-  .dock-btn.locked { color: var(--accent); border-color: var(--accent-dim); }
+  .dock-btn:hover { color: var(--text); }
+  .dock-btn.locked { color: var(--accent); }
 
   /* The dragged tone knob (label-drag reorder) gets the same dim-while-
      carried treatment as a dragged chain-row thumb. */
@@ -1049,12 +1065,9 @@
     display: none;   /* JS shows this once a baseline (dataset.orig) exists */
   }
   .sctrl-val    { font-size: 12px; color: var(--accent); font-weight: bold; min-width: 32px; font-family: 'Consolas', monospace; }
-  /* Physical push-button (build 18) — AXIS toggle; off = neutral, on = green ring. */
-  .tog-btn { background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); border: 1px solid #0c0f14; color: var(--muted); border-radius: 6px; padding: 4px 13px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45); transition: color 0.12s, box-shadow 0.12s; }
-  .tog-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .tog-btn.on { color: var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  /* face + green ring from BUTTON SYSTEM base — AXIS toggle */
+  .tog-btn { color: var(--muted); padding: 4px 13px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center; }
+  .tog-btn.on { color: var(--green); }
   .ctrl-tog { display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .ctrl-tog label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -1076,15 +1089,9 @@
      pills / TUNER / mutes, applied to the whole TFX/BANK + About/?/gear row.
      Neutral action buttons (no persistent on-state): tile + press, brighter
      text on hover. The .green variant keeps its green label. */
-  .bt-btn {
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: var(--label);
-    border-radius: 6px; padding: 4px 12px; font-size: inherit; cursor: pointer; white-space: nowrap;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
-    transition: color 0.12s, box-shadow 0.12s;
-  }
+  /* face from BUTTON SYSTEM base */
+  .bt-btn { color: var(--label); padding: 4px 12px; font-size: inherit; cursor: pointer; white-space: nowrap; }
   .bt-btn:hover { color: var(--text); }
-  .bt-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .bt-btn.green { color: #6fe08a; }
   .bt-btn.green:hover { color: #8ff0a4; }
   .bt-sep { width: 1px; height: 22px; background: var(--border-dim); flex-shrink: 0; }
@@ -1143,24 +1150,20 @@
   /* Physical push-buttons (build 17) — AUTO ADVANCE START/PAUSE/STOP in the same
      raised-tile family; each keeps its color (START green / PAUSE amber / STOP
      red) and gets a matching lit ring in its active (running / paused) state. */
+  /* face + running/paused rings from BUTTON SYSTEM base */
   .auto-btn {
-    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: var(--text-dim);
+    color: var(--text-dim);
     font-family:'Segoe UI','Arial',sans-serif; font-size:12px; font-weight:700;
-    letter-spacing:1px; padding:8px 13px; border-radius:6px; cursor:pointer;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
-    transition: color 0.12s, box-shadow 0.12s; text-transform:uppercase; white-space:nowrap;
+    letter-spacing:1px; padding:8px 13px; cursor:pointer;
+    text-transform:uppercase; white-space:nowrap;
   }
   .auto-btn:disabled { opacity:0.35; cursor:default; }
-  .auto-btn:active:not(:disabled) { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #btn-start { color:var(--green); }
   #btn-start:hover:not(:disabled) { color:#8ff0a4; }
-  #btn-start.running { color:var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  #btn-start.running { color:var(--green); }
   #btn-pause { color:var(--accent); }
   #btn-pause:hover:not(:disabled) { color:#ffc24d; }
-  #btn-pause.paused { color:var(--accent);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(224,160,32,.32), 0 0 12px rgba(224,160,32,.20), 0 3px 6px rgba(0,0,0,.4); }
+  #btn-pause.paused { color:var(--accent); }
   #btn-stop { color:var(--red); }
   #btn-stop:hover:not(:disabled) { color:#ff6a5c; }
 
@@ -1401,8 +1404,9 @@
   .settings-row-label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
   .settings-row-controls { display: flex; align-items: center; gap: 8px; }
   .settings-path { font-size: 11px; color: var(--muted); font-family: 'Consolas', monospace; background: #111; border: 1px solid var(--border2); border-radius: 3px; padding: 3px 8px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .settings-btn { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--text); border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
-  .settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* face from BUTTON SYSTEM base */
+  .settings-btn { color: var(--text); padding: 4px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .settings-btn:hover { color: var(--accent); }
   #btn-settings.active { border-color: var(--accent); color: var(--accent); background: #1a1200; }
 
   /* ══ SAVE DROPDOWN ══ */
@@ -1517,10 +1521,11 @@
   }
   #rack-save-input:focus, #bank-export-input:focus { border-color: var(--accent); }
   .rack-save-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-  .rack-save-btns button { background: #1a1a1a; border: 1px solid var(--border-dim); color: var(--text); border-radius: 4px; padding: 5px 18px; font-size: 13px; cursor: pointer; }
-  .rack-save-btns button:hover { border-color: var(--accent); color: var(--accent); }
-  .rack-save-ok-btn { border-color: var(--green) !important; color: var(--green) !important; }
-  .rack-save-ok-btn:hover { background: #0a2a0a !important; }
+  /* face from BUTTON SYSTEM base — modal OK/Cancel buttons */
+  .rack-save-btns button { color: var(--text); padding: 5px 18px; font-size: 13px; cursor: pointer; }
+  .rack-save-btns button:hover { color: var(--accent); }
+  .rack-save-ok-btn { color: var(--green) !important; }
+  .rack-save-ok-btn:hover { color: #8ff0a4 !important; }
 </style>
 </head>
 <body>
