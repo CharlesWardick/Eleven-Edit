@@ -297,7 +297,7 @@
   /* Settings-panel single-action buttons → physical tile (scoped to specific IDs;
      the win11-warn toggle + display-only rows stay flat). Audio Setup MUTE +
      Restart Engine share the same face; MUTE adds a red ring when muted. */
-  #audio-mute-panel, #audio-restart-btn, #settings-btn-audio-setup,
+  #audio-mute-panel, #audio-restart-btn, #settings-btn-audio-setup, #audio-rescan-btn,
   #settings-btn-set-captures, #settings-btn-open-captures,
   #settings-btn-set-avid, #settings-btn-scan-avid, #settings-btn-open-logs {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
@@ -305,11 +305,11 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
   }
-  #audio-mute-panel:hover, #audio-restart-btn:hover, #settings-btn-audio-setup:hover,
+  #audio-mute-panel:hover, #audio-restart-btn:hover, #settings-btn-audio-setup:hover, #audio-rescan-btn:hover,
   #settings-btn-set-captures:hover, #settings-btn-open-captures:hover,
   #settings-btn-set-avid:hover, #settings-btn-scan-avid:hover, #settings-btn-open-logs:hover {
     border-color: #0c0f14; color: #fff; }
-  #audio-mute-panel:active, #audio-restart-btn:active, #settings-btn-audio-setup:active,
+  #audio-mute-panel:active, #audio-restart-btn:active, #settings-btn-audio-setup:active, #audio-rescan-btn:active,
   #settings-btn-set-captures:active, #settings-btn-open-captures:active,
   #settings-btn-set-avid:active, #settings-btn-scan-avid:active, #settings-btn-open-logs:active {
     box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
@@ -326,7 +326,7 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
   }
-  .size-btn:hover { color: var(--accent); }
+  .size-btn:hover { color: #ccc; }
   .size-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
 
   /* ══ CHAIN STRIP ══ */
@@ -1436,11 +1436,15 @@
 
   /* Bridge restart button in status bar */
   #btn-restart-bridge {
-    background: var(--raised); border: 1px solid var(--border2); color: var(--text-dark);
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
+    border: 1px solid #0c0f14; color: var(--text-dark);
     font-size: 9px; font-family: 'Consolas', monospace; padding: 2px 6px; border-radius: 3px;
     cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
+    transition: color 0.12s, box-shadow 0.12s;
   }
-  #btn-restart-bridge:hover { border-color: var(--accent-dim); color: var(--accent); }
+  #btn-restart-bridge:hover { color: #fff; }
+  #btn-restart-bridge:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
 
   /* ══ SETTINGS PANEL ══ */
   #panel-settings { display: none; flex-direction: column; gap: 18px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; flex-shrink: 0; }
