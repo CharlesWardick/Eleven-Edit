@@ -287,7 +287,7 @@
   function setToggleState(on) {
     running = on;
     if (elToggle) {
-      elToggle.textContent = on ? '● AUDIO ENGINE ON' : '● AUDIO ENGINE OFF';
+      elToggle.textContent = on ? 'AUDIO ENGINE ON' : 'AUDIO ENGINE OFF';
       elToggle.classList.toggle('on', on);
       if (on) elToggle.classList.remove('err');
     }
