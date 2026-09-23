@@ -196,10 +196,10 @@
     transition: color 0.12s, box-shadow 0.12s;
   }
   #btn-tuner:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  #btn-tuner.on { color: #6fe08a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  #btn-tuner.on { color: #30c050;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
   #btn-tuner:not(.on):hover { color: #ccc; }
-  #btn-tuner.on:hover { color: #8ff0a4; }
+  #btn-tuner.on:hover { color: #6fe08a; }
 
   /* Physical push-buttons (build 21) — BRIGHT / TREMOLO amp toggles; off = neutral,
      on = green text + green ring (same family as the chain-row buttons). */
@@ -213,8 +213,8 @@
     transition: color 0.12s, box-shadow 0.12s;
   }
   .amp-toggle-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .amp-toggle-btn.on { color: #6fe08a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .amp-toggle-btn.on { color: #30c050;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
 
   /* Audio engine toggle (v1.1.0) — matches the Tuner button's look/behaviour */
   .audio-col { display: flex; flex-direction: column; gap: 2px; align-items: center; flex-shrink: 0; }
@@ -251,8 +251,8 @@
   #audiostrip .as-toggle:hover { color: #ccc; }
   #audiostrip .as-toggle:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #audiostrip .as-toggle.on {
-    color: #6fe08a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4);
+    color: #30c050;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4);
   }
   #audiostrip .as-toggle.disabled { opacity: 0.35; pointer-events: none; color: #666; box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 2px 4px rgba(0,0,0,.4); }
   #audiostrip .as-toggle.err {
@@ -406,7 +406,7 @@
   #mono-indicator:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #mono-indicator .sm-div { color: #4a4a4a; font-weight: normal; }
   #mono-indicator .sm-s, #mono-indicator .sm-m { color: #6a6a6a; transition: color 0.12s; }
-  #mono-indicator.mono-inactive .sm-s { color: #6fe08a; text-shadow: 0 0 8px rgba(74,222,128,.35); }
+  #mono-indicator.mono-inactive .sm-s { color: #30c050; text-shadow: 0 0 8px rgba(48,192,80,.35); }
   #mono-indicator.mono-active   .sm-m { color: #e0a020; text-shadow: 0 0 8px rgba(224,160,32,.35); }
 
   /* Connector INTO the badge — same stacked-line style as a between-block
@@ -531,13 +531,13 @@
      pills. Resting (unmuted) = green text; muted = red text + soft red ring. */
   .mute-btn {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: #6fe08a; border-radius: 6px;
+    border: 1px solid #0c0f14; color: #30c050; border-radius: 6px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     padding: 3px 9px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;
     cursor: pointer; white-space: nowrap; transition: color 0.12s, box-shadow 0.12s;
   }
   .mute-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .mute-btn:hover { color: #8ff0a4; }
+  .mute-btn:hover { color: #6fe08a; }
   /* Lit when muted — matches Avid's dim-normally/lit-when-muting behaviour. */
   .mute-btn.mute-active { color: var(--red);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(224,74,63,.35), 0 0 12px rgba(224,74,63,.22), 0 3px 6px rgba(0,0,0,.4); }
@@ -730,12 +730,12 @@
     transform: translateY(12px);
   }
   .chain-name:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .chain-name.slot-on  { color: #6fe08a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .chain-name.slot-on  { color: #30c050;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
   .chain-name.slot-off { color: #8a5050; text-decoration: line-through;
     background: linear-gradient(180deg, #242830 0%, #191c22 60%, #141014 100%);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.05), inset 0 -3px 7px rgba(0,0,0,.5); }
-  .chain-name.slot-on:hover  { color: #8ff0a4; }
+  .chain-name.slot-on:hover  { color: #6fe08a; }
   .chain-name.slot-off:hover { color: #b56a6a; }
   .chain-name.slot-unknown   { color: var(--muted); }
 
@@ -803,9 +803,9 @@
   .chain-half + .chain-half { border-left: 1px solid #0c0f14; box-shadow: inset 1px 0 0 rgba(255,255,255,.05); }   /* divider */
   .chain-half.slot-on,
   .chain-half.slot-off { cursor: pointer; }
-  .chain-half.slot-on  { color: #6fe08a; background: rgba(74,222,128,.10); }
+  .chain-half.slot-on  { color: #30c050; background: rgba(48,192,80,.10); }
   .chain-half.slot-off { color: #8a5050; background: rgba(0,0,0,.25); text-decoration: line-through; }
-  .chain-half.slot-on:hover  { color: #8ff0a4; }
+  .chain-half.slot-on:hover  { color: #6fe08a; }
   .chain-half.slot-off:hover { color: #b56a6a; }
   .chain-half.slot-unknown   { color: var(--muted); background: transparent; }
 
@@ -960,11 +960,11 @@
     transition: color 0.12s, box-shadow 0.12s;
   }
   .glob-tog:not(.tog-on):hover { color: #ccc; }
-  .glob-tog.tog-on:hover { color: #8ff0a4; }
+  .glob-tog.tog-on:hover { color: #6fe08a; }
   .glob-tog:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .glob-tog .dot { display: none; }
   .glob-tog.tog-on { color: var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
   .glob-tog.tog-unknown .glab::after { content: ' ?'; color: var(--muted); }
   /* Settings-panel dropdowns (Hardware Loop Global Routing, Digital Output
      Mode) — rig-wide/hardware controls, not app settings (folders, logs)
@@ -1120,7 +1120,7 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45); transition: color 0.12s, box-shadow 0.12s; }
   .tog-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .tog-btn.on { color: var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
   /* Lit indicator bar along the bottom edge — the label stays centered and static;
      the bar shows on/off (used by On Axis + AUDIO ENGINE). */
   .ind-bar {
@@ -1130,7 +1130,7 @@
     transition: background 0.12s, box-shadow 0.12s;
   }
   .as-toggle.on .ind-bar, .tog-btn.on .ind-bar, .amp-toggle-btn.on .ind-bar {
-    background: linear-gradient(90deg, #1f8f3c, #6fe08a 50%, #1f8f3c);
+    background: linear-gradient(90deg, #1f8f3c, #30c050 50%, #1f8f3c);
     box-shadow: 0 0 7px rgba(48,192,80,.85), 0 0 2px rgba(140,255,170,.7);
   }
   .ctrl-tog { display: flex; flex-direction: column; align-items: center; gap: 3px; }
@@ -1163,8 +1163,8 @@
   }
   .bt-btn:hover { color: var(--text); }
   .bt-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .bt-btn.green { color: #6fe08a; }
-  .bt-btn.green:hover { color: #8ff0a4; }
+  .bt-btn.green { color: #30c050; }
+  .bt-btn.green:hover { color: #6fe08a; }
   .bt-sep { width: 1px; height: 22px; background: var(--border-dim); flex-shrink: 0; }
   #capture-path-label { font-size: 11px; color: #777; margin-left: auto; white-space: nowrap; font-family: 'Consolas', monospace; }
 
@@ -1232,9 +1232,9 @@
   .auto-btn:disabled { opacity:0.35; cursor:default; }
   .auto-btn:active:not(:disabled) { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #btn-start { color:var(--green); }
-  #btn-start:hover:not(:disabled) { color:#8ff0a4; }
+  #btn-start:hover:not(:disabled) { color:#6fe08a; }
   #btn-start.running { color:var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
   #btn-pause { color:var(--accent); }
   #btn-pause:hover:not(:disabled) { color:#ffc24d; }
   #btn-pause.paused { color:var(--accent);
@@ -1621,9 +1621,9 @@
   }
   .rack-save-btns button:hover { color: #fff; }
   .rack-save-btns button:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .rack-save-ok-btn { border-color: #0c0f14 !important; color: #6fe08a !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4) !important; }
-  .rack-save-ok-btn:hover { color: #8ff0a4 !important; }
+  .rack-save-ok-btn { border-color: #0c0f14 !important; color: #30c050 !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4) !important; }
+  .rack-save-ok-btn:hover { color: #6fe08a !important; }
   /* Per-FX-panel binary toggles (injected by fx-panels.js), two hardware-honest
      shapes chosen by the param's options (see buildFxToggle):
        .fx-pill-v  = two named alternatives stacked, active lit green
@@ -1640,8 +1640,8 @@
   }
   .fx-pill-v .seg:hover { color: #ccc; }
   .fx-pill-v .seg:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .fx-pill-v .seg.lit { color: #6fe08a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .fx-pill-v .seg.lit { color: #30c050;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
   /* Compact on/off button carrying a rack-style illuminated lens (like the real
      Eleven Rack DIST/REV/FX buttons): lit green = on, dark = off. The param name
      is the caption above, so the button needs no text. */
@@ -1659,8 +1659,8 @@
   }
   .fx-onoff:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .fx-onoff.on .lens {
-    /* matched to the app green family (#6fe08a lit / #30c050 knobs), not a hotter lens */
-    background: linear-gradient(180deg, #6fe08a 0%, #30c050 55%, #1f8f3c 100%);
+    /* matched to the app green family (#30c050 lit / #30c050 knobs), not a hotter lens */
+    background: linear-gradient(180deg, #30c050 0%, #30c050 55%, #1f8f3c 100%);
     box-shadow: 0 0 7px rgba(48,192,80,.5), inset 0 1px 1px rgba(255,255,255,.30), inset 0 -1px 2px rgba(0,60,24,.55);
   }
 </style>
