@@ -287,7 +287,9 @@
   function setToggleState(on) {
     running = on;
     if (elToggle) {
-      elToggle.textContent = on ? 'AUDIO ENGINE ON' : 'AUDIO ENGINE OFF';
+      // Label is static "AUDIO ENGINE" in markup; the lit indicator bar (.ind-bar,
+      // driven by the .on class) shows state — so we don't rewrite textContent
+      // (that would wipe the bar span).
       elToggle.classList.toggle('on', on);
       if (on) elToggle.classList.remove('err');
     }

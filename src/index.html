@@ -238,13 +238,13 @@
   #audiostrip .as-grp { display: flex; align-items: center; gap: 7px; }
   /* Engine toggle (fixed width so ON/OFF text never resizes the box) */
   #audiostrip .as-toggle {
+    position: relative;
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: #999;
-    border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: bold; letter-spacing: 1px;
+    border-radius: 4px; padding: 3px 10px 7px; font-size: 11px; font-weight: bold; letter-spacing: 1px;
     cursor: pointer; white-space: nowrap; text-align: center; flex-shrink: 0;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
-    /* fixed width >= "AUDIO ENGINE OFF" so ON/OFF never resizes the box */
     width: 178px; box-sizing: border-box;
   }
   #audiostrip .as-toggle:hover { color: #ccc; }
@@ -1115,11 +1115,23 @@
   }
   .sctrl-val    { font-size: 12px; color: var(--accent); font-weight: bold; min-width: 32px; font-family: 'Consolas', monospace; }
   /* Physical push-button (build 18) — AXIS toggle; off = neutral, on = green ring. */
-  .tog-btn { background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); border: 1px solid #0c0f14; color: var(--muted); border-radius: 6px; padding: 4px 13px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center;
+  .tog-btn { position: relative; background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); border: 1px solid #0c0f14; color: var(--muted); border-radius: 6px; padding: 4px 13px 8px; font-size: 12px; cursor: pointer; font-weight: bold; min-width: 84px; text-align: center;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45); transition: color 0.12s, box-shadow 0.12s; }
   .tog-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .tog-btn.on { color: var(--green);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(74,222,128,.30), 0 0 12px rgba(74,222,128,.18), 0 3px 6px rgba(0,0,0,.4); }
+  /* Lit indicator bar along the bottom edge — the label stays centered and static;
+     the bar shows on/off (used by On Axis + AUDIO ENGINE). */
+  .ind-bar {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 3px;
+    width: 58%; height: 3px; border-radius: 2px; background: #0e140d;
+    box-shadow: inset 0 0 1px rgba(0,0,0,.9); pointer-events: none;
+    transition: background 0.12s, box-shadow 0.12s;
+  }
+  .as-toggle.on .ind-bar, .tog-btn.on .ind-bar {
+    background: linear-gradient(90deg, #1f8f3c, #6fe08a 50%, #1f8f3c);
+    box-shadow: 0 0 7px rgba(48,192,80,.85), 0 0 2px rgba(140,255,170,.7);
+  }
   .ctrl-tog { display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .ctrl-tog label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -1993,7 +2005,7 @@
         </div>
         <div class="ctrl-tog">
           <label>Axis</label>
-          <button class="tog-btn" id="axis-btn">ON AXIS</button>
+          <button class="tog-btn" id="axis-btn">ON AXIS<span class="ind-bar"></span></button>
         </div>
         <div class="sctrl">
           <label>Speaker Breakup</label>
@@ -2899,7 +2911,7 @@
      Default position is bottom (here); JS moves it under the toolbar if the
      user picks Top in Audio Setup. ══ -->
 <div id="audiostrip" class="engine-off bottom">
-  <button id="audio-engine-toggle" class="as-toggle" title="Turn the audio engine on/off">AUDIO ENGINE OFF</button>
+  <button id="audio-engine-toggle" class="as-toggle" title="Turn the audio engine on/off">AUDIO ENGINE<span class="ind-bar"></span></button>
   <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE</button>
   <span class="as-grp">
     <span class="tb-label">sig</span>

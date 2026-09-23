@@ -1409,7 +1409,9 @@ function updateAxisDisplay(axisOn) {
     // above — ampCacheCellReadValue's axis branch reads it, not the class.
     btn.dataset.value = axisOn ? '1' : '0';
     deferPaintOrRun(function() {
-      btn.textContent = axisOn ? 'ON AXIS' : 'OFF AXIS';
+      // Label stays "ON AXIS" (static in markup); the lit indicator bar (.ind-bar,
+      // driven by the .on class) shows on/off — don't rewrite textContent or it
+      // wipes the bar span.
       btn.classList.toggle('on', axisOn);
     });
   }
