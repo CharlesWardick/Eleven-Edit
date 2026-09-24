@@ -29,7 +29,8 @@ var RB_POLL_STEP    = 40;
 var RB_COMMIT_SETTLE = 250;
 
 var rigBalKnobInited = false;
-var rigBalBusy = false;   // true during a pre-scan or a commit run — blocks input
+var rigBalBusy = false;
+var rbVerifyMatch = 0, rbVerifyMismatch = 0;   // verify build 57 (temporary)   // true during a pre-scan or a commit run — blocks input
 
 // ── Raw, NON-dirtying CC17 (Rig Vol) live send. Deliberately bypasses
 //    sendCC/sendPatchWrite so the normal SAVE dirty latch never arms.
@@ -246,13 +247,30 @@ function rbSetKnobBusyUI(busy) {
   if (sel && busy) sel.textContent = 'scanning…';
 }
 
+// ── Silent (no-recall) read of a slot's STORED Rig Vol, straight from the patch
+//    body (TFX global section RVol @ 0x28, signed LE32, full-int32 encoding —
+//    Tech Ref Sec 14; same decode as tools/tfx-inspect.js). Returns v127 or null.
+async function rbReadStoredSilent(slot) {
+  var res = await readSlotBodySilent(slot);
+  if (!res || !res.body) return null;
+  var raw = readSignedLE32(res.body, 0x28);
+  return (raw === null || raw === undefined) ? null : gateRawToV127(raw);
+}
+
 async function rbDetailPrescan() {
   rigBalBusy = true;
   rbSetKnobBusyUI(true);
   setStatus('Rig Balancing: scanning all 104 rigs…');
+  rbVerifyMatch = 0; rbVerifyMismatch = 0;
   for (var slot = 0; slot <= MAX_SLOT; slot++) {
     if (!rigBalActive) { rigBalBusy = false; rbSetKnobBusyUI(false); return; }   // bailed out mid-scan
+    // VERIFY BUILD 57 (temporary): read silently first, then the old audible
+    // recall, and log whether they agree. Once confirmed, the recall goes.
+    var silentV = await rbReadStoredSilent(slot);
     var stored = await rbNavAndReadStored(slot);
+    var agree = (silentV === stored);
+    if (agree) rbVerifyMatch++; else rbVerifyMismatch++;
+    appLog('RBVERIFY ' + slotLabel(slot) + ' silent=' + silentV + ' recall=' + stored + (agree ? ' MATCH' : ' *** MISMATCH ***'));
     if (stored !== null) {
       rigBalKnown[slot] = stored;
       if (rigBalOrig[slot] === undefined) rigBalOrig[slot] = stored;
@@ -260,9 +278,10 @@ async function rbDetailPrescan() {
     rbRefreshCell(slot);
     setStatus('Rig Balancing: scanning ' + slotLabel(slot) + ' (' + (slot + 1) + '/104)…');
   }
+  appLog('RBVERIFY SUMMARY: ' + rbVerifyMatch + ' match, ' + rbVerifyMismatch + ' mismatch (of 104)');
   rigBalBusy = false;
   rbSetKnobBusyUI(false);
-  setStatus('Rig Balancing: scan complete');
+  setStatus('Rig Balancing: scan complete — verify ' + rbVerifyMatch + ' match / ' + rbVerifyMismatch + ' mismatch');
   rbSelectSlot(rigBalReturnSlot);
 }
 
