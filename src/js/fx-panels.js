@@ -3050,8 +3050,7 @@ function peqBandFilters(band) {
   }
   const list = [];
   for (let i = 0; i < n; i++) list.push(peqCoef(t, f, g, q));
-  const dotG = (t === 'peak' || t === 'lshelf' || t === 'hshelf') ? g : 0;
-  return { f: f, g: dotG, list: list };
+  return { f: f, notch: (t === 'notch'), list: list };
 }
 
 function peqCurveDraw() {
@@ -3099,6 +3098,10 @@ function peqCurveDraw() {
   x.stroke();
   bands.forEach(function(b) {
     const f = Math.max(20, Math.min(20000, b.f));
-    x.fillStyle = b.col; x.beginPath(); x.arc(fx(f), dy(b.g), 3.5, 0, Math.PI * 2); x.fill();
+    // build 71: dot sits ON its band's own curve at the band frequency (shelf =
+    // its half-way point, HP/LP = its cutoff dip); a notch's centre is a
+    // bottomless null, so its dot stays on the 0 line.
+    const dotDb = b.notch ? 0 : bandDb(b, f);
+    x.fillStyle = b.col; x.beginPath(); x.arc(fx(f), dy(dotDb), 3.5, 0, Math.PI * 2); x.fill();
   });
 }
