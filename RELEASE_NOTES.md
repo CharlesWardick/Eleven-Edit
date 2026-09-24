@@ -1,5 +1,44 @@
 # Eleven Edit — Release Notes
 
+## v1.2.0 (in progress)
+
+**Full input selection, including Re-Amp.** The input selector now covers every
+input the rack offers — Guitar, Mic, Re-Amp, Line L / R / L+R and Digital L / R /
+L+R — from one dropdown at the start of the chain row.
+
+**Cab / Amp Linking.** A new GLOBALS toggle for the rack's own amp-to-cab linking:
+when on, picking an amp also loads that amp's default cab and mic, exactly as the
+rack's front panel does. Read from the rack at startup; not saved per patch.
+
+**Drag a .tfx onto the Jump List.** Drop a single .tfx file from Windows onto a
+user slot in the Jump List, then choose Write (save it to that slot), Try
+(audition it without saving), or Cancel.
+
+**Rig Balancing opens faster and quieter.** It now reads all 104 rig volumes
+directly, without stepping the rack through every patch — no front-panel
+flicker, a few seconds instead of about a minute, and no Quick/Detail choice.
+
+**Parametric EQ curve.** The Parametric EQ panel shows a live response curve of
+all four bands plus Output, redrawn as you turn any knob or change a band type.
+(A close approximation of the rack's EQ shape, not a lab measurement.)
+
+**Graphic EQ start markers.** Graphic EQ faders are now green and show a small
+marker where each fader started, so you can see what you changed; double-click
+still snaps back.
+
+**Visual makeover.** A hardware-style look throughout: physical push-buttons,
+lit indicator bars on on/off toggles, recessed value readouts, an amber LCD-style
+patch name, a unified green, a new two-tone "Eleven Edit" wordmark, restyled
+dialogs, and a cleaner header. The output mute buttons now read MUTE (dim
+normally, red when muted), and the Speaker Breakup slider matches the audio
+volume slider.
+
+**Smaller touches.** The version and build number show in the title bar and
+About box; the Avid-editor warning in the status bar stays on one line.
+
+---
+
+
 ## v1.1.0
 
 **Built-in audio engine.** One-button ASIO/WASAPI passthrough from your rig to

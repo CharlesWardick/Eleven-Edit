@@ -11,6 +11,21 @@ For the full technical background (protocol details, hardware research,
 etc.) see the project's GitHub page.
 
 
+WHAT'S NEW IN v1.2.0
+--------------------------------------------------
+  - Full input selection, including Re-Amp and Line/Digital L, R or L+R,
+    from one INPUT dropdown in the chain row. See CHAIN ROW below.
+  - Cab / Amp Linking toggle in GLOBALS. See AMP PANEL below.
+  - Drag a .tfx file onto a user slot in the Jump List to write or try it.
+    See TOP BAR below.
+  - Rig Balancing reads every rig's volume directly — faster, and the rack
+    no longer steps through all 104 patches.
+  - Parametric EQ response curve, and start-point markers on the Graphic
+    EQ faders. See EFFECT PANELS below.
+  - A hardware-style visual makeover across the whole app.
+  The full list is in RELEASE_NOTES.md and on the GitHub release page.
+
+
 WHAT'S NEW IN v1.1.0
 --------------------------------------------------
   - Built-in audio engine: one-button ASIO/WASAPI passthrough from your
@@ -142,7 +157,10 @@ TOP BAR
   is a real edit — it dirties the patch and isn't written to the rack
   until you Save, just like changing a knob.
 
-  INPUT — selects Guitar, Mic, Line, or Digital input.
+  Drag and drop a .tfx: drop ONE .tfx file from Windows onto a USER slot
+  in the Jump List and choose Write (saves it to that slot), Try (loads
+  it on that slot to audition — nothing is saved until you Save), or
+  Cancel. Factory slots can't be written.
 
   TUNER — turns on the tuner display on the Eleven Rack's own front
   panel. Eleven Edit can't display tuner data remotely — the rack
@@ -151,7 +169,7 @@ TOP BAR
   for you to read on the hardware.
 
   PHON VOL / MAIN VOL — headphone and main output volume, each with its
-  own mute button.
+  own MUTE button (dim normally; lit red while that output is muted).
 
   TEMPO — the rig's tempo, used by any tempo-synced effect.
 
@@ -164,6 +182,13 @@ CHAIN ROW
   (green = active, red/strikethrough = bypassed). Click a block's icon
   to open that block's controls below; drag it to reorder the chain —
   the icon handles both jobs.
+
+  INPUT (left end of the chain row) — selects the rack's input: Guitar,
+  Mic, Re-Amp, Line L / R / L+R, or Digital L / R / L+R. This is a
+  rig-wide setting on the rack, not saved per patch.
+
+  S | M (right end of the chain row) — switches the patch between Stereo
+  and Mono.
 
 QUICK MIX (per-block wet sliders)
   A slim slider appears under the name of every active block that has a
@@ -178,8 +203,10 @@ QUICK MIX (per-block wet sliders)
   Row → "Quick Mix Sliders / Show".
 
 AMP PANEL
-  Amp Model, Cab, Mic, and Axis (on/off-axis mic placement) dropdowns,
-  plus Speaker Breakup and True-Z. Below that: Gate, To Amp, and Volumes
+  Amp Model, Cab and Mic dropdowns, the ON AXIS button (on/off-axis mic
+  placement), plus Speaker Breakup and True-Z. The small tick above and
+  below the Speaker Breakup slider marks the value the patch loaded with;
+  double-click the slider to return to it. Below that: Gate, To Amp, and Volumes
   knobs, then the full tone stack (Gain, Bass, Middle, Treble, Presence,
   plus model-dependent extras like Speed/Depth for tremolo-equipped
   amps), Bright/Tremolo toggles, and a Sync dropdown for tempo-synced
@@ -199,6 +226,12 @@ EFFECT PANELS
   Click any other chain block (Wah, Dist, FX1/FX2, Mod, Delay, Reverb,
   FX Loop) to open its own control panel below the chain row, in place
   of the amp panel. Each panel's controls match that block's model.
+
+  Parametric EQ also shows a live response curve (under OUTPUT): the white
+  line is the overall result, with each band's own curve and a dot in its
+  knob colour. It's a close approximation of the rack's EQ, not a lab
+  measurement. Graphic EQ faders show two small marks where each fader
+  started; double-click a fader to return to that point.
 
 AUTO ADVANCE
   A patch-stepping tool: pick a FROM/TO range, an interval in seconds,
@@ -293,9 +326,10 @@ BACKUP AND SAFETY
   if uploads fail across the board.
 
   Rig Balancing... — a dedicated screen for leveling output volume
-  across all 104 user rigs. Changes are buffered until you commit them,
-  so you can discard everything and back out cleanly if you change your
-  mind partway through.
+  across all 104 user rigs. On opening it reads every rig's volume
+  directly (a few seconds; the rack stays on your current patch). Changes
+  are buffered until you commit them with Save Changed, so you can
+  Discard All and back out cleanly if you change your mind partway through.
 
 
 ABOUT / SETTINGS
