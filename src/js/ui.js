@@ -308,12 +308,10 @@ function drawKnob(canvas, value127) {
 // 74x173 (was 34x130 — ~1/3 taller, wide enough for both tick columns) —
 // see FX1_MODELS' Graphic EQ ticks arrays (protocol.js) for the printed
 // values per band, matching Avid's own panel scale.
+// build 68 (Charlie): thumb is the standard GREEN and never changes colour;
+// the start point is shown by a baseline tick instead (drawEqSlider).
 function eqSliderColor(wrap, value127) {
-  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== ''
-      && parseInt(wrap.dataset.orig) !== value127) {
-    return KNOB_COLORS.red;
-  }
-  return KNOB_COLORS.yellow;
+  return KNOB_COLORS.green;
 }
 
 // Inverse of eqSliderDb — the raw v127 a given dB value sits at, so a tick
@@ -362,6 +360,19 @@ function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks, linear) {
   ctx.beginPath();
   ctx.moveTo(cx, top); ctx.lineTo(cx, bottom);
   ctx.stroke();
+
+  // Baseline tick (build 68) — where this fader started (dataset.orig), two
+  // short light-grey dashes either side of the groove, same #c8c8c8 as the
+  // knob/Speaker Breakup baseline ticks. Drawn under the thumb, so it's hidden
+  // while the fader sits at its start point.
+  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
+    const yb = bottom - (parseInt(wrap.dataset.orig) / 127) * trackH;
+    ctx.strokeStyle = '#c8c8c8'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, yb); ctx.lineTo(cx - 3, yb);
+    ctx.moveTo(cx + 3, yb); ctx.lineTo(cx + 6, yb);
+    ctx.stroke();
+  }
 
   // Thumb — a horizontal bar, matching the Avid fader look. 0 = bottom,
   // 127 = top (dragging UP raises the value, same convention as every
