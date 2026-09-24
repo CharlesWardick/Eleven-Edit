@@ -65,7 +65,7 @@ const AMP_ID_TO_KEY = {
 
 // ── Confirmed field offsets (body-relative, i.e. file offset - 56) ──
 const FIELDS = {
-  RVol: 0x28,   // Rig Volume
+  RVol: 0x2C,   // Rig Volume VALUE (key 'RVol' at 0x28, value key+4 — verified 2026-09-24)
   Vol1: 0x30,   // To AMP 1 level
   Vol2: 0x38,   // To AMP 2 level
   RMno: 0x40,   // Mono/Stereo

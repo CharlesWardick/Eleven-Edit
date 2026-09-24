@@ -29,8 +29,7 @@ var RB_POLL_STEP    = 40;
 var RB_COMMIT_SETTLE = 250;
 
 var rigBalKnobInited = false;
-var rigBalBusy = false;
-var rbVerifyMatch = 0, rbVerifyMismatch = 0, rbF = { floor: 0, ceil: 0, rnd: 0 };   // verify build 57 (temporary)   // true during a pre-scan or a commit run — blocks input
+var rigBalBusy = false;   // true during a pre-scan or a commit run — blocks input
 
 // ── Raw, NON-dirtying CC17 (Rig Vol) live send. Deliberately bypasses
 //    sendCC/sendPatchWrite so the normal SAVE dirty latch never arms.
@@ -237,7 +236,8 @@ async function rbEnter(detail) {
   }
 }
 
-// ── DETAIL pre-scan: audible recall-walk of all 104 so every dB is populated.
+// ── DETAIL pre-scan: SILENT read of all 104 (build 60) so every dB is populated
+//    without walking the rack — the front panel stays on the current patch.
 // Grey out + block the shared knob while the pre-scan is running, so it's
 // visibly "not ready yet" and can't be grabbed before there's a selected row.
 function rbSetKnobBusyUI(busy) {
@@ -248,49 +248,37 @@ function rbSetKnobBusyUI(busy) {
 }
 
 // ── Silent (no-recall) read of a slot's STORED Rig Vol, straight from the patch
-//    body. Tech Ref Sec 14 lists the RVol KEY at 0x28; the signed-LE32 VALUE is
-//    the 4 bytes after it (0x2C) — same key+4 layout as To Amp (Vol1 key 0x30,
-//    value read at 52). Full-int32 encoding (gateRawToV127). Returns v127 or null.
+//    body — no recall, the front panel never moves. Tech Ref Sec 14 lists the
+//    RVol KEY at 0x28; the signed-LE32 VALUE is the 4 bytes after it (0x2C), same
+//    key+4 layout as To Amp. Scaling = the rack's own: the top 7 bits of the
+//    offset int32, floor((raw + 2^31) / 2^25) — matched the recall broadcast on
+//    104/104 slots (build 59 verify, 2026-09-24); gateRawToV127's rounding was
+//    one step low on 10. Returns v127 (0-127) or null.
 async function rbReadStoredSilent(slot) {
   var res = await readSlotBodySilent(slot);
   if (!res || !res.body) return null;
   var raw = readSignedLE32(res.body, 0x2C);
-  rbLastRaw = raw;
-  return (raw === null || raw === undefined) ? null : gateRawToV127(raw);
+  if (raw === null || raw === undefined) return null;
+  return Math.floor((raw + 2147483648) / 33554432);
 }
-var rbLastRaw = null;   // verify build 59 (temporary)
 
 async function rbDetailPrescan() {
   rigBalBusy = true;
   rbSetKnobBusyUI(true);
   setStatus('Rig Balancing: scanning all 104 rigs…');
-  rbVerifyMatch = 0; rbVerifyMismatch = 0; rbF = { floor: 0, ceil: 0, rnd: 0 };
   for (var slot = 0; slot <= MAX_SLOT; slot++) {
     if (!rigBalActive) { rigBalBusy = false; rbSetKnobBusyUI(false); return; }   // bailed out mid-scan
-    // VERIFY BUILD 59 (temporary): read silently first, then the old audible
-    // recall, and log whether they agree. Once confirmed, the recall goes.
-    var silentV = await rbReadStoredSilent(slot);
-    var stored = await rbNavAndReadStored(slot);
-    var agree = (silentV === stored);
-    if (agree) rbVerifyMatch++; else rbVerifyMismatch++;
-    var u = (rbLastRaw === null) ? null : (rbLastRaw + 2147483648);
-    var fFloor = (u === null) ? null : Math.floor(u / 33554432);
-    var fCeil  = (u === null) ? null : Math.ceil(u / 33554432);
-    var fRnd   = (u === null) ? null : Math.round(u / 33554432);
-    if (fFloor === stored) rbF.floor++; if (fCeil === stored) rbF.ceil++; if (fRnd === stored) rbF.rnd++;
-    appLog('RBVERIFY ' + slotLabel(slot) + ' silent=' + silentV + ' recall=' + stored + (agree ? ' MATCH' : ' *** MISMATCH ***')
-           + ' raw=' + rbLastRaw + ' floor25=' + fFloor + ' ceil25=' + fCeil + ' round25=' + fRnd);
+    var stored = await rbReadStoredSilent(slot);
     if (stored !== null) {
       rigBalKnown[slot] = stored;
       if (rigBalOrig[slot] === undefined) rigBalOrig[slot] = stored;
     }
     rbRefreshCell(slot);
-    setStatus('Rig Balancing: scanning ' + slotLabel(slot) + ' (' + (slot + 1) + '/104)…');
+    setStatus('Rig Balancing: reading ' + slotLabel(slot) + ' (' + (slot + 1) + '/104)…');
   }
-  appLog('RBVERIFY SUMMARY: ' + rbVerifyMatch + ' match, ' + rbVerifyMismatch + ' mismatch (of 104); alt formulas floor25=' + rbF.floor + ' ceil25=' + rbF.ceil + ' round25=' + rbF.rnd);
   rigBalBusy = false;
   rbSetKnobBusyUI(false);
-  setStatus('Rig Balancing: scan complete — verify ' + rbVerifyMatch + ' match / ' + rbVerifyMismatch + ' mismatch');
+  setStatus('Rig Balancing: scan complete');
   rbSelectSlot(rigBalReturnSlot);
 }
 

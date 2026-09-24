@@ -1829,7 +1829,8 @@ GLOBAL SECTION (fixed body offset; unchanged across chain reorder):
   mere presence of the field in the body. Confirmed-global-by-recall so far:
   input/WorB. Confirmed per-patch-by-recall: RMno, Vol1/Vol2, Tempo, Rig Vol.
   Key   Offset  Description
-  RVol  0x28    Rig Volume
+  RVol  0x28    Rig Volume  (KEY position — value is at key+4, i.e. 0x2C; all
+                offsets in this table are key positions, value = +4)
   Vol1  0x30    To Amp 1 level
   Vol2  0x38    To Amp 2 level
   RMno  0x40    Mono/Stereo (0=Stereo, 1=Mono)
@@ -2319,7 +2320,11 @@ exists in the editor for all; CC 17 changes it on hardware regardless.
   re-asserted (raw CC17) on land so the edit stays audible. Commit per dirty
   slot = recall -> raw CC17 buffered value -> saveCurrentPatchToSlot(name, slot)
   to the SAME slot (blip expected). Quick scan fills dB per-visit; Detail scan
-  pre-walks all 104 (~55s on the author's VM). Entry patch is restored on exit.
+  (build 60, 2026-09-24) reads all 104 SILENTLY — no recall walk — via the
+  by-slot body read (readSlotBodySilent): RVol value at body 0x2C (key at 0x28,
+  value = key+4), scaled floor((raw + 2^31) / 2^25) = the top 7 bits, which
+  matched the recall broadcast 104/104 (gateRawToV127's rounding was 1 low on
+  10/104). Was an audible 104-patch walk (~55s) before. Entry patch restored on exit.
   KNOWN/ACCEPTED: the shared knob shows the same pre-existing ±0.1/0.2 dB display
   imprecision every knob has (a valRigVol anchor issue, deferred to a future
   knob-precision pass) — moot here since leveling is by ear.
