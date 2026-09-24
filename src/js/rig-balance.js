@@ -373,9 +373,25 @@ async function rbCommitAndClose() {
   var dirty = rbDirtyList();
   rigBalBusy = true;
   appLog('Rig Balancing: committing ' + dirty.length + ' changed rigs');
+  // build 79: visible progress (the status bar sits under this full-screen mode,
+  // so the save used to look like nothing was happening). Reuses the shared
+  // scan overlay, which sits above Rig Balancing; its Cancel is hidden — a
+  // half-finished commit isn't something to abort midway.
+  var ov = document.getElementById('scan-overlay');
+  var ovTitle = ov ? ov.querySelector('h3') : null;
+  var ovText = document.getElementById('scan-progress-text');
+  var ovBar = document.getElementById('scan-progress-bar');
+  var ovCancel = document.getElementById('btn-scan-skip');
+  var oldTitle = ovTitle ? ovTitle.textContent : '';
+  if (ovTitle) ovTitle.textContent = 'Saving Rig Volumes';
+  if (ovCancel) ovCancel.style.display = 'none';
+  if (ov) ov.classList.add('open');
   for (var i = 0; i < dirty.length; i++) {
     var slot = dirty[i];
     setStatus('Rig Balancing: saving ' + slotLabel(slot) + ' (' + (i + 1) + '/' + dirty.length + ')…');
+    if (ovText) ovText.textContent = 'Saving ' + (i + 1) + ' / ' + dirty.length + '  —  ' + slotLabel(slot)
+      + (patchNameCache[slot] ? '  ' + patchNameCache[slot] : '');
+    if (ovBar) ovBar.style.width = ((i / dirty.length) * 100).toFixed(1) + '%';
     await rbNavAndReadStored(slot);            // load the patch onto hardware
     rbAssert(slot);                            // assert the edited Rig Vol (exact if from the rack)
     await sleep(RB_COMMIT_SETTLE);
@@ -393,6 +409,10 @@ async function rbCommitAndClose() {
     delete rigBalBufferRaw[slot];
     rbRefreshCell(slot);
   }
+  if (ovBar) ovBar.style.width = '100%';
+  if (ov) ov.classList.remove('open');
+  if (ovTitle) ovTitle.textContent = oldTitle;
+  if (ovCancel) ovCancel.style.display = '';
   rigBalBusy = false;
   appLog('Rig Balancing: commit complete');
   rbCloseMode();
