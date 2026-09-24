@@ -5,7 +5,7 @@
  * See LICENSE in the project root for full license text.
  */
 // ════════════════════════════════════════════════════════════════════
-// CALIBRATION WALKER (build 80, Charlie's dev tool) — Settings → Calibration.
+// CALIBRATION WALKER (build 80, Charlie's dev tool) — header CAL button (build 81).
 // Steps one on-screen knob through its 0-127 positions EXACTLY the way a user
 // drag does (synthetic mousedown/mousemove/mouseup on the knob, so every knob
 // engine's own send path runs), and after each step records the rack's reply —
@@ -154,7 +154,7 @@ function calOpen() {
 
 document.addEventListener('DOMContentLoaded', function() {
   var byId = function(id) { return document.getElementById(id); };
-  if (byId('settings-btn-calibration')) byId('settings-btn-calibration').addEventListener('click', calOpen);
+  if (byId('btn-calibration')) byId('btn-calibration').addEventListener('click', calOpen);
   if (byId('cal-start')) byId('cal-start').addEventListener('click', calRun);
   if (byId('cal-stop'))  byId('cal-stop').addEventListener('click', function() { calStop = true; if (calNextResolve) { var r = calNextResolve; calNextResolve = null; r(''); } });
   if (byId('cal-save'))  byId('cal-save').addEventListener('click', calSaveCsv);
