@@ -1210,9 +1210,13 @@ function decodeFull32(data, off) {
 function rigVolDbFromRaw(raw) {
   return -24 + 24 * (raw + 2147483648) / 4294967296;
 }
+// One decimal, rounding an exact half UP (toward +inf) like the rack's screen:
+// -5.25 -> -5.2 (toFixed would give -5.3; L3/Z4, build 76). Tiny epsilon so a
+// float that is a hair under the half (e.g. -5.2499999) still counts as the half.
 function fmtDb1(db) {
-  const t = (Math.abs(db) < 0.05 ? 0 : db).toFixed(1);
-  return t + ' dB';
+  let r = Math.floor(db * 10 + 0.5 + 1e-9) / 10;
+  if (Math.abs(r) < 0.05) r = 0;
+  return r.toFixed(1) + ' dB';
 }
 
 // Raw signed int32 (full range) -> 0-127 v-scale (same scale CMD 0x11 uses)
