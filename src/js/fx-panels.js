@@ -576,7 +576,7 @@ function reverbKnobDisplay(paramLo, val) {
         const cell = row[c];
         if (cell && cell.lo === paramLo && cell.unit === 'ms') {
           const max = cell.max || 200;
-          return (val / 127 * max).toFixed(1) + ' ms';
+          return Math.round(fracFromV127(val) * max) + ' ms';   // build 84: rack grid, whole ms (walker: SR Pre-Delay 17/17)
         }
       }
     }

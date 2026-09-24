@@ -1773,9 +1773,9 @@ const DELAY_MODELS = [
           [ {label:'Expanded Delay', lo:0x09, toggle:true, options:['Off','On']},
             {label:'Tape Hiss',      lo:0x0A, toggle:true, options:['Off','On']} ],
           [ {label:'Head Tilt', lo:0x08,
-              display: function(v) { return (v / 127 * 10).toFixed(1); }},
+              display: function(v) { return (fracFromV127(v) * 10).toFixed(1); }},
             {label:'Wow/Flutter', lo:0x07,
-              display: function(v) { return (v / 127 * 2).toFixed(2) + '%'; }} ]
+              display: function(v) { return (fracFromV127(v) * 2).toFixed(2) + '%'; }} ]
         ]
       },
       { rows: [
@@ -1794,18 +1794,18 @@ const DELAY_MODELS = [
                 var tgl = document.getElementById('delay-tgl-09');
                 var extended = tgl && parseInt(tgl.dataset.value) > 0;
                 var lo = extended ? 20 : 70, hi = extended ? 2400 : 600;
-                return Math.round(lo + (v / 127) * (hi - lo)) + ' ms';
+                return Math.round(lo + fracFromV127(v) * (hi - lo)) + ' ms';
               }} ],
           [ {label:'Sync', lo:0x05, delaySync:true} ]
         ]
       },
       { rows: [
           [ {label:'Feedback', lo:0x03,
-              display: function(v) { return (1 + (v / 127) * 8).toFixed(1); }},
+              display: function(v) { return (1 + fracFromV127(v) * 8).toFixed(1); }},
             {label:'Rec Level', lo:0x06,
-              display: function(v) { return (v / 127 * 10).toFixed(1); }},
+              display: function(v) { return (fracFromV127(v) * 10).toFixed(1); }},
             {label:'Mix', lo:0x02,
-              display: function(v) { return (1 + (v / 127) * 8).toFixed(1); }} ]
+              display: function(v) { return (1 + fracFromV127(v) * 8).toFixed(1); }} ]
         ]
       }
     ]
@@ -1823,7 +1823,7 @@ const DELAY_MODELS = [
             var tgl = document.getElementById('delay-tgl-09');
             var extended = tgl && parseInt(tgl.dataset.value) > 0;
             var lo = extended ? 128 : 32, hi = extended ? 1600 : 400;
-            return Math.round(lo + (v / 127) * (hi - lo)) + ' ms';
+            return Math.round(lo + fracFromV127(v) * (hi - lo)) + ' ms';
           }},
         {label:'Feedback', lo:0x03, display:'delayTen'},
         {label:'Depth',    lo:0x07, display:'delayTen'},
@@ -1887,10 +1887,10 @@ const DELAY_MODELS = [
     rows: [
       { rows: [
           [ {label:'Delay', lo:0x04,
-              display: function(v) { return Math.round(1 + (v / 127) * (4000 - 1)) + ' ms'; }} ],
+              display: function(v) { return Math.round(1 + fracFromV127(v) * (4000 - 1)) + ' ms'; }} ],
           [ {label:'Sync', lo:0x05, delaySync:true} ],
           [ {label:'Feedback', lo:0x03,
-              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+              display: function(v) { return Math.round(fracFromV127(v) * 100) + '%'; }} ]
         ]
       },
       { group:'DELAY', rows: [
@@ -1901,15 +1901,15 @@ const DELAY_MODELS = [
                 return l + ':' + r;
               }},
             {label:'Stereo Width', lo:0x08,
-              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+              display: function(v) { return Math.round(fracFromV127(v) * 100) + '%'; }} ]
         ]
       },
       { group:'EQ', rows: [
           [ {label:'Low Cut', lo:0x0A,
-              display: function(v) { return (20 * Math.pow(1000 / 20, v / 127)).toFixed(1) + ' Hz'; }},
+              display: function(v) { return (20 * Math.pow(1000 / 20, fracFromV127(v))).toFixed(1) + ' Hz'; }},
             {label:'High Cut', lo:0x09,
               display: function(v) {
-                var hz = 1000 * Math.pow(20000 / 1000, v / 127);
+                var hz = 1000 * Math.pow(20000 / 1000, fracFromV127(v));
                 return (hz >= 1000) ? (hz / 1000).toFixed(1) + ' kHz' : hz.toFixed(0) + ' Hz';
               }} ]
         ]
@@ -1917,7 +1917,7 @@ const DELAY_MODELS = [
       { group:'ENV MOD', rows: [
           [ {label:'Rate', lo:0x0B,
               display: function(v) {
-                var ms = 10 * Math.pow(100, v / 127);
+                var ms = 10 * Math.pow(100, fracFromV127(v));
                 return (ms >= 1000) ? (ms / 1000).toFixed(2) + ' s' : ms.toFixed(1) + ' ms';
               }},
             {label:'FBK', lo:0x0C,
@@ -1937,7 +1937,7 @@ const DELAY_MODELS = [
               {label:'Mono', v127:0}, {label:'Stereo', v127:42},
               {label:'Cross', v127:85}, {label:'Pong', v127:127} ] } ],
           [ {label:'Mix', lo:0x02,
-              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+              display: function(v) { return Math.round(fracFromV127(v) * 100) + '%'; }} ]
         ]
       }
     ]
@@ -2085,18 +2085,18 @@ const FX1_MODELS = [
   { mid: 0x16, mids: [0x15, 0x16], name: 'Dyn3 Compressor', captured: true,
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
     rows: [
-      [ {label:'Threshold', lo:0x02, display: function(v) { return (-60 + (v/127)*60).toFixed(1) + ' dB'; }},
+      [ {label:'Threshold', lo:0x02, display: function(v) { return (-60 + fracFromV127(v)*60).toFixed(1) + ' dB'; }},
         {label:'Attack',    lo:0x03, display: function(v) {
-            var ms = 0.01 * Math.pow(30000, v/127);           // 10us .. 300ms
+            var ms = 0.01 * Math.pow(30000, fracFromV127(v));           // 10us .. 300ms
             return ms < 1 ? (ms*1000).toFixed(1) + ' us' : ms.toFixed(1) + ' ms';
           }},
         {label:'Release',   lo:0x04, display: function(v) {
-            var ms = 5 * Math.pow(800, v/127);                 // 5ms .. 4.0s
+            var ms = 5 * Math.pow(800, fracFromV127(v));                 // 5ms .. 4.0s
             return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
           }},
-        {label:'Ratio',     lo:0x05, display: function(v) { return Math.pow(100, v/127).toFixed(1) + ':1'; }},
-        {label:'Knee',      lo:0x06, display: function(v) { return ((v/127)*30).toFixed(1) + ' dB'; }},
-        {label:'Gain',      lo:0x07, display: function(v) { return ((v/127)*40).toFixed(1) + ' dB'; }} ]
+        {label:'Ratio',     lo:0x05, display: function(v) { return Math.pow(100, fracFromV127(v)).toFixed(1) + ':1'; }},
+        {label:'Knee',      lo:0x06, display: function(v) { return (fracFromV127(v)*30).toFixed(1) + ' dB'; }},
+        {label:'Gain',      lo:0x07, display: function(v) { return (fracFromV127(v)*40).toFixed(1) + ' dB'; }} ]
     ]
   },
   // ── FLANGER — captured 2026-07-31 (Wireshark, Flanger_Knob_Capture.pcapng,
@@ -2294,24 +2294,24 @@ const FX1_MODELS = [
       { rows: [
           [ {label:'Rate', lo:0x02, syncDriven:true,
               display: function(v) {
-                var s = 0.01 * Math.pow(1000, v / 127);
+                var s = 0.01 * Math.pow(1000, fracFromV127(v));
                 return (s < 1 ? s.toFixed(2) : s.toFixed(1)) + ' s';
               }},
             {label:'Sync', lo:0x03, sync:true} ],
           [ {label:'Depth', lo:0x04,
-              display: function(v) { return ((v / 127) * 24).toFixed(1) + ' ms'; }} ]
+              display: function(v) { return (fracFromV127(v) * 24).toFixed(1) + ' ms'; }} ]
         ]
       },
       { group:'CHORUS', rows: [
           [ {label:'Low Cut', lo:0x08,
-              display: function(v) { return (24.4 * Math.pow(1000 / 24.4, v / 127)).toFixed(1) + ' Hz'; }},
+              display: function(v) { return (24.4 * Math.pow(1000 / 24.4, fracFromV127(v))).toFixed(1) + ' Hz'; }},
             {label:'Width', lo:0x09,
-              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+              display: function(v) { return Math.round(fracFromV127(v) * 100) + '%'; }} ]
         ]
       },
       { group:'MOD', rows: [
           [ {label:'Pre Delay', lo:0x06,
-              display: function(v) { return ((v / 127) * 24).toFixed(1) + ' ms'; }},
+              display: function(v) { return (fracFromV127(v) * 24).toFixed(1) + ' ms'; }},
             {label:'Waveform', lo:0x0A, toggle:true, options:['Tri','Sine']} ]
         ]
       },
@@ -2320,7 +2320,7 @@ const FX1_MODELS = [
               {label:'1', v127:0}, {label:'2', v127:32}, {label:'3', v127:64},
               {label:'4', v127:95}, {label:'6', v127:127} ] } ],
           [ {label:'Mix', lo:0x05,
-              display: function(v) { return Math.round((v / 127) * 100) + '%'; }} ]
+              display: function(v) { return Math.round(fracFromV127(v) * 100) + '%'; }} ]
         ]
       }
     ]
@@ -2421,9 +2421,9 @@ const FX1_MODELS = [
           [ {label:'Gain', lo:0x02, bandColor: '#e83828',
               display: function(v) { return eqSliderDb(v, -24, 12, true); }},
             {label:'Freq', lo:0x03, bandColor: '#e83828',
-              display: function(v) { return eqFreqDisplay(20 * Math.pow(2000 / 20, v / 127)); }} ],
+              display: function(v) { return eqFreqDisplay(20 * Math.pow(2000 / 20, fracFromV127(v))); }} ],
           [ {label:'Q',    lo:0x04, bandColor: '#e83828',
-              display: function(v) { return (0.2 * Math.pow(50, v / 127)).toFixed(1); }},
+              display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }},
             {label:'Type', lo:0x05, select:true, wrapCycle:true, options: [
               {label:'Low Shelf',   v127:0},
               {label:'Peaking',     v127:25},
@@ -2437,27 +2437,27 @@ const FX1_MODELS = [
           [ {label:'Gain', lo:0x06, bandColor: '#e0a020',
               display: function(v) { return eqSliderDb(v, -18, 18); }},
             {label:'Freq', lo:0x07, bandColor: '#e0a020',
-              display: function(v) { return eqFreqDisplay(100 * Math.pow(100, v / 127)); }} ],
+              display: function(v) { return eqFreqDisplay(100 * Math.pow(100, fracFromV127(v))); }} ],
           [ {label:'Q',    lo:0x08, bandColor: '#e0a020',
-              display: function(v) { return (0.2 * Math.pow(50, v / 127)).toFixed(1); }} ]
+              display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }} ]
         ]
       },
       { group:'HMF', rows: [
           [ {label:'Gain', lo:0x09, bandColor: '#30c050',
               display: function(v) { return eqSliderDb(v, -18, 18); }},
             {label:'Freq', lo:0x0A, bandColor: '#30c050',
-              display: function(v) { return eqFreqDisplay(200 * Math.pow(100, v / 127)); }} ],
+              display: function(v) { return eqFreqDisplay(200 * Math.pow(100, fracFromV127(v))); }} ],
           [ {label:'Q',    lo:0x0B, bandColor: '#30c050',
-              display: function(v) { return (0.2 * Math.pow(50, v / 127)).toFixed(1); }} ]
+              display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }} ]
         ]
       },
       { group:'HF', rows: [
           [ {label:'Gain', lo:0x0C, bandColor: '#3f8fe0',
               display: function(v) { return eqSliderDb(v, -24, 12, true); }},
             {label:'Freq', lo:0x0D, bandColor: '#3f8fe0',
-              display: function(v) { return eqFreqDisplay(200 * Math.pow(100, v / 127)); }} ],
+              display: function(v) { return eqFreqDisplay(200 * Math.pow(100, fracFromV127(v))); }} ],
           [ {label:'Q',    lo:0x0E, bandColor: '#3f8fe0',
-              display: function(v) { return (0.2 * Math.pow(50, v / 127)).toFixed(1); }},
+              display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }},
             {label:'Type', lo:0x0F, select:true, wrapCycle:true, options: [
               {label:'High Shelf',   v127:0},
               {label:'Peaking',      v127:25},
@@ -2519,7 +2519,7 @@ const FX1_MODELS = [
             {label:'Slow', v127:0}, {label:'Break', v127:64}, {label:'Fast', v127:127} ]},
         {label:'Balance', lo:0x04,
           display: function(v) {
-            var l = Math.round((v / 127) * 100);
+            var l = Math.round(fracFromV127(v) * 100);
             return l + ':' + (100 - l);
           }},
         {label:'Type', lo:0x03, select:true, options: [

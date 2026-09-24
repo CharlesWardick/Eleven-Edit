@@ -410,7 +410,7 @@ function updateBreakupColor() {
   }
 }
 
-function valDisplay(v127) { return (v127/127*10).toFixed(1); }
+function valDisplay(v127) { return (fracFromV127(v127) * 10).toFixed(1); }   // build 84: rack v/128 grid (walker: Treble 17/17)
 
 // Graphic EQ band/output display. TWO SHAPES, chosen by the `linear` flag —
 // picked apart 2026-07-31 by a capture that started every slider parked at
@@ -619,7 +619,7 @@ function rebaselineOpenFxPanel() {
 // Gate Threshold: 0=OFF, 1-127 maps -90dB to -20dB
 function valGateThresh(v127) {
   if (v127 === 0) return 'OFF';
-  const db = -90 + (v127 / 127) * 70;
+  const db = -90 + fracFromV127(v127) * 70;   // build 84: rack grid (within 0.1; small rack quirk remains)
   return db.toFixed(1) + ' dB';
 }
 
@@ -633,7 +633,7 @@ function valGateThresh(v127) {
 // gives "10.0 ms" with no separate branch needed.
 function valGateRelease(v127) {
   // Logarithmic: ms = 10 * (300)^(v/127)
-  const ms = 10 * Math.pow(300, v127 / 127);
+  const ms = 10 * Math.pow(300, fracFromV127(v127));   // build 84: rack grid (walker: step 21 = 25.5 ms)
   return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
 }
 
@@ -680,8 +680,9 @@ function valAmpOut(v127) {
 // vanishes at the ends, which is exactly the reported shape.
 function valToAmpVol(v127) {
   if (v127 === 0) return 'MUTE';
-  const db = (v127 < 64) ? (v127 - 64) * (12 / 64)
-                         : (v127 - 64) * (12 / 63);
+  // build 84: rack grid — 1/64 of 12 dB per step on BOTH sides, 127 pinned to +12
+  // (walker: top half 8/8 exact; bottom half reads 0.1 lower on the rack, open quirk).
+  const db = (v127 >= 127) ? 12 : (v127 - 64) * (12 / 64);
   const t = db.toFixed(1);
   // No '+' on zero — the rack shows a bare 0.0 dB, not +0.0.
   return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';

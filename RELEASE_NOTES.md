@@ -36,8 +36,9 @@ saved-value tick, and no longer turn red when moved. The audio bar is scaled up 
 match its AUDIO ENGINE button, and its MUTE (mirrored in Audio Setup) now works
 like the output mutes — always reads MUTE, lit red while muted.
 
-**Exact readouts.** Rig Vol (main panel and Rig Balancing) and Amp Out now show
-exactly what the rack's own screen shows, instead of occasionally being 0.1–0.2 dB
+**Exact readouts.** Knob readouts across the app now use the rack's own value
+steps, so they show what the rack's screen shows (Rig Vol, Amp Out, tone knobs,
+Gate Release and effect knobs verified against the rack), instead of occasionally being 0.1–0.2 dB
 off. In Rig Balancing you can also turn the rack's own Rig Vol knob: the
 selected row follows it, and Save Changed stores exactly what you dialed.
 
