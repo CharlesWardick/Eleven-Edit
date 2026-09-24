@@ -1193,6 +1193,28 @@ function readSignedLE32(body, off) {
   return u > 0x7FFFFFFF ? u - 0x100000000 : u;
 }
 
+// ── Full-precision value from a 5-byte SysEx value field (build 75). Every
+// value reply/broadcast (e.g. 12 07 / 02 07 Rig Vol) carries the rack's whole
+// signed int32, 7-bit packed MSB-first: b0 = bits 31-25, b1 = 24-18, b2 = 17-11,
+// b3 = 10-4, b4 = 3-0. The app used to keep only b0 (the coarse 0-127 position)
+// — the source of the long-standing 0.1-0.2 dB readout drift vs the rack
+// screen. Proven 2026-09-24: decoded values land exactly on the rack's display
+// (-9.000, -6.000, -5.000, -3.100 dB...). Returns signed int32 or null.
+function decodeFull32(data, off) {
+  if (!data || data.length < off + 5) return null;
+  const u = ((data[off] << 25) | (data[off+1] << 18) | (data[off+2] << 11)
+           | (data[off+3] << 4) | (data[off+4] & 0x0F)) >>> 0;
+  return u > 0x7FFFFFFF ? u - 0x100000000 : u;
+}
+// Rig Volume in dB from the full int32 — the rack's own linear -24..0 dB map.
+function rigVolDbFromRaw(raw) {
+  return -24 + 24 * (raw + 2147483648) / 4294967296;
+}
+function fmtDb1(db) {
+  const t = (Math.abs(db) < 0.05 ? 0 : db).toFixed(1);
+  return t + ' dB';
+}
+
 // Raw signed int32 (full range) -> 0-127 v-scale (same scale CMD 0x11 uses)
 function gateRawToV127(signed) {
   const pct = (signed - (-2147483648)) / (2147483647 - (-2147483648));

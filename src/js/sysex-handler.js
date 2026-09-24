@@ -781,6 +781,9 @@ function handleChainMap(data) {
 function handleRigVolumeBroadcast(data) {
   const v0  = data[6];
   const val = (v0 >= 0x40) ? (v0 - 0x40) : (v0 + 64);
+  // build 75: readout from the FULL-precision value (all 5 bytes), not v0.
+  const raw = decodeFull32(data, 6);
+  const text = (raw !== null) ? fmtDb1(rigVolDbFromRaw(raw)) : valRigVol(val);
   const wrap = document.getElementById('rig-vol-wrap');
   if (wrap) {
     wrap.dataset.value = val;
@@ -794,7 +797,7 @@ function handleRigVolumeBroadcast(data) {
       wrap.dataset.orig = mainKnobBaselineSetIfUnset('rig-vol-wrap', val);
     }
     drawKnob(wrap.querySelector('canvas'), val);
-    deferPaintOrRun(function() { document.getElementById('rig-vol-val').textContent = valRigVol(val); });
+    deferPaintOrRun(function() { document.getElementById('rig-vol-val').textContent = text; });
   }
 }
 

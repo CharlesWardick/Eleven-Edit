@@ -103,7 +103,7 @@ function rbRefreshCell(slot) {
   var dirty = (rigBalBuffer[slot] !== undefined);
   var known = (rigBalKnown[slot] !== undefined);
   var v = dirty ? rigBalBuffer[slot] : (known ? rigBalKnown[slot] : null);
-  dbEl.textContent = (v !== null) ? valRigVol(v) : '—';
+  dbEl.textContent = (v !== null) ? rbDbText(slot, v) : '—';
 
   td.classList.toggle('dirty', dirty);
   td.classList.toggle('known', !dirty && known);
@@ -132,7 +132,7 @@ function rbBindKnob(slot) {
   else wrap.dataset.orig = '';   // suppresses the tick until the real value is read
   drawKnob(wrap.querySelector('canvas'), v);
   document.getElementById('rigbal-knob-val').textContent =
-    (rigBalKnown[slot] !== undefined || dirty) ? valRigVol(v) : '--';
+    (rigBalKnown[slot] !== undefined || dirty) ? rbDbText(slot, v) : '--';
   document.getElementById('rigbal-knob-sel').textContent = slotLabel(slot);
 }
 
@@ -175,7 +175,7 @@ function rbKnobChanged(v127) {
   } else {
     rigBalBuffer[slot] = v127;
   }
-  document.getElementById('rigbal-knob-val').textContent = valRigVol(v127);
+  document.getElementById('rigbal-knob-val').textContent = rbDbText(slot, v127);
   rbRefreshCell(slot);
   rbSendRigVolRaw(v127);
 }
@@ -208,6 +208,7 @@ async function rbEnter() {
   rigBalKnown = {};
   rigBalOrig = {};
   rigBalBuffer = {};
+  rigBalExactDb = {};
 
   if (!rigBalKnobInited) {
     initKnob('rigbal-knob-wrap', 'rigbal-knob-val', valRigVol, rbKnobChanged);
@@ -244,7 +245,18 @@ async function rbReadStoredSilent(slot) {
   if (!res || !res.body) return null;
   var raw = readSignedLE32(res.body, 0x2C);
   if (raw === null || raw === undefined) return null;
+  rigBalExactDb[slot] = rigVolDbFromRaw(raw);   // build 75: exact rack readout
   return Math.floor((raw + 2147483648) / 33554432);
+}
+// Exact stored dB per slot (full precision, build 75). Shown whenever the slot
+// is at its stored value; an edit (0-127 knob) shows the knob's own value.
+var rigBalExactDb = {};
+function rbDbText(slot, v) {
+  if (rigBalBuffer[slot] === undefined && rigBalExactDb[slot] !== undefined
+      && rigBalKnown[slot] !== undefined && v === rigBalKnown[slot]) {
+    return fmtDb1(rigBalExactDb[slot]);
+  }
+  return valRigVol(v);
 }
 
 async function rbDetailPrescan() {

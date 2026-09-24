@@ -36,6 +36,10 @@ saved-value tick, and no longer turn red when moved. The audio bar is scaled up 
 match its AUDIO ENGINE button, and its MUTE (mirrored in Audio Setup) now works
 like the output mutes — always reads MUTE, lit red while muted.
 
+**Exact Rig Volume readouts.** Rig Vol (main panel and Rig Balancing) now shows
+exactly what the rack's own screen shows, instead of occasionally being 0.1–0.2 dB
+off.
+
 **Smaller touches.** The version and build number show in the title bar and
 About box; the Avid-editor warning in the status bar stays on one line.
 
