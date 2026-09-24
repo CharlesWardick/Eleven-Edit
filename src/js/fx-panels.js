@@ -2471,7 +2471,8 @@ function buildFxHostPanel(mid) {
   // floating at a different baseline. A model can freely mix top-level flat
   // rows with box entries (labeled or not) in the same rows array, in
   // whatever order Avid's layout calls for.
-  model.rows.forEach(function(entry) {
+  const isPeq = (model.name === 'Parametric EQ');
+  model.rows.forEach(function(entry, entryIdx) {
     if (entry && entry.rows) {
       const box = document.createElement('div');
       box.style.cssText = 'display:flex;flex-direction:column;gap:10px;'
@@ -2484,7 +2485,16 @@ function buildFxHostPanel(mid) {
         box.appendChild(hdr);
       }
       entry.rows.forEach(function(rowCells) { renderFxHostRow(rowCells, box); });
-      wrapper.appendChild(box);
+      if (isPeq && entryIdx === model.rows.length - 1) {
+        // build 70: EQ curve box stacked under OUTPUT (peqCurveBuild below).
+        const colWrap = document.createElement('div');
+        colWrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+        colWrap.appendChild(box);
+        colWrap.appendChild(peqCurveBuild());
+        wrapper.appendChild(colWrap);
+      } else {
+        wrapper.appendChild(box);
+      }
     } else {
       // Plain top-level flat row — no box, sits directly in the wrapper.
       const col = document.createElement('div');
@@ -2494,6 +2504,7 @@ function buildFxHostPanel(mid) {
     }
   });
 
+  if (isPeq) peqCurveWatch(wrapper);
   frag.appendChild(wrapper);
   return { frag: frag, model: model, cellsByLo: collectFxHostCellRefs(frag, model) };
 }
@@ -2533,6 +2544,7 @@ function renderFxHostKnobs(mid) {
   const built = buildFxHostPanel(mid);
   container.innerHTML = '';
   container.appendChild(built.frag);
+  peqCurveSchedule();
 }
 
 // Attaches an already-built, already-populated fragment (buildFxHostPanel)
@@ -2544,6 +2556,7 @@ function swapInFxHostPanel(frag) {
   if (!container) return;
   container.innerHTML = '';
   container.appendChild(frag);
+  peqCurveSchedule();
 }
 
 // ── FX-host panel paint buffering (2026-09-03 follow-up to the main-panel
@@ -2699,6 +2712,7 @@ function updateFxHostKnob(paramLo, val) {
       deferFxHostPaintOrRun(function() {
         sel.value = String(bestIdx);
         syncLoadedMarker(sel, 'fxhost-sel:' + openFxHostSlot + ':' + (model ? model.mid : '') + ':' + loHex);
+        peqCurveSchedule();
       });
     }
     if (fxHostArrivalGate) fxHostArrivalGate.markSeen(paramLo);
@@ -2931,3 +2945,160 @@ function fxHostClearSyncIfDriving(model, paramLo) {
     if (bridgeMidiReady) queueKnobSend('fxhost:' + paramLo, function(v) { sendFxHostParamWrite(slotId, paramLo, v); }, val);
   });
 })();
+
+// ════════════════════════════════════════════════════════════════════
+// PARAMETRIC EQ CURVE (build 70, Charlie's ask) — a small response graph
+// under OUTPUT. Reads each band's Gain/Freq/Q/Type straight off the panel's
+// own controls (the same cell.display formulas the readouts use, so nothing
+// is duplicated) and draws the textbook RBJ-cookbook biquad response for each
+// band type, summed, plus Output. NOT Avid's exact DSP — the shape is right
+// (boost/cut/width/shelf/cutoff), fine detail may differ slightly. Redraws on
+// any knob value change (MutationObserver on data-value), a Type pick
+// ('change'), or a scripted select paint (peqCurveSchedule from the paint path).
+// ════════════════════════════════════════════════════════════════════
+var PEQ_FS = 48000;
+var PEQ_BANDS = [
+  { g: 0x02, f: 0x03, q: 0x04, type: 0x05, col: '#e83828', low: true  },   // LF
+  { g: 0x06, f: 0x07, q: 0x08, type: null, col: '#e0a020' },               // LMF
+  { g: 0x09, f: 0x0A, q: 0x0B, type: null, col: '#30c050' },               // HMF
+  { g: 0x0C, f: 0x0D, q: 0x0E, type: 0x0F, col: '#3f8fe0', low: false }    // HF
+];
+var PEQ_OUT_LO = 0x10;
+var peqCurveRaf = 0;
+
+function peqCurveBuild() {
+  const box = document.createElement('div');
+  box.style.cssText = 'padding:8px;background:#242424;border-radius:5px;border:1px solid #444;';
+  const c = document.createElement('canvas');
+  c.id = 'peq-curve';
+  c.width = 480; c.height = 300;          // 2x for crisp lines
+  c.style.cssText = 'width:240px;height:150px;display:block;';
+  box.appendChild(c);
+  return box;
+}
+
+function peqCurveWatch(root) {
+  const mo = new MutationObserver(peqCurveSchedule);
+  mo.observe(root, { attributes: true, subtree: true, attributeFilter: ['data-value'] });
+  root.addEventListener('change', peqCurveSchedule);
+}
+
+function peqCurveSchedule() {
+  if (peqCurveRaf) return;
+  peqCurveRaf = requestAnimationFrame(function() { peqCurveRaf = 0; peqCurveDraw(); });
+}
+
+// Number off a cell's own display string: "+3.5 dB" / "98.6 Hz" / "2.0 kHz" / "0.7".
+function peqCellNum(lo) {
+  const loHex = lo.toString(16).padStart(2, '0');
+  const wrap = document.getElementById('fxhost-w-' + loHex);
+  if (!wrap || wrap.dataset.value === undefined || wrap.dataset.value === '') return null;
+  const model = currentFxHostModel();
+  let cell = null;
+  if (model) fxHostAllCells(model).forEach(function(c) { if (c.lo === lo) cell = c; });
+  if (!cell || typeof cell.display !== 'function') return null;
+  const s = String(cell.display(parseInt(wrap.dataset.value)));
+  const n = parseFloat(s);
+  if (isNaN(n)) return null;
+  return /kHz/.test(s) ? n * 1000 : n;
+}
+function peqTypeLabel(lo) {
+  const sel = document.getElementById('fxhost-sel-' + lo.toString(16).padStart(2, '0'));
+  if (!sel || sel.selectedIndex < 0) return null;
+  return sel.options[sel.selectedIndex].text;
+}
+
+function peqCoef(t, f, g, q) {
+  const A = Math.pow(10, g / 40), w = 2 * Math.PI * Math.min(f, PEQ_FS * 0.45) / PEQ_FS;
+  const c = Math.cos(w), s = Math.sin(w), al = s / (2 * Math.max(q, 0.05));
+  let b, a, r, k;
+  switch (t) {
+    case 'lshelf': r = 2 * Math.sqrt(A) * al;
+      b = [A*((A+1)-(A-1)*c+r), 2*A*((A-1)-(A+1)*c), A*((A+1)-(A-1)*c-r)];
+      a = [(A+1)+(A-1)*c+r, -2*((A-1)+(A+1)*c), (A+1)+(A-1)*c-r]; break;
+    case 'hshelf': r = 2 * Math.sqrt(A) * al;
+      b = [A*((A+1)+(A-1)*c+r), -2*A*((A-1)+(A+1)*c), A*((A+1)+(A-1)*c-r)];
+      a = [(A+1)-(A-1)*c+r, 2*((A-1)-(A+1)*c), (A+1)-(A-1)*c-r]; break;
+    case 'hp2': b = [(1+c)/2, -(1+c), (1+c)/2]; a = [1+al, -2*c, 1-al]; break;
+    case 'lp2': b = [(1-c)/2, 1-c, (1-c)/2];    a = [1+al, -2*c, 1-al]; break;
+    case 'hp1': k = Math.tan(w/2); b = [1, -1, 0]; a = [1+k, k-1, 0]; break;
+    case 'lp1': k = Math.tan(w/2); b = [k, k, 0];  a = [1+k, k-1, 0]; break;
+    case 'notch': b = [1, -2*c, 1]; a = [1+al, -2*c, 1-al]; break;
+    default: b = [1+al*A, -2*c, 1-al*A]; a = [1+al/A, -2*c, 1-al/A];     // peaking
+  }
+  return [b, a];
+}
+function peqMagDb(ba, f) {
+  const w = 2 * Math.PI * f / PEQ_FS, b = ba[0], a = ba[1];
+  const c1 = Math.cos(w), s1 = -Math.sin(w), c2 = Math.cos(2*w), s2 = -Math.sin(2*w);
+  const nr = b[0] + b[1]*c1 + b[2]*c2, ni = b[1]*s1 + b[2]*s2;
+  const dr = a[0] + a[1]*c1 + a[2]*c2, di = a[1]*s1 + a[2]*s2;
+  return 10 * Math.log10(Math.max(1e-12, (nr*nr + ni*ni) / (dr*dr + di*di)));
+}
+// Band -> its biquads (24 dB = two cascaded 12 dB sections) + dot position.
+function peqBandFilters(band) {
+  const g = peqCellNum(band.g), f = peqCellNum(band.f), q = peqCellNum(band.q);
+  if (g === null || f === null || q === null) return null;
+  let t = 'peak', n = 1;
+  if (band.type !== null) {
+    const lbl = peqTypeLabel(band.type) || '';
+    if (/Shelf/.test(lbl))          t = band.low ? 'lshelf' : 'hshelf';
+    else if (/Notch/.test(lbl))     t = 'notch';
+    else if (/pass 6dB/.test(lbl))  t = band.low ? 'hp1' : 'lp1';
+    else if (/pass 12dB/.test(lbl)) t = band.low ? 'hp2' : 'lp2';
+    else if (/pass 24dB/.test(lbl)) { t = band.low ? 'hp2' : 'lp2'; n = 2; }
+  }
+  const list = [];
+  for (let i = 0; i < n; i++) list.push(peqCoef(t, f, g, q));
+  const dotG = (t === 'peak' || t === 'lshelf' || t === 'hshelf') ? g : 0;
+  return { f: f, g: dotG, list: list };
+}
+
+function peqCurveDraw() {
+  const c = document.getElementById('peq-curve');
+  if (!c) return;
+  const x = c.getContext('2d');
+  const W = 240, H = 150;
+  x.setTransform(2, 0, 0, 2, 0, 0);
+  x.clearRect(0, 0, W, H);
+  const L = 22, R = W - 4, T = 6, B = H - 14;
+  const fx = function(f) { return L + (R - L) * Math.log(f / 20) / Math.log(1000); };
+  const dy = function(db) { return T + (B - T) * (24 - Math.max(-24, Math.min(24, db))) / 48; };
+  x.fillStyle = '#0e0e0e'; x.fillRect(L, T, R - L, B - T);
+  x.font = '8px sans-serif'; x.fillStyle = '#777'; x.strokeStyle = '#262626'; x.lineWidth = 1;
+  [100, 1000, 10000].forEach(function(f) {
+    x.beginPath(); x.moveTo(fx(f), T); x.lineTo(fx(f), B); x.stroke();
+    x.textAlign = 'center'; x.fillText(f >= 1000 ? (f / 1000) + 'k' : String(f), fx(f), H - 3);
+  });
+  [12, -12].forEach(function(g) {
+    x.beginPath(); x.moveTo(L, dy(g)); x.lineTo(R, dy(g)); x.stroke();
+    x.textAlign = 'right'; x.fillText((g > 0 ? '+' : '') + g, L - 3, dy(g) + 3);
+  });
+  x.strokeStyle = '#555'; x.beginPath(); x.moveTo(L, dy(0)); x.lineTo(R, dy(0)); x.stroke();
+  x.textAlign = 'right'; x.fillText('0', L - 3, dy(0) + 3);
+
+  const bands = PEQ_BANDS.map(function(b) { const r = peqBandFilters(b); if (r) r.col = b.col; return r; });
+  if (bands.some(function(b) { return !b; })) return;   // values not in yet — grid only
+  const out = peqCellNum(PEQ_OUT_LO) || 0;
+  const N = 240;
+  const bandDb = function(b, f) { let s = 0; b.list.forEach(function(k) { s += peqMagDb(k, f); }); return s; };
+  bands.forEach(function(b) {                     // faint per-band curves
+    x.strokeStyle = b.col; x.globalAlpha = 0.45; x.lineWidth = 1; x.beginPath();
+    for (let p = 0; p <= N; p++) {
+      const f = 20 * Math.pow(1000, p / N), y = dy(bandDb(b, f));
+      if (p) x.lineTo(fx(f), y); else x.moveTo(fx(f), y);
+    }
+    x.stroke(); x.globalAlpha = 1;
+  });
+  x.strokeStyle = '#e8e8e8'; x.lineWidth = 2; x.beginPath();   // combined
+  for (let p = 0; p <= N; p++) {
+    const f = 20 * Math.pow(1000, p / N);
+    let s = out; bands.forEach(function(b) { s += bandDb(b, f); });
+    if (p) x.lineTo(fx(f), dy(s)); else x.moveTo(fx(f), dy(s));
+  }
+  x.stroke();
+  bands.forEach(function(b) {
+    const f = Math.max(20, Math.min(20000, b.f));
+    x.fillStyle = b.col; x.beginPath(); x.arc(fx(f), dy(b.g), 3.5, 0, Math.PI * 2); x.fill();
+  });
+}
