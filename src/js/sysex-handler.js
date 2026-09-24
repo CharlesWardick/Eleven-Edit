@@ -78,6 +78,7 @@ async function parseSysEx(data) {
     case 0x34: return handleTrueZ(data);
     case 0x38: return handleGlobalCabBypass(data);
     case 0x3F: return handleReso(data);
+    case 0x39: return handleCabLink(data);
     case 0x11: return handleParamReadback(data);
     case 0x78: return handleRackDialog(data);
   }
@@ -984,6 +985,15 @@ function handleReso(data) {
   if (data.length < 8) return;
   resoState = (data[6] === 0x01);
   appLog('CMD 0x3F RESO: ' + (resoState ? 'ON' : 'OFF') + ' (dir=0x' + data[4].toString(16).padStart(2,'0') + ')');
+  if (typeof refreshGlobalToggles === 'function') refreshGlobalToggles();
+}
+
+// CMD 0x39 — Cab/Amp Linking (GLOBAL). Connect-query reply (12 39) or any
+// broadcast (02 39); value at data[6], 01 = linked.
+function handleCabLink(data) {
+  if (data.length < 8) return;
+  cabLinkState = (data[6] === 0x01);
+  appLog('CMD 0x39 Cab/Amp Linking: ' + (cabLinkState ? 'ON' : 'OFF') + ' (dir=0x' + data[4].toString(16).padStart(2,'0') + ')');
   if (typeof refreshGlobalToggles === 'function') refreshGlobalToggles();
 }
 

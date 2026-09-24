@@ -282,6 +282,8 @@ let pendingCabReassert = false;
 // 01 3F connect query is an experiment to see if the rack answers anyway. State
 // is otherwise adopt-broadcast-only (0x3F on change). 2026-08-30.
 let resoState;
+// Cab/Amp Linking (CMD 0x39) — GLOBAL on/off, read on connect. undefined until known.
+let cabLinkState;
 // FX Loop routing (CMD 0x3C) — GLOBAL, not per-patch. -1 = unknown until the
 // 01 3C connect query's reply (or a 02 3C broadcast) is seen. Values:
 // 0=Mono L, 1=Mono/Stereo, 2=Stereo. Shown as a picker on the FX Loop panel;

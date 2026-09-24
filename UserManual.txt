@@ -191,8 +191,9 @@ AMP PANEL
   are shown numerically — useful for decluttering the panel once you
   know your settings by ear.
 
-  GLOBALS (Cab Always Off, Cabinet Resonance) are rig-wide hardware
-  settings, not saved per patch.
+  GLOBALS (Cab / Amp Linking, Cab Always Off, Cabinet Resonance) are
+  rig-wide hardware settings, not saved per patch. Cab / Amp Linking:
+  when on, choosing an amp also loads that amp's default cab.
 
 EFFECT PANELS
   Click any other chain block (Wah, Dist, FX1/FX2, Mod, Delay, Reverb,

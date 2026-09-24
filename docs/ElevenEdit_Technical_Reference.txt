@@ -1007,8 +1007,8 @@ CMD 0x0A — Expression Pedal TARGET picker. DECODED 2026-08-31 (capture
   Edit neither sends nor reads 0x0A. [SET/BCAST — decoded, not implemented]
 
 Startup commands seen only in Avid editor USB capture (purpose unknown,
-not required by Eleven Edit): 0x08, 0x39.
-  (0x3A, 0x3C, 0x35 and 0x0A were formerly on this list; all now identified —
+not required by Eleven Edit): 0x08.
+  (0x39, 0x3A, 0x3C, 0x35 and 0x0A were formerly on this list; all now identified —
   0x3A = External Pedal config, 0x0A = Expression Pedal target, 0x3C = FX Loop
   mode, 0x35 = Output mode. See their entries above. 0x08 is now known to carry
   the Expression "Multiple FX" sub-config but its structure is not mapped.)
@@ -1032,11 +1032,14 @@ Output/Split In/Out). Full entry, values and app wiring are in Section 6's
 command list above ("CMD 0x35 — Output mode"). The 0x35=02 startup reply seen
 here is simply Rig Output. This resolves the "purpose unknown" note that used to
 pair it with 0x39.
-CMD 0x39 — Avid queries it at startup (payload-less REQU F0 13 0B 0F 01 39 F7).
-Live value first captured 2026-08-30: 0x39=00 (dir 0x12 reply). Purpose still
-unknown, but CONFIRMED NOT RESO — an Avid startup with RESO ON returned the
-identical 0x39=00, so it does not encode RESO (which has its own read, CMD 0x3F).
-Some other User Options field. Eleven Edit neither sends nor needs it.
+CMD 0x39 — DECODED 2026-09-24: Cab/Amp Linking (GLOBAL on/off, not per-patch).
+READ: F0 13 0B 0F 01 39 F7 -> reply 12 39 [state]. SET: the pair 00 39 [state]
+then 02 39 [state] (Avid's form; same shape as 0x3D). 01 = linked, 00 = off.
+No echo on set. When linked, the rack itself loads the amp's default cab on an
+amp change (on patch change it also broadcasts 02 21 + 02 33). Proven from three
+captures: Link OFF / ON A4->A1 nav, and Link toggled on/off/on/off. Wired to the
+CAB / AMP LINKING toggle in the GLOBALS box (build 52). (Earlier note: confirmed
+NOT RESO — RESO has its own read, CMD 0x3F.)
 
 
 ===================================================================

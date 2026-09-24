@@ -2673,6 +2673,7 @@ function setTogState(id, on) {
 function refreshGlobalToggles() {
   setTogState('cab-off-tog', globalCabBypass);
   setTogState('reso-tog', resoState);
+  setTogState('cablink-tog', cabLinkState);
 }
 document.addEventListener('DOMContentLoaded', function() {
   const cabTog = document.getElementById('cab-off-tog');
@@ -2687,6 +2688,15 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       sendGlobalCabBypassSet(true);
     }
+  });
+  const linkTog = document.getElementById('cablink-tog');
+  if (linkTog) linkTog.addEventListener('click', function() {
+    if (!bridgeMidiReady) return;
+    if (cabLinkState === undefined) { appLog('Cab/Amp Linking state unknown yet, ignoring click'); return; }
+    // No echo from the rack on set — update state on send.
+    cabLinkState = !cabLinkState;
+    sendCabLinkSet(cabLinkState);
+    refreshGlobalToggles();
   });
   const resoTog = document.getElementById('reso-tog');
   if (resoTog) resoTog.addEventListener('click', function() {
@@ -3171,7 +3181,7 @@ function setVolumeControlsEnabled(enabled) {
   ['toamp1-src','toamp2-src'].forEach(id => {
     const s = document.getElementById(id); if (s) s.disabled = !enabled;
   });
-  ['cab-off-tog','reso-tog'].forEach(id => {
+  ['cablink-tog','cab-off-tog','reso-tog'].forEach(id => {
     const b = document.getElementById(id); if (b) b.classList.toggle('knob-disabled', !enabled);
   });
   if (!enabled) {

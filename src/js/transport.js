@@ -814,6 +814,24 @@ function sendOutputModeSet(val) {
   appLog('sendOutputModeSet: 0x' + val.toString(16).padStart(2,'0'));
   return sendHex(hex);
 }
+// ── CMD 0x39 — Cab/Amp Linking (GLOBAL, not per-patch). DECODED 2026-09-24 from
+// Charlie's Link ON/OFF captures (was "0x39 unknown" in the Tech Ref).
+// READ:  F0 13 0B 0F 01 39 F7 -> reply 12 39 [state] (01=linked, 00=off).
+// SET:   the 00 39 [state] + 02 39 [state] PAIR, as Avid sends it (same shape as
+//   0x3D). The rack does not echo the set, so the UI state is updated on send.
+//   The rack itself keeps the amp->default-cab map; we only flip the switch.
+function sendCabLinkQuery() {
+  if (!bridgeMidiReady) return;
+  appLog('sendCabLinkQuery: reading Cab/Amp Linking (01 39)');
+  return sendHex('F0 13 0B 0F 01 39 F7');
+}
+function sendCabLinkSet(on) {
+  if (!bridgeMidiReady) return;
+  const v = on ? '01' : '00';
+  appLog('sendCabLinkSet: ' + (on ? 'ON' : 'OFF') + ' (00 39 + 02 39 pair)');
+  sendHex('F0 13 0B 0F 00 39 ' + v + ' F7');
+  return sendHex('F0 13 0B 0F 02 39 ' + v + ' F7');
+}
 function sendResoSet(on) {
   if (!bridgeMidiReady) return;
   const hex = 'F0 13 0B 0F 00 3F ' + (on ? '01' : '00') + ' F7';
@@ -1096,6 +1114,8 @@ async function requestFullState() {
   await sleep(80);
   sendResoQuery();
   await sleep(80);
+  sendCabLinkQuery();
+  await sleep(80);
   sendToAmpSourceRead();
   // Input selector (CMD 0x3D) is GLOBAL and, like the queries above, is never
   // volunteered on connect — but the rack DOES answer a 01 3D query (confirmed
@@ -1128,7 +1148,7 @@ async function requestFullState() {
   // instead of "--" until the first knob move. 2026-08-31.
   await sleep(80);
   sendOutputVolQuery();
-  appLog('Requested one-time setup state (curr rig confirm, chain map, global cab, reso, to-amp source, input sel, loop routing, output mode, mutes, out vols)');
+  appLog('Requested one-time setup state (curr rig confirm, chain map, global cab, reso, cab link, to-amp source, input sel, loop routing, output mode, mutes, out vols)');
 }
 
 // Amp, name, Rig Vol, and CHAIN_MAP are all per-patch — refresh all four
