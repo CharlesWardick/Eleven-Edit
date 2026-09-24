@@ -638,9 +638,10 @@ function valGateRelease(v127) {
 }
 
 // Rig Volume: 0-127 maps -24dB to 0dB
+// build 83: rack's v/128 grid (127 = top) + half-up rounding, same as the
+// full-precision path — a dragged app knob now reads what the rack will show.
 function valRigVol(v127) {
-  const db = -24 + (v127 / 127) * 24;
-  return db.toFixed(1) + ' dB';
+  return fmtDb1(-24 + 24 * fracFromV127(v127));
 }
 
 // Amp Out Level — 0.6 dB per step, 0.0 dB at v127 = 98.
