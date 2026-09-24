@@ -1423,20 +1423,6 @@
   #rigbal-confirm-msg { color: var(--text); font-size: 14px; line-height: 1.5; }
   #rigbal-confirm-actions { display: flex; gap: 12px; justify-content: flex-end; }
 
-  #rigbal-entry {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-    z-index: 1600; align-items: center; justify-content: center; padding: 20px;
-  }
-  #rigbal-entry.open { display: flex; }
-  #rigbal-entry-box {
-    background: #1e1e1e; border: 1px solid var(--accent-dim); border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
-    padding: 24px 28px; max-width: 480px; width: 100%; display: flex; flex-direction: column; gap: 14px;
-  }
-  #rigbal-entry-box h3 { font-size: 13px; font-weight: bold; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; }
-  .rigbal-entry-msg { color: var(--text); font-size: 13px; line-height: 1.55; }
-  #rigbal-entry-box .bt-btn { text-align: left; padding: 10px 12px; font-size: 13px; }
-  #rigbal-entry-box .bt-btn b { color: var(--accent); }
 
   /* ══ MODALS ══ */
   #watchdog-overlay, #scan-overlay, #about-overlay {
@@ -2987,24 +2973,6 @@
   </div>
 </div>
 
-<!-- ══ RIG BALANCING — entry scan chooser (QUICK vs DETAIL) ══ -->
-<div id="rigbal-entry">
-  <div id="rigbal-entry-box">
-    <h3>RIG BALANCING</h3>
-    <div class="rigbal-entry-msg">
-      Even out Rig Volume across your 104 user rigs by ear. Every edit is held in
-      the app and committed only when you choose Save Changed — Discard All aborts
-      with nothing saved. How should the list start?
-    </div>
-    <button class="bt-btn" id="rigbal-entry-quick"  title="Open now; each patch's dB fills in as you walk to it">
-      <b>Quick</b> — open immediately, numbers fill in as you visit each rig
-    </button>
-    <button class="bt-btn" id="rigbal-entry-detail" title="Silently read all 104 rigs up front so every dB shows immediately — the rack stays on the current patch">
-      <b>Detail</b> — read all 104 rigs now so every dB shows at once (silent, no patch walk)
-    </button>
-    <button class="bt-btn" id="rigbal-entry-cancel">Cancel</button>
-  </div>
-</div>
 
 <!-- ══ RIG BALANCING (2026-08-31) — full-screen level-matching flyout ══ -->
 <div id="rigbal-overlay">

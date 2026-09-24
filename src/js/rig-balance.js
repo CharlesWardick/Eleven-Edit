@@ -189,16 +189,14 @@ function rbOpenEntry() {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
   // Stop the auto-roll the moment Rig Balancing is opened — consistent with
   // Load/Import/Export, which stop on click (2026-09-08, Charlie's call). This
-  // is intentionally BEFORE the Quick/Detail choice, so even opening-then-
-  // cancelling the entry dialog stops the roll (there is no "cancel without
-  // stop" for the other bank ops either). rbEnter's own stop below stays as a
-  // harmless backstop (a no-op once already stopped).
+  // rbEnter's own stop below stays as a harmless backstop.
   if (typeof stopRollerForBankOp === 'function') stopRollerForBankOp('Rig Balancing');
-  document.getElementById('rigbal-entry').classList.add('open');
+  // Build 61: no Quick/Detail chooser any more — the silent full read is fast
+  // (~16s for 104), so the mode opens straight into it.
+  rbEnter();
 }
 
-async function rbEnter(detail) {
-  document.getElementById('rigbal-entry').classList.remove('open');
+async function rbEnter() {
 
   // Stop any auto-roll first — same guard the other bank ops use — so a roll
   // can't fire navs into the middle of the balance walk.
@@ -218,22 +216,9 @@ async function rbEnter(detail) {
 
   document.getElementById('rigbal-overlay').classList.add('open');
   rbRefreshAll();
-  appLog('Rig Balancing: entered (' + (detail ? 'DETAIL' : 'QUICK') + ' scan) from ' + slotLabel(rigBalReturnSlot));
+  appLog('Rig Balancing: entered from ' + slotLabel(rigBalReturnSlot));
 
-  if (detail) {
-    await rbDetailPrescan();
-  } else {
-    // Quick: seed the currently-loaded patch's dB now, then walk fills the rest.
-    var wrap = document.getElementById('rig-vol-wrap');
-    if (wrap && wrap.dataset.value !== '' && wrap.dataset.value !== undefined) {
-      var seed = parseInt(wrap.dataset.value);
-      rigBalKnown[rigBalReturnSlot] = seed;
-      if (rigBalOrig[rigBalReturnSlot] === undefined) rigBalOrig[rigBalReturnSlot] = seed;
-    }
-    rbRefreshAll();
-    // Land on the patch we came in on so there's a selected row to hear.
-    rbSelectSlot(rigBalReturnSlot);
-  }
+  await rbDetailPrescan();
 }
 
 // ── DETAIL pre-scan: SILENT read of all 104 (build 60) so every dB is populated
@@ -384,11 +369,6 @@ document.addEventListener('keydown', function(e) {
 (function wireRigBalance() {
   var byId = function(id) { return document.getElementById(id); };
   if (byId('btn-rig-balance')) byId('btn-rig-balance').addEventListener('click', rbOpenEntry);
-  if (byId('rigbal-entry-quick'))  byId('rigbal-entry-quick').addEventListener('click', function() { rbEnter(false); });
-  if (byId('rigbal-entry-detail')) byId('rigbal-entry-detail').addEventListener('click', function() { rbEnter(true); });
-  if (byId('rigbal-entry-cancel')) byId('rigbal-entry-cancel').addEventListener('click', function() {
-    byId('rigbal-entry').classList.remove('open');
-  });
   if (byId('rigbal-save'))    byId('rigbal-save').addEventListener('click', rbRequestSave);
   if (byId('rigbal-discard')) byId('rigbal-discard').addEventListener('click', rbRequestDiscard);
   if (byId('rigbal-cancel'))  byId('rigbal-cancel').addEventListener('click', rbRequestDiscard);

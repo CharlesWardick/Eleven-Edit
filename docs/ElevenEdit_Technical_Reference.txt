@@ -2319,8 +2319,8 @@ exists in the editor for all; CC 17 changes it on hardware regardless.
   the true baseline (read from rig-vol-wrap.dataset.value); dirty rows are
   re-asserted (raw CC17) on land so the edit stays audible. Commit per dirty
   slot = recall -> raw CC17 buffered value -> saveCurrentPatchToSlot(name, slot)
-  to the SAME slot (blip expected). Quick scan fills dB per-visit; Detail scan
-  (build 60, 2026-09-24) reads all 104 SILENTLY — no recall walk — via the
+  to the SAME slot (blip expected). Entry (build 61): no Quick/Detail chooser —
+  the mode opens straight into the full read. The read (build 60, 2026-09-24) takes all 104 SILENTLY — no recall walk — via the
   by-slot body read (readSlotBodySilent): RVol value at body 0x2C (key at 0x28,
   value = key+4), scaled floor((raw + 2^31) / 2^25) = the top 7 bits, which
   matched the recall broadcast 104/104 (gateRawToV127's rounding was 1 low on
