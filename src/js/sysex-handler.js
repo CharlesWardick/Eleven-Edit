@@ -784,6 +784,7 @@ function handleRigVolumeBroadcast(data) {
   // build 75: readout from the FULL-precision value (all 5 bytes), not v0.
   const raw = decodeFull32(data, 6);
   const text = (raw !== null) ? fmtDb1(rigVolDbFromRaw(raw)) : valRigVol(val);
+  if (typeof rbRackKnob === 'function') rbRackKnob(val, raw);   // build 78: rack knob -> Rig Balancing
   const wrap = document.getElementById('rig-vol-wrap');
   if (wrap) {
     wrap.dataset.value = val;

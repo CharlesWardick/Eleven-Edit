@@ -328,9 +328,10 @@ BACKUP AND SAFETY
 
   Rig Balancing... — a dedicated screen for leveling output volume
   across all 104 user rigs. On opening it reads every rig's volume
-  directly (a few seconds; the rack stays on your current patch). Changes
-  are buffered until you commit them with Save Changed, so you can
-  Discard All and back out cleanly if you change your mind partway through.
+  directly (a few seconds; the rack stays on your current patch). Turn
+  the app's knob or the rack's own Rig Vol knob — both edit the selected
+  row. Changes are buffered until you commit them with Save Changed, so
+  you can Discard All and back out cleanly if you change your mind.
 
 
 ABOUT / SETTINGS

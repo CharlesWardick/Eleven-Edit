@@ -46,15 +46,19 @@ function rbSendRigVolRaw(v127) {
 async function rbNavAndReadStored(slot) {
   var wrap = document.getElementById('rig-vol-wrap');
   if (wrap) wrap.dataset.value = '';   // sentinel — broadcast will refill it
+  rbNavPending = true;
   goToSlot(slot);
   var waited = 0;
   while (waited < RB_READ_TIMEOUT) {
     await sleep(RB_POLL_STEP);
     waited += RB_POLL_STEP;
     if (wrap && wrap.dataset.value !== '' && wrap.dataset.value !== undefined) {
+      await sleep(120);   // let the recall's own 0x07 burst finish before edits count
+      rbNavPending = false;
       return parseInt(wrap.dataset.value);
     }
   }
+  rbNavPending = false;
   return null;
 }
 
@@ -157,7 +161,7 @@ async function rbSelectSlot(slot) {
   }
 
   // Re-assert a pending edit so it's audible on land (recall reset it away).
-  if (rigBalBuffer[slot] !== undefined) rbSendRigVolRaw(rigBalBuffer[slot]);
+  rbAssert(slot);
 
   if (slot === rigBalSelected) { rbBindKnob(slot); rbRefreshCell(slot); }
 }
@@ -169,6 +173,7 @@ function rbKnobChanged(v127) {
   if (rigBalBusy) return;   // ignore knob input during the pre-scan / commit run
   var slot = rigBalSelected;
   if (slot === null || slot === undefined) return;
+  delete rigBalBufferRaw[slot];          // app-knob edits are 0-127 (CC17)
   var stored = rigBalKnown[slot];
   if (stored !== undefined && v127 === stored) {
     delete rigBalBuffer[slot];          // back to stored — no longer dirty
@@ -208,7 +213,9 @@ async function rbEnter() {
   rigBalKnown = {};
   rigBalOrig = {};
   rigBalBuffer = {};
+  rigBalBufferRaw = {};
   rigBalExactDb = {};
+  rigBalStoredRaw = {};
 
   if (!rigBalKnobInited) {
     initKnob('rigbal-knob-wrap', 'rigbal-knob-val', valRigVol, rbKnobChanged);
@@ -246,12 +253,50 @@ async function rbReadStoredSilent(slot) {
   var raw = readSignedLE32(res.body, 0x2C);
   if (raw === null || raw === undefined) return null;
   rigBalExactDb[slot] = rigVolDbFromRaw(raw);   // build 75: exact rack readout
+  rigBalStoredRaw[slot] = raw;
   return Math.floor((raw + 2147483648) / 33554432);
 }
 // Exact stored dB per slot (full precision, build 75). Shown whenever the slot
 // is at its stored value; an edit (0-127 knob) shows the knob's own value.
 var rigBalExactDb = {};
+var rigBalStoredRaw = {};   // stored full-precision value per slot (silent read)
+// Full-precision edit per slot (build 78) — set when the edit came from the
+// RACK's own Rig Vol knob (finer than the app's 0-127), committed exactly via
+// the full set 00 07 [5 bytes] (proven build 77: rack applies + echoes 02 07).
+var rigBalBufferRaw = {};
+var rbNavPending = false;   // true while a recall is landing — its 0x07 is NOT an edit
+
+function rbSendRigVolFull(raw) {
+  if (!bridgeMidiReady) return;
+  sendHex('F0 13 0B 0F 00 07 ' + encodeFull32Hex(raw) + ' F7');
+}
+// Re-assert a slot's pending edit: exact if it came from the rack, else CC17.
+function rbAssert(slot) {
+  if (rigBalBufferRaw[slot] !== undefined) rbSendRigVolFull(rigBalBufferRaw[slot]);
+  else if (rigBalBuffer[slot] !== undefined) rbSendRigVolRaw(rigBalBuffer[slot]);
+}
+
+// Rack front-panel Rig Vol turned while Rig Balancing is open (called from
+// handleRigVolumeBroadcast, sysex-handler.js). Treated exactly like an app-knob
+// edit on the selected row. Ignored while a recall lands, a scan/commit runs, or
+// no row is selected. Our own sends echo back here too — harmless (same value).
+function rbRackKnob(v127, raw) {
+  if (!rigBalActive || rigBalBusy || rbNavPending) return;
+  var slot = rigBalSelected;
+  if (slot === null || slot === undefined || raw === null) return;
+  if (rigBalStoredRaw[slot] !== undefined && raw === rigBalStoredRaw[slot]) {
+    delete rigBalBuffer[slot]; delete rigBalBufferRaw[slot];
+  } else {
+    rigBalBuffer[slot] = v127; rigBalBufferRaw[slot] = raw;
+  }
+  var wrap = document.getElementById('rigbal-knob-wrap');
+  if (wrap) { wrap.dataset.value = v127; drawKnob(wrap.querySelector('canvas'), v127); }
+  document.getElementById('rigbal-knob-val').textContent = rbDbText(slot, v127);
+  rbRefreshCell(slot);
+}
+
 function rbDbText(slot, v) {
+  if (rigBalBufferRaw[slot] !== undefined) return fmtDb1(rigVolDbFromRaw(rigBalBufferRaw[slot]));
   if (rigBalBuffer[slot] === undefined && rigBalExactDb[slot] !== undefined
       && rigBalKnown[slot] !== undefined && v === rigBalKnown[slot]) {
     return fmtDb1(rigBalExactDb[slot]);
@@ -332,13 +377,20 @@ async function rbCommitAndClose() {
     var slot = dirty[i];
     setStatus('Rig Balancing: saving ' + slotLabel(slot) + ' (' + (i + 1) + '/' + dirty.length + ')…');
     await rbNavAndReadStored(slot);            // load the patch onto hardware
-    rbSendRigVolRaw(rigBalBuffer[slot]);       // assert the edited Rig Vol
+    rbAssert(slot);                            // assert the edited Rig Vol (exact if from the rack)
     await sleep(RB_COMMIT_SETTLE);
     var nm = (patchNameCache[slot] !== undefined) ? patchNameCache[slot] : undefined;
     await saveCurrentPatchToSlot(nm, slot);    // commit whole patch back to same slot
     await sleep(RB_COMMIT_SETTLE);
     rigBalKnown[slot] = rigBalBuffer[slot];    // committed value is the new stored baseline
+    if (rigBalBufferRaw[slot] !== undefined) {
+      rigBalStoredRaw[slot] = rigBalBufferRaw[slot];
+      rigBalExactDb[slot] = rigVolDbFromRaw(rigBalBufferRaw[slot]);
+    } else {
+      delete rigBalStoredRaw[slot]; delete rigBalExactDb[slot];
+    }
     delete rigBalBuffer[slot];
+    delete rigBalBufferRaw[slot];
     rbRefreshCell(slot);
   }
   rigBalBusy = false;
@@ -388,42 +440,3 @@ document.addEventListener('keydown', function(e) {
   if (byId('rigbal-confirm-no')) byId('rigbal-confirm-no').addEventListener('click', rbHideConfirm);
 })();
 
-// ── TEST BUILD 77 (temporary): does the rack accept a FULL-PRECISION Rig Vol set?
-// Each Probe click runs the next attempt, then reads 01 07 back and logs what
-// the rack reports. Charlie reads the rack screen after each click.
-//   1: 00 07 [5 bytes]            target -5.2 dB
-//   2: 00 07 + 02 07 pair         target -7.3 dB
-//   3: 02 07 [5 bytes] alone      target -3.7 dB
-var rbProbeStep = 0;
-var RB_PROBES = [
-  { db: -5.2, dirs: ['00'] },
-  { db: -7.3, dirs: ['00', '02'] },
-  { db: -3.7, dirs: ['02'] }
-];
-async function rbProbe() {
-  if (!bridgeMidiReady) return;
-  var p = RB_PROBES[rbProbeStep % RB_PROBES.length];
-  var n = (rbProbeStep % RB_PROBES.length) + 1;
-  rbProbeStep++;
-  var hex = encodeFull32Hex(rigVolRawFromDb(p.db));
-  appLog('RBPROBE ' + n + ': target ' + p.db.toFixed(1) + ' dB via dir ' + p.dirs.join('+') + ' 07 [' + hex + ']');
-  for (var i = 0; i < p.dirs.length; i++) {
-    sendHex('F0 13 0B 0F ' + p.dirs[i] + ' 07 ' + hex + ' F7');
-    await sleep(30);
-  }
-  await sleep(400);
-  var wrap = document.getElementById('rig-vol-wrap');
-  if (wrap) wrap.dataset.value = '';
-  sendHex('F0 13 0B 0F 01 07 F7');
-  await sleep(400);
-  var shown = document.getElementById('rig-vol-val');
-  var got = shown ? shown.textContent : '?';
-  appLog('RBPROBE ' + n + ': rack reports ' + got + ' (target ' + p.db.toFixed(1) + ' dB)');
-  setStatus('Probe ' + n + ': target ' + p.db.toFixed(1) + ' dB, rack reports ' + got + ' — check the rack screen');
-  var sel = document.getElementById('rigbal-knob-sel');
-  if (sel) sel.textContent = 'P' + n + ': ' + got;
-}
-(function() {
-  var b = document.getElementById('rigbal-probe');
-  if (b) b.addEventListener('click', rbProbe);
-})();
