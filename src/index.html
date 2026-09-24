@@ -512,7 +512,7 @@
     display: flex; flex-direction: column; align-items: center; gap: 3px;
     flex-shrink: 0;
   }
-  #mvol-label, #pvol-label { font-size: 10px; color: #777; letter-spacing: 1px; font-weight: bold; }
+  #mvol-label, #pvol-label { font-size: 10px; color: var(--label); letter-spacing: 1px; font-weight: bold; }
   #mvol-row, #pvol-row { display: flex; align-items: center; gap: 4px; }
   #mvol-box, #pvol-box {
     display: flex; align-items: center; justify-content: center;
@@ -541,13 +541,18 @@
      pills. Resting (unmuted) = green text; muted = red text + soft red ring. */
   .mute-btn {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
-    border: 1px solid #0c0f14; color: #30c050; border-radius: 6px;
+    position: relative; border: 1px solid #0c0f14; color: #999; border-radius: 6px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
-    padding: 3px 9px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;
+    padding: 3px 9px 7px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;
     cursor: pointer; white-space: nowrap; transition: color 0.12s, box-shadow 0.12s;
   }
   .mute-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .mute-btn:hover { color: #6fe08a; }
+  .mute-btn:hover { color: #ccc; }
+  /* build 62: both read "MUTE" — dim normally, red text + red lit bar when muted. */
+  .mute-btn.mute-active .ind-bar {
+    background: linear-gradient(90deg, #a8322a, #e04a3f 50%, #a8322a);
+    box-shadow: 0 0 7px rgba(224,74,63,.85), 0 0 2px rgba(255,160,150,.7);
+  }
   /* Lit when muted — matches Avid's dim-normally/lit-when-muting behaviour. */
   .mute-btn.mute-active { color: var(--red);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(224,74,63,.35), 0 0 12px rgba(224,74,63,.22), 0 3px 6px rgba(0,0,0,.4); }
@@ -562,7 +567,7 @@
   /* TRUE-Z (2026-08-31) lives in the AMP/CAB header as a .ctrl-dd (same look as
      Amp Model/Cab/Mic); #truez-ctrl carries margin-left:auto inline to anchor it
      far right. No bespoke styling needed — it inherits the .ctrl-dd dropdown. */
-  #tempo-label { font-size: 10px; color: #777; letter-spacing: 1px; font-weight: bold; }
+  #tempo-label { font-size: 10px; color: var(--label); letter-spacing: 1px; font-weight: bold; }
   #tempo-row { display: flex; align-items: center; gap: 6px; }
   #tempo-box {
     display: flex; align-items: center; justify-content: flex-end; gap: 4px;
@@ -1932,7 +1937,7 @@
           </div>
         </div>
         <div class="mute-row">
-          <button class="mute-btn" id="btn-mute-phones" title="Mute Phones output">PHONES</button>
+          <button class="mute-btn" id="btn-mute-phones" title="Mute Phones output">MUTE<span class="ind-bar"></span></button>
         </div>
       </div>
       <div id="master-vol-wrap" class="vol-wrap" title="Master (Main) output volume">
@@ -1947,7 +1952,7 @@
           </div>
         </div>
         <div class="mute-row">
-          <button class="mute-btn" id="btn-mute-main" title="Mute Main output">MAIN</button>
+          <button class="mute-btn" id="btn-mute-main" title="Mute Main output">MUTE<span class="ind-bar"></span></button>
         </div>
       </div>
     </div>
