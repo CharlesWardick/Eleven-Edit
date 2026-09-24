@@ -261,7 +261,8 @@ THE AUDIO BAR
       audio device; OFF fully RELEASES it, so a DAW can use the same
       interface for re-amping. Toggling is instant.
     - IN / OUT level and an input signal meter.
-    - MUTE — silences the output without releasing the device.
+    - MUTE — silences the output without releasing the device (lit red
+      while muted; the MUTE in Audio Setup mirrors it).
   You can move the bar to the top of the window from Audio Setup.
 
 AUDIO SETUP (Settings -> Audio Setup)
