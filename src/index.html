@@ -292,20 +292,26 @@
   #audiostrip .as-mute {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: #999; border-radius: 3px;
-    padding: 2px 9px; font-size: 10px; font-weight: bold; letter-spacing: 1px; cursor: pointer; white-space: nowrap;
+    position: relative; padding: 2px 9px 6px; font-size: 10px; font-weight: bold; letter-spacing: 1px; cursor: pointer; white-space: nowrap;
     width: 62px; box-sizing: border-box; text-align: center; flex-shrink: 0;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s; }
   #audiostrip .as-mute:hover { color: #ccc; }
   #audiostrip .as-mute:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  #audiostrip .as-mute.muted { color: #ff6a6a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(208,48,48,.35), 0 0 12px rgba(208,48,48,.20), 0 3px 6px rgba(0,0,0,.4); }
+  /* build 73: audio MUTE (bar + Setup mirror) match the output mutes — always
+     reads MUTE, dim normally, red text + red lit bar + ring when muted. */
+  #audiostrip .as-mute.muted, #audio-mute-panel.muted { color: var(--red);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(224,74,63,.35), 0 0 12px rgba(224,74,63,.22), 0 3px 6px rgba(0,0,0,.4); }
+  #audiostrip .as-mute.muted .ind-bar, #audio-mute-panel.muted .ind-bar {
+    background: linear-gradient(90deg, #a8322a, #e04a3f 50%, #a8322a);
+    box-shadow: 0 0 7px rgba(224,74,63,.85), 0 0 2px rgba(255,160,150,.7);
+  }
   #audiostrip .as-clip { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: #4a2020;
     border: 1px solid #3a1a1a; border-radius: 3px; padding: 1px 5px; cursor: pointer; }
   #audiostrip .as-clip.on { color: #fff; background: var(--red); border-color: var(--red); box-shadow: 0 0 6px var(--red); }
   .settings-btn.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); }
   /* Panel MUTE mirror: fixed width so MUTE/MUTED doesn't shift the row */
-  #audio-mute-panel { width: 84px; box-sizing: border-box; text-align: center; }
+  #audio-mute-panel { width: 84px; box-sizing: border-box; text-align: center; position: relative; padding-bottom: 8px; }
   /* Settings-panel single-action buttons → physical tile (scoped to specific IDs;
      the win11-warn toggle + display-only rows stay flat). Audio Setup MUTE +
      Restart Engine share the same face; MUTE adds a red ring when muted. */
@@ -325,8 +331,6 @@
   #settings-btn-set-captures:active, #settings-btn-open-captures:active,
   #settings-btn-set-avid:active, #settings-btn-scan-avid:active, #settings-btn-open-logs:active {
     box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  #audio-mute-panel.muted { color: #ff6a6a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(208,48,48,.35), 0 0 12px rgba(208,48,48,.20), 0 3px 6px rgba(0,0,0,.4); }
 
   /* Window +/- */
   .size-btns { display: flex; gap: 3px; }
@@ -2678,7 +2682,7 @@
 
     <div class="settings-row">
       <div class="settings-row-controls">
-        <button class="settings-btn" id="audio-mute-panel" title="Mute / unmute output">MUTE</button>
+        <button class="settings-btn" id="audio-mute-panel" title="Mute / unmute output">MUTE<span class="ind-bar"></span></button>
         <button class="settings-btn" id="audio-restart-btn" title="Close and reopen the audio stream (recover after a driver hiccup)">Restart Engine</button>
       </div>
     </div>
@@ -2932,7 +2936,7 @@
      user picks Top in Audio Setup. ══ -->
 <div id="audiostrip" class="engine-off bottom">
   <button id="audio-engine-toggle" class="as-toggle" title="Turn the audio engine on/off">AUDIO ENGINE<span class="ind-bar"></span></button>
-  <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE</button>
+  <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE<span class="ind-bar"></span></button>
   <span class="as-grp">
     <span class="tb-label">sig</span>
     <span class="as-meters" id="audio-meters">

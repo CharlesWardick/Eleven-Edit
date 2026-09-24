@@ -177,8 +177,9 @@
   }
 
   function updateMuteBtn() {
-    if (elMute)  { elMute.textContent  = muted ? 'MUTED' : 'MUTE'; elMute.classList.toggle('muted', muted); }
-    if (elMuteP) { elMuteP.textContent = muted ? 'MUTED' : 'MUTE'; elMuteP.classList.toggle('muted', muted); }
+    // build 73: label stays "MUTE" (the red bar shows the state) — only the class flips.
+    if (elMute)  elMute.classList.toggle('muted', muted);
+    if (elMuteP) elMuteP.classList.toggle('muted', muted);
   }
 
   function doMuteToggle() {
