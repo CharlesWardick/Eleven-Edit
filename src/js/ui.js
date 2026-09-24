@@ -410,7 +410,7 @@ function updateBreakupColor() {
   }
 }
 
-function valDisplay(v127) { return (fracFromV127(v127) * 10).toFixed(1); }   // build 84: rack v/128 grid (walker: Treble 17/17)
+function valDisplay(v127, f) { return ((f === undefined ? fracFromV127(v127) : f) * 10).toFixed(1); }   // build 84: rack v/128 grid (walker: Treble 17/17)
 
 // Graphic EQ band/output display. TWO SHAPES, chosen by the `linear` flag —
 // picked apart 2026-07-31 by a capture that started every slider parked at
@@ -617,9 +617,9 @@ function rebaselineOpenFxPanel() {
 }
 
 // Gate Threshold: 0=OFF, 1-127 maps -90dB to -20dB
-function valGateThresh(v127) {
+function valGateThresh(v127, f) {
   if (v127 === 0) return 'OFF';
-  const db = -90 + fracFromV127(v127) * 70;   // build 84: rack grid (within 0.1; small rack quirk remains)
+  const db = -90 + (f === undefined ? fracFromV127(v127) : f) * 70;   // build 84: rack grid (within 0.1; small rack quirk remains)
   return db.toFixed(1) + ' dB';
 }
 
@@ -631,9 +631,9 @@ function valGateThresh(v127) {
 // 1000ms already used .toFixed(1). The v127=0 special case is gone too:
 // the formula already lands exactly on 10 at v127=0, so toFixed(1) alone
 // gives "10.0 ms" with no separate branch needed.
-function valGateRelease(v127) {
+function valGateRelease(v127, f) {
   // Logarithmic: ms = 10 * (300)^(v/127)
-  const ms = 10 * Math.pow(300, fracFromV127(v127));   // build 84: rack grid (walker: step 21 = 25.5 ms)
+  const ms = 10 * Math.pow(300, (f === undefined ? fracFromV127(v127) : f));   // build 84: rack grid (walker: step 21 = 25.5 ms)
   return ms >= 1000 ? (ms/1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
 }
 
@@ -678,12 +678,14 @@ function valAmpOut(v127) {
 // This is almost certainly the "0.2-0.4 dB midrange nonlinearity" recorded in
 // Tech Ref Sec 21 as cosmetic — an offset scale is worst at the middle and
 // vanishes at the ends, which is exactly the reported shape.
-function valToAmpVol(v127) {
+function valToAmpVol(v127, f) {
   if (v127 === 0) return 'MUTE';
-  // build 84: rack grid — 1/64 of 12 dB per step on BOTH sides, 127 pinned to +12
-  // (walker: top half 8/8 exact; bottom half reads 0.1 lower on the rack, open quirk).
-  const db = (v127 >= 127) ? 12 : (v127 - 64) * (12 / 64);
-  const t = db.toFixed(1);
+  // build 84/85: rack grid, -12..+12 linear (f from the full value when known).
+  // Walker: the rack rounds the NEGATIVE side DOWN (toward -12) — -10.5 shows
+  // -10.6 — and the positive side normally. Copied here.
+  const fr = (f === undefined) ? fracFromV127(v127) : f;
+  const db = -12 + 24 * fr;
+  const t = (db < 0 ? Math.floor(db * 10 - 1e-9) / 10 : Math.floor(db * 10 + 0.5 + 1e-9) / 10).toFixed(1);
   // No '+' on zero — the rack shows a bare 0.0 dB, not +0.0.
   return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
 }
@@ -1059,7 +1061,8 @@ function applyAmpToneKnob(ampKey, lo, val) {
     wrap.dataset.value = val;
     drawKnob(wrap.querySelector('canvas'), val);
   }
-  if (valEl) deferPaintOrRun(function() { valEl.textContent = valDisplay(val); });
+  var tf = fracFor(val, typeof lastParamFullRaw !== 'undefined' ? lastParamFullRaw : null);   // build 85
+  if (valEl) deferPaintOrRun(function() { valEl.textContent = valDisplay(val, tf); });
 }
 
 // ── AMP CACHE — ROW 2 (Bright/MOD toggle, Sync selector, Tremolo On/Off)
@@ -1114,6 +1117,7 @@ function applyAmpToneKnob(ampKey, lo, val) {
 // applyAmpToneKnob does for tone knobs.
 function applyAmpFixedKnob(ampKey, lo, val, wrapId, valId, dispFn) {
   var loHex = lo.toString(16).padStart(2,'0');
+  var ff = fracFor(val, typeof lastParamFullRaw !== 'undefined' ? lastParamFullRaw : null);   // build 85
   var wrap  = document.getElementById(wrapId);
   var valEl = document.getElementById(valId);
   if (wrap) {
@@ -1121,7 +1125,7 @@ function applyAmpFixedKnob(ampKey, lo, val, wrapId, valId, dispFn) {
     wrap.dataset.value = val;
     drawKnob(wrap.querySelector('canvas'), val);
   }
-  if (valEl) deferPaintOrRun(function() { valEl.textContent = dispFn(val); });
+  if (valEl) deferPaintOrRun(function() { valEl.textContent = dispFn(val, ff); });
 }
 
 // Same idea for Speaker Breakup (0x18) — a native <input type=range>, not a
@@ -1136,10 +1140,11 @@ function applyAmpBreakup(ampKey, val) {
   // it must not wait on the deferred visual update below (nav-pull buffering,
   // 2026-09-03).
   slider.dataset.value = val;
+  var bf = fracFor(val, typeof lastParamFullRaw !== 'undefined' ? lastParamFullRaw : null);   // build 85
   deferPaintOrRun(function() {
     slider.value = val;
     var valEl = document.getElementById('breakup-val');
-    if (valEl) valEl.textContent = (Math.round(val / 127 * 100) / 10).toFixed(1);
+    if (valEl) valEl.textContent = (bf * 10).toFixed(1);
     updateBreakupColor();
   });
 }
@@ -1323,13 +1328,14 @@ function updateAxisDisplay(axisOn) {
 
 function updateBreakupDisplay(v127) {
   if (v127 == null) return;
+  const bf = fracFor(v127, typeof lastParamFullRaw !== 'undefined' ? lastParamFullRaw : null);   // build 85
   const slider = document.getElementById('breakup-slider');
   if (slider) slider.dataset.value = v127;   // live value of record, see applyAmpBreakup
   deferPaintOrRun(function() {
     const s = document.getElementById('breakup-slider');
     const valEl = document.getElementById('breakup-val');
     if (s)     s.value = v127;
-    if (valEl) valEl.textContent = (Math.round(v127 / 127 * 100) / 10).toFixed(1);
+    if (valEl) valEl.textContent = (bf * 10).toFixed(1);
     updateBreakupColor();
   });
   appLog('Speaker breakup: v=' + v127);

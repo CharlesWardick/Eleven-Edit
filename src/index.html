@@ -3887,7 +3887,7 @@ document.getElementById('axis-btn').addEventListener('click', function() {
 
 document.getElementById('breakup-slider').addEventListener('input', function() {
   const v = parseInt(this.value);
-  document.getElementById('breakup-val').textContent = (Math.round(v / 127 * 100) / 10).toFixed(1);
+  document.getElementById('breakup-val').textContent = (fracFromV127(v) * 10).toFixed(1);
   if (typeof updateBreakupColor === 'function') updateBreakupColor();
 });
 document.getElementById('breakup-slider').addEventListener('change', function() {
@@ -3899,7 +3899,7 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
   e.preventDefault();
   var v = Math.max(0, Math.min(127, parseInt(this.value) - Math.sign(e.deltaY)));
   this.value = v;
-  document.getElementById('breakup-val').textContent = (Math.round(v / 127 * 100) / 10).toFixed(1);
+  document.getElementById('breakup-val').textContent = (fracFromV127(v) * 10).toFixed(1);
   if (typeof updateBreakupColor === 'function') updateBreakupColor();
   if (typeof queueKnobSend === 'function') queueKnobSend('breakup', function(val){ sendCabParamWrite(0x18, val); }, v);
   else sendCabParamWrite(0x18, v);
@@ -3911,7 +3911,7 @@ document.getElementById('breakup-slider').addEventListener('wheel', function(e) 
 document.getElementById('breakup-slider').addEventListener('dblclick', function() {
   const val = (this.dataset.orig !== undefined && this.dataset.orig !== '') ? parseInt(this.dataset.orig) : 64;
   this.value = val;
-  document.getElementById('breakup-val').textContent = (Math.round(val / 127 * 100) / 10).toFixed(1);
+  document.getElementById('breakup-val').textContent = (fracFromV127(val) * 10).toFixed(1);
   if (typeof updateBreakupColor === 'function') updateBreakupColor();
   if (typeof queueKnobSend === 'function') queueKnobSend('breakup', function(v){ sendCabParamWrite(0x18, v); }, val);
   else sendCabParamWrite(0x18, val);

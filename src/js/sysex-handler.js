@@ -866,6 +866,7 @@ function handleToAmpVolumeBroadcast(data) {
   const slot = data[6];
   const v0   = data[7];
   const val  = (v0 >= 0x40) ? (v0 - 0x40) : (v0 + 64);
+  const taF  = fracFor(val, (data.length >= 13) ? decodeFull32(data, 7) : null);   // build 85
   if (slot === 0x00) {
     appLog('CMD 0x36 Master volume: v0=0x' + v0.toString(16).padStart(2,'0').toUpperCase() + ' (' + valToMasterVol(val) + ')');
     updateMasterVolDisplay(val);
@@ -884,7 +885,7 @@ function handleToAmpVolumeBroadcast(data) {
           wrap.dataset.orig = mainKnobBaselineSetIfUnset('toamp1-vol-wrap', val);
         }
         drawKnob(wrap.querySelector('canvas'), val);
-        deferPaintOrRun(function() { document.getElementById('toamp1-vol-val').textContent = valToAmpVol(val); });
+        deferPaintOrRun(function() { document.getElementById('toamp1-vol-val').textContent = valToAmpVol(val, taF); });
       }
     }
   } else if (slot === 0x03) {
@@ -897,7 +898,7 @@ function handleToAmpVolumeBroadcast(data) {
           wrap.dataset.orig = mainKnobBaselineSetIfUnset('toamp2-vol-wrap', val);
         }
         drawKnob(wrap.querySelector('canvas'), val);
-        deferPaintOrRun(function() { document.getElementById('toamp2-vol-val').textContent = valToAmpVol(val); });
+        deferPaintOrRun(function() { document.getElementById('toamp2-vol-val').textContent = valToAmpVol(val, taF); });
       }
     }
   }
@@ -1057,9 +1058,15 @@ function handleTrueZ(data) {
 // FORMAT B (a 0x04 marker at data[6] shifting the fields right) never existed here
 // (Tech Ref Sec 3 / C11); the check below is kept as harmless vestigial handling.
 var lastParamFullRaw = null;   // build 82: full-precision value of the reply being routed
+// build 85: set only for the duration of routing ONE reply, so cache-apply and
+// other non-reply paints never pick up a stale value.
 function handleParamReadback(data) {
-  if (data.length < 9) return;
   lastParamFullRaw = (data.length >= 13) ? decodeFull32(data, data.length - 6) : null;
+  try { return handleParamReadbackInner(data); }
+  finally { lastParamFullRaw = null; }
+}
+function handleParamReadbackInner(data) {
+  if (data.length < 9) return;
 
   // ── BYPASS ROUTING — handled for EVERY block, not just the amp. Must run
   // before the amp-only instId guard further down, and before FORMAT A/B are

@@ -1221,6 +1221,17 @@ function rigVolRawFromDb(db) {
 // except 127, which the rack pins to the very top (fraction 1).
 function fracFromV127(v) { return v >= 127 ? 1 : v / 128; }
 function fracFromRaw(raw) { return (raw + 2147483648) / 4294967296; }
+// Best fraction for a readout (build 85): the rack's full-precision value when
+// one arrived with this reply AND its top 7 bits agree with v (guards against a
+// stale/misattributed raw), else the v/128 grid. Patches edited on the rack's
+// front panel sit BETWEEN grid steps — only the full value reads them exactly.
+function fracFor(v, raw) {
+  if (raw !== null && raw !== undefined) {
+    const f = fracFromRaw(raw);
+    if (Math.min(127, Math.floor(f * 128)) === v) return f;
+  }
+  return fracFromV127(v);
+}
 // Signed one-decimal dB text, halves rounded up like the rack; '+' above zero.
 function fmtDbSigned(db) {
   let r = Math.floor(db * 10 + 0.5 + 1e-9) / 10;
