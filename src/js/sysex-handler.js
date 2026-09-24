@@ -1056,8 +1056,10 @@ function handleTrueZ(data) {
 // data[8]=v0 — for both ASYNC broadcasts (dir=0x02) and RESP to our REQU (dir=0x12).
 // FORMAT B (a 0x04 marker at data[6] shifting the fields right) never existed here
 // (Tech Ref Sec 3 / C11); the check below is kept as harmless vestigial handling.
+var lastParamFullRaw = null;   // build 82: full-precision value of the reply being routed
 function handleParamReadback(data) {
   if (data.length < 9) return;
+  lastParamFullRaw = (data.length >= 13) ? decodeFull32(data, data.length - 6) : null;
 
   // ── BYPASS ROUTING — handled for EVERY block, not just the amp. Must run
   // before the amp-only instId guard further down, and before FORMAT A/B are
@@ -1433,7 +1435,9 @@ function routeAmpBlockParam(paramLo, v0, val) {
   // paramLo 0x03 = Amp Out
   if (paramLo === 0x03) {
     if (currentAmpKey) {
-      applyAmpFixedKnob(currentAmpKey, 0x03, val, 'amp-out-wrap', 'amp-out-val', valAmpOut);
+      var aoRaw = lastParamFullRaw;   // exact readout when the rack sent the full value
+      applyAmpFixedKnob(currentAmpKey, 0x03, val, 'amp-out-wrap', 'amp-out-val',
+        function(v) { return (aoRaw !== null) ? ampOutTextFromFrac(fracFromRaw(aoRaw)) : valAmpOut(v); });
       hasReceivedAmpOutValue = true;
     } else {
       updateAmpOutReadout(val);

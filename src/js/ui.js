@@ -655,11 +655,10 @@ function valRigVol(v127) {
 // the rack, so 0.6 is the true step and the documented -60..+18 range was
 // rounded. Implied endpoints are now -58.8 dB at 0 and +17.4 dB at 127 —
 // worth a spot check at both extremes.
+// build 82: Calibration Walker proved Amp Out = -60.0..+18.0 dB linear on the
+// rack's v/128 grid (the old (v-98)*0.6 was up to 1.2 dB off).
 function valAmpOut(v127) {
-  const db = (v127 - 98) * 0.6;
-  const t = db.toFixed(1);
-  // No '+' on a bare zero, matching the rack.
-  return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
+  return ampOutTextFromFrac(fracFromV127(v127));
 }
 
 // To Amp 1/2 Volume: 0-127 maps -12dB to +12dB. v0=0x00 = MUTE.

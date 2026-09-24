@@ -1216,6 +1216,20 @@ function rigVolRawFromDb(db) {
   const r = Math.round((db + 24) / 24 * 4294967296) - 2147483648;
   return Math.max(-2147483648, Math.min(2147483647, r));
 }
+// Rack's own position fraction (build 82, Calibration Walker, Amp Out 17/17):
+// a 0-127 step v lands on raw (v-64)<<25, i.e. v/128 of the range — NOT v/127 —
+// except 127, which the rack pins to the very top (fraction 1).
+function fracFromV127(v) { return v >= 127 ? 1 : v / 128; }
+function fracFromRaw(raw) { return (raw + 2147483648) / 4294967296; }
+// Signed one-decimal dB text, halves rounded up like the rack; '+' above zero.
+function fmtDbSigned(db) {
+  let r = Math.floor(db * 10 + 0.5 + 1e-9) / 10;
+  if (Math.abs(r) < 0.05) r = 0;
+  return (r > 0 ? '+' : '') + r.toFixed(1) + ' dB';
+}
+// Amp Out: linear -60.0 .. +18.0 dB across the full range (walker-verified).
+function ampOutTextFromFrac(f) { return fmtDbSigned(-60 + 78 * f); }
+
 // Rig Volume in dB from the full int32 — the rack's own linear -24..0 dB map.
 function rigVolDbFromRaw(raw) {
   return -24 + 24 * (raw + 2147483648) / 4294967296;
