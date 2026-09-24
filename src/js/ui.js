@@ -818,7 +818,7 @@ function updateAvidStatus(running) {
   badge.textContent = running ? 'AVID EDITOR: OPEN' : 'AVID EDITOR: CLOSED';
   badge.className   = running ? 'inactive' : 'active';
   msg.textContent   = 'Avid editor and this app both use the Eleven Rack ports — closing the editor avoids a conflict.';
-  msg.style.display = running ? 'block' : 'none';
+  msg.style.display = running ? 'inline' : 'none';
 
   if (running) {
     appLog('Avid editor detected — both apps are now sharing the Eleven Rack ports (potential conflict)');

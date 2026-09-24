@@ -1490,7 +1490,7 @@
   .about-section h3 { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
   .about-section p  { color: var(--text-dim); font-size: 14px; line-height: 1.6; }
   .about-section a  { color: var(--accent-dim); text-decoration: none; }
-  #avid-msg { font-size: 12px; color: var(--accent); display: none; }
+  #avid-msg { font-size: 12px; color: var(--accent); display: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
   /* ══ MIDI MONITOR — hidden, code kept alive ══ */
   #monitor-header, #monitor-body, #monitor-log,
@@ -2966,6 +2966,7 @@
   <span class="sb acc" id="status-msg" style="display:none;">Initializing…</span>
   <span id="avid-status-badge" class="active" style="display:none;">CLOSED</span>
   <span id="avid-warn" class="sb warn" style="display:none;">AVID EDITOR: OPEN</span>
+  <span id="avid-msg" style="display:none;"></span>
   <span class="sb" style="margin-left:auto;display:flex;align-items:center;gap:5px;">
     <div id="midi-dot"></div>
     <span id="sb-bridge-label">Eleven Rack (Java bridge) — <span id="midi-label">Connecting…</span></span>
@@ -3112,7 +3113,6 @@
 </div>
 
 <!-- ══ AVID WARNING (hidden div kept for JS compat) ══ -->
-<div id="avid-msg" style="display:none;"></div>
 
 <!-- ══ HIDDEN ELEMENTS — required by JS files, not shown ══ -->
 <!-- MIDI port selects — referenced by transport.js at parse time -->
