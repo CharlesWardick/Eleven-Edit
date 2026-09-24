@@ -1498,6 +1498,17 @@ function routeAmpBlockParam(paramLo, v0, val) {
         if (typeof blockModelCache !== 'undefined' && blockModelCache[SLOT_AMP] && blockModelCache[SLOT_AMP][match.key]) {
           cachedToneLos = Object.keys(blockModelCache[SLOT_AMP][match.key]).map(Number);
         }
+        // Cab/Amp Linking (CMD 0x39) ON: the rack itself loads the new amp's
+        // default Cab (0x15) + Mic (0x16) and broadcasts them — the cache must
+        // NOT write the old ones back over it (build 53, Charlie's catch). Drop
+        // them from the apply; leaving them out of cachedToneLos also means the
+        // post-change re-query reads the rack's defaults back. Axis/Breakup are
+        // untouched by the rack, so they still restore.
+        var linkSkipsCab = (typeof cabLinkState !== 'undefined' && cabLinkState === true);
+        if (cachedToneLos && linkSkipsCab) {
+          cachedToneLos = cachedToneLos.filter(function(lo) { return lo !== 0x15 && lo !== 0x16; });
+          appLog('AMPCACHE APPLY: Cab/Amp Linking ON — leaving Cab + Mic to the rack\'s defaults');
+        }
         if (cachedToneLos && typeof blockCacheApply === 'function') {
           // AUDIT LOG (2026-09-02, Charlie's ask) — every lo:val this
           // apply is about to push, read straight from the same snapshot
@@ -1538,10 +1549,12 @@ function routeAmpBlockParam(paramLo, v0, val) {
           var skipCachedSpeed = (cachedSyncZone !== undefined && cachedSyncZone !== 0);
           blockCacheApply(SLOT_AMP, match.key,
             function(lo, val) {
+              if (linkSkipsCab && (lo === 0x15 || lo === 0x16)) return;
               if (lo === 0x11 && skipCachedSpeed) return;
               ampCacheApplyValue(match.key, lo, val);
             },
             function(lo, val) {
+              if (linkSkipsCab && (lo === 0x15 || lo === 0x16)) return;
               if (lo === 0x11) {
                 if (skipCachedSpeed) {
                   appLog('AMPCACHE APPLY: skipping cached Speed for ' + match.key
