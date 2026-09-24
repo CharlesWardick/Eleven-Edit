@@ -387,3 +387,43 @@ document.addEventListener('keydown', function(e) {
   if (byId('rigbal-confirm-ok')) byId('rigbal-confirm-ok').addEventListener('click', rbConfirmOk);
   if (byId('rigbal-confirm-no')) byId('rigbal-confirm-no').addEventListener('click', rbHideConfirm);
 })();
+
+// ── TEST BUILD 77 (temporary): does the rack accept a FULL-PRECISION Rig Vol set?
+// Each Probe click runs the next attempt, then reads 01 07 back and logs what
+// the rack reports. Charlie reads the rack screen after each click.
+//   1: 00 07 [5 bytes]            target -5.2 dB
+//   2: 00 07 + 02 07 pair         target -7.3 dB
+//   3: 02 07 [5 bytes] alone      target -3.7 dB
+var rbProbeStep = 0;
+var RB_PROBES = [
+  { db: -5.2, dirs: ['00'] },
+  { db: -7.3, dirs: ['00', '02'] },
+  { db: -3.7, dirs: ['02'] }
+];
+async function rbProbe() {
+  if (!bridgeMidiReady) return;
+  var p = RB_PROBES[rbProbeStep % RB_PROBES.length];
+  var n = (rbProbeStep % RB_PROBES.length) + 1;
+  rbProbeStep++;
+  var hex = encodeFull32Hex(rigVolRawFromDb(p.db));
+  appLog('RBPROBE ' + n + ': target ' + p.db.toFixed(1) + ' dB via dir ' + p.dirs.join('+') + ' 07 [' + hex + ']');
+  for (var i = 0; i < p.dirs.length; i++) {
+    sendHex('F0 13 0B 0F ' + p.dirs[i] + ' 07 ' + hex + ' F7');
+    await sleep(30);
+  }
+  await sleep(400);
+  var wrap = document.getElementById('rig-vol-wrap');
+  if (wrap) wrap.dataset.value = '';
+  sendHex('F0 13 0B 0F 01 07 F7');
+  await sleep(400);
+  var shown = document.getElementById('rig-vol-val');
+  var got = shown ? shown.textContent : '?';
+  appLog('RBPROBE ' + n + ': rack reports ' + got + ' (target ' + p.db.toFixed(1) + ' dB)');
+  setStatus('Probe ' + n + ': target ' + p.db.toFixed(1) + ' dB, rack reports ' + got + ' — check the rack screen');
+  var sel = document.getElementById('rigbal-knob-sel');
+  if (sel) sel.textContent = 'P' + n + ': ' + got;
+}
+(function() {
+  var b = document.getElementById('rigbal-probe');
+  if (b) b.addEventListener('click', rbProbe);
+})();

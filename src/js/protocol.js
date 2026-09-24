@@ -1206,6 +1206,16 @@ function decodeFull32(data, off) {
            | (data[off+3] << 4) | (data[off+4] & 0x0F)) >>> 0;
   return u > 0x7FFFFFFF ? u - 0x100000000 : u;
 }
+// Inverse of decodeFull32 — signed int32 -> the 5 packed bytes (hex string).
+function encodeFull32Hex(raw) {
+  const u = (raw >>> 0);
+  const b = [(u >>> 25) & 0x7F, (u >>> 18) & 0x7F, (u >>> 11) & 0x7F, (u >>> 4) & 0x7F, u & 0x0F];
+  return b.map(function(x) { return x.toString(16).padStart(2, '0').toUpperCase(); }).join(' ');
+}
+function rigVolRawFromDb(db) {
+  const r = Math.round((db + 24) / 24 * 4294967296) - 2147483648;
+  return Math.max(-2147483648, Math.min(2147483647, r));
+}
 // Rig Volume in dB from the full int32 — the rack's own linear -24..0 dB map.
 function rigVolDbFromRaw(raw) {
   return -24 + 24 * (raw + 2147483648) / 4294967296;
