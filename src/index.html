@@ -1605,6 +1605,10 @@
     align-items: center; justify-content: center;
   }
   #cab-bypass-modal.open { display: flex; }
+  #cal-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 640;
+    align-items: center; justify-content: center; }
+  #cal-modal.open { display: flex; }
+  #cal-modal select { background: #111; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
   #rack-save-box, .rack-save-box {
     background: #1e1e1e; border: 1px solid var(--accent-dim);
     border-radius: 8px; padding: 22px 26px; min-width: 320px;
@@ -2457,6 +2461,13 @@
       </div>
     </div>
 
+    <div class="settings-row">
+      <div class="settings-row-label">Calibration (dev tool)</div>
+      <div class="settings-row-controls">
+        <button class="settings-btn" id="settings-btn-calibration">Calibration Walker…</button>
+      </div>
+    </div>
+
     <div class="settings-row" id="settings-win11-row" style="display:none;">
       <div class="settings-row-label">Windows 11 upload warning</div>
       <div class="settings-row-controls">
@@ -2904,6 +2915,35 @@
 </div>
 
 <!-- ══ MASTER CABINET BYPASS PROMPT (2026-08-30) ══ -->
+<!-- ══ CALIBRATION WALKER (build 80, dev tool) ══ -->
+<div id="cal-modal">
+  <div class="rack-save-box" style="width:560px;">
+    <div class="rack-save-title">Calibration Walker</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--label);">
+      Control <select id="cal-control"></select>
+      Steps <select id="cal-steps"><option value="1">all 128</option><option value="2">every 2nd</option><option value="4">every 4th</option><option value="8">every 8th</option></select>
+      Pause <select id="cal-pause"><option value="300">0.3 s</option><option value="600">0.6 s</option><option value="1000">1.0 s</option><option value="wait">wait for me</option></select>
+    </div>
+    <div id="cal-wait" style="display:none;font-size:12px;color:var(--label);">
+      Rack shows: <input id="cal-rack-input" style="width:90px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 6px;">
+      <button id="cal-next">Next</button>
+    </div>
+    <div id="cal-status" style="font-size:12px;color:var(--muted);"></div>
+    <div style="max-height:260px;overflow-y:auto;border:1px solid #333;border-radius:4px;">
+      <table style="width:100%;font-size:11px;font-family:Consolas,monospace;border-collapse:collapse;color:#bbb;">
+        <thead><tr style="color:var(--label);text-align:left;"><th>step</th><th>raw int32</th><th>fraction</th><th>app</th><th>rack</th></tr></thead>
+        <tbody id="cal-table-body"></tbody>
+      </table>
+    </div>
+    <div class="rack-save-btns">
+      <button id="cal-save">Save CSV</button>
+      <button id="cal-stop">Stop</button>
+      <button id="cal-start" class="rack-save-ok-btn">Start</button>
+      <button id="cal-close">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="cab-bypass-modal">
   <div class="rack-save-box" style="max-width:420px;">
     <div class="rack-save-title">Master Cabinet Bypass</div>
@@ -4417,7 +4457,8 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/bank-transfer.js"></script>   <!-- Export All Rigs, 2026-08-10 -->
 <script src="js/sysex-handler.js"></script>
 <script src="js/patch-nav.js"></script>
-<script src="js/rig-balance.js"></script>   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
+<script src="js/rig-balance.js"></script>
+<script src="js/calibration.js"></script>   <!-- Calibration Walker dev tool, build 80 -->   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
 <script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v1.1.0 -->
 <script src="js/quick-mix.js"></script>   <!-- Inline per-block wet-amount sliders on the chain row -->
 <script src="js/app-init.js"></script>

@@ -66,6 +66,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // TFX file operations
   saveTfx:          (name, data, opts)  => ipcRenderer.invoke('save-tfx', name, data, opts),
+  saveTextCapture:  (name, text, ext)   => ipcRenderer.invoke('save-text-capture', name, text, ext),
   getCapturesDir:   ()            => ipcRenderer.invoke('get-captures-dir'),
   loadTfxDialog:    ()            => ipcRenderer.invoke('load-tfx-dialog'),
   loadTfxBytes:     (arg)         => ipcRenderer.invoke('load-tfx-bytes', arg),

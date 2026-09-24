@@ -36,6 +36,7 @@ async function parseSysEx(data) {
       (data[3] !== 0x0F && data[3] !== 0x0E)) return;
 
   const cmd = data[5];
+  if (typeof calSniff === 'function') calSniff(data);   // Calibration Walker (build 80)
 
   // ── DIAGNOSTIC — amp paramLo investigation, 2026-07-22.
   // Raw-dump, in full and undecoded, any response whose CMD is in

@@ -289,6 +289,23 @@ function decode7bit(encoded) {
   return res.slice(0, outLen);
 }
 
+// Calibration Walker CSV (build 80) — plain text into the Captures folder,
+// never overwriting (appends " (n)").
+ipcMain.handle('save-text-capture', function(e, name, text, ext) {
+  try {
+    const dir = getCapturesDir();
+    const safe = String(name || 'capture').replace(/[\\/:*?"<>|]/g, '_').substring(0, 60);
+    const x = (ext === 'csv' || ext === 'txt') ? ext : 'txt';
+    let fpath = path.join(dir, safe + '.' + x), n = 2;
+    while (fs.existsSync(fpath)) { fpath = path.join(dir, safe + ' (' + n + ').' + x); n++; }
+    fs.writeFileSync(fpath, String(text || ''), 'utf8');
+    logWrite('Text capture saved: ' + fpath);
+    return { ok: true, path: fpath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('save-tfx', function(e, rigName, dataArray, opts) {
   try {
     const tfxDir = getCapturesDir();
