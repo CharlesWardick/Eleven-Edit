@@ -248,12 +248,13 @@ function rbSetKnobBusyUI(busy) {
 }
 
 // ── Silent (no-recall) read of a slot's STORED Rig Vol, straight from the patch
-//    body (TFX global section RVol @ 0x28, signed LE32, full-int32 encoding —
-//    Tech Ref Sec 14; same decode as tools/tfx-inspect.js). Returns v127 or null.
+//    body. Tech Ref Sec 14 lists the RVol KEY at 0x28; the signed-LE32 VALUE is
+//    the 4 bytes after it (0x2C) — same key+4 layout as To Amp (Vol1 key 0x30,
+//    value read at 52). Full-int32 encoding (gateRawToV127). Returns v127 or null.
 async function rbReadStoredSilent(slot) {
   var res = await readSlotBodySilent(slot);
   if (!res || !res.body) return null;
-  var raw = readSignedLE32(res.body, 0x28);
+  var raw = readSignedLE32(res.body, 0x2C);
   return (raw === null || raw === undefined) ? null : gateRawToV127(raw);
 }
 
@@ -264,7 +265,7 @@ async function rbDetailPrescan() {
   rbVerifyMatch = 0; rbVerifyMismatch = 0;
   for (var slot = 0; slot <= MAX_SLOT; slot++) {
     if (!rigBalActive) { rigBalBusy = false; rbSetKnobBusyUI(false); return; }   // bailed out mid-scan
-    // VERIFY BUILD 57 (temporary): read silently first, then the old audible
+    // VERIFY BUILD 58 (temporary): read silently first, then the old audible
     // recall, and log whether they agree. Once confirmed, the recall goes.
     var silentV = await rbReadStoredSilent(slot);
     var stored = await rbNavAndReadStored(slot);
