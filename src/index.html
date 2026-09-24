@@ -567,7 +567,8 @@
   /* TRUE-Z (2026-08-31) lives in the AMP/CAB header as a .ctrl-dd (same look as
      Amp Model/Cab/Mic); #truez-ctrl carries margin-left:auto inline to anchor it
      far right. No bespoke styling needed — it inherits the .ctrl-dd dropdown. */
-  #tempo-label { font-size: 10px; color: var(--label); letter-spacing: 1px; font-weight: bold; }
+  /* build 63: centered over its box+steppers like PHON VOL / MAIN VOL (was flush right). */
+  #tempo-label { font-size: 10px; color: var(--label); letter-spacing: 1px; font-weight: bold; align-self: center; }
   #tempo-row { display: flex; align-items: center; gap: 6px; }
   #tempo-box {
     display: flex; align-items: center; justify-content: flex-end; gap: 4px;
