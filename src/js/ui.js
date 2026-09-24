@@ -21,8 +21,6 @@
 const KNOB_COLORS = {
   amber:  '#e0a020',   // was hardcoded throughout drawKnob
   green:  '#30c050',   // theme --green, matches active chain blocks
-  yellow: '#e8d030',   // Graphic EQ vertical sliders' base colour (Avid's own
-                       // panel uses yellow, not green, for this one) — 7/31/2026
   blue:   '#3f8fe0',   // Parametric EQ's HF band accent — 7/31/2026
   red:    '#e83828'    // uncommitted change
 };
@@ -112,33 +110,6 @@ function makeArrivalGate(los, timeoutMs, onDone) {
 // (sysex-handler.js) reports into it as each reply lands.
 var navAmpArrivalGate = null;
 
-// Decide a knob's colour from its wrap: fixed per-band accent color (no
-// red-on-change) if data-band-color is set, else fx/amber base with the
-// usual red-on-change. Band-accent knobs (Parametric EQ, 7/31/2026) needed
-// this split because their bands are ALREADY red/amber/green/blue by
-// design (matches Avid's own panel) — a generic red-on-change would be
-// indistinguishable from the LF/OUT bands' normal red, or the LMF band's
-// normal amber. Those knobs signal "changed" via the value-text readout
-// instead (see updateFxHostKnob's cell.bandColor branch, fx-panels.js).
-function knobColor(canvas, value127) {
-  const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
-  if (wrap && wrap.dataset.bandColor) return wrap.dataset.bandColor;
-  let base = KNOB_COLORS.amber;
-  if (wrap && wrap.dataset.base === 'fx') base = KNOB_COLORS.green;
-  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
-    // Optional per-knob tolerance (data-tol, default 0 = exact match, same
-    // as always). DELAY's own knobs set this (fx-panels.js) — its coarse,
-    // wide-range controls (Delay ms especially) can settle 1 raw unit off
-    // the exact value we wrote/restored to, a real hardware quantization
-    // step on write+broadcast round-trip, not a further edit (2026-09-01,
-    // Charlie's own double-click-then-red observation). Every other panel
-    // keeps exact-match red-on-change, unchanged.
-    const tol = wrap.dataset.tol ? (parseInt(wrap.dataset.tol) || 0) : 0;
-    if (Math.abs(parseInt(wrap.dataset.orig) - value127) > tol) return KNOB_COLORS.red;
-  }
-  return base;
-}
-
 // ── Pointer-only knob style (trialled on row 1 2026-09-03, rolled out to
 // every plain rotary knob same session) ─────────────────────────────────
 // Charlie's ask: drop the ring and the red/amber colour-change entirely —
@@ -209,93 +180,13 @@ function drawTickKnob(canvas, value127, wrap) {
   ctx.restore();
 }
 
+// Every knob uses the pointer style (drawTickKnob). The old ring engine
+// (value arc + red-on-change, knobColor, DELAY's data-tol) was removed in
+// build 69 — Charlie: never going back to it.
 function drawKnob(canvas, value127) {
   if (navPaintDeferred) { navPendingPaints.push(function() { drawKnob(canvas, value127); }); return; }
-  const wrap0 = canvas.closest ? canvas.closest('.knob-wrap') : null;
-  if (wrap0 && wrap0.dataset.style === 'tick') { drawTickKnob(canvas, value127, wrap0); return; }
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  const cx = w/2, cy = h/2, r = (w-6)/2;
-  const knobCol = knobColor(canvas, value127);
-
-  // 7 o'clock = 225° from top (12 o'clock), going clockwise
-  // Canvas angles: 0 = right (3 o'clock), PI/2 = bottom, PI = left, 3PI/2 = top
-  // 12 o'clock in canvas = -PI/2 (or 3PI/2)
-  // 7 o'clock = -PI/2 + 225°*(PI/180) = -PI/2 + 3.927 = 2.356 rad
-  const startRad = -Math.PI/2 + (225 * Math.PI/180);
-  const sweepRad = 270 * Math.PI/180;
-  const endRad   = startRad + (sweepRad * value127/127);
-
-  ctx.clearRect(0, 0, w, h);
-
-  // Track
-  ctx.beginPath();
-  ctx.arc(cx, cy, r-4, startRad, startRad+sweepRad);
-  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Value arc. At a very small value, the swept angle is shorter than the
-  // round cap's own width, so both end-caps overlap into a solid blob that
-  // pokes past the ring's edge instead of reading as a sliver of line — use
-  // a flat cap for those tiny sweeps; round caps still look right once the
-  // arc is long enough to show them properly.
-  if (value127 > 0) {
-    const minSweepForRoundCap = 5 / (r-4); // ~lineWidth's angular width at this radius
-    ctx.beginPath();
-    ctx.arc(cx, cy, r-4, startRad, endRad);
-    ctx.strokeStyle = knobCol; ctx.lineWidth = 5;
-    ctx.lineCap = (endRad - startRad) < minSweepForRoundCap ? 'butt' : 'round';
-    ctx.stroke();
-  }
-
-  // Baseline mark (2026-08-27, Charlie's call, replaces the brief
-  // pointer-line experiment — ring restored, this stayed) — a small tick
-  // at the value this knob loaded with, so a change reads against where
-  // it started, not just its colour. Drawn from the first paint, not
-  // just once the value has diverged (2026-08-27, 2nd round) — Charlie's
-  // call: appearing/disappearing on the first move read as awkward, so
-  // it coincides with the tip indicator until the knob actually moves.
-  // SHRUNK TO A SHORT EXTERNAL TICK (2026-08-27, 3rd round, Charlie's own
-  // paint mockup) — the earlier version was a notch crossing the ring
-  // stroke itself, which read as a second ring segment, not a marker.
-  // This sits entirely just outside the ring's outer edge (r-1.5, given
-  // the ring's own 5px lineWidth at radius r-4), so it never overlaps
-  // the lit or unlit track and needs no black-outline contrast trick.
   const wrap = canvas.closest ? canvas.closest('.knob-wrap') : null;
-  if (wrap && wrap.dataset.orig !== undefined && wrap.dataset.orig !== '') {
-    const origV = parseInt(wrap.dataset.orig);
-    const baseRad = startRad + (sweepRad * origV/127);
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(baseRad + Math.PI/2);
-    ctx.beginPath();
-    ctx.moveTo(0, -(r+2));
-    ctx.lineTo(0, -(r-2));
-    ctx.strokeStyle = '#c8c8c8'; ctx.lineWidth = 2; ctx.lineCap = 'round';
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // Body
-  ctx.beginPath();
-  ctx.arc(cx, cy, r-11, 0, Math.PI*2);
-  ctx.fillStyle = '#242424'; ctx.fill();
-  ctx.strokeStyle = '#484848'; ctx.lineWidth = 1.5; ctx.stroke();
-
-  // Indicator — was a dot at the arc's tip; now a radial line (Charlie's
-  // call, 2026-08-27; lengthened 2x same day, was reading out of scale
-  // at the original 8px), same position and colour. endRad is a canvas
-  // arc angle (0=3 o'clock); the rotated frame's "up" (-y) is 12
-  // o'clock, so add PI/2 to align it with the arc endpoint.
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(endRad + Math.PI/2);
-  ctx.beginPath();
-  ctx.moveTo(0, -(r-13));
-  ctx.lineTo(0, -Math.max(0, r-29));
-  ctx.strokeStyle = knobCol; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  ctx.stroke();
-  ctx.restore();
+  drawTickKnob(canvas, value127, wrap);
 }
 
 // ── Vertical fader (Graphic EQ, 7/31/2026, enlarged + calibrated 7/31/2026

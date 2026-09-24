@@ -1517,7 +1517,7 @@ function renderDelayCell(cell, rowDiv) {
     knobDiv.className = 'ctrl-knob';
     knobDiv.innerHTML =
       '<label>' + cell.label + '</label>'
-      + '<div class="knob-wrap" id="delay-w-' + loHex + '" data-value="64" data-base="fx" data-delay-lo="' + loHex + '" data-tol="1" data-style="tick">'
+      + '<div class="knob-wrap" id="delay-w-' + loHex + '" data-value="64" data-base="fx" data-delay-lo="' + loHex + '" data-style="tick">'
       + '<canvas class="knob-canvas" width="70" height="70"></canvas></div>'
       + '<span class="knob-val" id="delay-v-' + loHex + '">--</span>';
     rowDiv.appendChild(knobDiv);
