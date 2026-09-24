@@ -1085,7 +1085,8 @@
     /* build 66: styled like the audio-strip VOL slider — plain dark groove,
        just the amber ball, no fill and no red-on-change (Charlie). */
     width: 160px; height: 4px; border-radius: 2px; outline: none; cursor: pointer;
-    background: #333;
+    /* build 67: darker recessed groove — #333 vanished against the lighter amp panel. */
+    background: #0e0e0e; box-shadow: inset 0 1px 2px rgba(0,0,0,.9);
     /* position+z-index so the baseline tick (.sctrl-baseline, a sibling
        positioned OVER it) reliably paints on top — a native range input's
        replaced-element rendering otherwise sits above ordinary sibling
