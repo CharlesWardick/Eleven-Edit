@@ -1082,12 +1082,10 @@
      the filled portion of the groove identically, so they always agree. */
   .sctrl input[type=range] {
     -webkit-appearance: none; appearance: none;
-    width: 160px; height: 6px; border-radius: 3px; outline: none; cursor: pointer;
-    --track-color: #e0a020;   /* JS default matches KNOB_COLORS.amber */
-    --fill-pct: 50%;
-    background: linear-gradient(to right,
-      var(--track-color) 0%, var(--track-color) var(--fill-pct),
-      #1a1a1a var(--fill-pct), #1a1a1a 100%);
+    /* build 66: styled like the audio-strip VOL slider — plain dark groove,
+       just the amber ball, no fill and no red-on-change (Charlie). */
+    width: 160px; height: 4px; border-radius: 2px; outline: none; cursor: pointer;
+    background: #333;
     /* position+z-index so the baseline tick (.sctrl-baseline, a sibling
        positioned OVER it) reliably paints on top — a native range input's
        replaced-element rendering otherwise sits above ordinary sibling
@@ -1097,8 +1095,8 @@
   }
   .sctrl input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none;
-    width: 14px; height: 14px; border-radius: 50%;
-    background: var(--track-color); border: none; cursor: pointer;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); border: none; cursor: pointer;
   }
   /* Baseline mark (2026-08-27) — the knob's "value this control loaded
      with" tick (Charlie's call, see drawKnob in ui.js), adapted for a
