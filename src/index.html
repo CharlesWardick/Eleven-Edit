@@ -632,8 +632,10 @@
              gap: 1px; opacity: 0.4; }
   .qm-wrap[hidden] { display: none; }   /* class display:flex would beat the UA [hidden] rule */
   .qm-wrap.qm-active { opacity: 1; cursor: ew-resize; }
+  /* build 72 (Charlie, mockup C): thin groove + amber ball, grey start tick,
+     no fill and no red-on-change — matches Speaker Breakup / audio VOL. */
   .qm-track {
-    width: 100%; height: 8px; border-radius: 4px; position: relative;
+    width: 100%; height: 4px; margin: 2px 0; border-radius: 2px; position: relative;
     background: #0d0d0d; border: 1px solid #000;
     box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
     cursor: default;
@@ -641,34 +643,26 @@
   /* Saved-value reference tick (amber) — where double-click returns to; mirrors
      the knob/Speaker-Breakup baseline marker. Hidden until the saved value is known. */
   .qm-tick {
-    position: absolute; top: -2px; bottom: -2px; width: 2px;
-    transform: translateX(-50%); background: var(--accent);
+    position: absolute; top: -4px; bottom: -4px; width: 2px;
+    transform: translateX(-50%); background: #c8c8c8; z-index: 1;
     pointer-events: none; display: none; border-radius: 1px;
   }
   .qm-wrap.qm-active .qm-track { cursor: ew-resize; }
+  /* .qm-fill is now invisible — it only carries the ball on its right edge. */
   .qm-fill {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
-    border-radius: 4px 0 0 4px;
-    background: linear-gradient(90deg, #3a2c0a, var(--accent-dim));
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%; z-index: 2;
   }
-  .qm-wrap.qm-active .qm-fill { background: linear-gradient(90deg, #5a4410, var(--accent)); }
-  /* White handle marker riding the fill's right edge (mockup B2). */
   .qm-fill::after {
-    content: ""; position: absolute; right: -2px; top: 50%;
-    width: 4px; height: 15px; transform: translateY(-50%);
-    background: #7c7c7c; border: 1px solid #000; border-radius: 2px;
+    content: ""; position: absolute; right: -5px; top: 50%;
+    width: 10px; height: 10px; transform: translateY(-50%);
+    background: var(--accent-dim); border-radius: 50%;
   }
-  .qm-wrap.qm-active .qm-fill::after { background: #b0b0b0; }
+  .qm-wrap.qm-active .qm-fill::after { background: var(--accent); }
   .qm-val {
     font-size: 9px; line-height: 1; color: #a8a8a8;
     font-variant-numeric: tabular-nums; letter-spacing: .02em;
   }
   .qm-wrap.qm-active .qm-val { color: #cfcfcf; }
-  /* "Changed" cue — value moved off the patch's saved value (dirty), same red
-     convention as the knobs/Speaker Breakup; clears when back at saved. Placed
-     after the qm-active rules so it wins when both classes are present. */
-  .qm-wrap.qm-changed .qm-fill::after { background: #e83828; }
-  .qm-wrap.qm-changed .qm-val { color: #e8705f; }
   /* drop-before/drop-after marker removed 7/28 — the live preview (blocks
      actually shifting during the drag) replaced it; see ui.js wireChainDrag */
 

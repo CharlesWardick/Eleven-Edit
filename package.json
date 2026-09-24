@@ -1,7 +1,7 @@
 {
   "name": "eleven-edit",
   "version": "1.2.0",
-  "buildNumber": 71,
+  "buildNumber": 72,
   "description": "Eleven Edit — Patch navigation, TFX capture and controls for Avid Eleven Rack (Java bridge transport)",
   "author": "Charles Wardick <charles.wardick@gmail.com>",
   "main": "main.js",
@@ -14,7 +14,7 @@
   "build": {
     "appId": "com.wardick.rigrollerplus",
     "productName": "Eleven Edit",
-    "buildVersion": "1.2.0.71",
+    "buildVersion": "1.2.0.72",
     "asarUnpack": [
       "audio-helper.js",
       "node_modules/**"

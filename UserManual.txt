@@ -196,8 +196,8 @@ QUICK MIX (per-block wet sliders)
   the loaded model has one (e.g. Chorus, Flanger, MultiChorus). It lets
   you trim that block's wet amount right in the chain row without opening
   its panel. Drag it, roll the mouse wheel over it, or double-click to
-  snap back to the value saved with the patch. An amber tick marks that
-  saved value, and the slider turns red once you move away from it. A
+  snap back to the value saved with the patch. A small light-grey tick
+  marks that saved value, so you can see when you've moved away from it. A
   bypassed block shows its slider dimmed; a model with no wet control
   shows no slider. Turn the whole feature on or off in Settings → Chain
   Row → "Quick Mix Sliders / Show".

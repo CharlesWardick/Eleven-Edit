@@ -31,7 +31,8 @@ lit indicator bars on on/off toggles, recessed value readouts, an amber LCD-styl
 patch name, a unified green, a new two-tone "Eleven Edit" wordmark, restyled
 dialogs, and a cleaner header. The output mute buttons now read MUTE (dim
 normally, red when muted), and the Speaker Breakup slider matches the audio
-volume slider.
+volume slider. Quick Mix sliders use the same amber ball with a grey
+saved-value tick, and no longer turn red when moved.
 
 **Smaller touches.** The version and build number show in the title bar and
 About box; the Avid-editor warning in the status bar stays on one line.
