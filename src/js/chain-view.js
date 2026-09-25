@@ -196,41 +196,99 @@ function cmClearDropMarks() {
     .forEach(function (e) { e.classList.remove('cm-drop-before', 'cm-drop-after'); });
 }
 
+var CM_SLIDE_MS = (typeof CHAIN_SLIDE_MS === 'number') ? CHAIN_SLIDE_MS : 1000;
+
+function cmUnitCenter(el) { var r = el.getBoundingClientRect(); return r.left + r.width / 2; }
+
+// Live preview (build 89): re-lay the Modern units in `order` and FLIP-slide
+// every unit that moved (Classic's applyChainOrderAnimated, Modern's own copy).
+// The dragged unit (and its linked Loop) are skipped — they follow the cursor.
+function cmApplyPreview(order) {
+  var row = document.querySelector('#chainstrip-modern .cm-row');
+  if (!row) return;
+  var units = {};
+  row.querySelectorAll(':scope > [data-slot]').forEach(function (u) { units[u.dataset.slot] = u; });
+  var gaps = Array.prototype.slice.call(row.querySelectorAll(':scope > .cm-gap'));
+  var tail = row.querySelector(':scope > .cm-fixed');
+  var movers = Object.keys(units).map(function (k) { return units[k]; })
+    .filter(function (u) { return u !== cmDrag.el && u !== cmDrag.partner; });
+  var first = new Map();
+  movers.forEach(function (u) { first.set(u, u.getBoundingClientRect().left); });
+  var gi = 0;
+  row.insertBefore(gaps[gi++], tail);
+  order.forEach(function (blk) {
+    var u = units[blk.slotId];
+    if (u) row.insertBefore(u, tail);
+    if (gi < gaps.length) row.insertBefore(gaps[gi++], tail);
+  });
+  movers.forEach(function (u) {
+    var dx = first.get(u) - u.getBoundingClientRect().left;
+    if (Math.abs(dx) < 0.5) return;
+    u.style.transition = 'none';
+    u.style.transform = 'translateX(' + dx + 'px)';
+    void u.offsetWidth;
+    u.style.transition = 'transform ' + CM_SLIDE_MS + 'ms ease';
+    u.style.transform = '';
+  });
+}
+
+// Keep the dragged unit (and linked Loop) pinned under the cursor.
+function cmFollow(ev) {
+  var d = cmDrag;
+  [d.el, d.partner].forEach(function (u) { if (u) u.style.transform = 'none'; });
+  var dx = (ev.clientX - d.grabX) - d.el.getBoundingClientRect().left;
+  [d.el, d.partner].forEach(function (u) { if (u) u.style.transform = 'translateX(' + dx + 'px)'; });
+}
+
 window.addEventListener('mousemove', function (ev) {
   if (!cmDrag) return;
   if (ev.buttons === 0) { cmDragEnd(false); return; }
-  var dx = ev.clientX - cmDrag.startX;
-  if (!cmDrag.active) {
-    if (Math.hypot(dx, ev.clientY - cmDrag.startY) < 4) return;
-    cmDrag.active = true;
-    cmDrag.el.classList.add('cm-dragging');
+  var d = cmDrag;
+  if (!d.active) {
+    if (Math.hypot(ev.clientX - d.startX, ev.clientY - d.startY) < 4) return;
+    d.active = true;
+    d.grabX = d.startX - d.el.getBoundingClientRect().left;
+    d.lastX = ev.clientX;
+    d.right = true;
+    d.el.classList.add('cm-dragging');
+    d.el.style.transition = 'none';
     document.body.style.cursor = 'grabbing';
+    document.querySelectorAll('#chainstrip-modern .cm-tap').forEach(function (t) { t.remove(); });
     // AMP-CAB with FX Loop linked beside it: the Loop travels with it (Classic rule).
-    var link = (typeof linkedAmpLoopInfo === 'function') ? linkedAmpLoopInfo(cmDrag.slotId, cmDrag.base) : null;
+    var link = (typeof linkedAmpLoopInfo === 'function') ? linkedAmpLoopInfo(d.slotId, d.base) : null;
+    d.linkGap = 0;
     if (link) {
-      cmDrag.partner = document.querySelector('#chainstrip-modern .cm-row > [data-slot="' + SLOT_LOOP + '"]');
-      if (cmDrag.partner) cmDrag.partner.classList.add('cm-dragging');
+      d.partner = document.querySelector('#chainstrip-modern .cm-row > [data-slot="' + SLOT_LOOP + '"]');
+      if (d.partner) {
+        d.partner.classList.add('cm-dragging');
+        d.partner.style.transition = 'none';
+        d.linkGap = cmUnitCenter(d.partner) - cmUnitCenter(d.el);
+      }
     }
+    d.preview = d.base;
   }
-  cmDrag.el.style.transform = 'translateX(' + dx + 'px)';
-  if (cmDrag.partner) cmDrag.partner.style.transform = 'translateX(' + dx + 'px)';
-  cmClearDropMarks();
-  cmDrag.preview = null;
+  if (ev.clientX !== d.lastX) d.right = ev.clientX > d.lastX;
+  d.lastX = ev.clientX;
+
+  // Hit-test off the leading edge of the carried pair (Classic's rule).
+  var hitX = ev.clientX - d.grabX + d.el.offsetWidth / 2
+           + (d.right ? Math.max(0, d.linkGap) : Math.min(0, d.linkGap));
   var units = document.querySelectorAll('#chainstrip-modern .cm-row > [data-slot]');
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
-    if (u === cmDrag.el || u === cmDrag.partner) continue;
+    if (u === d.el || u === d.partner) continue;
     var r = u.getBoundingClientRect();
-    if (ev.clientX < r.left || ev.clientX > r.right) continue;
+    if (hitX < r.left || hitX > r.right) continue;
     var target = parseInt(u.dataset.slot, 10);
-    var after = (target === cmDrag.base[0].slotId) ? false : ev.clientX > r.left + r.width / 2;
-    var next = (typeof computeReorder === 'function') ? computeReorder(cmDrag.slotId, target, after, cmDrag.base) : null;
-    if (next && !sameOrder(next, cmDrag.base)) {
-      cmDrag.preview = next;
-      u.classList.add(after ? 'cm-drop-after' : 'cm-drop-before');
+    var after = (target === d.base[0].slotId) ? false : hitX > r.left + r.width / 2;
+    var next = (typeof computeReorder === 'function') ? computeReorder(d.slotId, target, after, d.base) : null;
+    if (next && !sameOrder(next, d.preview)) {
+      d.preview = next;
+      cmApplyPreview(next);
     }
     break;
   }
+  cmFollow(ev);
 });
 
 window.addEventListener('mouseup', function () { if (cmDrag) cmDragEnd(true); });
@@ -244,8 +302,11 @@ function cmDragEnd(commit) {
   if (d.active) {
     cmSuppressClick = true;
     setTimeout(function () { cmSuppressClick = false; }, 0);
-    if (commit && d.preview && !sameOrder(d.preview, currentChain) && typeof sendChainOrder === 'function') {
+    if (commit && d.preview && !sameOrder(d.preview, d.base) && !sameOrder(d.preview, currentChain) && typeof sendChainOrder === 'function') {
       sendChainOrder(d.preview);   // rack replies with a chain map -> Classic re-renders -> Modern mirrors
+      // Leave the preview on screen (no snap-back); drop the cursor-follow offset.
+      [d.el, d.partner].forEach(function (u) { if (u) { u.style.transform = ''; u.style.transition = ''; u.classList.remove('cm-dragging'); } });
+      return;
     }
     cmRender();
   }
