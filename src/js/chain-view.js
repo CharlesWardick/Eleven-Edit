@@ -24,6 +24,7 @@ function applyChainView() {
   var modern = document.getElementById('chainstrip-modern');
   document.body.classList.toggle('cv-modern', chainView === 'modern');
   if (modern) modern.hidden = (chainView !== 'modern');
+  if (chainView !== 'modern') { cmPlaceQuickMix(); cmAlignInput(); }   // hand back to Classic
   cmScheduleRender();
 }
 
@@ -88,6 +89,49 @@ function cmPlace(host) {
   host.style.setProperty('--cm-w', w + 'px');
   host.style.setProperty('--cm-h', CM_H + 'px');
   host.style.setProperty('--cm-gap', CM_GAP + 'px');
+}
+
+// Line the Classic INPUT dropdown + its connector up with the Modern button row
+// (build 90). Inline transforms on those two Classic elements, cleared in Classic.
+function cmAlignInput() {
+  var sel = document.getElementById('chain-input-select');
+  var slot = sel ? sel.closest('.chain-slot') : null;
+  var conn = document.getElementById('chain-input-connector');
+  var row = document.querySelector('#chainstrip-modern .cm-row');
+  [slot, conn].forEach(function (e) { if (e) e.style.transform = ''; });
+  if (chainView !== 'modern' || !row || !slot) return;
+  var rr = row.getBoundingClientRect();
+  var mid = rr.top + rr.height / 2;
+  var sr = sel.getBoundingClientRect();
+  slot.style.transform = 'translateY(' + Math.round(mid - (sr.top + sr.height / 2)) + 'px)';
+  if (conn) {
+    var line = conn.querySelector('i');
+    var lr = line ? line.getBoundingClientRect() : conn.getBoundingClientRect();
+    conn.style.transform = 'translateY(' + Math.round(mid - (lr.top + lr.height / 2)) + 'px)';
+  }
+}
+
+// Quick Mix (build 90): the Classic sliders stay the single source of truth;
+// in Modern they're re-shown (CSS) and pinned under their Modern button.
+function cmPlaceQuickMix() {
+  if (typeof QM_SLOT_DOM === 'undefined') return;
+  Object.keys(QM_SLOT_DOM).forEach(function (k) {
+    var wrap = document.getElementById('qm-' + QM_SLOT_DOM[k]);
+    if (!wrap) return;
+    var unit = (chainView === 'modern')
+      ? document.querySelector('#chainstrip-modern .cm-row > [data-slot="' + k + '"]') : null;
+    if (!unit) {
+      ['position', 'left', 'top', 'width', 'right', 'bottom'].forEach(function (p) { wrap.style[p] = ''; });
+      return;
+    }
+    var r = unit.getBoundingClientRect();
+    wrap.style.position = 'fixed';
+    wrap.style.left = r.left + 'px';
+    wrap.style.width = r.width + 'px';
+    wrap.style.top = (r.bottom + 3) + 'px';
+    wrap.style.right = 'auto';
+    wrap.style.bottom = 'auto';
+  });
 }
 
 // To Amp tap gap index: 0 = before first unit ... n = after last unit.
@@ -181,6 +225,10 @@ function cmRender() {
   });
   row.appendChild(sm);
   host.appendChild(row);
+  var classicStrip = document.getElementById('chainstrip');
+  host.classList.toggle('cm-qm', !!(classicStrip && classicStrip.classList.contains('qm-visible')));
+  cmPlaceQuickMix();
+  cmAlignInput();
 }
 
 // ── Drag to reorder (same rules as Classic: computeReorder + sendChainOrder) ──
@@ -252,6 +300,7 @@ window.addEventListener('mousemove', function (ev) {
     d.right = true;
     d.el.classList.add('cm-dragging');
     d.el.style.transition = 'none';
+    document.body.classList.add('cm-drag-live');
     document.body.style.cursor = 'grabbing';
     document.querySelectorAll('#chainstrip-modern .cm-tap').forEach(function (t) { t.remove(); });
     // AMP-CAB with FX Loop linked beside it: the Loop travels with it (Classic rule).
@@ -280,7 +329,12 @@ window.addEventListener('mousemove', function (ev) {
     var r = u.getBoundingClientRect();
     if (hitX < r.left || hitX > r.right) continue;
     var target = parseInt(u.dataset.slot, 10);
-    var after = (target === d.base[0].slotId) ? false : hitX > r.left + r.width / 2;
+    // Swap a third of the way into the neighbour (build 90; was halfway —
+    // felt like too much travel with Modern's tighter gaps).
+    var curIdx = d.preview.findIndex(function (b) { return b.slotId === d.slotId; });
+    var tgtIdx = d.preview.findIndex(function (b) { return b.slotId === target; });
+    var edge = (tgtIdx > curIdx) ? r.left + r.width / 3 : r.right - r.width / 3;
+    var after = (target === d.base[0].slotId) ? false : hitX > edge;
     var next = (typeof computeReorder === 'function') ? computeReorder(d.slotId, target, after, d.base) : null;
     if (next && !sameOrder(next, d.preview)) {
       d.preview = next;
@@ -298,6 +352,7 @@ function cmDragEnd(commit) {
   var d = cmDrag;
   cmDrag = null;
   document.body.style.cursor = '';
+  document.body.classList.remove('cm-drag-live');
   cmClearDropMarks();
   if (d.active) {
     cmSuppressClick = true;
