@@ -326,6 +326,15 @@
     -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
     background: var(--accent); cursor: pointer;
   }
+  /* build 100: Settings → Colors sliders use the audio VOL look (dark slot, amber ball), not the OS blue */
+  #panel-settings input[type=range] {
+    -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px;
+    background: #0d0d0d; border: 1px solid #000; outline: none;
+  }
+  #panel-settings input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+  }
   #audiostrip .as-val { font-size: 11px; color: var(--accent); width: 28px; }
   #audiostrip .as-meter { width: 80px; height: 6px; border-radius: 2px; background: #222; overflow: hidden; }
   #audiostrip .as-meter i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--accent)); transition: width 0.08s linear; }
