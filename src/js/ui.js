@@ -168,7 +168,7 @@ function drawTickKnob(canvas, value127, wrap) {
     const a = angleFor(v);   // canvas arc angle == the pointer direction
     ctx.beginPath();
     ctx.arc(cx, cy, r, a - 0.07, a + 0.07);
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 2.5; ctx.lineCap = 'butt';
+    ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 2.5; ctx.lineCap = 'butt';   // build 104: fainter (Schrödinger's tick)
     ctx.stroke();
   });
 
