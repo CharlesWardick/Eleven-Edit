@@ -29,6 +29,12 @@
     --muted:       #888;
     --green:       #30c050;
     --green-dim:   #1a6b3a;
+    --green-rgb:   48,192,80;   /* build 96: every green derives from these vars (intensity slider, build 98) */
+    --green-hi:    #6fe08a;
+    --green-mid:   #1f8f3c;
+    --green-soft:  #70c070;
+    --green-olive: #3a7a3a;
+    --green-glow-rgb: 140,255,170;
     --red:         #d03030;
     --blue:        #3498db;
     --section-hdr: #2e2e2e;
@@ -187,7 +193,7 @@
   .seg       { flex: 1; text-align: center; padding: 3px 0; font-size: 13px; font-weight: bold; cursor: pointer; color: #7a3a3a; background: #241414; border: none; border-right: 1px solid var(--border-dim); }
   .seg:last-child { border-right: none; }
   .seg:hover { color: var(--accent); }
-  .seg.lit   { background: #0a2a0a; color: var(--green); box-shadow: inset 0 0 6px rgba(48,192,80,.35); }
+  .seg.lit   { background: #0a2a0a; color: var(--green); box-shadow: inset 0 0 6px rgba(var(--green-rgb),.35); }
 
   /* Tuner button */
   /* Physical push-button (build 15) — same raised-tile family as the chain-row
@@ -211,10 +217,10 @@
     transition: color 0.12s, box-shadow 0.12s;
   }
   #btn-tuner:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  #btn-tuner.on { color: #30c050;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
+  #btn-tuner.on { color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
   #btn-tuner:not(.on):hover { color: #ccc; }
-  #btn-tuner.on:hover { color: #6fe08a; }
+  #btn-tuner.on:hover { color: var(--green-hi); }
 
   /* Physical push-buttons (build 21) — BRIGHT / TREMOLO amp toggles; off = neutral,
      on = green text + green ring (same family as the chain-row buttons). */
@@ -228,8 +234,8 @@
     transition: color 0.12s, box-shadow 0.12s;
   }
   .amp-toggle-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .amp-toggle-btn.on { color: #30c050;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .amp-toggle-btn.on { color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
 
   /* Audio engine toggle (v1.1.0) — matches the Tuner button's look/behaviour */
   .audio-col { display: flex; flex-direction: column; gap: 2px; align-items: center; flex-shrink: 0; }
@@ -241,7 +247,7 @@
   .audio-toggle:not(.on):hover { border-color: var(--accent); color: var(--accent); }
   .audio-toggle.on {
     background: #1a2a1a; border-color: var(--green); color: var(--green);
-    box-shadow: 0 0 6px rgba(48,192,80,0.35);
+    box-shadow: 0 0 6px rgba(var(--green-rgb),0.35);
   }
   .audio-toggle.on:hover { border-color: var(--green); }
 
@@ -266,8 +272,8 @@
   #audiostrip .as-toggle:hover { color: #ccc; }
   #audiostrip .as-toggle:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #audiostrip .as-toggle.on {
-    color: #30c050;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4);
+    color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4);
   }
   #audiostrip .as-toggle.disabled { opacity: 0.35; pointer-events: none; color: #666; box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 2px 4px rgba(0,0,0,.4); }
   #audiostrip .as-toggle.err {
@@ -410,7 +416,7 @@
     background: linear-gradient(#3a3a3f, #26262a); border: 1px solid #111;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 3px rgba(0,0,0,.6);
     display: flex; align-items: center; justify-content: center;
-    font: bold 13px 'Segoe UI', Arial, sans-serif; letter-spacing: .5px; color: #30c050;
+    font: bold 13px 'Segoe UI', Arial, sans-serif; letter-spacing: .5px; color: var(--green);
     white-space: nowrap; overflow: hidden;
   }
   #chainstrip-modern .cm-btn.cm-off { color: #666; background: linear-gradient(#2c2c30, #1f1f22); }
@@ -419,7 +425,7 @@
   #chainstrip-modern .cm-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 16px; cursor: pointer; }
   #chainstrip-modern .cm-bar::after {
     content: ""; position: absolute; left: 18%; right: 18%; bottom: 6px; height: 3px; border-radius: 2px;
-    background: #30c050; box-shadow: 0 0 6px rgba(48,192,80,.8);
+    background: var(--green); box-shadow: 0 0 6px rgba(var(--green-rgb),.8);
   }
   #chainstrip-modern .cm-off .cm-bar::after,
   #chainstrip-modern .cm-unk .cm-bar::after { background: #2e2e32; box-shadow: inset 0 0 2px #000; }
@@ -506,7 +512,7 @@
   #mono-indicator:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #mono-indicator .sm-div { color: #4a4a4a; font-weight: normal; }
   #mono-indicator .sm-s, #mono-indicator .sm-m { color: #6a6a6a; transition: color 0.12s; }
-  #mono-indicator.mono-inactive .sm-s { color: #30c050; text-shadow: 0 0 8px rgba(48,192,80,.35); }
+  #mono-indicator.mono-inactive .sm-s { color: var(--green); text-shadow: 0 0 8px rgba(var(--green-rgb),.35); }
   #mono-indicator.mono-active   .sm-m { color: #e0a020; text-shadow: 0 0 8px rgba(224,160,32,.35); }
 
   /* Connector INTO the badge — same stacked-line style as a between-block
@@ -838,12 +844,12 @@
     transform: translateY(12px);
   }
   .chain-name:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .chain-name.slot-on  { color: #30c050;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .chain-name.slot-on  { color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
   .chain-name.slot-off { color: #8a5050; text-decoration: line-through;
     background: linear-gradient(180deg, #242830 0%, #191c22 60%, #141014 100%);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.05), inset 0 -3px 7px rgba(0,0,0,.5); }
-  .chain-name.slot-on:hover  { color: #6fe08a; }
+  .chain-name.slot-on:hover  { color: var(--green-hi); }
   .chain-name.slot-off:hover { color: #b56a6a; }
   .chain-name.slot-unknown   { color: var(--muted); }
 
@@ -883,7 +889,7 @@
   /* clickable only once the real state is known — unknown keeps the default cursor */
   .chain-name-stack.slot-on,
   .chain-name-stack.slot-off { cursor: pointer; }
-  .chain-name-stack.slot-on  { background: #1a2a1a; border-color: #3a7a3a; color: #70c070; }
+  .chain-name-stack.slot-on  { background: #1a2a1a; border-color: var(--green-olive); color: var(--green-soft); }
   .chain-name-stack.slot-off { background: #241414; border-color: #5a2020; color: #7a3a3a; text-decoration: line-through; }
   .chain-name-stack.slot-on:hover  { border-color: var(--green); }
   .chain-name-stack.slot-off:hover { border-color: var(--red); }
@@ -911,9 +917,9 @@
   .chain-half + .chain-half { border-left: 1px solid #0c0f14; box-shadow: inset 1px 0 0 rgba(255,255,255,.05); }   /* divider */
   .chain-half.slot-on,
   .chain-half.slot-off { cursor: pointer; }
-  .chain-half.slot-on  { color: #30c050; background: rgba(48,192,80,.10); }
+  .chain-half.slot-on  { color: var(--green); background: rgba(var(--green-rgb),.10); }
   .chain-half.slot-off { color: #8a5050; background: rgba(0,0,0,.25); text-decoration: line-through; }
-  .chain-half.slot-on:hover  { color: #6fe08a; }
+  .chain-half.slot-on:hover  { color: var(--green-hi); }
   .chain-half.slot-off:hover { color: #b56a6a; }
   .chain-half.slot-unknown   { color: var(--muted); background: transparent; }
 
@@ -1068,11 +1074,11 @@
     transition: color 0.12s, box-shadow 0.12s;
   }
   .glob-tog:not(.tog-on):hover { color: #ccc; }
-  .glob-tog.tog-on:hover { color: #6fe08a; }
+  .glob-tog.tog-on:hover { color: var(--green-hi); }
   .glob-tog:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .glob-tog .dot { display: none; }
   .glob-tog.tog-on { color: var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
   .glob-tog.tog-unknown .glab::after { content: ' ?'; color: var(--muted); }
   /* Settings-panel dropdowns (Hardware Loop Global Routing, Digital Output
      Mode) — rig-wide/hardware controls, not app settings (folders, logs)
@@ -1227,7 +1233,7 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45); transition: color 0.12s, box-shadow 0.12s; }
   .tog-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .tog-btn.on { color: var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
   /* Lit indicator bar along the bottom edge — the label stays centered and static;
      the bar shows on/off (used by On Axis + AUDIO ENGINE). */
   .ind-bar {
@@ -1238,8 +1244,8 @@
   }
   .as-toggle.on .ind-bar, .tog-btn.on .ind-bar, .amp-toggle-btn.on .ind-bar,
   #btn-tuner.on .ind-bar, .glob-tog.tog-on .ind-bar {
-    background: linear-gradient(90deg, #1f8f3c, #30c050 50%, #1f8f3c);
-    box-shadow: 0 0 7px rgba(48,192,80,.85), 0 0 2px rgba(140,255,170,.7);
+    background: linear-gradient(90deg, var(--green-mid), var(--green) 50%, var(--green-mid));
+    box-shadow: 0 0 7px rgba(var(--green-rgb),.85), 0 0 2px rgba(var(--green-glow-rgb),.7);
   }
   .ctrl-tog { display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .ctrl-tog label { font-size: 11px; color: var(--label); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1271,8 +1277,8 @@
   }
   .bt-btn:hover { color: var(--text); }
   .bt-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .bt-btn.green { color: #30c050; }
-  .bt-btn.green:hover { color: #6fe08a; }
+  .bt-btn.green { color: var(--green); }
+  .bt-btn.green:hover { color: var(--green-hi); }
   .bt-sep { width: 1px; height: 22px; background: var(--border-dim); flex-shrink: 0; }
   #capture-path-label { font-size: 11px; color: #777; margin-left: auto; white-space: nowrap; font-family: 'Consolas', monospace; }
 
@@ -1340,9 +1346,9 @@
   .auto-btn:disabled { opacity:0.35; cursor:default; }
   .auto-btn:active:not(:disabled) { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #btn-start { color:var(--green); }
-  #btn-start:hover:not(:disabled) { color:#6fe08a; }
+  #btn-start:hover:not(:disabled) { color:var(--green-hi); }
   #btn-start.running { color:var(--green);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
   #btn-pause { color:var(--accent); }
   #btn-pause:hover:not(:disabled) { color:#ffc24d; }
   #btn-pause.paused { color:var(--accent);
@@ -1548,10 +1554,10 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
   }
-  #btn-watchdog-ok { color: #30c050;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
+  #btn-watchdog-ok { color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
   #btn-scan-skip:hover { color: #fff; }
-  #btn-watchdog-ok:hover { color: #6fe08a; }
+  #btn-watchdog-ok:hover { color: var(--green-hi); }
   #btn-watchdog-ok:active, #btn-scan-skip:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #btn-about-close {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
@@ -1732,9 +1738,9 @@
   }
   .rack-save-btns button:hover { color: #fff; }
   .rack-save-btns button:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .rack-save-ok-btn { border-color: #0c0f14 !important; color: #30c050 !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4) !important; }
-  .rack-save-ok-btn:hover { color: #6fe08a !important; }
+  .rack-save-ok-btn { border-color: #0c0f14 !important; color: var(--green) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4) !important; }
+  .rack-save-ok-btn:hover { color: var(--green-hi) !important; }
   /* Per-FX-panel binary toggles (injected by fx-panels.js), two hardware-honest
      shapes chosen by the param's options (see buildFxToggle):
        .fx-pill-v  = two named alternatives stacked, active lit green
@@ -1751,8 +1757,8 @@
   }
   .fx-pill-v .seg:hover { color: #ccc; }
   .fx-pill-v .seg:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .fx-pill-v .seg.lit { color: #30c050;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(48,192,80,.30), 0 0 12px rgba(48,192,80,.18), 0 3px 6px rgba(0,0,0,.4); }
+  .fx-pill-v .seg.lit { color: var(--green);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
   /* Compact on/off button carrying a rack-style illuminated lens (like the real
      Eleven Rack DIST/REV/FX buttons): lit green = on, dark = off. The param name
      is the caption above, so the button needs no text. */
@@ -1770,9 +1776,9 @@
   }
   .fx-onoff:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .fx-onoff.on .lens {
-    /* matched to the app green family (#30c050 lit / #30c050 knobs), not a hotter lens */
-    background: linear-gradient(180deg, #30c050 0%, #30c050 55%, #1f8f3c 100%);
-    box-shadow: 0 0 7px rgba(48,192,80,.5), inset 0 1px 1px rgba(255,255,255,.30), inset 0 -1px 2px rgba(0,60,24,.55);
+    /* matched to the app green family (var(--green) lit / var(--green) knobs), not a hotter lens */
+    background: linear-gradient(180deg, var(--green) 0%, var(--green) 55%, var(--green-mid) 100%);
+    box-shadow: 0 0 7px rgba(var(--green-rgb),.5), inset 0 1px 1px rgba(255,255,255,.30), inset 0 -1px 2px rgba(0,60,24,.55);
   }
 </style>
 </head>

@@ -2454,11 +2454,11 @@ const FX1_MODELS = [
         ]
       },
       { group:'HMF', rows: [
-          [ {label:'Gain', lo:0x09, bandColor: '#30c050',
+          [ {label:'Gain', lo:0x09, bandColor: 'var(--green)',
               display: function(v) { return eqSliderDb(v, -18, 18); }},
-            {label:'Freq', lo:0x0A, bandColor: '#30c050',
+            {label:'Freq', lo:0x0A, bandColor: 'var(--green)',
               display: function(v) { return eqFreqDisplay(200 * Math.pow(100, fracFromV127(v))); }} ],
-          [ {label:'Q',    lo:0x0B, bandColor: '#30c050',
+          [ {label:'Q',    lo:0x0B, bandColor: 'var(--green)',
               display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }} ]
         ]
       },

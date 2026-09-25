@@ -2960,7 +2960,7 @@ var PEQ_FS = 48000;
 var PEQ_BANDS = [
   { g: 0x02, f: 0x03, q: 0x04, type: 0x05, col: '#e83828', low: true  },   // LF
   { g: 0x06, f: 0x07, q: 0x08, type: null, col: '#e0a020' },               // LMF
-  { g: 0x09, f: 0x0A, q: 0x0B, type: null, col: '#30c050' },               // HMF
+  { g: 0x09, f: 0x0A, q: 0x0B, type: null, col: 'var(--green)' },               // HMF
   { g: 0x0C, f: 0x0D, q: 0x0E, type: 0x0F, col: '#3f8fe0', low: false }    // HF
 ];
 var PEQ_OUT_LO = 0x10;
@@ -3082,7 +3082,7 @@ function peqCurveDraw() {
   const N = 240;
   const bandDb = function(b, f) { let s = 0; b.list.forEach(function(k) { s += peqMagDb(k, f); }); return s; };
   bands.forEach(function(b) {                     // faint per-band curves
-    x.strokeStyle = b.col; x.globalAlpha = 0.45; x.lineWidth = 1; x.beginPath();
+    x.strokeStyle = cssColor(b.col); x.globalAlpha = 0.45; x.lineWidth = 1; x.beginPath();
     for (let p = 0; p <= N; p++) {
       const f = 20 * Math.pow(1000, p / N), y = dy(bandDb(b, f));
       if (p) x.lineTo(fx(f), y); else x.moveTo(fx(f), y);
@@ -3102,6 +3102,6 @@ function peqCurveDraw() {
     // its half-way point, HP/LP = its cutoff dip); a notch's centre is a
     // bottomless null, so its dot stays on the 0 line.
     const dotDb = b.notch ? 0 : bandDb(b, f);
-    x.fillStyle = b.col; x.beginPath(); x.arc(fx(f), dy(dotDb), 3.5, 0, Math.PI * 2); x.fill();
+    x.fillStyle = cssColor(b.col); x.beginPath(); x.arc(fx(f), dy(dotDb), 3.5, 0, Math.PI * 2); x.fill();
   });
 }

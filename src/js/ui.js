@@ -18,9 +18,19 @@
 // captureKnobBaselines). Any move away from it — from our drag, the front
 // panel, or Avid — turns the knob red, exactly as the hardware pointer does.
 // Kept as named values so item B can later read them from settings.json.
+// build 96: resolve a theme colour var for canvas drawing (canvas can't take var()).
+// Accepts '--name' or 'var(--name)'; anything else passes through unchanged.
+function cssColor(v) {
+  if (typeof v !== 'string') return v;
+  var m = /^var\((--[\w-]+)\)$/.exec(v.trim());
+  var name = m ? m[1] : (v.indexOf('--') === 0 ? v : null);
+  if (!name) return v;
+  var c = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return c || v;
+}
 const KNOB_COLORS = {
   amber:  '#e0a020',   // was hardcoded throughout drawKnob
-  green:  '#30c050',   // theme --green, matches active chain blocks
+  get green() { return cssColor('--green'); },   // theme --green (build 96: live, follows the intensity slider)
   blue:   '#3f8fe0',   // Parametric EQ's HF band accent — 7/31/2026
   red:    '#e83828'    // uncommitted change
 };
@@ -138,7 +148,7 @@ function drawTickKnob(canvas, value127, wrap) {
   const sweepRad = 270 * Math.PI/180;
   const angleFor = function(v) { return startRad + (sweepRad * v/127); };
   let pointerCol = (wrap && wrap.dataset.base === 'fx') ? KNOB_COLORS.green : KNOB_COLORS.amber;
-  if (wrap && wrap.dataset.bandColor) pointerCol = wrap.dataset.bandColor;
+  if (wrap && wrap.dataset.bandColor) pointerCol = cssColor(wrap.dataset.bandColor);
 
   ctx.clearRect(0, 0, w, h);
 
