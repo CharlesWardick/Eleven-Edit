@@ -161,6 +161,21 @@ function drawTickKnob(canvas, value127, wrap) {
   ctx.fillStyle = grad; ctx.fill();
   ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.stroke();
 
+  // End-stop marks (build 102, Charlie): subtle pure-black ticks just inside
+  // the outer ring at the min and max rotation — shows the limits without
+  // drawing the eye. Drawn before the baseline mark so that stays on top.
+  [0, 127].forEach(function(v) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angleFor(v) + Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(0, -(r-1.5));
+    ctx.lineTo(0, -(r-6));
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.lineCap = 'butt';
+    ctx.stroke();
+    ctx.restore();
+  });
+
   // Baseline mark — same external tick drawKnob uses (dataset.orig),
   // same position it would occupy on the ring version, just against a
   // plain body instead of a track.
