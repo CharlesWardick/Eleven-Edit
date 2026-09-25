@@ -1336,7 +1336,8 @@
     flex-shrink: 0; flex-wrap: wrap; min-height: 46px;
     font-size: 14px;
   }
-  .bt-section-label { font-size: 0.92em; color: #777; text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; }
+  /* build 108: shared by TFX / BANK and AUTO ADVANCE — dim amber, bold, normal spacing */
+  .bt-section-label { font-size: inherit; color: var(--accent-dim); font-weight: 600; text-transform: uppercase; letter-spacing: normal; white-space: nowrap; }
   /* Physical push-button (build 16) — same raised-tile family as the chain-row
      pills / TUNER / mutes, applied to the whole TFX/BANK + About/?/gear row.
      Neutral action buttons (no persistent on-state): tile + press, brighter
@@ -2935,7 +2936,7 @@
   <!-- ROLLER TRANSPORT STRIP -->
   <div id="roller-strip">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;">
-      <div style="font-size:inherit;color:var(--accent-dim);letter-spacing:2px;text-transform:uppercase;font-weight:600;white-space:nowrap;">Auto Advance</div>
+      <div class="bt-section-label">Auto Advance</div>
       <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
       <span style="font-size:inherit;color:#999;font-weight:600;">FROM</span>
       <select id="range-from" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:3px 8px;border-radius:4px;min-width:64px;"></select>
