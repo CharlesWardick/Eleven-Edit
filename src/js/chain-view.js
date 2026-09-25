@@ -411,6 +411,16 @@ function cmDragEnd(commit) {
     if (s) s.addEventListener('change', cmScheduleRender);
   });
   window.addEventListener('resize', cmScheduleRender);
+  // build 111: the overlay is position:fixed, so anything that MOVES the Classic
+  // strip without resizing it (e.g. the audio bar switching bottom→top) left
+  // Modern behind. Watch the strip's on-screen position and re-place on change.
+  var cmLastPos = '';
+  setInterval(function () {
+    if (!cmIsModern() || !strip) return;
+    var r = strip.getBoundingClientRect();
+    var pos = Math.round(r.left) + ',' + Math.round(r.top) + ',' + Math.round(r.width) + ',' + Math.round(r.height);
+    if (pos !== cmLastPos) { cmLastPos = pos; cmScheduleRender(); }
+  }, 200);
   window.addEventListener('scroll', cmScheduleRender, true);
   applyChainView();
 })();
