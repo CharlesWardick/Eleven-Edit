@@ -121,8 +121,10 @@ function cmPlaceQuickMix() {
     }
     var r = unit.getBoundingClientRect();
     wrap.style.position = 'fixed';
-    wrap.style.left = r.left + 'px';
-    wrap.style.width = r.width + 'px';
+    // build 95: inset 6px each side so the ball (and saved tick) at either
+    // end stays inside the button's footprint — neighbours never touch.
+    wrap.style.left = (r.left + 6) + 'px';
+    wrap.style.width = (r.width - 12) + 'px';
     wrap.style.top = (r.bottom + 9) + 'px';   // clear the selection ring
     wrap.style.right = 'auto';
     wrap.style.bottom = 'auto';
