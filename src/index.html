@@ -327,6 +327,16 @@
     background: var(--accent); cursor: pointer;
   }
   /* build 100: Settings → Colors sliders use the audio VOL look (dark slot, amber ball), not the OS blue */
+  /* build 101: dim settings checkbox (grey box, amber when checked) */
+  #panel-settings input[type=checkbox] {
+    -webkit-appearance: none; appearance: none; width: 13px; height: 13px; margin: 0;
+    border: 1px solid #555; border-radius: 2px; background: #1a1a1a; cursor: pointer; position: relative;
+  }
+  #panel-settings input[type=checkbox]:checked { background: var(--accent); border-color: var(--accent); }
+  #panel-settings input[type=checkbox]:checked::after {
+    content: ""; position: absolute; left: 3px; top: 0px; width: 4px; height: 8px;
+    border: solid #111; border-width: 0 2px 2px 0; transform: rotate(45deg);
+  }
   #panel-settings input[type=range] {
     -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px;
     background: #0d0d0d; border: 1px solid #000; outline: none;
@@ -1190,7 +1200,7 @@
   /* The dragged tone knob (label-drag reorder) gets the same dim-while-
      carried treatment as a dragged chain-row thumb. */
   .ctrl-knob.dragging { opacity: 0.35; }
-  #tone-knobs-row:not(.tone-row-locked) .ctrl-knob label { cursor: grab; }
+  /* build 101: lock button removed — reorder always available, no grab cursor (Charlie) */
 
   /* CAB controls */
   .sctrl        { display: flex; flex-direction: column; gap: 4px; }
@@ -2334,7 +2344,6 @@
                matching the chain row's smooth slide feel. Reset clears
                this amp's saved order only. -->
           <div class="tone-dock">
-            <button id="tone-lock-btn" class="dock-btn" title="Tone knob order is locked — click to unlock, then drag a knob name to reorder">🔒</button>
             <button id="tone-reset-btn" class="dock-btn" title="Reset this amp's knob order to default">⟲</button>
             <button id="number-display-btn" class="dock-btn" title="Cycle numeric readout visibility on this panel (global setting, all patches)">#</button>
           </div>

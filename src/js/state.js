@@ -327,7 +327,7 @@ let numberDisplayMode = 0;
 // Re-arms LOCKED on every launch (not persisted) — a deliberate extra guard
 // against an accidental drag during ordinary knob use, on top of the label
 // being the only drag handle (the knob itself still just turns).
-let toneRowLocked = true;
+let toneRowLocked = false;   // build 101: lock button removed; reorder always on
 
 // Save sequence detection
 let saveSequenceDetected = false;
