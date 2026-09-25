@@ -2958,7 +2958,7 @@ function fxHostClearSyncIfDriving(model, paramLo) {
 // ════════════════════════════════════════════════════════════════════
 var PEQ_FS = 48000;
 var PEQ_BANDS = [
-  { g: 0x02, f: 0x03, q: 0x04, type: 0x05, col: '#e83828', low: true  },   // LF
+  { g: 0x02, f: 0x03, q: 0x04, type: 0x05, col: 'var(--red-hot)', low: true  },   // LF
   { g: 0x06, f: 0x07, q: 0x08, type: null, col: '#e0a020' },               // LMF
   { g: 0x09, f: 0x0A, q: 0x0B, type: null, col: 'var(--green)' },               // HMF
   { g: 0x0C, f: 0x0D, q: 0x0E, type: 0x0F, col: '#3f8fe0', low: false }    // HF

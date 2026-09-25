@@ -36,6 +36,22 @@
     --green-olive: #3a7a3a;
     --green-glow-rgb: 140,255,170;
     --red:         #d03030;
+    --red-hot:     #e83828;
+    --red-deep:    #a8322a;
+    --red-muted:   #7a3a3a;
+    --red-bg:      #3a1414;
+    --red-hi:      #ff6a5c;
+    --red-mid:     #e04a3f;
+    --red-soft:    #b56a6a;
+    --red-dark:    #5a2020;
+    --red-hi2:     #ff6a6a;
+    --red-soft2:   #e46060;
+    --red-soft3:   #d86a6a;
+    --red-dark2:   #4a2020;
+    --red-bg2:     #3a1a1a;
+    --red-rgb:     208,48,48;   /* build 97: every red derives from these vars */
+    --red-mid-rgb: 224,74,63;
+    --red-glow-rgb: 255,160,150;
     --blue:        #3498db;
     --section-hdr: #2e2e2e;
     --divider:     #1e1e1e;
@@ -179,7 +195,7 @@
   .in-tag     { font-size: 10px; color: var(--muted); letter-spacing: 0.5px; }
   .in-single  { display: flex; gap: 6px; align-items: center; }
   .input-btn {
-    background: #241414; border: 1px solid #5a2020; color: #7a3a3a;
+    background: #241414; border: 1px solid var(--red-dark); color: var(--red-muted);
     border-radius: 3px; padding: 4px 9px; font-size: 12px; cursor: pointer; font-weight: bold;
   }
   .input-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -190,7 +206,7 @@
   .pill-head { text-align: center; font-size: 11px; font-weight: bold; padding: 2px 6px; color: var(--muted); background: #0f0f0f; border-bottom: 1px solid var(--border-dim); white-space: nowrap; }
   .pill-head.on { color: var(--green); }
   .pill-row  { display: flex; }
-  .seg       { flex: 1; text-align: center; padding: 3px 0; font-size: 13px; font-weight: bold; cursor: pointer; color: #7a3a3a; background: #241414; border: none; border-right: 1px solid var(--border-dim); }
+  .seg       { flex: 1; text-align: center; padding: 3px 0; font-size: 13px; font-weight: bold; cursor: pointer; color: var(--red-muted); background: #241414; border: none; border-right: 1px solid var(--border-dim); }
   .seg:last-child { border-right: none; }
   .seg:hover { color: var(--accent); }
   .seg.lit   { background: #0a2a0a; color: var(--green); box-shadow: inset 0 0 6px rgba(var(--green-rgb),.35); }
@@ -277,8 +293,8 @@
   }
   #audiostrip .as-toggle.disabled { opacity: 0.35; pointer-events: none; color: #666; box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 2px 4px rgba(0,0,0,.4); }
   #audiostrip .as-toggle.err {
-    color: #ff6a6a;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(208,48,48,.40), 0 0 12px rgba(208,48,48,.22), 0 3px 6px rgba(0,0,0,.4);
+    color: var(--red-hi2);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--red-rgb),.40), 0 0 12px rgba(var(--red-rgb),.22), 0 3px 6px rgba(0,0,0,.4);
   }
   /* Two stacked L/R meters */
   /* build 74: whole audio row scaled up to the AUDIO ENGINE button's height. */
@@ -318,13 +334,13 @@
   /* build 73: audio MUTE (bar + Setup mirror) match the output mutes — always
      reads MUTE, dim normally, red text + red lit bar + ring when muted. */
   #audiostrip .as-mute.muted, #audio-mute-panel.muted { color: var(--red);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(224,74,63,.35), 0 0 12px rgba(224,74,63,.22), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(var(--red-mid-rgb),.35), 0 0 12px rgba(var(--red-mid-rgb),.22), 0 3px 6px rgba(0,0,0,.4); }
   #audiostrip .as-mute.muted .ind-bar, #audio-mute-panel.muted .ind-bar {
-    background: linear-gradient(90deg, #a8322a, #e04a3f 50%, #a8322a);
-    box-shadow: 0 0 7px rgba(224,74,63,.85), 0 0 2px rgba(255,160,150,.7);
+    background: linear-gradient(90deg, var(--red-deep), var(--red-mid) 50%, var(--red-deep));
+    box-shadow: 0 0 7px rgba(var(--red-mid-rgb),.85), 0 0 2px rgba(var(--red-glow-rgb),.7);
   }
-  #audiostrip .as-clip { font-size: 10px; font-weight: bold; letter-spacing: 1px; color: #4a2020;
-    border: 1px solid #3a1a1a; border-radius: 4px; padding: 5px 8px; cursor: pointer; }
+  #audiostrip .as-clip { font-size: 10px; font-weight: bold; letter-spacing: 1px; color: var(--red-dark2);
+    border: 1px solid var(--red-bg2); border-radius: 4px; padding: 5px 8px; cursor: pointer; }
   #audiostrip .as-clip.on { color: #fff; background: var(--red); border-color: var(--red); box-shadow: 0 0 6px var(--red); }
   .settings-btn.muted { background: #2a0f0f; border-color: var(--red); color: var(--red); }
   /* Panel MUTE mirror: fixed width so MUTE/MUTED doesn't shift the row */
@@ -650,13 +666,13 @@
   .mute-btn:hover { color: #ccc; }
   /* build 62: both read "MUTE" — dim normally, red text + red lit bar when muted. */
   .mute-btn.mute-active .ind-bar {
-    background: linear-gradient(90deg, #a8322a, #e04a3f 50%, #a8322a);
-    box-shadow: 0 0 7px rgba(224,74,63,.85), 0 0 2px rgba(255,160,150,.7);
+    background: linear-gradient(90deg, var(--red-deep), var(--red-mid) 50%, var(--red-deep));
+    box-shadow: 0 0 7px rgba(var(--red-mid-rgb),.85), 0 0 2px rgba(var(--red-glow-rgb),.7);
   }
   /* Lit when muted — matches Avid's dim-normally/lit-when-muting behaviour. */
   .mute-btn.mute-active { color: var(--red);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(224,74,63,.35), 0 0 12px rgba(224,74,63,.22), 0 3px 6px rgba(0,0,0,.4); }
-  .mute-btn.mute-active:hover { color: #ff6a5c; }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 0 0 1px rgba(var(--red-mid-rgb),.35), 0 0 12px rgba(var(--red-mid-rgb),.22), 0 3px 6px rgba(0,0,0,.4); }
+  .mute-btn.mute-active:hover { color: var(--red-hi); }
   /* 7/29, 6th pass: TEMPO anchors to the strip's true right edge on its
      own — STEREO/#mono-connector deliberately do NOT carry margin-left:auto
      anymore, so STEREO sits immediately after the last chain block instead
@@ -850,7 +866,7 @@
     background: linear-gradient(180deg, #242830 0%, #191c22 60%, #141014 100%);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.05), inset 0 -3px 7px rgba(0,0,0,.5); }
   .chain-name.slot-on:hover  { color: var(--green-hi); }
-  .chain-name.slot-off:hover { color: #b56a6a; }
+  .chain-name.slot-off:hover { color: var(--red-soft); }
   .chain-name.slot-unknown   { color: var(--muted); }
 
   /* 2026-08-27, Charlie's call: carets removed VISUALLY only — every
@@ -890,7 +906,7 @@
   .chain-name-stack.slot-on,
   .chain-name-stack.slot-off { cursor: pointer; }
   .chain-name-stack.slot-on  { background: #1a2a1a; border-color: var(--green-olive); color: var(--green-soft); }
-  .chain-name-stack.slot-off { background: #241414; border-color: #5a2020; color: #7a3a3a; text-decoration: line-through; }
+  .chain-name-stack.slot-off { background: #241414; border-color: var(--red-dark); color: var(--red-muted); text-decoration: line-through; }
   .chain-name-stack.slot-on:hover  { border-color: var(--green); }
   .chain-name-stack.slot-off:hover { border-color: var(--red); }
   .chain-name-stack.slot-unknown   { background: #2a2a2a; border-color: #666; color: var(--muted); }
@@ -920,7 +936,7 @@
   .chain-half.slot-on  { color: var(--green); background: rgba(var(--green-rgb),.10); }
   .chain-half.slot-off { color: #8a5050; background: rgba(0,0,0,.25); text-decoration: line-through; }
   .chain-half.slot-on:hover  { color: var(--green-hi); }
-  .chain-half.slot-off:hover { color: #b56a6a; }
+  .chain-half.slot-off:hover { color: var(--red-soft); }
   .chain-half.slot-unknown   { color: var(--muted); background: transparent; }
 
   /* ══ MAIN AREA ══ */
@@ -1354,7 +1370,7 @@
   #btn-pause.paused { color:var(--accent);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(224,160,32,.32), 0 0 12px rgba(224,160,32,.20), 0 3px 6px rgba(0,0,0,.4); }
   #btn-stop { color:var(--red); }
-  #btn-stop:hover:not(:disabled) { color:#ff6a5c; }
+  #btn-stop:hover:not(:disabled) { color:var(--red-hi); }
 
   /* ══ SLOT MATRIX ══ */
   /* #slot-matrix is now a column: a fixed header (title + Close, never
@@ -1470,7 +1486,7 @@
   .rigbal-legend-item { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   .rigbal-sw { width: 26px; height: 16px; border-radius: 3px; border: 1px solid #383838; background: #202020; flex-shrink: 0; }
   .rigbal-sw.sw-current { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent), 0 0 6px var(--accent-glow); }
-  .rigbal-sw.sw-dirty   { background: #3a1414; border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+  .rigbal-sw.sw-dirty   { background: var(--red-bg); border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
   .rigbal-sw.sw-known   { background: #202020; border-color: #444; }
   .rigbal-sw.sw-unknown { background: #161616; border-color: #333; }
   .rigbal-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
@@ -1500,16 +1516,16 @@
      different hue from the amber CURRENT ring so "what I changed" never blurs
      into "where I am". CURRENT = amber ring/glow only, text stays normal
      (2026-08-31, Charlie). */
-  .rb-cell.dirty { background: #3a1414; border-color: var(--red); }
+  .rb-cell.dirty { background: var(--red-bg); border-color: var(--red); }
   .rb-cell.dirty .rb-name,
-  .rb-cell.dirty .rb-db { color: #e46060; }
+  .rb-cell.dirty .rb-db { color: var(--red-soft2); }
   .rb-cell.current {
     border-color: var(--accent);
     box-shadow: inset 0 0 0 2px var(--accent), 0 0 8px var(--accent-glow);
   }
   /* A row that is BOTH current and changed: keep the red fill, add the amber
      ring on top so both facts show. */
-  .rb-cell.dirty.current { background: #3a1414; }
+  .rb-cell.dirty.current { background: var(--red-bg); }
 
   #rigbal-confirm {
     display: none; position: absolute; inset: 0; z-index: 10;

@@ -2429,11 +2429,11 @@ const FX1_MODELS = [
     paramLos: [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10],
     rows: [
       { group:'LF', rows: [
-          [ {label:'Gain', lo:0x02, bandColor: '#e83828',
+          [ {label:'Gain', lo:0x02, bandColor: 'var(--red-hot)',
               display: function(v) { return eqSliderDb(v, -24, 12, true); }},
-            {label:'Freq', lo:0x03, bandColor: '#e83828',
+            {label:'Freq', lo:0x03, bandColor: 'var(--red-hot)',
               display: function(v) { return eqFreqDisplay(20 * Math.pow(2000 / 20, fracFromV127(v))); }} ],
-          [ {label:'Q',    lo:0x04, bandColor: '#e83828',
+          [ {label:'Q',    lo:0x04, bandColor: 'var(--red-hot)',
               display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }},
             {label:'Type', lo:0x05, select:true, wrapCycle:true, options: [
               {label:'Low Shelf',   v127:0},
@@ -2479,7 +2479,7 @@ const FX1_MODELS = [
         ]
       },
       { rows: [
-          [ {label:'Output', lo:0x10, bandColor: '#e83828',
+          [ {label:'Output', lo:0x10, bandColor: 'var(--red-hot)',
               display: function(v) { return eqSliderDb(v, -24, 24); }} ]
         ]
       }
