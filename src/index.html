@@ -1337,7 +1337,8 @@
     font-size: 14px;
   }
   /* build 108: shared by TFX / BANK and AUTO ADVANCE — dim amber, bold, normal spacing */
-  .bt-section-label { font-size: inherit; color: var(--accent-dim); font-weight: 600; text-transform: uppercase; letter-spacing: normal; white-space: nowrap; }
+  .bt-section-label { font-size: inherit; color: var(--accent-dim); font-weight: 600; text-transform: uppercase; letter-spacing: normal; white-space: nowrap; min-width: 112px; }
+  #btoolbar .bt-section-label { margin-right: 2px; }   /* build 110: #btoolbar gap is 8 vs 10 — keeps both separators on one line */
   /* Physical push-button (build 16) — same raised-tile family as the chain-row
      pills / TUNER / mutes, applied to the whole TFX/BANK + About/?/gear row.
      Neutral action buttons (no persistent on-state): tile + press, brighter
@@ -2970,7 +2971,7 @@
        Auto Advance. The layout slack now falls between this row and the status
        bar instead of above the row. Restyled to match #roller-strip. ══ -->
   <div id="btoolbar">
-  <span class="bt-section-label">Patch / Bank</span>
+  <span class="bt-section-label">Preset / Bank</span>
   <div class="bt-sep"></div>   <!-- build 109: separator after the label, like Auto Advance -->
   <!-- Order (2026-08-10, Charlie's request): SAVE first (most used), then
        Load, Export, Import — single-patch ops before whole-bank ops. -->
