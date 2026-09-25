@@ -366,8 +366,8 @@
   body.cv-modern #chainstrip .toamp-tap { visibility: hidden; }
   /* build 90: Modern tightens the strip — INPUT and PHON/MAIN/TEMPO centred on
      the button row, dead space above/below trimmed (Classic untouched). */
-  body.cv-modern #chainstrip { height: 104px; align-items: center; padding-top: 0; padding-bottom: 0; }
-  body.cv-modern #chainstrip.qm-visible { height: 124px; }
+  body.cv-modern #chainstrip { height: 134px; align-items: center; padding-top: 0; padding-bottom: 0; }
+  body.cv-modern #chainstrip.qm-visible { height: 136px; }
   body.cv-modern #chainstrip > .chain-slot:first-child,
   body.cv-modern #chainstrip > #tempo-slot { align-self: center; padding-bottom: 0; }
   body.cv-modern #chainstrip > #chain-input-connector { padding-bottom: 0; }
@@ -375,8 +375,9 @@
      buttons by js/chain-view.js (hidden while a drag is live). */
   body.cv-modern .qm-wrap { visibility: visible; }
   body.cv-modern.cm-drag-live .qm-wrap { visibility: hidden; }
-  #chainstrip-modern.cm-qm { padding-bottom: 20px; }
-  #chainstrip-modern { position: fixed; z-index: 20; display: flex; align-items: center; }
+  #chainstrip-modern.cm-qm { padding-bottom: 26px; }
+  #chainstrip-modern { position: fixed; z-index: 20; display: flex; align-items: center; pointer-events: none; }
+  #chainstrip-modern .cm-row { pointer-events: auto; }   /* build 91: overlay no longer blocks the Quick Mix sliders */
   #chainstrip-modern[hidden] { display: none; }
   #chainstrip-modern .cm-row { display: flex; align-items: center; }
   #chainstrip-modern .cm-gap { position: relative; width: var(--cm-gap, 6px); align-self: stretch; }

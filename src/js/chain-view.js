@@ -128,7 +128,7 @@ function cmPlaceQuickMix() {
     wrap.style.position = 'fixed';
     wrap.style.left = r.left + 'px';
     wrap.style.width = r.width + 'px';
-    wrap.style.top = (r.bottom + 3) + 'px';
+    wrap.style.top = (r.bottom + 7) + 'px';   // clear the selection ring
     wrap.style.right = 'auto';
     wrap.style.bottom = 'auto';
   });
