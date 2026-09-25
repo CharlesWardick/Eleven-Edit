@@ -357,6 +357,14 @@
   .size-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
 
   /* ══ CHAIN STRIP ══ */
+  /* ══ MODERN CHAIN VIEW (build 86) — scoped to #chainstrip-modern only ══ */
+  #chainstrip-modern {
+    background: #181818; border-bottom: 2px solid var(--border-dim);
+    height: 140px; display: flex; align-items: center; justify-content: center;
+  }
+  #chainstrip-modern[hidden] { display: none; }
+  #chainstrip-modern .cm-placeholder { color: var(--muted); font-size: 12px; letter-spacing: 1px; }
+
   #chainstrip {
     background: #181818; border-bottom: 2px solid var(--border-dim);
     display: flex; align-items: stretch; padding: 6px 16px 8px; gap: 5px;
@@ -1774,6 +1782,11 @@
 </div>
 
 <!-- ══ CHAIN STRIP ══ -->
+<!-- ════ CLASSIC CHAIN VIEW — BEGIN (build 86) ════
+     Everything from here to "CLASSIC CHAIN VIEW — END" is the Classic view
+     (INPUT, chain row, S|M, PHON/MAIN/TEMPO). Never edit it for Modern's sake;
+     chain-row tweaks must name [Classic] or [Modern]. js/chain-view.js hides it
+     when Settings → Chain Row → View = Modern. -->
 <div id="chainstrip">
 
   <!-- Passive INPUT clone (7/28) — always the FIRST child, never touched by
@@ -1989,6 +2002,14 @@
     </div>
     <div class="chain-open" style="visibility:hidden;" aria-hidden="true">▼</div>
   </div>
+</div>
+<!-- ════ CLASSIC CHAIN VIEW — END ════ -->
+
+<!-- ════ MODERN CHAIN VIEW (build 86: empty placeholder) ════
+     Own markup + own styles (#chainstrip-modern scope only). Shown instead of
+     #chainstrip when View = Modern. -->
+<div id="chainstrip-modern" hidden>
+  <div class="cm-placeholder">MODERN VIEW — coming next build. Switch back: ⚙ Settings → Chain Row → View.</div>
 </div>
 
 <!-- ══ MAIN ══ -->
@@ -2531,6 +2552,17 @@
            App display pref (localStorage), not a rig/hardware setting. -->
       <div class="settings-col">
         <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Chain Row</div>
+        <div class="settings-row">
+          <div class="settings-row-label">View</div>
+          <div class="settings-row-controls">
+            <div class="settings-select-wrap">
+              <select id="chain-view-select" class="settings-select">
+                <option value="classic">Classic</option>
+                <option value="modern">Modern</option>
+              </select>
+            </div>
+          </div>
+        </div>
         <div class="settings-row">
           <div class="settings-row-label">Quick Mix sliders</div>
           <div class="settings-row-controls">
@@ -4465,6 +4497,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/calibration.js"></script>   <!-- Calibration Walker dev tool, build 80 -->   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
 <script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v1.1.0 -->
 <script src="js/quick-mix.js"></script>   <!-- Inline per-block wet-amount sliders on the chain row -->
+<script src="js/chain-view.js"></script>   <!-- Classic/Modern chain-row view switch, build 86 -->
 <script src="js/app-init.js"></script>
 </body>
 </html>
