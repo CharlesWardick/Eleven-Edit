@@ -205,14 +205,21 @@ window.addEventListener('mousemove', function (ev) {
     cmDrag.active = true;
     cmDrag.el.classList.add('cm-dragging');
     document.body.style.cursor = 'grabbing';
+    // AMP-CAB with FX Loop linked beside it: the Loop travels with it (Classic rule).
+    var link = (typeof linkedAmpLoopInfo === 'function') ? linkedAmpLoopInfo(cmDrag.slotId, cmDrag.base) : null;
+    if (link) {
+      cmDrag.partner = document.querySelector('#chainstrip-modern .cm-row > [data-slot="' + SLOT_LOOP + '"]');
+      if (cmDrag.partner) cmDrag.partner.classList.add('cm-dragging');
+    }
   }
   cmDrag.el.style.transform = 'translateX(' + dx + 'px)';
+  if (cmDrag.partner) cmDrag.partner.style.transform = 'translateX(' + dx + 'px)';
   cmClearDropMarks();
   cmDrag.preview = null;
   var units = document.querySelectorAll('#chainstrip-modern .cm-row > [data-slot]');
   for (var i = 0; i < units.length; i++) {
     var u = units[i];
-    if (u === cmDrag.el) continue;
+    if (u === cmDrag.el || u === cmDrag.partner) continue;
     var r = u.getBoundingClientRect();
     if (ev.clientX < r.left || ev.clientX > r.right) continue;
     var target = parseInt(u.dataset.slot, 10);
@@ -240,8 +247,11 @@ function cmDragEnd(commit) {
     if (commit && d.preview && !sameOrder(d.preview, currentChain) && typeof sendChainOrder === 'function') {
       sendChainOrder(d.preview);   // rack replies with a chain map -> Classic re-renders -> Modern mirrors
     }
+    cmRender();
   }
-  cmRender();
+  // A plain click (no drag) must NOT re-render here: rebuilding the buttons
+  // between mouseup and click swallows the click (build 87 bug — panels
+  // never opened, ring stuck on AMP/CAB).
 }
 
 (function initChainView() {
