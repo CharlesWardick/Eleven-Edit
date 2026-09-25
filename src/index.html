@@ -2663,6 +2663,26 @@
           </div>
         </div>
       </div>
+
+      <!-- Colors (build 98) — app display pref (localStorage), not a rig setting.
+           Scales the brightness of every green / red shade together (100% = original). -->
+      <div class="settings-col">
+        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Colors</div>
+        <div class="settings-row">
+          <div class="settings-row-label">Green intensity</div>
+          <div class="settings-row-controls" style="gap:8px;">
+            <input type="range" id="color-green-range" min="50" max="130" step="1" value="100" style="width:120px;">
+            <span id="color-green-val" style="color:var(--muted);font-size:12px;min-width:36px;">100%</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">Red intensity</div>
+          <div class="settings-row-controls" style="gap:8px;">
+            <input type="range" id="color-red-range" min="50" max="130" step="1" value="100" style="width:120px;">
+            <span id="color-red-val" style="color:var(--muted);font-size:12px;min-width:36px;">100%</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -4588,6 +4608,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/calibration.js"></script>   <!-- Calibration Walker dev tool, build 80 -->   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
 <script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v1.1.0 -->
 <script src="js/quick-mix.js"></script>   <!-- Inline per-block wet-amount sliders on the chain row -->
+<script src="js/colors.js"></script>   <!-- Green/Red intensity, build 98 -->
 <script src="js/chain-view.js"></script>   <!-- Classic/Modern chain-row view switch, build 86 -->
 <script src="js/app-init.js"></script>
 </body>
