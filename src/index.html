@@ -357,13 +357,57 @@
   .size-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
 
   /* ══ CHAIN STRIP ══ */
-  /* ══ MODERN CHAIN VIEW (build 86) — scoped to #chainstrip-modern only ══ */
-  #chainstrip-modern {
-    background: #181818; border-bottom: 2px solid var(--border-dim);
-    height: 140px; display: flex; align-items: center; justify-content: center;
-  }
+  /* ══ MODERN CHAIN VIEW (build 87) — scoped to #chainstrip-modern / body.cv-modern ══
+     Modern overlays the Classic strip: Classic's INPUT + PHON/MAIN/TEMPO stay
+     visible and live; its blocks/connectors/S|M are only visibility-hidden (still
+     rendered + updated by the Classic code, which Modern mirrors). */
+  body.cv-modern #chainstrip > .chain-slot:not(:first-child):not(#tempo-slot),
+  body.cv-modern #chainstrip > .chain-arr:not(#chain-input-connector),
+  body.cv-modern #chainstrip .toamp-tap { visibility: hidden; }
+  #chainstrip-modern { position: fixed; z-index: 20; display: flex; align-items: center; }
   #chainstrip-modern[hidden] { display: none; }
-  #chainstrip-modern .cm-placeholder { color: var(--muted); font-size: 12px; letter-spacing: 1px; }
+  #chainstrip-modern .cm-row { display: flex; align-items: center; }
+  #chainstrip-modern .cm-gap { position: relative; width: var(--cm-gap, 6px); align-self: stretch; }
+  #chainstrip-modern .cm-gap.cm-edge { width: 10px; }
+  #chainstrip-modern .cm-gap.cm-edge::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: #555; }
+  #chainstrip-modern .cm-tap {
+    position: absolute; top: calc(50% - var(--cm-h, 58px) / 2 - 16px); left: 50%; transform: translateX(-50%);
+    color: var(--label); font: bold 11px/1 'Consolas', monospace; pointer-events: none;
+    text-shadow: 0 0 2px #000, 0 0 3px #000;
+  }
+  #chainstrip-modern .cm-tap.tap-left  { transform: translateX(-50%) translateX(-6px); }
+  #chainstrip-modern .cm-tap.tap-right { transform: translateX(-50%) translateX(6px); }
+  #chainstrip-modern .cm-btn {
+    position: relative; width: var(--cm-w, 78px); height: var(--cm-h, 58px); border-radius: 7px;
+    cursor: pointer; user-select: none; padding-bottom: 6px;
+    background: linear-gradient(#3a3a3f, #26262a); border: 1px solid #111;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 3px rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center;
+    font: bold 13px 'Segoe UI', Arial, sans-serif; letter-spacing: .5px; color: #30c050;
+    white-space: nowrap; overflow: hidden;
+  }
+  #chainstrip-modern .cm-btn.cm-off { color: #666; background: linear-gradient(#2c2c30, #1f1f22); }
+  #chainstrip-modern .cm-btn.cm-unk { color: #555; }
+  #chainstrip-modern .cm-sel { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #chainstrip-modern .cm-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 16px; cursor: pointer; }
+  #chainstrip-modern .cm-bar::after {
+    content: ""; position: absolute; left: 18%; right: 18%; bottom: 6px; height: 3px; border-radius: 2px;
+    background: #30c050; box-shadow: 0 0 6px rgba(48,192,80,.8);
+  }
+  #chainstrip-modern .cm-off .cm-bar::after,
+  #chainstrip-modern .cm-unk .cm-bar::after { background: #2e2e32; box-shadow: inset 0 0 2px #000; }
+  #chainstrip-modern .cm-bar:hover { background: rgba(255,255,255,.05); }
+  #chainstrip-modern .cm-house {
+    display: flex; flex-direction: column; gap: 2px; padding: 3px; border-radius: 9px;
+    background: #141416; border: 1px solid #444; cursor: pointer;
+  }
+  #chainstrip-modern .cm-house .cm-btn { height: calc((var(--cm-h, 58px) - 8px) / 2); font-size: 11px; padding-bottom: 4px; }
+  #chainstrip-modern .cm-house .cm-bar { height: 10px; }
+  #chainstrip-modern .cm-house .cm-bar::after { bottom: 3px; height: 2px; }
+  #chainstrip-modern .cm-fixed { cursor: default; }
+  #chainstrip-modern .cm-dragging { opacity: .6; z-index: 5; cursor: grabbing; }
+  #chainstrip-modern .cm-drop-before { box-shadow: -4px 0 0 var(--accent); }
+  #chainstrip-modern .cm-drop-after  { box-shadow:  4px 0 0 var(--accent); }
 
   #chainstrip {
     background: #181818; border-bottom: 2px solid var(--border-dim);
@@ -2005,12 +2049,10 @@
 </div>
 <!-- ════ CLASSIC CHAIN VIEW — END ════ -->
 
-<!-- ════ MODERN CHAIN VIEW (build 86: empty placeholder) ════
-     Own markup + own styles (#chainstrip-modern scope only). Shown instead of
-     #chainstrip when View = Modern. -->
-<div id="chainstrip-modern" hidden>
-  <div class="cm-placeholder">MODERN VIEW — coming next build. Switch back: ⚙ Settings → Chain Row → View.</div>
-</div>
+<!-- ════ MODERN CHAIN VIEW (build 87) ════
+     Own markup + own styles (#chainstrip-modern scope only), filled by
+     js/chain-view.js. Overlays the Classic strip's block area when View = Modern. -->
+<div id="chainstrip-modern" hidden></div>
 
 <!-- ══ MAIN ══ -->
 <div id="main">
