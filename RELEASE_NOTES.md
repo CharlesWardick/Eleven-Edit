@@ -42,8 +42,24 @@ Gate Release and effect knobs verified against the rack), instead of occasionall
 off. In Rig Balancing you can also turn the rack's own Rig Vol knob: the
 selected row follows it, and Save Changed stores exactly what you dialed.
 
+**Chain row views: Classic or Modern.** Settings → Chain Row → View picks how the
+chain row looks. Classic is the familiar row of icons over name pills. Modern
+turns each block into a single button: click it to open its controls, drag it
+to reorder, and click its indicator to bypass it. AMP sits over CAB in one
+housing, STEREO/MONO is a fixed stack at the end, and INPUT sits in a matching
+housing. Modern comes in five looks — Bar, Lens, Strip, Glow and Lit face — that
+differ only in how "on" is shown. Everything else (Quick Mix, To Amp 1/2 markers,
+stereo/mono connector lines, reorder rules) works the same in every view.
+
+**Color intensity.** Settings → Colors has Green, Red and Amber intensity sliders
+that brighten or dim every shade of that color across the whole app at once.
+100% is the original look; double-click a slider to reset it.
+
 **Smaller touches.** The version and build number show in the title bar and
-About box; the Avid-editor warning in the status bar stays on one line.
+About box; the Avid-editor warning in the status bar stays on one line. Knobs
+show faint end-stop marks in their ring at minimum and maximum. The tone-knob
+lock button is gone — drag a knob's name to reorder any time. The TFX / BANK row
+is now labelled PRESET / BANK and lines up with the AUTO ADVANCE row.
 
 ---
 

@@ -23,6 +23,9 @@ WHAT'S NEW IN v1.2.0
   - Parametric EQ response curve, and start-point markers on the Graphic
     EQ faders. See EFFECT PANELS below.
   - A hardware-style visual makeover across the whole app.
+  - Chain row views: Classic, or Modern (one button per block, five
+    looks). See CHAIN ROW below.
+  - Green / Red / Amber color intensity sliders. See ABOUT / SETTINGS.
   The full list is in RELEASE_NOTES.md and on the GitHub release page.
 
 
@@ -190,6 +193,25 @@ CHAIN ROW
   S | M (right end of the chain row) — switches the patch between Stereo
   and Mono.
 
+  VIEW: CLASSIC OR MODERN (Settings → Chain Row → View)
+  Classic is the layout described above. Modern shows each block as a
+  single button:
+    - Click the button to open that block's controls (amber ring = open).
+    - Drag the button to reorder the chain (same rules as Classic; FX Loop
+      travels with AMP/CAB when it sits beside it).
+    - Click the button's indicator to bypass/enable the block.
+  AMP sits over CAB in one housing (each half has its own indicator),
+  STEREO/MONO is a fixed two-button stack at the end (click the one you
+  want), and the To Amp 1/2 markers sit above the gap where each taps the
+  signal. Modern comes in five looks that differ only in the "on"
+  indicator and where you click to bypass:
+    - Modern 1 (Bar)      — lit bar under the name; click the bottom edge.
+    - Modern 2 (Lens)     — round lit lens; click the top-right corner.
+    - Modern 3 (Strip)    — lit strip down the left side; click the left edge.
+    - Modern 4 (Glow)     — the name glows; click the bottom edge.
+    - Modern 5 (Lit face) — the whole button lights; click the bottom edge.
+  The bypass area shades slightly when you hover over it.
+
 QUICK MIX (per-block wet sliders)
   A slim slider appears under the name of every active block that has a
   "wet" control — Reverb, Delay, FX Loop, and the Mod/FX1/FX2 slots when
@@ -212,9 +234,8 @@ AMP PANEL
   amps), Bright/Tremolo toggles, and a Sync dropdown for tempo-synced
   tremolo.
 
-  The lock icon next to the tone knobs locks/unlocks custom knob
-  ordering (drag a knob's label to reorder; your custom order is
-  remembered per amp model). The # button cycles how many knob values
+  Drag a tone knob's name to reorder the knobs; your custom order is
+  remembered per amp model, and the ⟲ button resets it. The # button cycles how many knob values
   are shown numerically — useful for decluttering the panel once you
   know your settings by ear.
 
@@ -301,6 +322,8 @@ REQUIREMENTS AND DRIVERS
 SAVING AND LOADING
 --------------------------------------------------
 
+  These live in the PRESET / BANK row.
+
   SAVE (bottom left) — Save to Rack commits your current edits to a
   slot on the hardware. Save to Disk writes a .tfx file to your
   computer instead, without touching the rack.
@@ -352,6 +375,11 @@ ABOUT / SETTINGS
       live here rather than in the amp/effect panels.
     - Audio Engine — Audio Setup... opens the built-in audio passthrough
       configuration (see BUILT-IN AUDIO ENGINE above).
+    - Chain Row — View (Classic or Modern 1–5, see CHAIN ROW) and the
+      Quick Mix sliders Show checkbox.
+    - Colors — Green, Red and Amber intensity. Each slider brightens or
+      dims every shade of that color throughout the app (100% = original;
+      double-click to reset). Remembered between sessions.
 
   The About box (also bottom right) shows the current version number.
 
