@@ -72,11 +72,11 @@ function cmMakeBtn(label, state, onBar) {
 // and the PHON/MAIN/TEMPO group) and size the buttons to fit.
 function cmPlace(host) {
   var strip = document.getElementById('chainstrip');
-  var inConn = document.getElementById('chain-input-connector');
+  var inCol = document.querySelector('#chainstrip .chain-input-col');
   var tempo = document.getElementById('tempo-slot');
-  if (!strip || !inConn || !tempo) return;
+  if (!strip || !inCol || !tempo) return;
   var sr = strip.getBoundingClientRect();
-  var left = inConn.getBoundingClientRect().right;
+  var left = inCol.getBoundingClientRect().right;   // build 93: Modern draws its own input line
   var right = tempo.getBoundingClientRect().left - 12;
   var width = Math.max(0, right - left);
   host.style.left = left + 'px';
@@ -84,7 +84,7 @@ function cmPlace(host) {
   host.style.height = (sr.height - 2) + 'px';
   host.style.width = width + 'px';
   // 10 chain units + STEREO/MONO = 11 buttons; 10 gaps + 2 edge connectors.
-  var w = Math.floor((width - 10 * CM_GAP - 24 - 4) / 11);
+  var w = Math.floor((width - 10 * CM_GAP - 24 - 8) / 11);
   w = Math.max(48, Math.min(CM_W, w));
   host.style.setProperty('--cm-w', w + 'px');
   host.style.setProperty('--cm-h', CM_H + 'px');
@@ -94,21 +94,16 @@ function cmPlace(host) {
 // Line the Classic INPUT dropdown + its connector up with the Modern button row
 // (build 90). Inline transforms on those two Classic elements, cleared in Classic.
 function cmAlignInput() {
-  var sel = document.getElementById('chain-input-select');
-  var slot = sel ? sel.closest('.chain-slot') : null;
-  var conn = document.getElementById('chain-input-connector');
+  var col = document.querySelector('#chainstrip .chain-input-col');
+  var slot = col ? col.closest('.chain-slot') : null;
   var row = document.querySelector('#chainstrip-modern .cm-row');
-  [slot, conn].forEach(function (e) { if (e) e.style.transform = ''; });
+  if (slot) slot.style.transform = '';
   if (chainView !== 'modern' || !row || !slot) return;
-  var rr = row.getBoundingClientRect();
-  var mid = rr.top + rr.height / 2;
-  var sr = sel.getBoundingClientRect();
-  slot.style.transform = 'translateY(' + Math.round(mid - (sr.top + sr.height / 2)) + 'px)';
-  if (conn) {
-    var line = conn.querySelector('i');
-    var lr = line ? line.getBoundingClientRect() : conn.getBoundingClientRect();
-    conn.style.transform = 'translateY(' + Math.round(mid - (lr.top + lr.height / 2)) + 'px)';
-  }
+  // build 93: centre the INPUT housing (not the dropdown) on the button row
+  var unit = row.querySelector('[data-slot]');
+  var ur = (unit || row).getBoundingClientRect();
+  var cr = col.getBoundingClientRect();
+  slot.style.transform = 'translateY(' + Math.round((ur.top + ur.height / 2) - (cr.top + cr.height / 2)) + 'px)';
 }
 
 // Quick Mix (build 90): the Classic sliders stay the single source of truth;
@@ -172,7 +167,9 @@ function cmRender() {
     // Connector lines (build 92): between blocks = the left block's output
     // (MODEL_OUT_STEREO, same as Classic); the end one = the STEREO/MONO state.
     var n = 0, unknown = false;
-    if (idx === order.length) {
+    if (idx === 0) {
+      n = 1;   // input line (build 93, replaces the Classic input connector in Modern)
+    } else if (idx === order.length) {
       n = (typeof currentMonoState !== 'undefined' && currentMonoState === true) ? 1 : 2;
     } else if (idx > 0) {
       var st = (typeof MODEL_OUT_STEREO !== 'undefined') ? MODEL_OUT_STEREO[order[idx - 1].modelId] : undefined;
@@ -195,7 +192,7 @@ function cmRender() {
     return g;
   }
 
-  row.appendChild(gap(0, false));
+  row.appendChild(gap(0, true));
   order.forEach(function (blk, i) {
     var unit;
     var thumb = cmClassicThumb(blk.slotId);

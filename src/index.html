@@ -366,7 +366,9 @@
   body.cv-modern #chainstrip .toamp-tap { visibility: hidden; }
   /* build 90: Modern tightens the strip — INPUT and PHON/MAIN/TEMPO centred on
      the button row, dead space above/below trimmed (Classic untouched). */
-  body.cv-modern #chainstrip { height: auto; min-height: 118px; align-items: center; padding-top: 12px; padding-bottom: 12px; overflow: hidden; }
+  body.cv-modern #chainstrip { height: auto; min-height: 118px; align-items: center; padding-top: 12px; padding-bottom: 6px; overflow: hidden; }
+  /* build 93: bottom pad 6 — #tempo-slot carries ~6px of its own dead space under TEMPO */
+  body.cv-modern #chainstrip > #chain-input-connector { visibility: hidden; width: 0; margin: 0; }
   body.cv-modern #chainstrip.qm-visible { height: auto; min-height: 140px; }
   /* build 92: hidden Classic blocks leave the flow so only INPUT + PHON/MAIN/TEMPO size the strip */
   body.cv-modern #chainstrip > .chain-slot:not(:first-child):not(#tempo-slot),
