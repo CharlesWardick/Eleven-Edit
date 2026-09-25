@@ -10,10 +10,16 @@
 //   drag               -> computeReorder + sendChainOrder (same as Classic drag)
 //   STEREO/MONO click  -> the Classic S|M click
 // App display pref (localStorage 'chainView'), default Classic.
+// Values: 'classic' | 'modern' (Modern 1, lit bar) | 'modern2'..'modern5' (skins, build 106:
+// 2 lens, 3 LED strip, 4 glow text, 5 lit face). All Moderns share one layout + wiring.
+var CHAIN_VIEWS = ['classic', 'modern', 'modern2', 'modern3', 'modern4', 'modern5'];
 var chainView = 'classic';
 try {
-  if (window.localStorage.getItem('chainView') === 'modern') chainView = 'modern';
+  var cvSaved = window.localStorage.getItem('chainView');
+  if (CHAIN_VIEWS.indexOf(cvSaved) !== -1) chainView = cvSaved;
 } catch (e) {}
+function cmIsModern() { return chainView !== 'classic'; }
+function cmSkin() { return chainView === 'modern' ? 1 : parseInt(chainView.slice(6), 10) || 1; }
 
 var CM_W = 78, CM_H = 58, CM_GAP = 12;   // size B
 var cmRaf = 0;
@@ -22,20 +28,23 @@ var cmSuppressClick = false;
 
 function applyChainView() {
   var modern = document.getElementById('chainstrip-modern');
-  document.body.classList.toggle('cv-modern', chainView === 'modern');
-  if (modern) modern.hidden = (chainView !== 'modern');
-  if (chainView !== 'modern') { cmPlaceQuickMix(); cmAlignInput(); }   // hand back to Classic
+  document.body.classList.toggle('cv-modern', cmIsModern());
+  if (modern) {
+    modern.hidden = !cmIsModern();
+    for (var k = 1; k <= 5; k++) modern.classList.toggle('cm-skin-' + k, cmIsModern() && cmSkin() === k);
+  }
+  if (!cmIsModern()) { cmPlaceQuickMix(); cmAlignInput(); }   // hand back to Classic
   cmScheduleRender();
 }
 
 function setChainView(v) {
-  chainView = (v === 'modern') ? 'modern' : 'classic';
+  chainView = (CHAIN_VIEWS.indexOf(v) !== -1) ? v : 'classic';
   try { window.localStorage.setItem('chainView', chainView); } catch (e) {}
   applyChainView();
 }
 
 function cmScheduleRender() {
-  if (chainView !== 'modern' || cmRaf) return;
+  if (!cmIsModern() || cmRaf) return;
   cmRaf = requestAnimationFrame(function () { cmRaf = 0; cmRender(); });
 }
 
@@ -98,7 +107,7 @@ function cmAlignInput() {
   var slot = col ? col.closest('.chain-slot') : null;
   var row = document.querySelector('#chainstrip-modern .cm-row');
   if (slot) slot.style.transform = '';
-  if (chainView !== 'modern' || !row || !slot) return;
+  if (!cmIsModern() || !row || !slot) return;
   // build 93: centre the INPUT housing (not the dropdown) on the button row
   var unit = row.querySelector('[data-slot]');
   var ur = (unit || row).getBoundingClientRect();
@@ -113,7 +122,7 @@ function cmPlaceQuickMix() {
   Object.keys(QM_SLOT_DOM).forEach(function (k) {
     var wrap = document.getElementById('qm-' + QM_SLOT_DOM[k]);
     if (!wrap) return;
-    var unit = (chainView === 'modern')
+    var unit = (cmIsModern())
       ? document.querySelector('#chainstrip-modern .cm-row > [data-slot="' + k + '"]') : null;
     if (!unit) {
       ['position', 'left', 'top', 'width', 'right', 'bottom'].forEach(function (p) { wrap.style[p] = ''; });
@@ -144,7 +153,7 @@ function cmTapGap(srcVal, order) {
 
 function cmRender() {
   var host = document.getElementById('chainstrip-modern');
-  if (!host || chainView !== 'modern') return;
+  if (!host || !cmIsModern()) return;
   if (cmDrag && cmDrag.active) return;   // don't fight a live drag
   cmPlace(host);
   host.innerHTML = '';

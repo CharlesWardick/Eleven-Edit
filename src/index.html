@@ -473,6 +473,36 @@
   #chainstrip-modern .cm-off .cm-bar::after,
   #chainstrip-modern .cm-unk .cm-bar::after { background: #2e2e32; box-shadow: inset 0 0 2px #000; }
   #chainstrip-modern .cm-bar:hover { background: rgba(255,255,255,.05); }
+  /* ── Modern skins (build 106): same layout + wiring, different "on" indicator.
+     .cm-bar is always the bypass click zone; each skin moves/hides its drawing.
+     Greens use the theme vars so the Green intensity slider applies. ── */
+  /* 2 Lens — zone = top-right corner square */
+  #chainstrip-modern.cm-skin-2 .cm-btn { padding-bottom: 0; }
+  #chainstrip-modern.cm-skin-2 .cm-bar { left: auto; top: 0; bottom: auto; width: 22px; height: 22px; border-radius: 0 7px 0 7px; }
+  #chainstrip-modern.cm-skin-2 .cm-bar::after {
+    left: auto; right: 6px; top: 6px; bottom: auto; width: 10px; height: 10px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #e6ffe9, var(--green-hi) 40%, var(--green) 75%);
+    box-shadow: 0 0 6px rgba(var(--green-rgb), .8);
+  }
+  #chainstrip-modern.cm-skin-2 .cm-off .cm-bar::after,
+  #chainstrip-modern.cm-skin-2 .cm-unk .cm-bar::after { background: radial-gradient(circle at 35% 35%, #555, #2a2a2a 70%); box-shadow: inset 0 0 3px #000; }
+  #chainstrip-modern.cm-skin-2 .cm-house .cm-bar { width: 16px; height: 100%; border-radius: 0 5px 5px 0; }
+  #chainstrip-modern.cm-skin-2 .cm-house .cm-bar::after { right: 4px; top: 50%; transform: translateY(-50%); width: 7px; height: 7px; }
+  /* 3 LED strip — zone = left edge */
+  #chainstrip-modern.cm-skin-3 .cm-btn { padding-bottom: 0; padding-left: 8px; }
+  #chainstrip-modern.cm-skin-3 .cm-bar { right: auto; top: 0; width: 14px; height: 100%; border-radius: 7px 0 0 7px; }
+  #chainstrip-modern.cm-skin-3 .cm-bar::after { left: 5px; right: auto; top: 10px; bottom: 10px; width: 3px; height: auto; }
+  #chainstrip-modern.cm-skin-3 .cm-house .cm-bar { height: 100%; width: 12px; }
+  #chainstrip-modern.cm-skin-3 .cm-house .cm-bar::after { left: 4px; top: 4px; bottom: 4px; width: 2px; height: auto; }
+  /* 4 Glow text — invisible bottom zone, the label glows */
+  #chainstrip-modern.cm-skin-4 .cm-bar::after { display: none; }
+  #chainstrip-modern.cm-skin-4 .cm-btn:not(.cm-off):not(.cm-unk) { text-shadow: 0 0 6px rgba(var(--green-rgb), .9), 0 0 12px rgba(var(--green-rgb), .5); }
+  /* 5 Lit face — invisible bottom zone, the face tints */
+  #chainstrip-modern.cm-skin-5 .cm-bar::after { display: none; }
+  #chainstrip-modern.cm-skin-5 .cm-btn:not(.cm-off):not(.cm-unk) {
+    background: linear-gradient(rgba(var(--green-rgb), .28), rgba(var(--green-rgb), .12));
+    color: #dfffe6; border-color: rgba(var(--green-rgb), .6);
+  }
   #chainstrip-modern .cm-house {
     display: flex; flex-direction: column; gap: 2px; padding: 3px; border-radius: 9px;
     background: #141416; border: 1px solid #444; cursor: pointer;
@@ -2675,7 +2705,11 @@
             <div class="settings-select-wrap">
               <select id="chain-view-select" class="settings-select">
                 <option value="classic">Classic</option>
-                <option value="modern">Modern</option>
+                <option value="modern">Modern 1 (Bar)</option>
+                <option value="modern2">Modern 2 (Lens)</option>
+                <option value="modern3">Modern 3 (Strip)</option>
+                <option value="modern4">Modern 4 (Glow)</option>
+                <option value="modern5">Modern 5 (Lit face)</option>
               </select>
             </div>
           </div>
