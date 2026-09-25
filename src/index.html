@@ -1377,8 +1377,8 @@
   .select-wrap select { padding-right:18px; }
   #roller-strip {
     width:100%; background:var(--panel); border:1px solid var(--border2);
-    border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;
-    font-size: 14px;
+    border-radius:10px; padding:10px 14px; display:flex; flex-direction:column; gap:10px;
+    font-size: 14px;   /* build 107: padding 12→10 to match #btoolbar */
   }
   .roller-label { font-size:10px; color:var(--accent-dim); letter-spacing:2px; text-transform:uppercase; font-weight:600; }
   #range-row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
@@ -1412,7 +1412,7 @@
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: var(--text-dim);
     font-family:'Segoe UI','Arial',sans-serif; font-size:12px; font-weight:700;
-    letter-spacing:1px; padding:8px 13px; border-radius:6px; cursor:pointer;
+    letter-spacing:1px; padding:5px 13px; border-radius:6px; cursor:pointer;   /* build 107: 8→5px, row matches TFX/Bank */
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s; text-transform:uppercase; white-space:nowrap;
   }
@@ -2938,9 +2938,9 @@
       <div style="font-size:inherit;color:var(--accent-dim);letter-spacing:2px;text-transform:uppercase;font-weight:600;white-space:nowrap;">Auto Advance</div>
       <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
       <span style="font-size:inherit;color:#999;font-weight:600;">FROM</span>
-      <select id="range-from" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:4px 8px;border-radius:4px;min-width:64px;"></select>
+      <select id="range-from" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:3px 8px;border-radius:4px;min-width:64px;"></select>
       <span style="font-size:inherit;color:#999;font-weight:600;">TO</span>
-      <select id="range-to" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:4px 8px;border-radius:4px;min-width:64px;"></select>
+      <select id="range-to" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:3px 8px;border-radius:4px;min-width:64px;"></select>
       <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
       <button id="btn-start" class="auto-btn">▶ START</button>
       <button id="btn-pause" class="auto-btn" disabled>⏸ PAUSE</button>
@@ -2957,9 +2957,9 @@
         <option value="25">25</option><option value="30">30</option>
       </select>
       <span id="interval-unit" style="font-size:inherit;color:#999;">SEC</span>
-      <div id="progress-wrap" style="flex:1;min-width:80px;display:flex;flex-direction:column;gap:2px;">
-        <div id="progress-bg" style="background:#111;border:1px solid #444;border-radius:3px;height:7px;overflow:hidden;"><div id="progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width 0.1s linear;"></div></div>
-        <div id="progress-label" style="font-family:'Consolas',monospace;font-size:inherit;color:#999;text-align:right;">—</div>
+      <div id="progress-wrap" style="flex:1;min-width:80px;display:flex;flex-direction:row;align-items:center;gap:8px;">
+        <div id="progress-bg" style="flex:1;background:#111;border:1px solid #444;border-radius:3px;height:7px;overflow:hidden;"><div id="progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width 0.1s linear;"></div></div>
+        <div id="progress-label" style="font-family:'Consolas',monospace;font-size:inherit;color:#999;text-align:right;white-space:nowrap;">—</div>
       </div>
     </div>
   </div>
