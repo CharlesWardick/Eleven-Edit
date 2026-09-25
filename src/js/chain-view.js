@@ -15,7 +15,7 @@ try {
   if (window.localStorage.getItem('chainView') === 'modern') chainView = 'modern';
 } catch (e) {}
 
-var CM_W = 78, CM_H = 58, CM_GAP = 6;   // size B
+var CM_W = 78, CM_H = 58, CM_GAP = 10;   // size B
 var cmRaf = 0;
 var cmDrag = null;          // { slotId, el, startX, active, preview, targetEl }
 var cmSuppressClick = false;
@@ -84,7 +84,7 @@ function cmPlace(host) {
   host.style.height = (sr.height - 2) + 'px';
   host.style.width = width + 'px';
   // 10 chain units + STEREO/MONO = 11 buttons; 10 gaps + 2 edge connectors.
-  var w = Math.floor((width - 10 * CM_GAP - 20 - 4) / 11);
+  var w = Math.floor((width - 10 * CM_GAP - 24 - 4) / 11);
   w = Math.max(48, Math.min(CM_W, w));
   host.style.setProperty('--cm-w', w + 'px');
   host.style.setProperty('--cm-h', CM_H + 'px');
@@ -169,6 +169,21 @@ function cmRender() {
   function gap(idx, edge) {
     var g = document.createElement('div');
     g.className = 'cm-gap' + (edge ? ' cm-edge' : '');
+    // Connector lines (build 92): between blocks = the left block's output
+    // (MODEL_OUT_STEREO, same as Classic); the end one = the STEREO/MONO state.
+    var n = 0, unknown = false;
+    if (idx === order.length) {
+      n = (typeof currentMonoState !== 'undefined' && currentMonoState === true) ? 1 : 2;
+    } else if (idx > 0) {
+      var st = (typeof MODEL_OUT_STEREO !== 'undefined') ? MODEL_OUT_STEREO[order[idx - 1].modelId] : undefined;
+      if (st === undefined) { n = 1; unknown = true; } else n = st ? 2 : 1;
+    }
+    if (n) {
+      var lines = document.createElement('span');
+      lines.className = 'cm-lines' + (unknown ? ' cm-unknown' : '');
+      lines.innerHTML = (n === 2) ? '<i></i><i></i>' : '<i></i>';
+      g.appendChild(lines);
+    }
     var here = taps.filter(function (t) { return t.g === idx; });
     here.forEach(function (t) {
       var badge = document.createElement('span');
