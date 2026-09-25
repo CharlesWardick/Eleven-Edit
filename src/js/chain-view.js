@@ -15,7 +15,7 @@ try {
   if (window.localStorage.getItem('chainView') === 'modern') chainView = 'modern';
 } catch (e) {}
 
-var CM_W = 78, CM_H = 58, CM_GAP = 10;   // size B
+var CM_W = 78, CM_H = 58, CM_GAP = 12;   // size B
 var cmRaf = 0;
 var cmDrag = null;          // { slotId, el, startX, active, preview, targetEl }
 var cmSuppressClick = false;
@@ -123,7 +123,7 @@ function cmPlaceQuickMix() {
     wrap.style.position = 'fixed';
     wrap.style.left = r.left + 'px';
     wrap.style.width = r.width + 'px';
-    wrap.style.top = (r.bottom + 7) + 'px';   // clear the selection ring
+    wrap.style.top = (r.bottom + 9) + 'px';   // clear the selection ring
     wrap.style.right = 'auto';
     wrap.style.bottom = 'auto';
   });
