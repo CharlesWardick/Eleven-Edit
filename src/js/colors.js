@@ -9,6 +9,11 @@ var COLOR_FAMILIES = {
            '--green-soft': '#70c070', '--green-olive': '#3a7a3a' },
     rgb: { '--green-rgb': [48, 192, 80], '--green-glow-rgb': [140, 255, 170] }
   },
+  amber: {
+    hex: { '--accent': '#e0a020', '--accent-dim': '#a07010', '--amber-hi': '#ffc24d', '--amber-olive': '#6a5a2a',
+           '--amber-hi2': '#ffc040', '--amber-bright': '#ffb000', '--amber-deep': '#a87400' },
+    rgb: { '--accent-rgb': [224, 160, 32], '--amber-glow-rgb': [255, 180, 60], '--amber-bright-rgb': [255, 176, 0] }
+  },
   red: {
     hex: { '--red': '#d03030', '--red-hot': '#e83828', '--red-deep': '#a8322a', '--red-muted': '#7a3a3a',
            '--red-bg': '#3a1414', '--red-hi': '#ff6a5c', '--red-mid': '#e04a3f', '--red-soft': '#b56a6a',
@@ -51,7 +56,7 @@ function applyColorIntensity(family, pct) {
 }
 
 (function initColors() {
-  [['green', 'colorGreenPct'], ['red', 'colorRedPct']].forEach(function (p) {
+  [['green', 'colorGreenPct'], ['red', 'colorRedPct'], ['amber', 'colorAmberPct']].forEach(function (p) {
     var pct = 100;
     try { var v = parseInt(window.localStorage.getItem(p[1]), 10); if (v >= 50 && v <= 130) pct = v; } catch (e) {}
     applyColorIntensity(p[0], pct);

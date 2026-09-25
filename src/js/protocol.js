@@ -2445,11 +2445,11 @@ const FX1_MODELS = [
         ]
       },
       { group:'LMF', rows: [
-          [ {label:'Gain', lo:0x06, bandColor: '#e0a020',
+          [ {label:'Gain', lo:0x06, bandColor: 'var(--accent)',
               display: function(v) { return eqSliderDb(v, -18, 18); }},
-            {label:'Freq', lo:0x07, bandColor: '#e0a020',
+            {label:'Freq', lo:0x07, bandColor: 'var(--accent)',
               display: function(v) { return eqFreqDisplay(100 * Math.pow(100, fracFromV127(v))); }} ],
-          [ {label:'Q',    lo:0x08, bandColor: '#e0a020',
+          [ {label:'Q',    lo:0x08, bandColor: 'var(--accent)',
               display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }} ]
         ]
       },

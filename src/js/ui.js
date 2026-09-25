@@ -29,7 +29,7 @@ function cssColor(v) {
   return c || v;
 }
 const KNOB_COLORS = {
-  amber:  '#e0a020',   // was hardcoded throughout drawKnob
+  get amber() { return cssColor('--accent'); },   // theme --accent (build 99: live var)
   get green() { return cssColor('--green'); },   // theme --green (build 96: live, follows the intensity slider)
   blue:   '#3f8fe0',   // Parametric EQ's HF band accent — 7/31/2026
   get red() { return cssColor('--red-hot'); }   // uncommitted change (build 97: live var)

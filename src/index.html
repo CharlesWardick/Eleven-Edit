@@ -21,7 +21,15 @@
     --border2:     #383838;
     --accent:      #e0a020;
     --accent-dim:  #a07010;
-    --accent-glow: rgba(224,160,32,0.15);
+    --accent-rgb:  224,160,32;   /* build 99: every amber derives from these vars */
+    --amber-hi:    #ffc24d;
+    --amber-olive: #6a5a2a;
+    --amber-hi2:   #ffc040;
+    --amber-bright: #ffb000;
+    --amber-deep:  #a87400;
+    --amber-glow-rgb: 255,180,60;
+    --amber-bright-rgb: 255,176,0;
+    --accent-glow: rgba(var(--accent-rgb),0.15);
     --text:        #d8d8d8;
     --text-dim:    #999;
     --text-dark:   #666;
@@ -143,16 +151,16 @@
   #patch-name-box {
     /* Recessed amber LCD — sunken screen (matches the value-readout wells) that
        mimics the Eleven Rack's own orange display. */
-    background: linear-gradient(180deg, #0c0a06, #16120a); border: 1px solid #2a1e08; color: #ffc24d;
-    box-shadow: inset 0 2px 7px rgba(0,0,0,.9), inset 0 0 14px rgba(224,160,32,.10),
-                0 0 0 1px rgba(224,160,32,.12), 0 0 10px rgba(224,160,32,.12);
+    background: linear-gradient(180deg, #0c0a06, #16120a); border: 1px solid #2a1e08; color: var(--amber-hi);
+    box-shadow: inset 0 2px 7px rgba(0,0,0,.9), inset 0 0 14px rgba(var(--accent-rgb),.10),
+                0 0 0 1px rgba(var(--accent-rgb),.12), 0 0 10px rgba(var(--accent-rgb),.12);
     padding: 7px 22px; border-radius: 4px; font-size: 25px; font-weight: bold;
     width: 330px; text-align: center; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     flex-shrink: 0; transition: box-shadow 0.15s;
   }
-  #patch-name-box:hover { box-shadow: inset 0 2px 7px rgba(0,0,0,.9), inset 0 0 16px rgba(224,160,32,.14),
-                0 0 0 1px rgba(224,160,32,.22), 0 0 14px rgba(224,160,32,.20); }
+  #patch-name-box:hover { box-shadow: inset 0 2px 7px rgba(0,0,0,.9), inset 0 0 16px rgba(var(--accent-rgb),.14),
+                0 0 0 1px rgba(var(--accent-rgb),.22), 0 0 14px rgba(var(--accent-rgb),.20); }
   /* Ellipsis truncation lives on the NAME itself, not the outer box
      (2026-08-28). ALSO (same day, 2nd round) — .hint moved from absolutely
      positioned below the box into normal flow, stacked under the name via
@@ -165,7 +173,7 @@
   #patch-name {
     display: inline-block; max-width: 100%;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    cursor: text; text-shadow: 0 0 10px rgba(255,180,60,.45);
+    cursor: text; text-shadow: 0 0 10px rgba(var(--amber-glow-rgb),.45);
   }
   #patch-name:hover { text-decoration: underline dotted; text-decoration-color: var(--accent-dim); }
   #patch-name-box .hint { font-size: 12px; font-weight: normal; color: var(--text); white-space: nowrap; pointer-events: none; margin-top: 2px; }
@@ -418,7 +426,7 @@
   #chainstrip-modern .cm-lines { position: absolute; left: 1px; right: 1px; top: 50%; transform: translateY(-50%);
     display: flex; flex-direction: column; gap: 3px; }
   #chainstrip-modern .cm-lines i { display: block; height: 2px; border-radius: 1px; background: #777; }
-  #chainstrip-modern .cm-lines.cm-unknown i { background: transparent; border-top: 2px dashed #6a5a2a; height: 0; }
+  #chainstrip-modern .cm-lines.cm-unknown i { background: transparent; border-top: 2px dashed var(--amber-olive); height: 0; }
   #chainstrip-modern .cm-tap {
     position: absolute; top: calc(50% - var(--cm-h, 58px) / 2 - 16px); left: 50%; transform: translateX(-50%);
     color: var(--label); font: bold 11px/1 'Consolas', monospace; pointer-events: none;
@@ -495,7 +503,7 @@
   }
   .chain-arr i { display: block; height: 2px; border-radius: 1px; background: #777; }
   /* unknown channel count must NOT look like a confident mono line */
-  .chain-arr.arr-unknown i { background: transparent; border-top: 2px dashed #6a5a2a; height: 0; }
+  .chain-arr.arr-unknown i { background: transparent; border-top: 2px dashed var(--amber-olive); height: 0; }
   /* Stereo / Mono badge. Sits at the far right of the chain strip, pushed
      there by margin-left:auto — that job used to belong to the "drag blocks
      to reorder" hint, which was removed 7/24 as unreadable.
@@ -529,7 +537,7 @@
   #mono-indicator .sm-div { color: #4a4a4a; font-weight: normal; }
   #mono-indicator .sm-s, #mono-indicator .sm-m { color: #6a6a6a; transition: color 0.12s; }
   #mono-indicator.mono-inactive .sm-s { color: var(--green); text-shadow: 0 0 8px rgba(var(--green-rgb),.35); }
-  #mono-indicator.mono-active   .sm-m { color: #e0a020; text-shadow: 0 0 8px rgba(224,160,32,.35); }
+  #mono-indicator.mono-active   .sm-m { color: var(--accent); text-shadow: 0 0 8px rgba(var(--accent-rgb),.35); }
 
   /* Connector INTO the badge — same stacked-line style as a between-block
      .chain-arr, but its line count tracks the BADGE state, not a block's
@@ -705,8 +713,8 @@
     padding: 0 2px; border-radius: 2px; cursor: pointer;
     text-align: center; white-space: pre;
   }
-  #tempo-box .tempo-seg.seg-on { background: #4a3400; color: #ffc040; }
-  #tempo-box .tempo-dot { color: #a07010; }
+  #tempo-box .tempo-seg.seg-on { background: #4a3400; color: var(--amber-hi2); }
+  #tempo-box .tempo-dot { color: var(--accent-dim); }
   #tempo-steps { display: flex; flex-direction: column; gap: 1px; }
   #tempo-steps div {
     font-size: 8px; line-height: 8px; color: #bbb; cursor: pointer;
@@ -1168,7 +1176,7 @@
   .dock-btn:hover { color: var(--text); }
   .dock-btn:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   .dock-btn.locked { color: var(--accent);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(224,160,32,.32), 0 0 12px rgba(224,160,32,.20), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--accent-rgb),.32), 0 0 12px rgba(var(--accent-rgb),.20), 0 3px 6px rgba(0,0,0,.4); }
 
   /* The dragged tone knob (label-drag reorder) gets the same dim-while-
      carried treatment as a dragged chain-row thumb. */
@@ -1366,9 +1374,9 @@
   #btn-start.running { color:var(--green);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--green-rgb),.30), 0 0 12px rgba(var(--green-rgb),.18), 0 3px 6px rgba(0,0,0,.4); }
   #btn-pause { color:var(--accent); }
-  #btn-pause:hover:not(:disabled) { color:#ffc24d; }
+  #btn-pause:hover:not(:disabled) { color:var(--amber-hi); }
   #btn-pause.paused { color:var(--accent);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(224,160,32,.32), 0 0 12px rgba(224,160,32,.20), 0 3px 6px rgba(0,0,0,.4); }
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 0 1px rgba(var(--accent-rgb),.32), 0 0 12px rgba(var(--accent-rgb),.20), 0 3px 6px rgba(0,0,0,.4); }
   #btn-stop { color:var(--red); }
   #btn-stop:hover:not(:disabled) { color:var(--red-hi); }
 
@@ -1617,7 +1625,7 @@
 
   /* ══ SETTINGS PANEL ══ */
   #panel-settings { display: none; flex-direction: column; gap: 18px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; flex-shrink: 0; }
-  #panel-settings .settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 340px)); gap: 18px 48px; align-items: start; }
+  #panel-settings .settings-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 300px)); gap: 18px 36px; align-items: start; }
   #panel-settings .settings-col { display: flex; flex-direction: column; gap: 18px; }
   #panel-audio-settings { display: none; flex-direction: column; gap: 14px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; flex-shrink: 0; }
   #panel-audio-settings .audio-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 320px)); gap: 14px 56px; align-items: start; }
@@ -2682,6 +2690,13 @@
             <span id="color-red-val" style="color:var(--muted);font-size:12px;min-width:36px;">100%</span>
           </div>
         </div>
+        <div class="settings-row">
+          <div class="settings-row-label">Amber intensity</div>
+          <div class="settings-row-controls" style="gap:8px;">
+            <input type="range" id="color-amber-range" min="50" max="130" step="1" value="100" style="width:120px;">
+            <span id="color-amber-val" style="color:var(--muted);font-size:12px;min-width:36px;">100%</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -2868,19 +2883,19 @@
   <!-- ROLLER TRANSPORT STRIP -->
   <div id="roller-strip">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;">
-      <div style="font-size:inherit;color:#a07010;letter-spacing:2px;text-transform:uppercase;font-weight:600;white-space:nowrap;">Auto Advance</div>
+      <div style="font-size:inherit;color:var(--accent-dim);letter-spacing:2px;text-transform:uppercase;font-weight:600;white-space:nowrap;">Auto Advance</div>
       <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
       <span style="font-size:inherit;color:#999;font-weight:600;">FROM</span>
-      <select id="range-from" style="background:#2a2a2a;border:1px solid #666;color:#e0a020;font-family:'Consolas',monospace;font-size:inherit;padding:4px 8px;border-radius:4px;min-width:64px;"></select>
+      <select id="range-from" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:4px 8px;border-radius:4px;min-width:64px;"></select>
       <span style="font-size:inherit;color:#999;font-weight:600;">TO</span>
-      <select id="range-to" style="background:#2a2a2a;border:1px solid #666;color:#e0a020;font-family:'Consolas',monospace;font-size:inherit;padding:4px 8px;border-radius:4px;min-width:64px;"></select>
+      <select id="range-to" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:4px 8px;border-radius:4px;min-width:64px;"></select>
       <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
       <button id="btn-start" class="auto-btn">▶ START</button>
       <button id="btn-pause" class="auto-btn" disabled>⏸ PAUSE</button>
       <button id="btn-stop"  class="auto-btn" disabled>■ STOP</button>
       <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
       <span style="font-size:inherit;color:#999;">EVERY</span>
-      <select id="interval-select" style="background:#2a2a2a;border:1px solid #666;color:#e0a020;font-family:'Consolas',monospace;font-size:inherit;padding:4px 6px;border-radius:4px;width:52px;text-align:center;">
+      <select id="interval-select" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:4px 6px;border-radius:4px;width:52px;text-align:center;">
         <option value="5">5</option><option value="6">6</option>
         <option value="7">7</option><option value="8">8</option>
         <option value="9">9</option><option value="10" selected>10</option>
@@ -2891,7 +2906,7 @@
       </select>
       <span id="interval-unit" style="font-size:inherit;color:#999;">SEC</span>
       <div id="progress-wrap" style="flex:1;min-width:80px;display:flex;flex-direction:column;gap:2px;">
-        <div id="progress-bg" style="background:#111;border:1px solid #444;border-radius:3px;height:7px;overflow:hidden;"><div id="progress-bar" style="height:100%;width:0%;background:#e0a020;border-radius:3px;transition:width 0.1s linear;"></div></div>
+        <div id="progress-bg" style="background:#111;border:1px solid #444;border-radius:3px;height:7px;overflow:hidden;"><div id="progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width 0.1s linear;"></div></div>
         <div id="progress-label" style="font-family:'Consolas',monospace;font-size:inherit;color:#999;text-align:right;">—</div>
       </div>
     </div>
@@ -2943,7 +2958,7 @@
 <div id="rack-save-modal">
   <div id="rack-save-box">
     <div class="rack-save-title">Save to Rack</div>
-    <div id="rack-save-factory-warn" style="display:none; font-size:12px; color:#d86a6a; line-height:1.5;"></div>
+    <div id="rack-save-factory-warn" style="display:none; font-size:12px; color:var(--red-soft3); line-height:1.5;"></div>
     <div class="rack-save-slot-line">Slot <span style="color:var(--muted);font-size:11px;">(click to change)</span>: <span id="rack-save-slot-label" title="Click to save to a different slot">A1</span></div>
     <div id="rack-save-slot-existing"></div>
     <label class="rack-save-label" for="rack-save-input">Patch Name <span style="color:var(--muted);font-size:10px;">(max 16 chars)</span></label>
