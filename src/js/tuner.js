@@ -10,7 +10,7 @@
 // when it goes off. Protocol (captured + hardware-tested 2026-09-26):
 //   CMD 0x41 settings  set 00 41 [ref][mute] · read 01 41 -> 12 41 · rack
 //                      broadcasts 02 41 on every change (front panel too)
-//                      ref 0x22..0x68 = 410..480 Hz (Hz = ref + 376), mute 01 = on
+//                      ref 0x22..0x68 = 410..480 Hz (Hz = ref + 376), mute 00 = muted, 01 = sound passes (fixed build 116)
 //   CMD 0x42 note+tune poll 01 42 -> 12 42 [note][tune]; note = linear
 //                      semitone index (strings step by 5; Eb2 = 0x11), name =
 //                      NOTES[(note+10) % 12] (build 115), tune 0x40 = centre. Idle = 00 40. The rack
@@ -36,8 +36,8 @@ function tunerApplyStyle() {
 }
 
 function tunerShowSettings() {
-  var v = document.getElementById('tuner-ref-val'); if (v) v.textContent = 'A = ' + (tunerRef + 376);
-  var m = document.getElementById('tuner-mute'); if (m) m.classList.toggle('on', !!tunerMute);
+  var v = document.getElementById('tuner-ref-sel'); if (v) v.value = String(tunerRef);
+  var m = document.getElementById('tuner-mute'); if (m) m.classList.toggle('on', tunerMute === 0);   // 00 = muted
 }
 
 function tunerSendSettings(ref, mute) {
@@ -134,6 +134,12 @@ document.addEventListener('DOMContentLoaded', function() {
   if (meter) for (k = 0; k <= 20; k++) {
     var t = document.createElement('div'); t.className = 'tn-tick';
     t.style.left = (2 + k * 4.8) + '%'; t.style.height = (k % 5 ? 10 : 24) + 'px'; meter.appendChild(t);
+  }
+  var rs = byId('tuner-ref-sel');
+  if (rs) {
+    for (var r = 0x22; r <= 0x68; r++) { var o = document.createElement('option'); o.value = String(r); o.textContent = 'A = ' + (r + 376) + ' Hz'; rs.appendChild(o); }
+    rs.value = String(tunerRef);
+    rs.addEventListener('change', function() { tunerSendSettings(parseInt(this.value, 10), tunerMute); });
   }
   if (byId('tuner-style')) byId('tuner-style').addEventListener('change', function() {
     try { localStorage.setItem('tunerStyle', this.value); } catch (e) {}

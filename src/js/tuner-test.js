@@ -10,7 +10,7 @@
 // tuner SETTINGS — F0 13 0B 0F 00 41 [ref] [mute] F7 (set, as the Avid
 // editor sends it), rack answers 02 41 [ref] [mute]; REQU 01 41 -> 12 41.
 //   ref  0x22..0x68 = 410..480 Hz (Hz = ref + 376; 0x40 = 440)
-//   mute 01 = muted (tuner-on default), 00 = unmuted
+//   mute 00 = muted, 01 = sound passes (corrected build 116)
 // Also polls REQU 01 42 (note + tune) to show the needle data. Every send
 // and every 0x41 reply is logged as TUNTEST; 0x42 replies only on change.
 // ════════════════════════════════════════════════════════════════════
@@ -35,7 +35,7 @@ function tunShow() {
 function tunHandle(data) {
   var cmd = data[5];
   if (cmd === 0x41) {
-    appLog('TUNTEST recv ' + tunHex(Array.from(data)) + (data.length >= 9 ? '  -> ref ' + (data[6] + 376) + ' Hz, mute ' + (data[7] ? 'ON' : 'OFF') : ''));
+    appLog('TUNTEST recv ' + tunHex(Array.from(data)) + (data.length >= 9 ? '  -> ref ' + (data[6] + 376) + ' Hz, mute ' + (data[7] ? 'OFF' : 'ON') : ''));
     if (data.length >= 9) { tunRef = data[6]; tunMute = data[7]; tunShow(); }
   } else if (cmd === 0x42 && data.length >= 9) {
     var n = data[6], t = data[7];

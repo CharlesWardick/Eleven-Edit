@@ -1208,7 +1208,8 @@ CMD 0x41 — TUNER SETTINGS (Mute + Reference). NOT a needle (old reading wrong)
   BCAST: F0 13 0B 0F 02 41 [ref] [mute] F7 — on every change, from EE, Avid or
          the front panel, and once when the tuner turns on.
   [ref]  0x22..0x68 = 410..480 Hz, 1 Hz per step: Hz = ref + 376 (0x40 = 440)
-  [mute] 01 = muted (the tuner-on default), 00 = unmuted
+  [mute] 00 = MUTED, 01 = sound passes (tone-generator test 2026-09-27;
+         the earlier opposite reading was wrong)
 
 CMD 0x42 — NOTE + TUNE (the needle). POLL ONLY — the rack volunteers nothing.
   REQU : F0 13 0B 0F 01 42 F7  (Avid polls ~32 Hz; EE polls 20 Hz while on)
