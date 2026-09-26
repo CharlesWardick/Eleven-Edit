@@ -287,7 +287,8 @@ function peqgBuild() {
       return;
     }
     for (var i = 0; i < sel.options.length; i++)
-      h += '<div data-i="' + i + '" class="' + (i === sel.selectedIndex ? 'on' : '') + '">' + sel.options[i].text + '</div>';
+      h += '<div data-i="' + i + '" class="' + (i === sel.selectedIndex ? 'on' : '')
+        + (sel.options[i].classList.contains('opt-loaded') ? ' loaded' : '') + '">' + sel.options[i].text + '</div>';
     menu.innerHTML = h;
     menu.querySelectorAll('div[data-i]').forEach(function(d) {
       d.addEventListener('click', function() { peqgSetType(b, parseInt(d.dataset.i, 10)); menu.style.display = 'none'; });
@@ -412,6 +413,8 @@ function peqgStrip() {
     var src = peqgTypeSel(PEQG_BANDS[parseInt(s.dataset.b, 10)]);
     if (src && s.options.length !== src.options.length) s.innerHTML = src.innerHTML;
     if (src) s.value = src.value;
+    if (src) for (var i = 0; i < s.options.length && i < src.options.length; i++)   // build 125: saved-type marker
+      s.options[i].classList.toggle('opt-loaded', src.options[i].classList.contains('opt-loaded'));
   });
 }
 
