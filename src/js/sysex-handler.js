@@ -718,7 +718,7 @@ function handleChainMap(data) {
     for (let i = base + 1; i < data.length - 1; i += 3) {
       if (data[i] === 0x25) {
         const now = Date.now();
-        if (now - _tunerStubOffMs > 3000) {
+        if (!tunerOn && now - _tunerStubOffMs > 3000) {   // only when EE did not know (startup); never kill a tuner the user opened
           _tunerStubOffMs = now;
           appLog('CMD 0x21: tuner-mode stub — tuner was on, turning it off so the chain map can load');
           sendCC(CC_TUNER, 0);
