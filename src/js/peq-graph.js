@@ -43,8 +43,15 @@ function peqgView() { try { return localStorage.getItem('peqView') || 'graph'; }
 function peqgSetView(v) { try { localStorage.setItem('peqView', v); } catch (e) {} peqGraphRefresh(); }
 
 function peqgHex(lo) { return lo.toString(16).padStart(2, '0'); }
+// build 121: the PEQ model is looked up by name, not via the chain map (which
+// lags a model switch by a beat) — the knob panel's own data-peq marker decides.
+var peqgModel = null;
+function peqgPeqModel() {
+  if (!peqgModel) FX1_MODELS.forEach(function(m) { if (m.name === 'Parametric EQ') peqgModel = m; });
+  return peqgModel;
+}
 function peqgCell(lo) {
-  var m = currentFxHostModel(), c = null;
+  var m = peqgPeqModel(), c = null;
   if (m) fxHostAllCells(m).forEach(function(x) { if (x.lo === lo) c = x; });
   return c;
 }
@@ -77,7 +84,7 @@ function peqgTypeLabel(band, orig) {
   var sel = peqgTypeSel(band); if (!sel) return 'Peaking';
   var idx = sel.selectedIndex;
   if (orig) {
-    var m = currentFxHostModel();
+    var m = peqgPeqModel();
     var k = 'fxhost-sel:' + openFxHostSlot + ':' + (m ? m.mid : '') + ':' + peqgHex(band.type);
     if (typeof dropdownLoadedValue !== 'undefined' && dropdownLoadedValue[k] !== undefined) idx = parseInt(dropdownLoadedValue[k], 10);
   }
@@ -101,8 +108,19 @@ function peqgBandDb(r, f) { var s = 0; r.list.forEach(function(k) { s += peqMagD
 function peqgIsPeqOpen() {
   var p = document.getElementById('panel-fxhost');
   if (!p || p.style.display === 'none' || openFxHostSlot === null) return false;
-  var m = currentFxHostModel();
-  return !!(m && m.name === 'Parametric EQ' && peqgWrap(0x02));
+  return !!document.querySelector('#fxhost-knob-row [data-peq]');
+}
+// build 121: values are real only once the open/switch paint buffer has flushed
+// and every knob shows a value (a fresh build holds placeholder 64s behind '--').
+function peqgReady() {
+  if ((typeof fxHostPaintDeferred !== 'undefined' && fxHostPaintDeferred) ||
+      (typeof fxHostPendingBuild !== 'undefined' && fxHostPendingBuild)) return false;
+  for (var lo = 0x02; lo <= 0x10; lo++) {
+    if (lo === 0x05 || lo === 0x0F) continue;
+    var v = document.getElementById('fxhost-v-' + peqgHex(lo));
+    if (!v || v.textContent.trim() === '--') return false;
+  }
+  return true;
 }
 function peqGraphRefresh() {
   var seg = document.getElementById('peq-view-seg'), g = document.getElementById('peq-graph'),
@@ -294,9 +312,10 @@ function peqgDraw() {
   var x = cv.getContext('2d'), H = PEQG_H, P = PEQG_PAD;
   x.setTransform(dpr, 0, 0, dpr, 0, 0);
   x.clearRect(0, 0, W, H);
-  var cur = PEQG_BANDS.map(function(b) { return peqgFilters(b); });
-  var out = peqgVal(PEQ_OUT_LO) || 0;
-  peqgApplyRange(cur, out);
+  var ready = peqgReady();
+  var cur = ready ? PEQG_BANDS.map(function(b) { return peqgFilters(b); }) : [];
+  var out = ready ? (peqgVal(PEQ_OUT_LO) || 0) : 0;
+  if (ready) peqgApplyRange(cur, out);
   x.font = '10px sans-serif'; x.lineWidth = 1;
   [30,40,60,70,80,90,300,400,600,700,800,900,3000,4000,6000,7000,8000,9000].forEach(function(f) {
     x.strokeStyle = '#1c1c1c'; x.beginPath(); x.moveTo(peqgX(f), P.t); x.lineTo(peqgX(f), H - P.b); x.stroke();
@@ -310,6 +329,7 @@ function peqgDraw() {
     x.beginPath(); x.moveTo(P.l, peqgY(gg)); x.lineTo(W - P.r, peqgY(gg)); x.stroke();
     x.fillStyle = '#777'; x.fillText((gg > 0 ? '+' : '') + gg, 8, peqgY(gg) + 3);
   }
+  if (!ready) return;   // grid only until the real values are in (build 121)
   function line(fn, col, w, dash, alpha) {
     x.save(); x.beginPath(); x.rect(P.l, P.t, W - P.l - P.r, H - P.t - P.b); x.clip();
     x.strokeStyle = col; x.lineWidth = w; x.globalAlpha = alpha || 1; if (dash) x.setLineDash(dash);
@@ -335,7 +355,7 @@ function peqgDraw() {
   });
 }
 function peqgStrip() {
-  var g = document.getElementById('peq-graph'); if (!g) return;
+  var g = document.getElementById('peq-graph'); if (!g || !peqgReady()) return;
   g.querySelectorAll('input[type=range]').forEach(function(r) {
     var lo = parseInt(r.dataset.lo, 10), v = peqgV(lo); if (v !== null) r.value = v;
     var band = null; PEQG_BANDS.forEach(function(b) { if (b.g === lo) band = b; });

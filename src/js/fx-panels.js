@@ -2504,7 +2504,7 @@ function buildFxHostPanel(mid) {
     }
   });
 
-  if (isPeq) peqCurveWatch(wrapper);
+  if (isPeq) { peqCurveWatch(wrapper); wrapper.dataset.peq = '1'; }   // build 121: graph view keys off this
   frag.appendChild(wrapper);
   return { frag: frag, model: model, cellsByLo: collectFxHostCellRefs(frag, model) };
 }
