@@ -3078,6 +3078,9 @@ function peqCurveDraw() {
   x.strokeStyle = '#555'; x.beginPath(); x.moveTo(L, dy(0)); x.lineTo(R, dy(0)); x.stroke();
   x.textAlign = 'right'; x.fillText('0', L - 3, dy(0) + 3);
 
+  // build 122: grid only until the real values are in (peqgReady, peq-graph.js) — a fresh
+  // panel build holds placeholder 64s behind '--' and drew a phantom curve.
+  if (typeof peqgReady === 'function' && !peqgReady()) return;
   const bands = PEQ_BANDS.map(function(b) { const r = peqBandFilters(b); if (r) r.col = b.col; return r; });
   if (bands.some(function(b) { return !b; })) return;   // values not in yet — grid only
   const out = peqCellNum(PEQ_OUT_LO) || 0;
