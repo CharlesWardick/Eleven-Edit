@@ -982,7 +982,8 @@ CMD 0x3D — Input Selector. GLOBAL, not per-patch. Four directions:
   directly (sendInputSelectorSet, the pair above) for the full nine-input set and
   the L/R input pills; the CC path is retired for input.
 CMD 0x40 — Tuner. See Section 9. [SEND/RECV]
-CMD 0x41 — Tuner companion broadcast. Safe to ignore.
+CMD 0x41 — Tuner settings (Mute + Reference). See Section 9. [SEND/RECV]
+CMD 0x42 — Tuner note + tune poll. See Section 9. [REQU/RESP]
 CMD 0x50 — Rig tempo, in microseconds per beat, as four 6-bit digits.
   Full encoding, ranges and the throttling warning are in Section 18.
   [SEND/RECV/BROADCAST]
@@ -1191,133 +1192,50 @@ ASYNC Format A. Hardware front-panel changes also broadcast on MIDI.
 ===================================================================
 9. TUNER
 ===================================================================
+(Rewritten 2026-09-26. Supersedes the 2026-08-31 "no local tuner / Mute + Ref
+not on MIDI" decision — that rested on a misread capture. All below is
+capture-proven AND hardware-tested from EE, builds 113-115.)
 
-SOFTWARE SEND: CC 69 (0x45).  ON = B0 45 7F   OFF = B0 45 00.
+ON/OFF: send CC 69 (0x45) — ON = B0 45 7F, OFF = B0 45 00. The rack does NOT
+echo CC 69; it broadcasts SysEx CMD 0x40: F0 13 0B 0F 02 40 [state] F7
+(01 = ON, 00 = OFF). Handler: sysex-handler.js -> handleTunerCC (ui.js).
+A patch change turns the tuner off (mimicked locally, patch-nav.js).
 
-HARDWARE READBACK: the hardware does NOT echo CC 69. It responds with a
-SysEx CMD 0x40 broadcast (corrected 7/15):
-  F0 13 0B 0F 02 40 [state] F7      state: 0x01=ON, 0x00=OFF
-CMD 0x41 fires as a companion broadcast — safe to ignore.
-Handler lives in sysex-handler.js. (Reconciles with C6.)
+CMD 0x41 — TUNER SETTINGS (Mute + Reference). NOT a needle (old reading wrong).
+  SET  : F0 13 0B 0F 00 41 [ref] [mute] F7   single send, no 02 pair needed
+         (exactly what the Avid editor sends on a GUI click/knob move)
+  READ : F0 13 0B 0F 01 41 F7  ->  F0 13 0B 0F 12 41 [ref] [mute] F7
+  BCAST: F0 13 0B 0F 02 41 [ref] [mute] F7 — on every change, from EE, Avid or
+         the front panel, and once when the tuner turns on.
+  [ref]  0x22..0x68 = 410..480 Hz, 1 Hz per step: Hz = ref + 376 (0x40 = 440)
+  [mute] 01 = muted (the tuner-on default), 00 = unmuted
 
-*** DECISION 2026-08-31 (the author): NO LOCAL TUNER WILL BE BUILT. ***
-A display-only note+needle tuner IS technically feasible (data + Avid graphics
-all in hand, see below), but a full tuner matching Avid — with MUTE and
-REFERENCE (A=__Hz) — is NOT buildable over our bridge: the front-panel capture
-proved those two controls never appear on the MIDI bus (tuner-internal, bulk-
-path only). The author's call: a tuner without mute/reference is not worth shipping,
-so none will be implemented. The decode below is retained as settled reference
-(and as the reason), NOT as a pending feature. Do not re-investigate or
-proactively propose a tuner.
+CMD 0x42 — NOTE + TUNE (the needle). POLL ONLY — the rack volunteers nothing.
+  REQU : F0 13 0B 0F 01 42 F7  (Avid polls ~32 Hz; EE polls 20 Hz while on)
+  RESP : F0 13 0B 0F 12 42 [note] [tune] F7
+  [note] LINEAR semitone index (NOT octave/nibble — that old reading was wrong):
+         consecutive guitar strings step by 5; low Eb (Eb2) = 0x11.
+         name = NOTES[(note + 10) % 12], NOTES = C C# D Eb E F F# G Ab A Bb B.
+  [tune] 0x40 = in tune; >0x40 sharp, <0x40 flat. Offset (tune - 0x40) matches
+         the rack's own "+N" cents readout and meter 1:1 (Charlie's first live
+         test; confirmation with steady test tones pending).
+  Idle / no signal: note 00, tune 40.
 
-LIVE TUNER DATA (note + tune stream) — CONFIRMED 2026-08-31 from a full Avid-
-editor tuner capture (ce29b60a…pcapng, 73s, ~5400 SysEx). This is the data the
-Avid editor drives its tuner graphic from. Eleven Edit does not use it (see the NO-LOCAL-TUNER decision above), but
-it is a viable local-tuner source: the traffic is ordinary 13 0B 0F SysEx (the
-0x04 seen in the raw capture is the USB-MIDI CIN framing byte the bridge strips,
-Section 2 — the same 04 appears on the CMD 0x11 frames in this capture), so the
-bridge carries it like any other command. Two parallel streams while the tuner
-is active:
+TRANSPORT: all tuner traffic is ordinary USB-MIDI SysEx on the same bulk
+endpoints (EP 0x02 out / 0x82 in) as every other command. There is NO separate
+"USB-bulk path" — verified 2026-09-26 by examining every packet of three full-
+device USBPcap captures (no control-endpoint or non-MIDI traffic at all).
 
-  (Byte shapes below are CIN-stripped clean messages, via tools/parse_capture.py.
-  A naive raw-scan of the capture leaves phantom framing bytes — a 0x05 after
-  the REQU and a 0x07 after "12 42" — that are NOT payload. See Sec 2.)
+EE IMPLEMENTATION (v1.2.0, js/tuner.js): TUNER on -> tuner panel swaps into the
+panel slot (previous panel restored on off / close / patch change); reads 0x41,
+polls 0x42; Style (Meter + Note / LED strip + Note / Big Note, localStorage
+tunerStyle), MUTE lens, REFERENCE -/+ all drive 0x41. Own graphics — no Avid
+assets used.
 
-  CMD 0x42 — NOTE + TUNE (authoritative; poll this).
-    REQU: F0 13 0B 0F 01 42 F7        (7 bytes, no param; Avid polls at ~32 Hz)
-    RESP: F0 13 0B 0F 12 42 [note] [tune] F7
-      note: high-nibble = octave, low-nibble = chromatic 0=C,1=C#,2=D,3=Eb,
-            4=E,5=F,6=F#,7=G,8=Ab,9=A,10=Bb,11=B. (Confirmed: a played Eb
-            reads note=0x03.)
-      tune: 0x40 = IN TUNE (centre). >0x40 = sharp, <0x40 = flat. (CORRECTS the
-            earlier "tune 0=in tune" note — 0 is not the centre; 0x40 is.) Idle/
-            no-signal reads note=0x00 tune=0x40.
-  CMD 0x41 — companion high-resolution needle broadcast (optional; for a smooth
-    strobe/needle only). Requested ONCE (F0 13 0B 0F 01 41 F7) then the rack
-    free-runs broadcasts: F0 13 0B 0F [00|02] 41 [pos] 01 F7, [pos] centred ~0x40
-    with a wider swing (~0x22-0x68) than 0x42's tune byte. A basic tuner needs
-    only 0x42.
+HISTORY: Avid's TunerGUI.xml layout + note-image map (Aug-31 transcription) is
+no longer needed and was dropped from this section (git history has it).
 
-  A local tuner therefore = on tuner-ON, fire the two REQUs, poll REQU 0x42
-  at ~15-30 Hz, decode note+tune, drive an amber note-name + needle display;
-  stop polling on tuner-OFF. Read-only (no corruption class); shares the wire
-  with the roller/nav so it must respect the existing tuner/roller pause set.
-  The A-reference (440/410/480 in the capture title) is set on the hardware and
-  baked into what the rack reports — the app just displays note+tune, it does
-  not compute or need the reference.
-
-AVID TUNER GUI LAYOUT (for graphics reuse) — CONFIRMED 2026-08-31 from Avid's
-own tuner view-definition file (TunerGUI.xml, shipped inside the Eleven Tuner UI
-plugin). NEW DISCOVERY: the Avid plugins ship XML *view layouts* alongside their
-PNGs — element bounds + which image goes where + param bindings. We never used
-these before (chain-row work only needed one flat thumbnail per block); they are
-the exact spec for pixel-replicating a panel from Avid's own assets. Likely one
-such XML exists per plugin family — useful beyond the tuner. (We do NOT commit
-Avid's proprietary XML/PNGs into this repo; this is our own transcription for
-interop, and the assets are loaded at runtime from the user's own install via
-the graphics-folder scan.)
-  The Tuner plugin's images live in SUBFOLDERS (backgrounds/ buttons/ knobs/
-  arrows/ notes/), not flat in Images/ like every other block — which is why the
-  7/28 scan found no flat tuner PNG. We do NOT need the scanner to enumerate them:
-  TunerGUI.xml gives every relative path, so given the family's Images dir (which
-  scan-avid-graphics already yields) we can build each file:// URL directly.
-  Canvas 679x404. Elements (x,y,w,h -> asset):
-    background        0,0,679,404     backgrounds/tuner_background.png
-    Mute button     114,218, 30, 21   buttons/button1/button00.png (off) /01 (on)
-                                        (param "Aud "; two-state toggle)
-    Pitch meter track 174,206,350, 31  (the -50..+50 cents zone; no image, drawn)
-    Pitch pointer   174,206,  5, 31    arrows/tuner_pointer.png  (slides across
-                                        the 350px zone by fine pitch; centre=in tune)
-    Note plate      335,248, 30, 20    notes/tuner_<name>.png, +_inv when in tune
-    Left arrow      377,250, 10, 19    arrows/tuner_left_arrow.png (+_inv)  = flat
-    Right arrow     309,250, 10, 19    arrows/tuner_right_arrow.png (+_inv) = sharp
-    Note bkg        307,246, 82, 26    arrows/tuner_inv_bkg.png
-    Ref knob        554,217, 51, 63    knobs/knob1/knob%03d.png (frame sequence;
-                                        param "Ref " = A-reference in Hz)
-    Ref readout   "A = " + editable Ref value + " Hz"  (amber, Arial 14, RGB 255,177,26)
-  NOTE-IMAGE MAP (our decoded note nibble, chromatic 0=C, -> filename):
-    0 C=tuner_c  1 Db=tuner_d_flat  2 D=tuner_d  3 Eb=tuner_e_flat  4 E=tuner_e
-    5 F=tuner_f  6 Gb=tuner_g_flat  7 G=tuner_g  8 Ab=tuner_a_flat  9 A=tuner_a
-    10 Bb=tuner_b_flat  11 B=tuner_b   (Avid's own image_list is the same set
-    rotated to start at B, i.e. plate index = (nibble+1) mod 12 — irrelevant to
-    us since we pick by NAME. All 12 names + 12 _inv highlight variants exist.)
-  The two DATA streams above map onto this layout: 0x42 note -> which note image;
-  0x42 tune sharp/flat -> which arrow lights + in-tune _inv highlight; the wider
-  0x41 pos -> horizontal pointer position on the 350px ±50 meter (best source for
-  a smooth needle). Still to pin down before a faithful meter: the exact 0x41 pos
-  span that equals ±50 cents, and the precise in-tune window on 0x42 tune (~0x40
-  ±1-2 observed).
-  MUTE + REF-FREQ ARE NOT ON THE MIDI SURFACE — SETTLED 2026-08-31 by a FRONT-
-  PANEL capture (cd8c7001…pcapng: HW front panel, Avid CLOSED, our app connected;
-  tuner on, mute toggled several times, reference swept 440->~480->410->480->440,
-  notes, mute off, tuner off). Front-panel PARAM changes normally DO broadcast on
-  MIDI (that is how we mirror front-panel amp/cab/bypass edits), so this is the
-  definitive test — and across the whole session the ONLY tuner traffic is the
-  CMD 0x41 needle, the CMD 0x40 on/off, and the post-tuner refresh. Mute and
-  reference produced NO command at all; their only effect is on the needle (mute
-  -> no signal -> needle idles at 0x40; reference -> needle sweeps for a held
-  pitch). So there is no command to read, mirror, or send: tuner mute + reference
-  are tuner-internal, reachable only over the USB-bulk path Avid uses (which our
-  bridge does not speak). CONCLUSION: a bridge-based local tuner is DISPLAY-ONLY
-  by nature — and that is a complete tuner (note + needle). (This supersedes both
-  earlier notes on this line — neither "capture their CMDs later" nor "reachable
-  in principle via a front-panel capture" held up; the front-panel capture is
-  that test and it is empty.)
-
-  BUILD REQUIREMENTS surfaced by the front-panel capture:
-   - NOTE NAME IS NOT BROADCAST. With our app connected but not polling, the rack
-     sent only 0x41 (needle), never 0x42. To show the note LETTER the app MUST
-     actively poll REQU 0x42 (F0 13 0B 0F 01 42 F7) at ~15-30 Hz while the tuner
-     is on, exactly as Avid does; the rack answers with 12 42 [note][tune] but
-     volunteers nothing.
-   - THE APP CURRENTLY IGNORES THE NEEDLE STREAM. The session log shows 0x40
-     on/off handled but 0x41 (and 0x42) dropped — tuner traffic is filtered to
-     on/off today. The build must start consuming 0x41 broadcasts and the polled
-     0x42 replies.
-   - NEEDLE RANGE: 0x41 pos centres at 0x40 and swept 0x22..0x68 across the
-     reference changes — ample for the ±50-cent meter (map pos-0x40 to cents).
-
-
+===================================================================
 ===================================================================
 10. STEREO / MONO
 ===================================================================
@@ -4128,6 +4046,12 @@ v1.0.0 — PUBLIC RELEASE (2026-09-09). The final push to main renumbered the
     new tools in tools/.
   - NEXT (was not-started at this entry; BUILT later same day, v1.3.84-1.3.87,
     TESTED LIVE): RIG BALANCING — spec docs/RigBalancing_Brief.txt.
+
+2026-09-26 (TUNER — BUILT, builds 112-115, hardware-tested) Sec 9 rewritten:
+  CMD 0x41 = Mute + Reference (set 00 41 [ref][mute]; Hz = ref+376), not a needle;
+  0x42 note byte = linear semitone index (name = (note+10)%12). The Aug-31 "Mute/
+  Ref not on MIDI" conclusion was wrong (no separate USB path exists). Local
+  tuner panel ships in v1.2.0.
 
 2026-08-31 (LOCAL TUNER FEASIBILITY — DATA PATH DECODED from an Avid-editor
   tuner capture; NOT built, NOT tested live. Docs only. Full detail: Sec 9 LIVE
