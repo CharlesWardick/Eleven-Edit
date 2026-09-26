@@ -102,6 +102,7 @@ function goToSlot(slot) {
     tunerOn = false;
     document.getElementById('btn-tuner').classList.remove('on');
     appLog('Tuner OFF — patch change (mimicked, matches Avid editor behaviour)');
+    if (typeof tunerPanelSync === 'function') tunerPanelSync();
   }
   updateDisplay(slot);
   sendPC(slot);

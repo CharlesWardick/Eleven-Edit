@@ -66,7 +66,7 @@ async function parseSysEx(data) {
     case 0x07: return handleRigVolumeBroadcast(data);
     case 0x40: return handleTunerBroadcast(data);
     case 0x41:
-    case 0x42: if (typeof tunHandle === 'function') return tunHandle(data); break;   // Tuner Test (build 112)
+    case 0x42: if (typeof tunerHandle === 'function') return tunerHandle(data); break;   // Tuner panel (build 114)
     case 0x0D: return handleMonoBroadcast(data);
     case 0x50: return handleRigTempoBroadcast(data);
     case 0x36: return handleToAmpVolumeBroadcast(data);

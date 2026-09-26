@@ -43,6 +43,7 @@ function tunHandle(data) {
       TUN_NOTES[n & 0x0F] + (n >> 4) + '  tune ' + (t - 0x40 > 0 ? '+' : '') + (t - 0x40) + (t === 0x40 ? ' (in tune)' : '');
     var e = document.getElementById('tun-note'); if (e) e.textContent = 'Note: ' + txt;
     var key = tunHex(Array.from(data));
+    var open = document.getElementById('tun-modal'); if (!open || !open.classList.contains('open')) return;
     if (key !== tunLast42) { tunLast42 = key; appLog('TUNTEST recv ' + key + '  -> ' + txt); }
   }
 }
