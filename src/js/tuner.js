@@ -11,8 +11,9 @@
 //   CMD 0x41 settings  set 00 41 [ref][mute] · read 01 41 -> 12 41 · rack
 //                      broadcasts 02 41 on every change (front panel too)
 //                      ref 0x22..0x68 = 410..480 Hz (Hz = ref + 376), mute 01 = on
-//   CMD 0x42 note+tune poll 01 42 -> 12 42 [note][tune]; note low nibble =
-//                      C..B, tune 0x40 = centre. Idle = 00 40. The rack
+//   CMD 0x42 note+tune poll 01 42 -> 12 42 [note][tune]; note = linear
+//                      semitone index (strings step by 5; Eb2 = 0x11), name =
+//                      NOTES[(note+10) % 12] (build 115), tune 0x40 = centre. Idle = 00 40. The rack
 //                      volunteers nothing — must be polled.
 // TUNE SCALE: raw offset (tune - 0x40) shown as-is until checked against the
 // rack's own "+N" readout (TUNER_SCALE below).
@@ -93,7 +94,7 @@ function tunerShowNote(note, tune) {
   var col = noSig ? '#3a3f46' : inTune ? 'var(--green)' : a <= 10 ? 'var(--amber, #ff9a2a)' : 'var(--red)';
   var n = document.getElementById('tuner-note');
   if (n) {
-    n.textContent = noSig ? '—' : TUNER_NOTES[note & 0x0F];
+    n.textContent = noSig ? '—' : TUNER_NOTES[(note + 10) % 12];
     n.style.color = noSig ? '#555' : inTune ? 'var(--green)' : '#ddd';
     n.style.textShadow = inTune ? '0 0 14px var(--green)' : 'none';
   }
