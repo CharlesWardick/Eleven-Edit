@@ -39,6 +39,30 @@ function peqgApplyRange(cur, out) {
   } else R = parseInt(r, 10) || 24;
   PEQG_GMIN = -R; PEQG_GMAX = R; PEQG_STEP = R <= 12 ? 3 : ((R <= 36 || R % 12) ? 6 : 12);
 }
+// ── Spectrum (build 123) — rack's FINAL output via the audio engine ──
+var peqgSpecBands = null, peqgSpecAt = 0, peqgSpecSent = null;
+function peqgSpecPref() { try { return localStorage.getItem('peqSpectrum') !== 'off'; } catch (e) { return true; } }
+function peqgSpecSync() {
+  var eng = !!window.audioEngineRunning, want = peqgActive && eng && peqgSpecPref();
+  var btn = document.getElementById('peq-spec-btn'), note = document.getElementById('peq-spec-note');
+  if (btn) { btn.style.display = (peqgActive && eng) ? '' : 'none'; btn.classList.toggle('on', peqgSpecPref()); }
+  if (note) note.style.display = want ? '' : 'none';
+  if (!eng) peqgSpecSent = null;             // engine restart -> resend
+  if (want !== peqgSpecSent && eng) {
+    peqgSpecSent = want;
+    if (window.electronAPI && window.electronAPI.audioSetSpectrum) window.electronAPI.audioSetSpectrum(want);
+  }
+  if (!want) peqgSpecBands = null;
+}
+function peqgSpecIn(b) {
+  if (!Array.isArray(b)) return;
+  if (!peqgSpecBands || peqgSpecBands.length !== b.length) peqgSpecBands = b.slice();
+  else for (var i = 0; i < b.length; i++) {   // fast rise, slow fall (~30 dB/s)
+    peqgSpecBands[i] = b[i] > peqgSpecBands[i] ? b[i] : Math.max(b[i], peqgSpecBands[i] - 1.5);
+  }
+  peqgSpecAt = Date.now();
+  if (peqgActive) peqgSchedule();
+}
 function peqgView() { try { return localStorage.getItem('peqView') || 'graph'; } catch (e) { return 'graph'; } }
 function peqgSetView(v) { try { localStorage.setItem('peqView', v); } catch (e) {} peqGraphRefresh(); }
 
@@ -148,6 +172,7 @@ function peqGraphRefresh() {
     var cm = document.getElementById('peqg-menu'); if (cm) cm.style.display = 'none';
   }
   if (graph) peqgSchedule();
+  peqgSpecSync();
 }
 function peqgSchedule() {
   if (peqgRaf) return;
@@ -330,6 +355,18 @@ function peqgDraw() {
     x.fillStyle = '#777'; x.fillText((gg > 0 ? '+' : '') + gg, 8, peqgY(gg) + 3);
   }
   if (!ready) return;   // grid only until the real values are in (build 121)
+  if (peqgSpecBands && Date.now() - peqgSpecAt < 500 && peqgSpecPref()) {
+    // Own scale: bottom = -90 dBFS, top = 0 dBFS (not the EQ's dB axis).
+    var nb = peqgSpecBands.length, sy = function(d) { return (H - P.b) - (Math.max(-90, Math.min(0, d)) + 90) / 90 * (H - P.t - P.b); };
+    x.save(); x.beginPath(); x.moveTo(P.l, H - P.b);
+    for (var si = 0; si < nb; si++) {
+      var sf = 20 * Math.pow(1000, (si + 0.5) / nb);
+      x.lineTo(peqgX(sf), sy(peqgSpecBands[si]));
+    }
+    x.lineTo(W - P.r, H - P.b); x.closePath();
+    x.fillStyle = 'rgba(120,160,200,0.18)'; x.fill();
+    x.strokeStyle = 'rgba(140,180,220,0.45)'; x.lineWidth = 1; x.stroke(); x.restore();
+  }
   function line(fn, col, w, dash, alpha) {
     x.save(); x.beginPath(); x.rect(P.l, P.t, W - P.l - P.r, H - P.t - P.b); x.clip();
     x.strokeStyle = col; x.lineWidth = w; x.globalAlpha = alpha || 1; if (dash) x.setLineDash(dash);
@@ -380,6 +417,12 @@ function peqgStrip() {
 
 // ── Wiring ──
 (function() {
+  var sb = document.getElementById('peq-spec-btn');
+  if (sb) sb.addEventListener('click', function() {
+    try { localStorage.setItem('peqSpectrum', peqgSpecPref() ? 'off' : 'on'); } catch (e) {}
+    peqgSpecSync(); peqgSchedule();
+  });
+  if (window.electronAPI && window.electronAPI.onAudioSpectrum) window.electronAPI.onAudioSpectrum(peqgSpecIn);
   var seg = document.getElementById('peq-view-seg');
   if (seg) seg.querySelectorAll('button').forEach(function(b) {
     b.addEventListener('click', function() { peqgSetView(b.dataset.view); });

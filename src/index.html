@@ -2674,6 +2674,9 @@
       </div>
       <!-- build 119: PEQ KNOBS | GRAPH view switch (js/peq-graph.js), shown only for Parametric EQ -->
       <div id="peq-view-seg" style="display:none;"><button data-view="knobs">KNOBS</button><button data-view="graph">GRAPH</button></div>
+      <!-- build 123: spectrum toggle (only while the audio engine runs) + where-it-measures note -->
+      <button class="tog-btn" id="peq-spec-btn" style="display:none;align-self:center;">SPECTRUM<span class="ind-bar"></span></button>
+      <span id="peq-spec-note" style="display:none;align-self:center;font-size:11px;color:var(--muted);">Spectrum: rack's final output (after the whole chain), not at the PEQ's position.</span>
       <button id="btn-fxhost-close" title="Close"
         style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 6px;"
         onmouseover="this.style.color='var(--fg)'" onmouseout="this.style.color='var(--muted)'">✕</button>

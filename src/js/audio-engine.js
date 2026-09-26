@@ -684,6 +684,8 @@
       if (s.error) {
         log('Audio error: ' + s.error);
         setToggleState(false);
+        window.audioEngineRunning = false;
+        if (typeof peqGraphRefresh === 'function') peqGraphRefresh();
         flashToggleErr();
         var hint = 'Audio engine couldn’t start — is your interface on? Turn it on, then click AUDIO ENGINE OFF→ON, or open Audio Setup.';
         status(hint);
@@ -691,6 +693,8 @@
         return;
       }
       setToggleState(!!s.running);
+      window.audioEngineRunning = !!s.running;   // build 123: PEQ graph spectrum gate
+      if (typeof peqGraphRefresh === 'function') peqGraphRefresh();
       if (s.running) {
         actualFrames = s.frames || null;
         actualRate   = s.rate || null;

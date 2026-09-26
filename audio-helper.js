@@ -25,11 +25,13 @@
  *     {"cmd":"setGain","outGain":100}
  *     {"cmd":"setMute","muted":true}
  *     {"cmd":"list"}
+ *     {"cmd":"spectrum","on":true}              // build 123: PEQ graph analyser
  *   stdout (events to main.js):
  *     {"type":"ready"}
  *     {"type":"started","deviceId":1,"rate":48000,"channels":2,"frames":128}
  *     {"type":"stopped"}
  *     {"type":"level","in":0.42}                 // input peak 0..1, ~10/sec
+ *     {"type":"spectrum","b":[-72,-60,...]}      // ~20/sec while on: 120 log bands, dBFS
  *     {"type":"devices","api":"ASIO","devices":[...]}
  *     {"type":"error","message":"..."}
  */
@@ -78,12 +80,68 @@ var inLoff = 0, inRoff = 0;    // input L/R positions within the input frame
 var outLoff = 0, outRoff = 1;  // output L/R positions within the output frame
 var outBuf = null;             // reused, zero-filled output scratch buffer
 
+// ── Spectrum analyser (build 123) ─────────────────────────────────────
+// Only while the PEQ graph asks for it (cmd "spectrum"). The audio callback
+// just copies each mono (L+R)/2 sample into a ring; the FFT runs on its own
+// 50ms timer OUTSIDE the callback, so the passthrough path gains one store
+// per sample and nothing else. 4096-point Hann FFT -> 120 log-spaced bands
+// (20 Hz-20 kHz), peak power per band in dBFS (full-scale sine = 0).
+var SPEC_N = 4096, SPEC_BANDS = 120;
+var specOn = false, specTimer = null, specRate = 48000;
+var specRing = new Float32Array(SPEC_N), specPos = 0;
+var specRe = new Float64Array(SPEC_N), specIm = new Float64Array(SPEC_N);
+var specWin = new Float64Array(SPEC_N), specRev = new Uint32Array(SPEC_N);
+var specCos = new Float64Array(SPEC_N / 2), specSin = new Float64Array(SPEC_N / 2);
+(function () {
+  var bits = Math.log2(SPEC_N);
+  for (var i = 0; i < SPEC_N; i++) {
+    specWin[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (SPEC_N - 1));
+    var r = 0; for (var b = 0; b < bits; b++) r = (r << 1) | ((i >> b) & 1);
+    specRev[i] = r;
+  }
+  for (var k = 0; k < SPEC_N / 2; k++) { specCos[k] = Math.cos(2 * Math.PI * k / SPEC_N); specSin[k] = -Math.sin(2 * Math.PI * k / SPEC_N); }
+})();
+function specCompute() {
+  for (var i = 0; i < SPEC_N; i++) {
+    var j = specRev[i];
+    specRe[j] = specRing[(specPos + i) % SPEC_N] * specWin[i]; specIm[j] = 0;
+  }
+  for (var size = 2; size <= SPEC_N; size <<= 1) {
+    var half = size >> 1, step = SPEC_N / size;
+    for (var st = 0; st < SPEC_N; st += size) {
+      for (var k = 0; k < half; k++) {
+        var c = specCos[k * step], sn = specSin[k * step];
+        var a = st + k, bb = a + half;
+        var tr = specRe[bb] * c - specIm[bb] * sn, ti = specRe[bb] * sn + specIm[bb] * c;
+        specRe[bb] = specRe[a] - tr; specIm[bb] = specIm[a] - ti;
+        specRe[a] += tr; specIm[a] += ti;
+      }
+    }
+  }
+  var norm = (SPEC_N / 4) * (SPEC_N / 4), out = new Array(SPEC_BANDS), binHz = specRate / SPEC_N;
+  for (var n = 0; n < SPEC_BANDS; n++) {
+    var f0 = 20 * Math.pow(1000, n / SPEC_BANDS), f1 = 20 * Math.pow(1000, (n + 1) / SPEC_BANDS);
+    var k0 = Math.max(1, Math.floor(f0 / binHz)), k1 = Math.min(SPEC_N / 2 - 1, Math.max(k0, Math.ceil(f1 / binHz)));
+    var pk = 0;
+    for (var q = k0; q <= k1; q++) { var pw = specRe[q] * specRe[q] + specIm[q] * specIm[q]; if (pw > pk) pk = pw; }
+    var db = 10 * Math.log10(pk / norm + 1e-14);
+    out[n] = db < -120 ? -120 : Math.round(db);
+  }
+  send({ type: 'spectrum', b: out });
+}
+function specApply() {
+  var want = specOn && !!rt;
+  if (want && !specTimer) specTimer = setInterval(specCompute, 50);
+  if (!want && specTimer) { clearInterval(specTimer); specTimer = null; }
+}
+
 function send(obj) {
   try { process.stdout.write(JSON.stringify(obj) + '\n'); } catch (e) {}
 }
 
 function stopEngine() {
   if (meterTimer) { clearInterval(meterTimer); meterTimer = null; }
+  if (specTimer) { clearInterval(specTimer); specTimer = null; }
   if (rt) {
     try { rt.stop(); } catch (e) {}
     try { rt.closeStream(); } catch (e) {}
@@ -117,6 +175,7 @@ function onInput(pcm) {
     var outBase = f * outCount * 2;
     outBuf.writeInt16LE(oL, outBase + outLoff * 2);
     outBuf.writeInt16LE(oR, outBase + outRoff * 2);
+    if (specOn) { specRing[specPos] = (sL + sR) / 65536; specPos = (specPos + 1) & (SPEC_N - 1); }
   }
   if (peakL > lastPeakL) lastPeakL = peakL;   // hold peaks between meter ticks
   if (peakR > lastPeakR) lastPeakR = peakR;
@@ -189,6 +248,9 @@ function startEngine(o) {
     lastPeakL = 0; lastPeakR = 0;
   }, 100);
 
+  specRate = rate;
+  specApply();
+
   send({ type: 'started', api: o.api || 'asio', inDeviceId: inDev, outDeviceId: outDev,
          rate: rate, frames: actualFrames, requestedFrames: frames,
          mode: stereoIn ? 'stereo' : 'mono', inChannels: inCh, outChannels: outCh });
@@ -236,6 +298,7 @@ function handle(msg) {
     case 'setGain': setGain(msg); break;
     case 'setMute': setMute(msg); break;
     case 'list':    listDevices(msg); break;
+    case 'spectrum': specOn = !!msg.on; specApply(); break;
     default: break;
   }
 }

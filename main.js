@@ -1226,6 +1226,9 @@ function handleAudioEvent(msg) {
     case 'level':
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-level', { l: msg.l, r: msg.r });
       break;
+    case 'spectrum':   // build 123: PEQ graph analyser bands
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('audio-spectrum', msg.b);
+      break;
     case 'devices':
       // DIAGNOSTIC: log the enumerated list (count + brief per-device) so the
       // session log shows what reached the UI, not just what the helper saw.
@@ -1325,6 +1328,10 @@ ipcMain.handle('audio-set-gain', function (e, gains) {
 });
 ipcMain.handle('audio-set-mute', function (e, m) {
   sendAudioCmd({ cmd: 'setMute', muted: !!(m && m.muted) });
+  return true;
+});
+ipcMain.handle('audio-set-spectrum', function (e, on) {   // build 123
+  sendAudioCmd({ cmd: 'spectrum', on: !!on });
   return true;
 });
 ipcMain.handle('audio-list-devices', function (e, api) {
