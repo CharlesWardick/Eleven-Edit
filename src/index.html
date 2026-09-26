@@ -222,15 +222,15 @@
   /* Tuner button */
   /* Physical push-button (build 15) — same raised-tile family as the chain-row
      pills. Off = neutral dim; on = green text + soft green ring. */
-  #btn-calibration {
+  #btn-calibration, #btn-tuntest {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: #999; margin-right: 10px;
     border-radius: 6px; padding: 7px 12px; font-size: 12px; font-weight: bold;
     cursor: pointer; white-space: nowrap; letter-spacing: 1px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
   }
-  #btn-calibration:hover { color: #ccc; }
-  #btn-calibration:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
+  #btn-calibration:hover, #btn-tuntest:hover { color: #ccc; }
+  #btn-calibration:active, #btn-tuntest:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #btn-tuner {
     position: relative;
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
@@ -1774,6 +1774,9 @@
     align-items: center; justify-content: center;
   }
   #cab-bypass-modal.open { display: flex; }
+  #tun-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 640;
+    align-items: center; justify-content: center; }
+  #tun-modal.open { display: flex; }
   #cal-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 640;
     align-items: center; justify-content: center; }
   #cal-modal.open { display: flex; }
@@ -1917,6 +1920,8 @@
 
     <!-- Calibration Walker (dev tool, build 81 — Charlie: one click away in the header) -->
     <button id="btn-calibration" title="Calibration Walker (dev tool)">CAL</button>
+    <!-- Tuner Test (dev tool, build 112) -->
+    <button id="btn-tuntest" title="Tuner Test (dev tool)">TUN</button>
     <!-- Tuner -->
     <button id="btn-tuner" title="Toggle the Eleven Rack's built-in tuner">TUNER<span class="ind-bar"></span></button>
     <div class="tdiv"></div>
@@ -3157,6 +3162,28 @@
       <button id="cal-stop">Stop</button>
       <button id="cal-start" class="rack-save-ok-btn">Start</button>
       <button id="cal-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="tun-modal">
+  <div class="rack-save-box" style="width:460px;">
+    <div class="rack-save-title">Tuner Test</div>
+    <div style="font-size:12px;color:var(--label);">Watch the rack's tuner screen after each button.</div>
+    <div class="rack-save-btns" style="justify-content:flex-start;">
+      <button id="tun-on">Tuner ON</button><button id="tun-off">Tuner OFF</button><button id="tun-read">Read</button>
+    </div>
+    <div class="rack-save-btns" style="justify-content:flex-start;">
+      <button id="tun-mute-on">Mute ON</button><button id="tun-mute-off">Mute OFF</button>
+    </div>
+    <div class="rack-save-btns" style="justify-content:flex-start;">
+      <button id="tun-410">410</button><button id="tun-dn">&minus;1</button><button id="tun-440">440</button><button id="tun-up">+1</button><button id="tun-480">480</button>
+    </div>
+    <div id="tun-state" style="font-size:13px;color:var(--text);font-family:Consolas,monospace;"></div>
+    <div id="tun-note" style="font-size:13px;color:var(--text);font-family:Consolas,monospace;">Note: —</div>
+    <div class="rack-save-btns">
+      <button id="tun-poll">Start note poll</button>
+      <button id="tun-close">Close</button>
     </div>
   </div>
 </div>
@@ -4675,7 +4702,8 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/sysex-handler.js"></script>
 <script src="js/patch-nav.js"></script>
 <script src="js/rig-balance.js"></script>
-<script src="js/calibration.js"></script>   <!-- Calibration Walker dev tool, build 80 -->   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
+<script src="js/calibration.js"></script>
+<script src="js/tuner-test.js"></script>   <!-- Tuner Test dev tool, build 112 -->   <!-- Calibration Walker dev tool, build 80 -->   <!-- Rig Balancing level-matching mode, 2026-08-31 -->
 <script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v1.1.0 -->
 <script src="js/quick-mix.js"></script>   <!-- Inline per-block wet-amount sliders on the chain row -->
 <script src="js/colors.js"></script>   <!-- Green/Red intensity, build 98 -->
