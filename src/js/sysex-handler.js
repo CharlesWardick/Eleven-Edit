@@ -24,6 +24,7 @@ var _handleMismatchCount    = 0;
 var _lastHandleResyncMs     = 0;
 var HANDLE_RESYNC_THRESHOLD = 5;      // consecutive unknown-handle broadcasts
 var HANDLE_RESYNC_COOLDOWN  = 2000;   // ms between resync attempts
+var _tunerStubOffMs         = 0;      // last tuner-off sent for a tuner-mode chain stub (build 117)
 
 async function parseSysEx(data) {
   if (data.length < 6) return;
@@ -710,6 +711,21 @@ function handleChainMap(data) {
   const TRIPLETS = 11;
   const base = 6;
   if (data.length < base + TRIPLETS * 3 + 2) {
+    // Tuner on (build 117): the rack answers 01 21 with a 2-block stub whose
+    // second model is the Tuner (0x25), e.g. 12 21 02 3B 4B 0B 25 4A 00, and
+    // withholds the real chain until the tuner goes off — startup used to hang
+    // here. Turn the tuner off; the rack then broadcasts the full chain (02 21).
+    for (let i = base + 1; i < data.length - 1; i += 3) {
+      if (data[i] === 0x25) {
+        const now = Date.now();
+        if (now - _tunerStubOffMs > 3000) {
+          _tunerStubOffMs = now;
+          appLog('CMD 0x21: tuner-mode stub — tuner was on, turning it off so the chain map can load');
+          sendCC(CC_TUNER, 0);
+        }
+        return;
+      }
+    }
     appLog('CMD 0x21: short chain map (' + data.length + 'b), ignored');
     return;
   }
