@@ -25,9 +25,21 @@ user slot in the Jump List, then choose Write (save it to that slot), Try
 directly, without stepping the rack through every patch — no front-panel
 flicker, a few seconds instead of about a minute, and no Quick/Detail choice.
 
-**Parametric EQ curve.** The Parametric EQ panel shows a live response curve of
-all four bands plus Output, redrawn as you turn any knob or change a band type.
-(A close approximation of the rack's EQ shape, not a lab measurement.)
+**Parametric EQ graph view.** The Parametric EQ panel has a KNOBS | GRAPH switch.
+GRAPH opens a large response graph across the full panel width: drag a band's dot
+to set frequency and gain, use the mouse wheel for Q, double-click to return to
+the patch's saved values, and right-click the LF or HF dot to change the filter
+type. Under the graph, each band has Freq / Gain / Q sliders with type-in value
+boxes and a tick marking the saved value. A dashed line shows the patch as saved,
+a Range selector (±12 / ±24 / ±48 dB or Fit) rescales the view, and GRAPH is the
+default (your last choice is remembered). While the graph is open it uses the
+space of the Auto Advance and Preset / Bank rows. KNOBS view keeps the small
+curve. (Curves are a close approximation of the rack's EQ, not a lab measurement.)
+
+**Live spectrum.** With the audio engine on, the PEQ graph can show a live
+spectrum of the sound behind the curves (SPECTRUM button to turn it off). It
+shows the rack's final output after the whole chain, not the signal at the EQ's
+position, so treat it as a broad guide and trust your ears for detail.
 
 **Graphic EQ start markers.** Graphic EQ faders are now green and show a small
 marker where each fader started, so you can see what you changed; double-click

@@ -20,8 +20,9 @@ WHAT'S NEW IN v1.2.0
     See TOP BAR below.
   - Rig Balancing reads every rig's volume directly — faster, and the rack
     no longer steps through all 104 patches.
-  - Parametric EQ response curve, and start-point markers on the Graphic
-    EQ faders. See EFFECT PANELS below.
+  - Parametric EQ graph view (drag bands on a large curve, sliders, saved-
+    patch reference, live spectrum), and start-point markers on the
+    Graphic EQ faders. See EFFECT PANELS below.
   - A hardware-style visual makeover across the whole app.
   - Chain row views: Classic, or Modern (one button per block, five
     looks). See CHAIN ROW below.
@@ -258,9 +259,35 @@ EFFECT PANELS
   FX Loop) to open its own control panel below the chain row, in place
   of the amp panel. Each panel's controls match that block's model.
 
-  Parametric EQ also shows a live response curve (under OUTPUT): the white
-  line is the overall result, with each band's own curve and a dot in its
-  knob colour. It's a close approximation of the rack's EQ, not a lab
+  Parametric EQ has two views, switched with KNOBS | GRAPH in its header.
+  GRAPH is the default; Eleven Edit remembers the one you used last.
+
+  GRAPH view: a large response graph. The white line is the overall
+  result, each band has its own faint curve and a dot in its colour, and
+  the dashed grey line is the patch as saved (your "before").
+    - Drag a dot: frequency (sideways) and gain (up/down). Notch and
+      Hipass/Lowpass types have no gain, so they only move sideways.
+    - Mouse wheel over a dot: Q (band width).
+    - Double-click a dot: back to the saved frequency, gain and Q.
+    - Right-click the LF or HF dot: pick the filter type. LMF and HMF are
+      always Peaking on the rack.
+    - Range (top right): ±12, ±24, ±48 dB, or Fit to scale to the curve.
+  Under the graph, each band has Freq / Gain / Q sliders and value boxes.
+  Type a value (e.g. 2.5k) and press Enter; the mouse wheel works on the
+  sliders; the white tick marks the saved value and double-clicking a
+  slider returns to it. The saved filter type shows bold in the Type list.
+  While GRAPH is open it uses the space of the Auto Advance and
+  Preset / Bank rows; switch to KNOBS or close the panel to get them back
+  (for example, to SAVE).
+
+  SPECTRUM: with the audio engine on, a live spectrum is drawn behind the
+  curves; the SPECTRUM button turns it off. It shows the rack's final
+  output after the whole chain, not the signal at the EQ's position — a
+  broad guide only; use your ears for detail.
+
+  KNOBS view shows a small version of the curve under OUTPUT.
+
+  The curves are a close approximation of the rack's EQ, not a lab
   measurement. Graphic EQ faders show two small marks where each fader
   started; double-click a fader to return to that point.
 
