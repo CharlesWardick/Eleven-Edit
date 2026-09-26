@@ -16,11 +16,29 @@
 // <select>, driven by a dispatched 'change'. Curve math = peqCoef/peqMagDb
 // (fx-panels.js, build 70).
 // ════════════════════════════════════════════════════════════════════
-var PEQG_GMIN = -24, PEQG_GMAX = 24, PEQG_FMIN = 20, PEQG_FMAX = 20000, PEQG_H = 380;
+var PEQG_GMIN = -24, PEQG_GMAX = 24, PEQG_STEP = 6, PEQG_FMIN = 20, PEQG_FMAX = 20000, PEQG_H = 380;
 var PEQG_PAD = { l: 44, r: 12, t: 12, b: 26 };
 var peqgBuilt = false, peqgActive = false, peqgRaf = 0, peqgDrag = null, peqgHidden = [];
 var peqgTables = {};   // lo -> [128 numbers] from cell.display
 
+function peqgRange() { try { return localStorage.getItem('peqRange') || '24'; } catch (e) { return '24'; } }
+// Range selector (build 120): fixed ±12/±24/±48, or Fit = symmetric range just covering the
+// combined curve (notch/pass nulls ignored — bottomless). Fit is frozen during a dot drag.
+function peqgApplyRange(cur, out) {
+  var r = peqgRange(), R;
+  if (r === 'fit') {
+    if (peqgDrag) return;
+    var m = Math.abs(out);
+    for (var i = 0; i <= 200; i++) {
+      var f = PEQG_FMIN * Math.pow(PEQG_FMAX / PEQG_FMIN, i / 200), s = out;
+      cur.forEach(function(b) { if (b && !b.gainless) s += peqgBandDb(b, f); });
+      if (Math.abs(s) > m) m = Math.abs(s);
+      cur.forEach(function(b) { if (b && !b.notch) m = Math.max(m, Math.abs(peqgBandDb(b, b.f))); });
+    }
+    R = Math.max(6, Math.min(48, Math.ceil((m + 2) / 6) * 6));
+  } else R = parseInt(r, 10) || 24;
+  PEQG_GMIN = -R; PEQG_GMAX = R; PEQG_STEP = R <= 12 ? 3 : ((R <= 36 || R % 12) ? 6 : 12);
+}
 function peqgView() { try { return localStorage.getItem('peqView') || 'graph'; } catch (e) { return 'graph'; } }
 function peqgSetView(v) { try { localStorage.setItem('peqView', v); } catch (e) {} peqGraphRefresh(); }
 
@@ -147,7 +165,7 @@ function peqgBuild() {
   var g = document.getElementById('peq-graph');
   if (peqgBuilt) { peqgStripTypes(); return; }
   peqgBuilt = true;
-  var html = '<div class="peqg-wrap"><canvas id="peqg-canvas"></canvas></div><div class="peqg-strip">';
+  var html = '<div class="peqg-wrap"><select id="peqg-range" title="Graph range"><option value="12">±12 dB</option><option value="24">±24 dB</option><option value="48">±48 dB</option><option value="fit">Fit</option></select><canvas id="peqg-canvas"></canvas></div><div class="peqg-strip">';
   PEQG_BANDS.forEach(function(b, i) {
     html += '<div class="peqg-band" style="--bc:' + b.col + '"><div class="peqg-bt"><span class="peqg-n">' + b.n + '</span>'
       + (b.type !== null ? '<select class="peqg-type" data-b="' + i + '"></select>' : '<span class="peqg-fixed">Peaking</span>') + '</div>';
@@ -190,6 +208,9 @@ function peqgBuild() {
     s.addEventListener('change', function() { peqgSetType(PEQG_BANDS[parseInt(s.dataset.b, 10)], parseInt(s.value, 10)); });
   });
 
+  var rs = document.getElementById('peqg-range');
+  rs.value = peqgRange();
+  rs.addEventListener('change', function() { try { localStorage.setItem('peqRange', rs.value); } catch (e) {} peqgSchedule(); });
   var cv = document.getElementById('peqg-canvas');
   cv.addEventListener('mousedown', function(e) {
     if (e.button !== 0) return;
@@ -203,7 +224,7 @@ function peqgBuild() {
     var v = peqgNearest(peqgDrag.f, peqgXF(p.x)); if (v !== null) peqgWrite(peqgDrag.f, v);
     if (r && !r.gainless) { v = peqgNearest(peqgDrag.g, peqgYG(p.y)); if (v !== null) peqgWrite(peqgDrag.g, v); }
   });
-  window.addEventListener('mouseup', function() { if (peqgDrag) { peqgDrag = null; peqgSchedule(); } });
+  window.addEventListener('mouseup', function() { if (peqgDrag) { peqgDrag = null; peqgSchedule(); } });   // Fit re-scales on release
   cv.addEventListener('wheel', function(e) {
     var b = peqgHit(e); if (!b) return; e.preventDefault();
     var v = peqgV(b.q); if (v !== null) peqgWrite(b.q, v - Math.sign(e.deltaY));
@@ -215,8 +236,13 @@ function peqgBuild() {
   cv.addEventListener('contextmenu', function(e) {
     e.preventDefault();
     var b = peqgHit(e), sel = b ? peqgTypeSel(b) : null;
-    if (!sel) { menu.style.display = 'none'; return; }
+    if (!b) { menu.style.display = 'none'; return; }
     var h = '<div class="h">' + b.n + ' type</div>';
+    if (!sel) {   // LMF/HMF: the rack offers Peaking only (build 120)
+      menu.innerHTML = h + '<div class="on dis">Peaking</div><div class="h">fixed on the rack</div>';
+      menu.style.left = e.clientX + 'px'; menu.style.top = e.clientY + 'px'; menu.style.display = 'block';
+      return;
+    }
     for (var i = 0; i < sel.options.length; i++)
       h += '<div data-i="' + i + '" class="' + (i === sel.selectedIndex ? 'on' : '') + '">' + sel.options[i].text + '</div>';
     menu.innerHTML = h;
@@ -243,7 +269,7 @@ function peqgY(g) { return PEQG_PAD.t + (PEQG_GMAX - g) / (PEQG_GMAX - PEQG_GMIN
 function peqgYG(y) { return PEQG_GMAX - (y - PEQG_PAD.t) / (PEQG_H - PEQG_PAD.t - PEQG_PAD.b) * (PEQG_GMAX - PEQG_GMIN); }
 function peqgPos(e) { var r = document.getElementById('peqg-canvas').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
 function peqgDotDb(r) {
-  var y = r.notch ? 0 : (r.gainless ? peqgBandDb(r, r.f) : r.g);
+  var y = r.notch ? 0 : peqgBandDb(r, r.f);   // on the band's own curve (build 120)
   return Math.max(PEQG_GMIN, Math.min(PEQG_GMAX, y));
 }
 function peqgHit(e) {
@@ -268,6 +294,9 @@ function peqgDraw() {
   var x = cv.getContext('2d'), H = PEQG_H, P = PEQG_PAD;
   x.setTransform(dpr, 0, 0, dpr, 0, 0);
   x.clearRect(0, 0, W, H);
+  var cur = PEQG_BANDS.map(function(b) { return peqgFilters(b); });
+  var out = peqgVal(PEQ_OUT_LO) || 0;
+  peqgApplyRange(cur, out);
   x.font = '10px sans-serif'; x.lineWidth = 1;
   [30,40,60,70,80,90,300,400,600,700,800,900,3000,4000,6000,7000,8000,9000].forEach(function(f) {
     x.strokeStyle = '#1c1c1c'; x.beginPath(); x.moveTo(peqgX(f), P.t); x.lineTo(peqgX(f), H - P.b); x.stroke();
@@ -276,7 +305,7 @@ function peqgDraw() {
     x.strokeStyle = '#2a2a2a'; x.beginPath(); x.moveTo(peqgX(f), P.t); x.lineTo(peqgX(f), H - P.b); x.stroke();
     x.fillStyle = '#777'; x.fillText(f >= 1000 ? (f / 1000) + 'k' : String(f), peqgX(f) - 8, H - 8);
   });
-  for (var gg = PEQG_GMIN; gg <= PEQG_GMAX; gg += 6) {
+  for (var gg = PEQG_GMIN; gg <= PEQG_GMAX; gg += PEQG_STEP) {
     x.strokeStyle = gg === 0 ? '#555' : '#2a2a2a';
     x.beginPath(); x.moveTo(P.l, peqgY(gg)); x.lineTo(W - P.r, peqgY(gg)); x.stroke();
     x.fillStyle = '#777'; x.fillText((gg > 0 ? '+' : '') + gg, 8, peqgY(gg) + 3);
@@ -291,9 +320,8 @@ function peqgDraw() {
     }
     x.stroke(); x.restore();
   }
-  var cur = PEQG_BANDS.map(function(b) { return peqgFilters(b); });
   var sav = PEQG_BANDS.map(function(b) { return peqgFilters(b, true); });
-  var out = peqgVal(PEQ_OUT_LO) || 0, outS = peqgVal(PEQ_OUT_LO, true); if (outS === null) outS = out;
+  var outS = peqgVal(PEQ_OUT_LO, true); if (outS === null) outS = out;
   function sum(rs, o) { return function(f) { var s = o; rs.forEach(function(r) { if (r) s += peqgBandDb(r, f); }); return s; }; }
   if (sav.every(function(r) { return r; })) line(sum(sav, outS), '#9a9a9a', 1.5, [6, 4]);
   cur.forEach(function(r, i) { if (r) line(function(f) { return peqgBandDb(r, f); }, cssColor(PEQG_BANDS[i].col), 1.2, null, 0.55); });

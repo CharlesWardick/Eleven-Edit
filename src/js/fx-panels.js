@@ -3062,7 +3062,9 @@ function peqCurveDraw() {
   x.clearRect(0, 0, W, H);
   const L = 22, R = W - 4, T = 6, B = H - 14;
   const fx = function(f) { return L + (R - L) * Math.log(f / 20) / Math.log(1000); };
-  const dy = function(db) { return T + (B - T) * (24 - Math.max(-24, Math.min(24, db))) / 48; };
+  // build 120: curves run off the plot edge (clipped) instead of flat-lining at ±24; dots stay clamped.
+  const dy = function(db) { return T + (B - T) * (24 - Math.max(-400, Math.min(400, db))) / 48; };
+  const dyc = function(db) { return dy(Math.max(-24, Math.min(24, db))); };
   x.fillStyle = '#0e0e0e'; x.fillRect(L, T, R - L, B - T);
   x.font = '8px sans-serif'; x.fillStyle = '#777'; x.strokeStyle = '#262626'; x.lineWidth = 1;
   [100, 1000, 10000].forEach(function(f) {
@@ -3081,6 +3083,7 @@ function peqCurveDraw() {
   const out = peqCellNum(PEQ_OUT_LO) || 0;
   const N = 240;
   const bandDb = function(b, f) { let s = 0; b.list.forEach(function(k) { s += peqMagDb(k, f); }); return s; };
+  x.save(); x.beginPath(); x.rect(L, T, R - L, B - T); x.clip();
   bands.forEach(function(b) {                     // faint per-band curves
     x.strokeStyle = cssColor(b.col); x.globalAlpha = 0.45; x.lineWidth = 1; x.beginPath();
     for (let p = 0; p <= N; p++) {
@@ -3096,12 +3099,13 @@ function peqCurveDraw() {
     if (p) x.lineTo(fx(f), dy(s)); else x.moveTo(fx(f), dy(s));
   }
   x.stroke();
+  x.restore();
   bands.forEach(function(b) {
     const f = Math.max(20, Math.min(20000, b.f));
     // build 71: dot sits ON its band's own curve at the band frequency (shelf =
     // its half-way point, HP/LP = its cutoff dip); a notch's centre is a
     // bottomless null, so its dot stays on the 0 line.
     const dotDb = b.notch ? 0 : bandDb(b, f);
-    x.fillStyle = cssColor(b.col); x.beginPath(); x.arc(fx(f), dy(dotDb), 3.5, 0, Math.PI * 2); x.fill();
+    x.fillStyle = cssColor(b.col); x.beginPath(); x.arc(fx(f), dyc(dotDb), 3.5, 0, Math.PI * 2); x.fill();
   });
 }
