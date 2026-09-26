@@ -84,9 +84,11 @@ var outBuf = null;             // reused, zero-filled output scratch buffer
 // Only while the PEQ graph asks for it (cmd "spectrum"). The audio callback
 // just copies each mono (L+R)/2 sample into a ring; the FFT runs on its own
 // 50ms timer OUTSIDE the callback, so the passthrough path gains one store
-// per sample and nothing else. 4096-point Hann FFT -> 120 log-spaced bands
-// (20 Hz-20 kHz), peak power per band in dBFS (full-scale sine = 0).
-var SPEC_N = 4096, SPEC_BANDS = 120;
+// per sample and nothing else. 8192-point Hann FFT -> 120 log-spaced bands
+// (20 Hz-20 kHz): band energy (bins summed; a band narrower than one bin reads
+// the interpolated bin at its centre — no more flat steps), then ~1/6-octave
+// smoothing in the power domain (build 124). dBFS, full-scale sine ~ 0.
+var SPEC_N = 8192, SPEC_BANDS = 120;   // build 124: 8192 (was 4096) for low-end detail
 var specOn = false, specTimer = null, specRate = 48000;
 var specRing = new Float32Array(SPEC_N), specPos = 0;
 var specRe = new Float64Array(SPEC_N), specIm = new Float64Array(SPEC_N);
@@ -118,14 +120,30 @@ function specCompute() {
       }
     }
   }
-  var norm = (SPEC_N / 4) * (SPEC_N / 4), out = new Array(SPEC_BANDS), binHz = specRate / SPEC_N;
+  var norm = (SPEC_N / 4) * (SPEC_N / 4), binHz = specRate / SPEC_N, pw = new Float64Array(SPEC_BANDS);
+  var P = function (q) { return specRe[q] * specRe[q] + specIm[q] * specIm[q]; };
   for (var n = 0; n < SPEC_BANDS; n++) {
     var f0 = 20 * Math.pow(1000, n / SPEC_BANDS), f1 = 20 * Math.pow(1000, (n + 1) / SPEC_BANDS);
-    var k0 = Math.max(1, Math.floor(f0 / binHz)), k1 = Math.min(SPEC_N / 2 - 1, Math.max(k0, Math.ceil(f1 / binHz)));
-    var pk = 0;
-    for (var q = k0; q <= k1; q++) { var pw = specRe[q] * specRe[q] + specIm[q] * specIm[q]; if (pw > pk) pk = pw; }
-    var db = 10 * Math.log10(pk / norm + 1e-14);
-    out[n] = db < -120 ? -120 : Math.round(db);
+    var b0 = f0 / binHz, b1 = f1 / binHz, e = 0;
+    if (Math.floor(b1) - Math.ceil(b0) < 1) {          // narrower than a bin: interpolate at centre
+      var bc = Math.sqrt(b0 * b1), q0 = Math.max(1, Math.floor(bc)), fr = bc - q0;
+      e = P(q0) * (1 - fr) + P(Math.min(SPEC_N / 2 - 1, q0 + 1)) * fr;
+    } else {
+      for (var q = Math.max(1, Math.ceil(b0)); q <= Math.min(SPEC_N / 2 - 1, Math.floor(b1)); q++) e += P(q);
+    }
+    pw[n] = e;
+  }
+  for (var pass = 0; pass < 2; pass++) {                // [1 2 1]/4 twice ~ 1/6 octave
+    var prev = pw[0];
+    for (var m = 0; m < SPEC_BANDS; m++) {
+      var cur = pw[m], next = m + 1 < SPEC_BANDS ? pw[m + 1] : cur;
+      pw[m] = (prev + 2 * cur + next) / 4; prev = cur;
+    }
+  }
+  var out = new Array(SPEC_BANDS);
+  for (var o = 0; o < SPEC_BANDS; o++) {
+    var db = 10 * Math.log10(pw[o] / norm + 1e-14);
+    out[o] = db < -120 ? -120 : Math.round(db);
   }
   send({ type: 'spectrum', b: out });
 }
