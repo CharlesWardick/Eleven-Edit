@@ -2,6 +2,13 @@
 
 ## v1.2.0 (in progress)
 
+**Built-in tuner.** TUNER now opens a tuner panel right in Eleven Edit: note name,
+a -50 to +50 cent meter and the exact offset, matching the rack's own tuner
+screen. Choose Meter + Note, LED strip + Note or Big Note, mute the output while
+you tune, and set the reference pitch (A = 410 to 480 Hz) from a list or with
+-/+. It follows the rack's front panel both ways, and if the rack's tuner was
+left on, Eleven Edit switches it off at startup instead of waiting.
+
 **Full input selection, including Re-Amp.** The input selector now covers every
 input the rack offers — Guitar, Mic, Re-Amp, Line L / R / L+R and Digital L / R /
 L+R — from one dropdown at the start of the chain row.

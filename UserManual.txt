@@ -165,11 +165,21 @@ TOP BAR
   it on that slot to audition — nothing is saved until you Save), or
   Cancel. Factory slots can't be written.
 
-  TUNER — turns on the tuner display on the Eleven Rack's own front
-  panel. Eleven Edit can't display tuner data remotely — the rack
-  doesn't expose that over the same USB/MIDI connection Eleven Edit
-  uses — so this button just switches the rack itself into tuner mode
-  for you to read on the hardware.
+  TUNER — turns on the Eleven Rack's tuner and opens the TUNER panel in
+  place of whatever panel was showing. Play a string: the panel shows the
+  note, a needle (-50 to +50 cents) and the exact offset, matching the
+  rack's own tuner screen. The note turns green and both arrows light when
+  you are in tune; otherwise the lit arrow shows which way to tune.
+    Style — Meter + Note, LED strip + Note, or Big Note (remembered).
+    MUTE — silences the rack's output while you tune (lit red when muted).
+    REFERENCE — the A pitch, 410 to 480 Hz: pick from the list or step 1 Hz
+      with - / +. The rack remembers it; the panel always shows the rack's
+      current value.
+  Press TUNER again or the X to turn the tuner off and get your previous
+  panel back. Changing patch, clicking the chain row or the gear also turns
+  it off. Using the tuner from the rack's front panel works too — the panel
+  follows. If the rack's tuner was left on, Eleven Edit turns it off when it
+  starts so the patch can load.
 
   PHON VOL / MAIN VOL — headphone and main output volume, each with its
   own MUTE button (dim normally; lit red while that output is muted).
