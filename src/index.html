@@ -1377,6 +1377,39 @@
   .select-wrap { position:relative; display:inline-flex; align-items:center; }
   .select-wrap::after { content:'▼'; position:absolute; right:6px; font-size:8px; color:var(--accent-dim); pointer-events:none; }
   .select-wrap select { padding-right:18px; }
+  /* build 119: Parametric EQ graph view (js/peq-graph.js) */
+  #peq-view-seg { display:inline-flex; border:1px solid #555; border-radius:5px; overflow:hidden; align-self:center; }
+  #peq-view-seg button { background:linear-gradient(#3a3a3a,#2a2a2a); color:#aaa; border:0; padding:5px 14px;
+    font-weight:bold; letter-spacing:1px; cursor:pointer; font-size:12px; }
+  #peq-view-seg button:hover { color:#fff; }
+  #peq-view-seg button.on { color:var(--accent); box-shadow:inset 0 -2px 0 var(--accent); }
+  #peq-graph { padding:14px 16px; }
+  .peqg-wrap { background:#111; border:1px solid #3a3a3a; border-radius:5px; }
+  #peqg-canvas { display:block; cursor:crosshair; }
+  .peqg-strip { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:10px; }
+  .peqg-band { background:#2b2b2b; border:1px solid #3a3a3a; border-left:4px solid var(--bc); border-radius:4px; padding:6px 8px; }
+  .peqg-bt { display:flex; gap:8px; align-items:center; margin-bottom:4px; min-height:22px; }
+  .peqg-n { font-weight:bold; color:#ccc; font-size:12px; }
+  .peqg-fixed { color:#777; font-size:12px; }
+  .peqg-type { flex:1; background:#1a1a1a; color:var(--text); border:1px solid var(--border-dim); border-radius:4px; padding:2px 4px; font-size:12px; }
+  .peqg-row { display:grid; grid-template-columns:34px 1fr 76px; gap:6px; align-items:center; margin:3px 0; }
+  .peqg-l { color:#aaa; font-size:11px; }
+  .peqg-rw { position:relative; display:block; }
+  .peqg-tick { position:absolute; top:-4px; width:2px; height:22px; margin-left:-1px; background:#fff; opacity:.8; pointer-events:none; border-radius:1px; }
+  .peqg-vb { background:#111; color:var(--bc); border:1px solid #555; border-radius:2px; font:12px Consolas,monospace;
+    text-align:right; padding:2px 4px; width:100%; box-sizing:border-box; }
+  .peqg-row input[type=range] { -webkit-appearance:none; appearance:none; height:14px; width:100%; margin:0;
+    background:linear-gradient(#181818,#2e2e2e); border:1px solid #555; border-radius:3px; }
+  .peqg-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    border:1px solid #222; background:radial-gradient(circle at 40% 35%, rgba(255,255,255,.55), transparent 60%), var(--bc); cursor:pointer; }
+  .peqg-row input[type=range]:disabled { opacity:.35; }
+  #peqg-menu { position:fixed; display:none; background:#222; border:1px solid #555; border-radius:4px; padding:4px 0;
+    box-shadow:0 4px 14px rgba(0,0,0,.6); z-index:9999; min-width:140px; font-size:13px; }
+  #peqg-menu div { padding:5px 14px; cursor:pointer; color:#ddd; }
+  #peqg-menu div:hover { background:#3a3a3a; color:var(--accent); }
+  #peqg-menu .on { color:var(--accent); }
+  #peqg-menu .on::before { content:'\2713  '; }
+  #peqg-menu .h, #peqg-menu .h:hover { color:#888; font-size:11px; cursor:default; background:none; }
   #roller-strip {
     width:100%; background:var(--panel); border:1px solid var(--border2);
     border-radius:10px; padding:10px 14px; display:flex; flex-direction:column; gap:10px;
@@ -2636,6 +2669,8 @@
           <!-- options injected dynamically by populateFxHostModelSelect() -->
         </select>
       </div>
+      <!-- build 119: PEQ KNOBS | GRAPH view switch (js/peq-graph.js), shown only for Parametric EQ -->
+      <div id="peq-view-seg" style="display:none;"><button data-view="knobs">KNOBS</button><button data-view="graph">GRAPH</button></div>
       <button id="btn-fxhost-close" title="Close"
         style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 6px;"
         onmouseover="this.style.color='var(--fg)'" onmouseout="this.style.color='var(--muted)'">✕</button>
@@ -2643,6 +2678,7 @@
     <div id="fxhost-knob-row" style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;padding:14px 16px;">
       <!-- controls injected dynamically by renderFxHostKnobs() -->
     </div>
+    <div id="peq-graph" style="display:none;"></div>   <!-- build 119: PEQ graph view -->
   </div>
 
   <!-- TUNER PANEL (build 114) — shown in the panel slot while the rack's tuner is on (js/tuner.js) -->
@@ -4774,7 +4810,8 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/audio-engine.js"></script>   <!-- Audio passthrough engine UI, v1.1.0 -->
 <script src="js/quick-mix.js"></script>   <!-- Inline per-block wet-amount sliders on the chain row -->
 <script src="js/colors.js"></script>   <!-- Green/Red intensity, build 98 -->
-<script src="js/chain-view.js"></script>   <!-- Classic/Modern chain-row view switch, build 86 -->
+<script src="js/chain-view.js"></script>
+<script src="js/peq-graph.js"></script>   <!-- PEQ graph view, build 119 -->   <!-- Classic/Modern chain-row view switch, build 86 -->
 <script src="js/app-init.js"></script>
 </body>
 </html>
