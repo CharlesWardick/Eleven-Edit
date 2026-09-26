@@ -19,7 +19,7 @@ var TUN_NOTES = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 
 function tunHex(b) { return b.map(function(x) { return x.toString(16).padStart(2, '0').toUpperCase(); }).join(' '); }
 function tunSend(bytes, why) {
-  var ok = sendHex(tunHex(bytes).replace(/ /g, ''));
+  var ok = sendHex(tunHex(bytes));   // bridge wants space-separated hex
   appLog('TUNTEST send ' + tunHex(bytes) + '  (' + why + ')' + (ok ? '' : ' — NOT SENT, bridge down'));
 }
 function tunSet(ref, mute, why) {
@@ -49,7 +49,7 @@ function tunHandle(data) {
 
 function tunPoll(on) {
   if (tunPollTimer) { clearInterval(tunPollTimer); tunPollTimer = null; }
-  if (on) tunPollTimer = setInterval(function() { sendHex('F0130B0F0142F7'); }, 50);
+  if (on) tunPollTimer = setInterval(function() { sendHex('F0 13 0B 0F 01 42 F7'); }, 50);
   appLog('TUNTEST note poll ' + (on ? 'START (20 Hz)' : 'STOP'));
   var b = document.getElementById('tun-poll'); if (b) b.textContent = on ? 'Stop note poll' : 'Start note poll';
 }
