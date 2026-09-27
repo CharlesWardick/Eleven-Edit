@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  * See LICENSE in the project root for full license text.
  */
-const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const { exec, execFile, spawn } = require('child_process');
@@ -1407,22 +1407,6 @@ ipcMain.handle('save-tone-knob-order', function(e, order){ storeSet('toneKnobOrd
 // (Gate/To Amp/Volumes) numbers.
 ipcMain.handle('get-number-display-mode',  function()      { return storeGet('numberDisplayMode', 0); });
 ipcMain.handle('save-number-display-mode', function(e, mode){ storeSet('numberDisplayMode', mode); return true; });
-// build 129: minimum window width = the amp panel's natural (unwrapped) width x zoom,
-// measured by the renderer. Grows the window if needed; refuses (fits:false) when it
-// can't fit the screen, so zoom + stops there. Height keeps the fixed 600 floor.
-ipcMain.handle('apply-min-width', function(e, css, zoom) {
-  if (!mainWindow) return { fits: true };
-  const w = Math.max(900, Math.ceil(css * zoom));
-  const b = mainWindow.getBounds();
-  const wa = screen.getDisplayMatching(b).workArea;
-  if (w > wa.width) return { fits: false };
-  mainWindow.setMinimumSize(w, 600);
-  if (b.width < w && !mainWindow.isMaximized()) {
-    const x = Math.max(wa.x, Math.min(b.x, wa.x + wa.width - w));
-    mainWindow.setBounds({ x: x, y: b.y, width: w, height: b.height });
-  }
-  return { fits: true };
-});
 ipcMain.handle('get-zoom',        function()        { return storeGet('zoomFactor', 1.0); });
 ipcMain.handle('set-zoom',        function(e, factor) {
   storeSet('zoomFactor', factor);

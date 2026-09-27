@@ -304,57 +304,9 @@ async function init() {
 
 // ── Input selector button state helper ──
 async function applyZoom(delta) {
-  var z = Math.round(Math.max(0.6, Math.min(2.0, zoomFactor + delta)) * 10) / 10;
-  // build 129: zoom + stops when the minimum width would no longer fit the screen
-  try {
-    var r = await window.electronAPI.applyMinWidth(panelMinCss(), z);
-    if (r && r.fits === false && delta > 0) return;
-  } catch(e) {}
-  zoomFactor = z;
+  zoomFactor = Math.max(0.6, Math.min(2.0, zoomFactor + delta));
   try { await window.electronAPI.setZoom(zoomFactor); } catch(e) {}
 }
-
-// build 129: the amp panel's natural width in CSS px — for each wrapping row, the sum
-// of its items (+ gaps + margins, auto margins excluded) plus everything around the
-// row out to the window edge. Running max (knob count varies by amp). Measured only
-// while the amp panel is visible and unwrapped-measurable.
-var panelMinCssMax = 0;
-function panelMeasureAmp() {
-  var amp = document.getElementById('panel-ampcab');
-  if (!amp || amp.offsetParent === null) return;
-  var rows = amp.querySelectorAll('.scard-hdr, .amp-row, #tone-knobs-row');
-  var need = 0;
-  rows.forEach(function(row) {
-    if (row.offsetParent === null) return;
-    var cs = getComputedStyle(row), gap = parseFloat(cs.columnGap) || 0, sum = 0, n = 0;
-    Array.prototype.forEach.call(row.children, function(el) {
-      if (el.offsetParent === null) return;
-      var es = getComputedStyle(el); if (es.position === 'absolute' || es.position === 'fixed') return;
-      sum += el.getBoundingClientRect().width;
-      if (el.style.marginLeft !== 'auto') sum += parseFloat(es.marginLeft) || 0;
-      if (el.style.marginRight !== 'auto') sum += parseFloat(es.marginRight) || 0;
-      n++;
-    });
-    if (!n) return;
-    sum += gap * (n - 1);
-    var inner = row.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-    need = Math.max(need, sum + (document.documentElement.clientWidth - inner));
-  });
-  need = Math.ceil(need) + 4;
-  if (need > panelMinCssMax) {
-    panelMinCssMax = need;
-    try { window.electronAPI.applyMinWidth(panelMinCssMax, zoomFactor); } catch(e) {}
-  }
-}
-function panelMinCss() { return panelMinCssMax || 900; }
-(function() {
-  var t = 0;
-  function later() { clearTimeout(t); t = setTimeout(panelMeasureAmp, 300); }
-  window.addEventListener('resize', later);
-  var amp = document.getElementById('panel-ampcab');
-  if (amp && window.ResizeObserver) new ResizeObserver(later).observe(amp);
-  later();
-})();
 document.getElementById('btn-zoom-in').addEventListener('click',  () => applyZoom(0.1));
 document.getElementById('btn-zoom-out').addEventListener('click', () => applyZoom(-0.1));
 
