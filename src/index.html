@@ -1021,13 +1021,6 @@
   #panel-area > * { flex-grow: 1; flex-shrink: 0; }
   #panel-ampcab { display: flex; flex-direction: column; }
   #panel-ampcab > .scard { flex-grow: 1; }
-  /* build 141: REVERT — raised tile, greyed when nothing differs from saved */
-  .revert-btn { padding: 4px 12px; border-radius: 5px; font-size: 11px; font-weight: 700; letter-spacing: 1px; cursor: pointer;
-    color: var(--accent); background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); border: 1px solid #0c0f14;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45); align-self: center; }
-  .revert-btn:hover:not(:disabled) { color: #fff; }
-  .revert-btn:active:not(:disabled) { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
-  .revert-btn:disabled { opacity: .35; cursor: default; }
   /* build 131: the two anchored bars become flat edge-to-edge strips matching the
      audio row (#0f0f0f, thin divider, ~44px). Negative margins escape #main's padding;
      the last one also eats #main's bottom padding so it sits on the audio row. */
@@ -4904,65 +4897,6 @@ function win11GateSyncSettingsRow(disabled) {
     win11GateSyncSettingsRow(turningOff);
   });
 })();
-// ════════════════════════════════════════════════════════════════════
-// REVERT PANEL (build 141) — one button per panel header: every knob/slider
-// whose value differs from its saved baseline (dataset.orig) is restored by
-// firing the control's own double-click restore (same send path, Sync
-// interlock etc. included), and every parameter dropdown is set back to its
-// saved (opt-loaded) option. Model / Amp dropdowns and on/off toggles are NOT
-// touched (no saved baseline for toggles; a model switch rebuilds the panel).
-// Greyed while nothing in the panel differs from saved.
-// ════════════════════════════════════════════════════════════════════
-(function() {
-  var PANELS = ['panel-ampcab', 'panel-dist', 'panel-reverb', 'panel-wah', 'panel-vol', 'panel-fxloop', 'panel-delay', 'panel-fxhost'];
-  var SKIP_SEL = /model-select|^amp-select$/;
-  function dirtyKnobs(p) {
-    return Array.prototype.filter.call(p.querySelectorAll('.knob-wrap'), function(w) {
-      return (w.offsetParent !== null || w.closest('#fxhost-knob-row')) && w.dataset.orig   // PEQ graph hides the knobs but they stay live !== undefined && w.dataset.orig !== ''
-        && w.dataset.value !== undefined && parseInt(w.dataset.value) !== parseInt(w.dataset.orig)
-        && !w.closest('.peq-gain-lock');
-    });
-  }
-  function dirtySelects(p) {
-    return Array.prototype.filter.call(p.querySelectorAll('select'), function(s) {
-      if (SKIP_SEL.test(s.id) || s.disabled || s.offsetParent === null) return false;
-      var o = s.querySelector('option.opt-loaded');
-      return o && o.value !== s.value;
-    });
-  }
-  function dirtyBreakup(p) {
-    var b = p.id === 'panel-ampcab' ? document.getElementById('breakup-slider') : null;
-    return (b && b.dataset.orig !== undefined && b.dataset.orig !== '' && parseInt(b.value) !== parseInt(b.dataset.orig)) ? b : null;
-  }
-  function revert(p) {
-    dirtyKnobs(p).forEach(function(w) { w.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
-    dirtySelects(p).forEach(function(s) {
-      s.value = s.querySelector('option.opt-loaded').value; s.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    var b = dirtyBreakup(p); if (b) b.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    if (typeof appLog === 'function') appLog('Revert panel: ' + p.id);
-  }
-  PANELS.forEach(function(id) {
-    var p = document.getElementById(id); if (!p) return;
-    var hdr = p.querySelector('.scard-hdr'); if (!hdr) return;
-    var btn = document.createElement('button');
-    btn.className = 'revert-btn'; btn.textContent = 'REVERT'; btn.title = 'Return this panel to the saved patch';
-    btn.disabled = true;
-    btn.addEventListener('click', function() { revert(p); });
-    var close = hdr.querySelector('button[id$="-close"]');
-    if (close) { close.style.marginLeft = '0'; hdr.insertBefore(btn, close); btn.style.marginLeft = 'auto'; }
-    else hdr.appendChild(btn);
-    p._revertBtn = btn;
-  });
-  setInterval(function() {
-    PANELS.forEach(function(id) {
-      var p = document.getElementById(id);
-      if (!p || !p._revertBtn || p.offsetParent === null) return;
-      p._revertBtn.disabled = !(dirtyKnobs(p).length || dirtySelects(p).length || dirtyBreakup(p));
-    });
-  }, 400);
-})();
-
 document.getElementById('btn-about-close').addEventListener('click', function() {
   document.getElementById('about-overlay').classList.remove('open');
 });
