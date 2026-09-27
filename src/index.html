@@ -1761,7 +1761,7 @@
   .fold-led { width: 8px; height: 8px; border-radius: 50%; background: #2a2e34; box-shadow: inset 0 1px 1px rgba(0,0,0,.6); }
   .fold-led.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
   #panel-settings .fold-btn.unset { color: #777; }
-  .fold-pop { display: none; position: absolute; left: 0; top: 28px; z-index: 50; width: 380px; background: #232323; border: 1px solid #555;
+  .fold-pop { display: none; position: absolute; left: 0; top: 28px; z-index: 50; width: max-content; min-width: 380px; max-width: calc(100vw - 80px);   /* build 138: grows with the path */ background: #232323; border: 1px solid #555;
     border-radius: 6px; padding: 10px 12px; box-shadow: 0 6px 18px rgba(0,0,0,.7); flex-direction: column; gap: 8px; }
   .fold-pop.open { display: flex; }
   .fold-pop-t { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
