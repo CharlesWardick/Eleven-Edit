@@ -1001,6 +1001,11 @@
   /* build 129: panels scroll inside #panel-area; the bars below stay anchored. */
   #panel-area { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
   #roller-strip, #btoolbar { flex-shrink: 0; }
+  /* build 133: the open panel stretches to fill the panel area (dead space lives
+     INSIDE the panel frame) — frame edges never move, only contents change. */
+  #panel-area > * { flex-grow: 1; flex-shrink: 0; }
+  #panel-ampcab { display: flex; flex-direction: column; }
+  #panel-ampcab > .scard { flex-grow: 1; }
   /* build 131: the two anchored bars become flat edge-to-edge strips matching the
      audio row (#0f0f0f, thin divider, ~44px). Negative margins escape #main's padding;
      the last one also eats #main's bottom padding so it sits on the audio row. */
