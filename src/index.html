@@ -1001,6 +1001,16 @@
   /* build 129: panels scroll inside #panel-area; the bars below stay anchored. */
   #panel-area { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
   #roller-strip, #btoolbar { flex-shrink: 0; }
+  /* build 131: the two anchored bars become flat edge-to-edge strips matching the
+     audio row (#0f0f0f, thin divider, ~44px). Negative margins escape #main's padding;
+     the last one also eats #main's bottom padding so it sits on the audio row. */
+  #main > #roller-strip, #main > #btoolbar {
+    background: #0f0f0f; border: 0; border-top: 1px solid var(--border-dim); border-radius: 0;
+    margin: 0 -16px; width: auto; padding: 6px 16px; min-height: 0;
+  }
+  #main > #roller-strip { margin-top: auto; }
+  #main > #btoolbar { margin-bottom: -12px; }
+  #main > #roller-strip + #btoolbar { margin-top: -12px; }
 
   /* Section cards */
   .scard { background: var(--card); border: 1px solid var(--border-dim); border-radius: 7px; overflow: hidden; flex-shrink: 0; }
