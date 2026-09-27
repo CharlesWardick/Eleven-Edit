@@ -3053,9 +3053,21 @@ function peqBandFilters(band) {
   return { f: f, notch: (t === 'notch'), list: list };
 }
 
+// build 127: LF/HF Gain has no audible effect in Notch / pass modes (Charlie's listen
+// test, 2026-09-27) — the Gain knob is dimmed + locked there, like the graph's slider.
+function peqGainLocks() {
+  PEQ_BANDS.forEach(function(b) {
+    if (b.type === null) return;
+    const w = document.getElementById('fxhost-w-' + b.g.toString(16).padStart(2, '0'));
+    const k = w && w.closest('.ctrl-knob'); if (!k) return;
+    k.classList.toggle('peq-gain-lock', /pass|Notch/.test(peqTypeLabel(b.type) || ''));
+  });
+}
+
 function peqCurveDraw() {
   const c = document.getElementById('peq-curve');
   if (!c) return;
+  peqGainLocks();
   const x = c.getContext('2d');
   const W = 240, H = 150;
   x.setTransform(2, 0, 0, 2, 0, 0);

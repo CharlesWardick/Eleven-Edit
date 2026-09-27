@@ -1406,6 +1406,8 @@
   .peqg-row input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
     border:1px solid #222; background:radial-gradient(circle at 40% 35%, rgba(255,255,255,.55), transparent 60%), var(--bc); cursor:pointer; }
   .peqg-row input[type=range]:disabled { opacity:.35; }
+  .peqg-vb:disabled { opacity:.35; }
+  .ctrl-knob.peq-gain-lock { opacity:.35; pointer-events:none; }   /* build 127: Gain inert in Notch/pass */
   #peqg-menu { position:fixed; display:none; background:#222; border:1px solid #555; border-radius:4px; padding:4px 0;
     box-shadow:0 4px 14px rgba(0,0,0,.6); z-index:9999; min-width:140px; font-size:13px; }
   #peqg-menu div { padding:5px 14px; cursor:pointer; color:#ddd; }

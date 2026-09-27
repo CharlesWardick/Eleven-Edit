@@ -419,6 +419,8 @@ function peqgStrip() {
   g.querySelectorAll('input.peqg-vb').forEach(function(box) {
     if (document.activeElement === box) return;
     var lo = parseInt(box.dataset.lo, 10), v = peqgV(lo), c = peqgCell(lo);
+    var bb = null; PEQG_BANDS.forEach(function(x) { if (x.g === lo) bb = x; });
+    var br = bb ? peqgFilters(bb) : null; box.disabled = !!(br && br.gainless);   // build 127
     box.value = (v !== null && c) ? c.display(v) : '--';
   });
   g.querySelectorAll('select.peqg-type').forEach(function(s) {
