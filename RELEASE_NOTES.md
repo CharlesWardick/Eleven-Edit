@@ -31,7 +31,7 @@ to set frequency and gain, use the mouse wheel for Q, double-click to return to
 the patch's saved values, and right-click the LF or HF dot to change the filter
 type. Under the graph, each band has Freq / Gain / Q sliders with type-in value
 boxes and a tick marking the saved value. A dashed line shows the patch as saved,
-a Range selector (±12 / ±24 / ±48 dB or Fit) rescales the view, and GRAPH is the
+a Range selector (±12 / ±24 / ±48 dB, or Fit to size the view tightly to the curve) rescales it, and GRAPH is the
 default (your last choice is remembered). While the graph is open it uses the
 space of the Auto Advance and Preset / Bank rows. KNOBS view keeps the small
 curve. (Curves are a close approximation of the rack's EQ, not a lab measurement.)

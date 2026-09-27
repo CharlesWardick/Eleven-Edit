@@ -271,7 +271,9 @@ EFFECT PANELS
     - Double-click a dot: back to the saved frequency, gain and Q.
     - Right-click the LF or HF dot: pick the filter type. LMF and HMF are
       always Peaking on the rack.
-    - Range (top right): ±12, ±24, ±48 dB, or Fit to scale to the curve.
+    - Range (top right): ±12, ±24, ±48 dB, or Fit — sizes the view
+      tightly to the curve (top and bottom set separately, 0 dB always
+      shown); it rescales when you let go of a dot.
   Under the graph, each band has Freq / Gain / Q sliders and value boxes.
   Type a value (e.g. 2.5k) and press Enter; the mouse wheel works on the
   sliders; the white tick marks the saved value and double-clicking a

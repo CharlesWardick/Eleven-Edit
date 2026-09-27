@@ -25,19 +25,31 @@ function peqgRange() { try { return localStorage.getItem('peqRange') || '24'; } 
 // Range selector (build 120): fixed ±12/±24/±48, or Fit = symmetric range just covering the
 // combined curve (notch/pass nulls ignored — bottomless). Fit is frozen during a dot drag.
 function peqgApplyRange(cur, out) {
-  var r = peqgRange(), R;
+  var r = peqgRange();
   if (r === 'fit') {
+    // build 126: tight, asymmetric fit — top/bottom set separately in 3 dB steps with a
+    // 2 dB margin, 0 dB always on screen, minimum 12 dB span, capped at ±48.
+    // Notch/pass nulls are ignored (bottomless). Frozen during a dot drag.
     if (peqgDrag) return;
-    var m = Math.abs(out);
+    var hi = Math.max(0, out), lo = Math.min(0, out);
     for (var i = 0; i <= 200; i++) {
       var f = PEQG_FMIN * Math.pow(PEQG_FMAX / PEQG_FMIN, i / 200), s = out;
       cur.forEach(function(b) { if (b && !b.gainless) s += peqgBandDb(b, f); });
-      if (Math.abs(s) > m) m = Math.abs(s);
-      cur.forEach(function(b) { if (b && !b.notch) m = Math.max(m, Math.abs(peqgBandDb(b, b.f))); });
+      if (s > hi) hi = s; if (s < lo) lo = s;
     }
-    R = Math.max(6, Math.min(48, Math.ceil((m + 2) / 6) * 6));
-  } else R = parseInt(r, 10) || 24;
-  PEQG_GMIN = -R; PEQG_GMAX = R; PEQG_STEP = R <= 12 ? 3 : ((R <= 36 || R % 12) ? 6 : 12);
+    cur.forEach(function(b) {
+      if (!b || b.notch) return;
+      var d = peqgBandDb(b, b.f); if (d > hi) hi = d; if (d < lo) lo = d;
+    });
+    var top = Math.min(48, Math.ceil((hi + 2) / 3) * 3), bot = Math.max(-48, Math.floor((lo - 2) / 3) * 3);
+    while (top - bot < 12) { if (top - hi <= lo - bot) top += 3; else bot -= 3; }
+    PEQG_GMIN = bot; PEQG_GMAX = top;
+  } else {
+    var R = parseInt(r, 10) || 24;
+    PEQG_GMIN = -R; PEQG_GMAX = R;
+  }
+  var span = PEQG_GMAX - PEQG_GMIN;
+  PEQG_STEP = span <= 24 ? 3 : (span <= 60 ? 6 : 12);
 }
 // ── Spectrum (build 123) — rack's FINAL output via the audio engine ──
 var peqgSpecBands = null, peqgSpecAt = 0, peqgSpecSent = null;
@@ -350,7 +362,7 @@ function peqgDraw() {
     x.strokeStyle = '#2a2a2a'; x.beginPath(); x.moveTo(peqgX(f), P.t); x.lineTo(peqgX(f), H - P.b); x.stroke();
     x.fillStyle = '#777'; x.fillText(f >= 1000 ? (f / 1000) + 'k' : String(f), peqgX(f) - 8, H - 8);
   });
-  for (var gg = PEQG_GMIN; gg <= PEQG_GMAX; gg += PEQG_STEP) {
+  for (var gg = Math.ceil(PEQG_GMIN / PEQG_STEP) * PEQG_STEP; gg <= PEQG_GMAX; gg += PEQG_STEP) {
     x.strokeStyle = gg === 0 ? '#555' : '#2a2a2a';
     x.beginPath(); x.moveTo(P.l, peqgY(gg)); x.lineTo(W - P.r, peqgY(gg)); x.stroke();
     x.fillStyle = '#777'; x.fillText((gg > 0 ? '+' : '') + gg, 8, peqgY(gg) + 3);
