@@ -253,12 +253,35 @@ function peqOnOffBtn(i) {
   btn.addEventListener('click', function(ev) { ev.stopPropagation(); peqBandToggle(i); });
   return btn;
 }
+// build 146: while off, the band SHOWS its remembered Type + Gain (greyed), not the
+// Peaking/0 the rack now holds. Display only — data-value stays the rack's truth.
+function peqOffEntry(i) { var s = peqOff[openFxHostSlot]; return (s && peqBandIsOff(i)) ? s[i] : null; }
+function peqOffKnobShow(i, off) {
+  var b = PEQG_BANDS[i], e = off ? peqOff[openFxHostSlot][i] : null, c = peqgCell(b.g);
+  var w = peqgWrap(b.g), vEl = document.getElementById('fxhost-v-' + peqgHex(b.g));
+  if (e && peqgReady()) {
+    var cv = w && w.querySelector('canvas');
+    if (cv && typeof drawKnob === 'function') drawKnob(cv, e.g);
+    if (vEl && c) vEl.textContent = c.display(e.g);
+  }
+  var sel = peqgTypeSel(b); if (!sel) return;
+  var sp = sel.parentNode.querySelector('.peq-off-type');
+  if (e && e.t !== null) {
+    if (!sp) { sp = document.createElement('span'); sp.className = 'peq-off-type'; sel.parentNode.insertBefore(sp, sel.nextSibling); }
+    sp.textContent = sel.options[e.t] ? sel.options[e.t].text : '';
+    sp.style.display = ''; sel.style.display = 'none';
+  } else {
+    if (sp) sp.style.display = 'none';
+    sel.style.display = '';
+  }
+}
 function peqOffPaint() {
   document.querySelectorAll('[data-peq-box] > .peq-box-hdr').forEach(function(h) {
     if (!h.querySelector('.peq-onoff')) h.appendChild(peqOnOffBtn(parseInt(h.parentNode.dataset.peqBox, 10)));
   });
   for (var i = 0; i < 4; i++) {
     var off = peqBandIsOff(i);
+    peqOffKnobShow(i, off);
     document.querySelectorAll('.peq-onoff[data-peq-b="' + i + '"]').forEach(function(b) { b.classList.toggle('on', !off); });
     document.querySelectorAll('[data-peq-box="' + i + '"]').forEach(function(bx) { bx.classList.toggle('peq-band-off', off); });
   }
@@ -468,8 +491,10 @@ function peqgDraw() {
 function peqgStrip() {
   var g = document.getElementById('peq-graph'); if (!g || !peqgReady()) return;
   peqOffPaint();
+  var offG = {};   // build 146: gain lo -> remembered value for off bands
+  PEQG_BANDS.forEach(function(b, i) { var e = peqOffEntry(i); if (e) offG[b.g] = e.g; });
   g.querySelectorAll('input[type=range]').forEach(function(r) {
-    var lo = parseInt(r.dataset.lo, 10), v = peqgV(lo); if (v !== null) r.value = v;
+    var lo = parseInt(r.dataset.lo, 10), v = (lo in offG) ? offG[lo] : peqgV(lo); if (v !== null) r.value = v;
     var band = null; PEQG_BANDS.forEach(function(b) { if (b.g === lo) band = b; });
     var rr = band ? peqgFilters(band) : null;
     r.disabled = !!(rr && rr.gainless);
@@ -480,7 +505,7 @@ function peqgStrip() {
   });
   g.querySelectorAll('input.peqg-vb').forEach(function(box) {
     if (document.activeElement === box) return;
-    var lo = parseInt(box.dataset.lo, 10), v = peqgV(lo), c = peqgCell(lo);
+    var lo = parseInt(box.dataset.lo, 10), v = (lo in offG) ? offG[lo] : peqgV(lo), c = peqgCell(lo);
     var bb = null; PEQG_BANDS.forEach(function(x) { if (x.g === lo) bb = x; });
     var br = bb ? peqgFilters(bb) : null; box.disabled = !!(br && br.gainless);   // build 127
     box.value = (v !== null && c) ? c.display(v) : '--';
@@ -488,7 +513,8 @@ function peqgStrip() {
   g.querySelectorAll('select.peqg-type').forEach(function(s) {
     var src = peqgTypeSel(PEQG_BANDS[parseInt(s.dataset.b, 10)]);
     if (src && s.options.length !== src.options.length) s.innerHTML = src.innerHTML;
-    if (src) s.value = src.value;
+    var oe = peqOffEntry(parseInt(s.dataset.b, 10));
+    if (src) s.value = (oe && oe.t !== null) ? String(oe.t) : src.value;
     if (src) for (var i = 0; i < s.options.length && i < src.options.length; i++)   // build 125: saved-type marker
       s.options[i].classList.toggle('opt-loaded', src.options[i].classList.contains('opt-loaded'));
   });
