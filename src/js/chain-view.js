@@ -29,6 +29,7 @@ var cmSuppressClick = false;
 function applyChainView() {
   var modern = document.getElementById('chainstrip-modern');
   document.body.classList.toggle('cv-modern', cmIsModern());
+  for (var sk = 1; sk <= 5; sk++) document.body.classList.toggle('cv-skin-' + sk, cmIsModern() && cmSkin() === sk);   // build 136
   if (modern) {
     modern.hidden = !cmIsModern();
     for (var k = 1; k <= 5; k++) modern.classList.toggle('cm-skin-' + k, cmIsModern() && cmSkin() === k);

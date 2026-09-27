@@ -632,6 +632,13 @@
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border-bottom: 1px solid #0c0f14; box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
   }
+  /* build 136: skin-matched INPUT band — Modern 4 = the block labels' green glow;
+     Modern 5 = the lit-block green face + pale text (still a label). */
+  body.cv-skin-4 .chain-input-tag { text-shadow: 0 0 6px rgba(var(--green-rgb), .9), 0 0 12px rgba(var(--green-rgb), .5); }
+  body.cv-skin-5 .chain-input-tag {
+    background: linear-gradient(rgba(var(--green-rgb), .28), rgba(var(--green-rgb), .12)), #1a1e25;
+    color: #dfffe6; border-bottom-color: rgba(var(--green-rgb), .6);
+  }
   /* colours/border/padding/font come from the shared .ctrl-dd select rule so the
      input dropdown matches every other dropdown; only chain-row layout is local. */
   #chain-input-select {
