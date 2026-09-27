@@ -143,6 +143,11 @@ window.addEventListener('keydown', e => {
   // build 140: T = tuner on/off; Esc = close whatever panel is open → back to Amp/Cab.
   if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); sendCC(CC_TUNER, tunerOn ? 0 : 127); }
   if (e.key === 'Escape') {
+    // build 141: About + Jump List close on Esc too (topmost first)
+    var ab = document.getElementById('about-overlay');
+    if (ab && ab.classList.contains('open')) { ab.classList.remove('open'); return; }
+    var sm = document.getElementById('slot-matrix');
+    if (sm && sm.classList.contains('open') && typeof closeSlotMatrix === 'function') { closeSlotMatrix(); return; }
     var vis = function(id) { var el = document.getElementById(id); return el && el.offsetParent !== null; };
     if (typeof tunerPanelShown !== 'undefined' && tunerPanelShown) { sendCC(CC_TUNER, 0); return; }
     if (vis('panel-audio-settings')) { document.getElementById('btn-audio-close').click(); return; }
