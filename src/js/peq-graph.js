@@ -239,8 +239,8 @@ function peqBandToggle(i) {
   } else {
     var z = peqgNearest(b.g, 0), pk = sel ? peqPeakIdx(sel) : -1;
     peqOff[slot][i] = { t: sel ? sel.selectedIndex : null, g: peqgV(b.g), z: z };
+    peqgWrite(b.g, z);   // gain first: shelf at 0 = flat, pass ignores gain -> no bump before the type flips
     if (sel && pk >= 0 && pk !== sel.selectedIndex) peqgSetType(b, pk);
-    peqgWrite(b.g, z);
   }
   peqOffPaint(); peqgSchedule();
   if (typeof peqCurveSchedule === 'function') peqCurveSchedule();
@@ -254,6 +254,9 @@ function peqOnOffBtn(i) {
   return btn;
 }
 function peqOffPaint() {
+  document.querySelectorAll('[data-peq-box] > .peq-box-hdr').forEach(function(h) {
+    if (!h.querySelector('.peq-onoff')) h.appendChild(peqOnOffBtn(parseInt(h.parentNode.dataset.peqBox, 10)));
+  });
   for (var i = 0; i < 4; i++) {
     var off = peqBandIsOff(i);
     document.querySelectorAll('.peq-onoff[data-peq-b="' + i + '"]').forEach(function(b) { b.classList.toggle('on', !off); });

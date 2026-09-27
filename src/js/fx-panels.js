@@ -1615,9 +1615,10 @@ function buildDelayPanel(mid) {
           + 'letter-spacing:0.5px;font-weight:bold;';
         // build 143: PEQ band on/off lens in the band's header (peq-graph.js)
         const bi = isPeq ? ['LF', 'LMF', 'HMF', 'HF'].indexOf(entry.group) : -1;
-        if (bi >= 0 && typeof peqOnOffBtn === 'function') {
+        // (button itself is injected by peqOffPaint — this panel can be built before peq-graph.js loads)
+        if (bi >= 0) {
           hdr.style.cssText += 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
-          hdr.appendChild(peqOnOffBtn(bi));
+          hdr.classList.add('peq-box-hdr');
           box.dataset.peqBox = String(bi);
         }
         box.appendChild(hdr);
