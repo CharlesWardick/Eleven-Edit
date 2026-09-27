@@ -297,6 +297,17 @@ EFFECT PANELS
   output after the whole chain, not the signal at the EQ's position — a
   broad guide only; use your ears for detail.
 
+  Band on/off: each band's header (LF, LMF, HMF, HF) has a small button
+  with a green light, in both views. The rack has no per-band bypass, so
+  Off sets the band flat on the rack (Peaking, 0 dB) while Eleven Edit
+  remembers its real Type and Gain. The band greys out and locks but still
+  shows those remembered settings; its dot turns grey on the 0 dB line.
+  Press it again to put them back. A band stays off while you visit other
+  blocks or switch models; changing or saving the patch clears the memory.
+  If you save from the rack's front panel with a band off, it is saved
+  flat. Switching a band can make a small audible change as the rack
+  updates.
+
   KNOBS view shows a small version of the curve under OUTPUT.
 
   The curves are a close approximation of the rack's EQ, not a lab

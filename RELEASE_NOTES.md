@@ -38,6 +38,13 @@ curve. When the LF or HF band is set to Notch, Hipass or Lowpass its Gain has no
 effect on the rack's sound, so Gain is greyed out and locked in both views.
 (Curves are a close approximation of the rack's EQ, not a lab measurement.)
 
+**Parametric EQ band on/off.** Each band (LF, LMF, HMF, HF) has an on/off button in
+its header, in both views. The rack has no band bypass, so Off sets the band flat
+(Peaking, 0 dB) on the rack while Eleven Edit remembers its real settings; the band
+is greyed out but still shows them, and On puts them back. A band stays off while you
+visit other blocks or models, and the memory is cleared when you change or save the
+patch — saving with a band off (from the rack's front panel) saves it flat.
+
 **Live spectrum.** With the audio engine on, the PEQ graph can show a live
 spectrum of the sound behind the curves (SPECTRUM button to turn it off). It
 shows the rack's final output after the whole chain, not the signal at the EQ's
