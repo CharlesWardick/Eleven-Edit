@@ -56,7 +56,7 @@ function tunerPollStop() {
 // Swap the panel area to the tuner (remember what was showing) or back.
 function tunerPanelOpen() {
   if (tunerPanelShown) return;
-  var main = document.getElementById('main'), p = document.getElementById('panel-tuner');
+  var main = document.getElementById('panel-area'), p = document.getElementById('panel-tuner');
   if (!main || !p) return;
   tunerHidden = [];
   Array.prototype.forEach.call(main.children, function(el) {

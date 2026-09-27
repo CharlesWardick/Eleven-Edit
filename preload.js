@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveNumberDisplayMode: (mode)   => ipcRenderer.invoke('save-number-display-mode', mode),
   getZoom:        ()              => ipcRenderer.invoke('get-zoom'),
   setZoom:        (factor)        => ipcRenderer.invoke('set-zoom', factor),
+  applyMinWidth:  (css, zoom)     => ipcRenderer.invoke('apply-min-width', css, zoom),
   getStartupMode: ()              => ipcRenderer.invoke('get-startup-mode'),
   getAppVersion:  ()              => ipcRenderer.invoke('get-app-version'),
   getBuildInfo:   ()              => ipcRenderer.invoke('get-build-info'),
