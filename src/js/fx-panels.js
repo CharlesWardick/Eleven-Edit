@@ -1613,14 +1613,6 @@ function buildDelayPanel(mid) {
         hdr.textContent = entry.group;
         hdr.style.cssText = 'font-size:11px;color:var(--label);text-transform:uppercase;'
           + 'letter-spacing:0.5px;font-weight:bold;';
-        // build 143: PEQ band on/off lens in the band's header (peq-graph.js)
-        const bi = isPeq ? ['LF', 'LMF', 'HMF', 'HF'].indexOf(entry.group) : -1;
-        // (button itself is injected by peqOffPaint — this panel can be built before peq-graph.js loads)
-        if (bi >= 0) {
-          hdr.style.cssText += 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
-          hdr.classList.add('peq-box-hdr');
-          box.dataset.peqBox = String(bi);
-        }
         box.appendChild(hdr);
       }
       entry.rows.forEach(function(rowCells) { renderDelayRow(rowCells, box); });
@@ -2491,6 +2483,14 @@ function buildFxHostPanel(mid) {
         hdr.textContent = entry.group;
         hdr.style.cssText = 'font-size:11px;color:var(--label);text-transform:uppercase;'
           + 'letter-spacing:0.5px;font-weight:bold;';
+        // build 143: PEQ band on/off lens in the band's header (peq-graph.js)
+        const bi = isPeq ? ['LF', 'LMF', 'HMF', 'HF'].indexOf(entry.group) : -1;
+        // (button itself is injected by peqOffPaint — this panel can be built before peq-graph.js loads)
+        if (bi >= 0) {
+          hdr.style.cssText += 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+          hdr.classList.add('peq-box-hdr');
+          box.dataset.peqBox = String(bi);
+        }
         box.appendChild(hdr);
       }
       entry.rows.forEach(function(rowCells) { renderFxHostRow(rowCells, box); });
