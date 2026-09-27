@@ -34,7 +34,9 @@ boxes and a tick marking the saved value. A dashed line shows the patch as saved
 a Range selector (±12 / ±24 / ±48 dB, or Fit to size the view tightly to the curve) rescales it, and GRAPH is the
 default (your last choice is remembered). While the graph is open it uses the
 space of the Auto Advance and Preset / Bank rows. KNOBS view keeps the small
-curve. (Curves are a close approximation of the rack's EQ, not a lab measurement.)
+curve. When the LF or HF band is set to Notch, Hipass or Lowpass its Gain has no
+effect on the rack's sound, so Gain is greyed out and locked in both views.
+(Curves are a close approximation of the rack's EQ, not a lab measurement.)
 
 **Live spectrum.** With the audio engine on, the PEQ graph can show a live
 spectrum of the sound behind the curves (SPECTRUM button to turn it off). It
@@ -74,11 +76,31 @@ stereo/mono connector lines, reorder rules) works the same in every view.
 that brighten or dim every shade of that color across the whole app at once.
 100% is the original look; double-click a slider to reset it.
 
+**Steadier layout.** Only one panel is ever open at a time, and the open panel
+fills the space above the Auto Advance and Preset / Bank rows. Those two rows are
+now flat strips fixed just above the audio bar, so switching between panels no
+longer moves anything on screen; a panel taller than the window scrolls inside
+its own frame.
+
+**Redesigned Settings.** Settings is now five columns: Folders, Rig-Wide Hardware,
+Audio Engine, Chain Row and Colors. The long path lines are gone — Captures, Logs
+and Avid Graphics are buttons with a status light; click one to see its path and
+change or open it. The Logs folder can now be changed. The Avid Graphics light
+shows how many of the 39 chain-row images a scan found: green = all, amber = some
+(or not scanned yet), red = none, dim = no folder set.
+
+**Keyboard shortcuts.** T turns the tuner on/off; Esc closes the open panel
+(back to Amp / Cab) as well as About and the Jump List. Neither acts while you are
+typing in a box or have a dropdown selected.
+
 **Smaller touches.** The version and build number show in the title bar and
 About box; the Avid-editor warning in the status bar stays on one line. Knobs
 show faint end-stop marks in their ring at minimum and maximum. The tone-knob
 lock button is gone — drag a knob's name to reorder any time. The TFX / BANK row
-is now labelled PRESET / BANK and lines up with the AUTO ADVANCE row.
+is now labelled PRESET / BANK and lines up with the AUTO ADVANCE row. New installs
+start with the Modern 4 (Glow) chain row, and in Modern views the INPUT label sits
+on a raised band matching the chosen look. The "rack not found" startup screen has
+a shorter message and the new button style.
 
 ---
 
