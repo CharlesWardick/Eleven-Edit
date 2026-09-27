@@ -162,6 +162,24 @@ const CHAIN_AMP_THUMB_FILE_BY_KEY = {
 // can look up an image without re-scanning. Set by setAvidGraphicsManifest.
 let avidGraphicsManifest = null;
 
+// build 139: how many of the images the app actually uses (39: 24 block + 15 amp,
+// unique family+file pairs) a scan found — drives the Settings Avid light.
+function avidGraphicsCoverage(manifest) {
+  const want = {};
+  Object.keys(CHAIN_BLOCK_THUMB_FILE_BY_MID).forEach(function(mid) {
+    const fam = CHAIN_BLOCK_FAMILY_BY_MID[mid]; if (fam) want[fam + '|' + CHAIN_BLOCK_THUMB_FILE_BY_MID[mid]] = [fam, CHAIN_BLOCK_THUMB_FILE_BY_MID[mid]];
+  });
+  Object.keys(CHAIN_AMP_THUMB_FILE_BY_KEY).forEach(function(k) {
+    want[CHAIN_AMPCAB_FAMILY + '|' + CHAIN_AMP_THUMB_FILE_BY_KEY[k]] = [CHAIN_AMPCAB_FAMILY, CHAIN_AMP_THUMB_FILE_BY_KEY[k]];
+  });
+  const keys = Object.keys(want); let found = 0;
+  keys.forEach(function(k) {
+    const f = manifest && manifest.families && manifest.families[want[k][0]];
+    if (f && f.files.indexOf(want[k][1]) !== -1) found++;
+  });
+  return { found: found, total: keys.length };
+}
+
 function setAvidGraphicsManifest(manifest) {
   avidGraphicsManifest = (manifest && manifest.ok) ? manifest : null;
 }
