@@ -1428,6 +1428,12 @@
   #peqg-menu .dis, #peqg-menu .dis:hover { cursor:default; background:none; color:#999; }
   #peqg-canvas { display:block; cursor:crosshair; }
   .peqg-strip { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:10px; }
+  /* build 143: PEQ band on/off (compact lens; off = band greyed + locked, lens stays live) */
+  .peq-onoff { min-width:0; padding:4px 7px; margin-left:auto; }
+  .peq-onoff .lens { width:20px; height:8px; border-radius:4px; }
+  .peq-band-off .ctrl-knob, .peq-band-off .ctrl-dd, .peq-band-off select, .peq-band-off .peqg-row,
+  .peq-band-off .peqg-fixed { opacity:.35; pointer-events:none; }
+  .peqg-band.peq-band-off { border-left-color:#555; }
   .peqg-band { background:#2b2b2b; border:1px solid #3a3a3a; border-left:4px solid var(--bc); border-radius:4px; padding:6px 8px; }
   .peqg-bt { display:flex; gap:8px; align-items:center; margin-bottom:4px; min-height:22px; }
   .peqg-n { font-weight:bold; color:#ccc; font-size:12px; }

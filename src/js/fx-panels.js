@@ -149,6 +149,7 @@ function clearBlockModelState(slotId) {
     // mismatch against whatever mySeq any in-flight timeout closed over).
     Object.keys(blockCacheApplySeq).forEach(function(k) { blockCacheApplySeq[k]++; });
     reverbLoadTypeKey = null;
+    if (typeof peqOffClear === 'function') peqOffClear();   // build 143: PEQ band-off memory dies with the patch
     return;
   }
   delete blockModelCache[slotId];
@@ -1612,6 +1613,13 @@ function buildDelayPanel(mid) {
         hdr.textContent = entry.group;
         hdr.style.cssText = 'font-size:11px;color:var(--label);text-transform:uppercase;'
           + 'letter-spacing:0.5px;font-weight:bold;';
+        // build 143: PEQ band on/off lens in the band's header (peq-graph.js)
+        const bi = isPeq ? ['LF', 'LMF', 'HMF', 'HF'].indexOf(entry.group) : -1;
+        if (bi >= 0 && typeof peqOnOffBtn === 'function') {
+          hdr.style.cssText += 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+          hdr.appendChild(peqOnOffBtn(bi));
+          box.dataset.peqBox = String(bi);
+        }
         box.appendChild(hdr);
       }
       entry.rows.forEach(function(rowCells) { renderDelayRow(rowCells, box); });
@@ -3068,6 +3076,7 @@ function peqCurveDraw() {
   const c = document.getElementById('peq-curve');
   if (!c) return;
   peqGainLocks();
+  if (typeof peqOffPaint === 'function') peqOffPaint();
   const x = c.getContext('2d');
   const W = 240, H = 150;
   x.setTransform(2, 0, 0, 2, 0, 0);
@@ -3115,12 +3124,13 @@ function peqCurveDraw() {
   }
   x.stroke();
   x.restore();
-  bands.forEach(function(b) {
+  bands.forEach(function(b, i) {
     const f = Math.max(20, Math.min(20000, b.f));
     // build 71: dot sits ON its band's own curve at the band frequency (shelf =
     // its half-way point, HP/LP = its cutoff dip); a notch's centre is a
     // bottomless null, so its dot stays on the 0 line.
     const dotDb = b.notch ? 0 : bandDb(b, f);
-    x.fillStyle = cssColor(b.col); x.beginPath(); x.arc(fx(f), dyc(dotDb), 3.5, 0, Math.PI * 2); x.fill();
+    const off = typeof peqBandIsOff === 'function' && peqBandIsOff(i);   // build 143: off band = grey dot
+    x.fillStyle = off ? '#555' : cssColor(b.col); x.beginPath(); x.arc(fx(f), dyc(dotDb), 3.5, 0, Math.PI * 2); x.fill();
   });
 }

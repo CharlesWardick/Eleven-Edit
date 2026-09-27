@@ -206,6 +206,61 @@ function peqgSetType(band, idx) {
   peqgSchedule();
 }
 
+// ── Band on/off (build 143) ──
+// The rack has no per-band bypass; "off" = Peaking + Gain nearest 0 dB, sent to the
+// rack like any edit. The band's real Type + Gain are kept in this sub-cache (per FX
+// slot) so ON puts them back. Survives leaving the panel and model switches (the
+// flat band is what the rack holds); cleared on patch nav / Save
+// (clearBlockModelState). If the band is changed elsewhere (front panel) so it is no
+// longer Peaking at that 0 step, the off memory is dropped — the rack wins.
+var peqOff = {};   // slotId -> { bandIdx: { t: typeIdx|null, g: v, z: zeroV } }
+function peqOffClear() { peqOff = {}; }
+function peqPeakIdx(sel) {
+  for (var i = 0; i < sel.options.length; i++) if (sel.options[i].text === 'Peaking') return i;
+  return -1;
+}
+function peqBandIsOff(i) {
+  var s = peqOff[openFxHostSlot], e = s && s[i]; if (!e) return false;
+  if (!peqgReady()) return true;
+  var b = PEQG_BANDS[i], sel = peqgTypeSel(b);
+  if (peqgV(b.g) !== e.z || (sel && sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].text !== 'Peaking')) {
+    delete s[i]; return false;
+  }
+  return true;
+}
+function peqBandToggle(i) {
+  if (!peqgReady() || openFxHostSlot === null) return;
+  var b = PEQG_BANDS[i], sel = peqgTypeSel(b), slot = openFxHostSlot;
+  if (!peqOff[slot]) peqOff[slot] = {};
+  if (peqBandIsOff(i)) {
+    var e = peqOff[slot][i]; delete peqOff[slot][i];
+    if (sel && e.t !== null && e.t !== sel.selectedIndex) peqgSetType(b, e.t);
+    peqgWrite(b.g, e.g);
+  } else {
+    var z = peqgNearest(b.g, 0), pk = sel ? peqPeakIdx(sel) : -1;
+    peqOff[slot][i] = { t: sel ? sel.selectedIndex : null, g: peqgV(b.g), z: z };
+    if (sel && pk >= 0 && pk !== sel.selectedIndex) peqgSetType(b, pk);
+    peqgWrite(b.g, z);
+  }
+  peqOffPaint(); peqgSchedule();
+  if (typeof peqCurveSchedule === 'function') peqCurveSchedule();
+}
+function peqOnOffBtn(i) {
+  var btn = document.createElement('button');
+  btn.className = 'fx-onoff peq-onoff on'; btn.dataset.peqB = String(i);
+  btn.title = 'Band on/off — off = flat (Peaking, 0 dB); on restores it';
+  btn.innerHTML = '<span class="lens"></span>';
+  btn.addEventListener('click', function(ev) { ev.stopPropagation(); peqBandToggle(i); });
+  return btn;
+}
+function peqOffPaint() {
+  for (var i = 0; i < 4; i++) {
+    var off = peqBandIsOff(i);
+    document.querySelectorAll('.peq-onoff[data-peq-b="' + i + '"]').forEach(function(b) { b.classList.toggle('on', !off); });
+    document.querySelectorAll('[data-peq-box="' + i + '"]').forEach(function(bx) { bx.classList.toggle('peq-band-off', off); });
+  }
+}
+
 // ── Build DOM (once) ──
 var PEQG_BANDS = [   // band -> param los (mirrors PEQ_BANDS, fx-panels.js)
   { n: 'LF',  g: 0x02, f: 0x03, q: 0x04, type: 0x05, col: 'var(--red-hot)', low: true },
@@ -222,8 +277,9 @@ function peqgBuild() {
   peqgBuilt = true;
   var html = '<div class="peqg-wrap"><select id="peqg-range" title="Graph range"><option value="12">±12 dB</option><option value="24">±24 dB</option><option value="48">±48 dB</option><option value="fit">Fit</option></select><canvas id="peqg-canvas"></canvas></div><div class="peqg-strip">';
   PEQG_BANDS.forEach(function(b, i) {
-    html += '<div class="peqg-band" style="--bc:' + b.col + '"><div class="peqg-bt"><span class="peqg-n">' + b.n + '</span>'
-      + (b.type !== null ? '<select class="peqg-type" data-b="' + i + '"></select>' : '<span class="peqg-fixed">Peaking</span>') + '</div>';
+    html += '<div class="peqg-band" data-peq-box="' + i + '" style="--bc:' + b.col + '"><div class="peqg-bt"><span class="peqg-n">' + b.n + '</span>'
+      + (b.type !== null ? '<select class="peqg-type" data-b="' + i + '"></select>' : '<span class="peqg-fixed">Peaking</span>')
+      + '<span class="peqg-oo" data-b="' + i + '"></span></div>';
     PEQG_ROWS.forEach(function(r) {
       var lo = b[r[1]];
       html += '<div class="peqg-row"><span class="peqg-l">' + r[0] + '</span><span class="peqg-rw">'
@@ -236,6 +292,7 @@ function peqgBuild() {
     + '<div class="peqg-row"><span class="peqg-l">Gain</span><span class="peqg-rw"><input type="range" min="0" max="127" step="1" data-lo="16">'
     + '<i class="peqg-tick" data-lo="16"></i></span><input class="peqg-vb" data-lo="16" spellcheck="false"></div></div></div>';
   g.innerHTML = html;
+  g.querySelectorAll('span.peqg-oo').forEach(function(sp) { sp.replaceWith(peqOnOffBtn(parseInt(sp.dataset.b, 10))); });
   var menu = document.createElement('div'); menu.id = 'peqg-menu'; document.body.appendChild(menu);
   peqgStripTypes();
 
@@ -330,8 +387,8 @@ function peqgDotDb(r) {
 }
 function peqgHit(e) {
   var p = peqgPos(e), hit = null;
-  PEQG_BANDS.forEach(function(b) {
-    var r = peqgFilters(b); if (!r) return;
+  PEQG_BANDS.forEach(function(b, i) {
+    var r = peqgFilters(b); if (!r || peqBandIsOff(i)) return;
     if (Math.hypot(peqgX(r.f) - p.x, peqgY(peqgDotDb(r)) - p.y) < 12) hit = b;
   });
   return hit;
@@ -394,18 +451,20 @@ function peqgDraw() {
   var outS = peqgVal(PEQ_OUT_LO, true); if (outS === null) outS = out;
   function sum(rs, o) { return function(f) { var s = o; rs.forEach(function(r) { if (r) s += peqgBandDb(r, f); }); return s; }; }
   if (sav.every(function(r) { return r; })) line(sum(sav, outS), '#9a9a9a', 1.5, [6, 4]);
-  cur.forEach(function(r, i) { if (r) line(function(f) { return peqgBandDb(r, f); }, cssColor(PEQG_BANDS[i].col), 1.2, null, 0.55); });
+  cur.forEach(function(r, i) { if (r && !peqBandIsOff(i)) line(function(f) { return peqgBandDb(r, f); }, cssColor(PEQG_BANDS[i].col), 1.2, null, 0.55); });
   line(sum(cur, out), '#ffffff', 2.2);
   cur.forEach(function(r, i) {
     if (!r) return;
     var b = PEQG_BANDS[i], X = peqgX(r.f), Y = peqgY(peqgDotDb(r));
-    x.fillStyle = cssColor(b.col); x.strokeStyle = '#fff'; x.lineWidth = 1.5;
+    var off = peqBandIsOff(i);   // build 143: off band = grey dot, not draggable
+    x.fillStyle = off ? '#444' : cssColor(b.col); x.strokeStyle = off ? '#777' : '#fff'; x.lineWidth = 1.5;
     x.beginPath(); x.arc(X, Y, peqgDrag === b ? 9 : 7, 0, Math.PI * 2); x.fill(); x.stroke();
-    x.fillStyle = '#ddd'; x.fillText(b.n, X - 8, Y - 12);
+    x.fillStyle = off ? '#777' : '#ddd'; x.fillText(b.n + (off ? ' off' : ''), X - 8, Y - 12);
   });
 }
 function peqgStrip() {
   var g = document.getElementById('peq-graph'); if (!g || !peqgReady()) return;
+  peqOffPaint();
   g.querySelectorAll('input[type=range]').forEach(function(r) {
     var lo = parseInt(r.dataset.lo, 10), v = peqgV(lo); if (v !== null) r.value = v;
     var band = null; PEQG_BANDS.forEach(function(b) { if (b.g === lo) band = b; });
