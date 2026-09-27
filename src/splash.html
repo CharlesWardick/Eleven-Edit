@@ -41,11 +41,14 @@
   #gate-msg { font-size: 13px; line-height: 1.7; text-align: center; color: var(--text); }
   #gate-buttons { display: flex; gap: 10px; width: 100%; }
   #btn-startup-retry, #btn-startup-quit {
-    background: transparent; border: 2px solid var(--accent-dim); color: var(--accent);
+    /* build 140: raised physical tile, like the main app's buttons */
+    background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%); border: 1px solid #0c0f14; color: var(--accent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     font-size: 13px; font-weight: 700; letter-spacing: 2px; padding: 8px;
-    border-radius: 6px; cursor: pointer; text-transform: uppercase; flex: 1;
+    border-radius: 6px; cursor: pointer; text-transform: uppercase; flex: 1; transition: color .12s, box-shadow .12s;
   }
-  #btn-startup-retry:hover, #btn-startup-quit:hover { background: #1a1200; border-color: var(--accent); }
+  #btn-startup-retry:hover, #btn-startup-quit:hover { color: #fff; }
+  #btn-startup-retry:active, #btn-startup-quit:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
   #version-tag {
     position: absolute; bottom: 8px; right: 12px;
     font-size: 10px; color: #777; letter-spacing: 0.5px;
@@ -64,7 +67,7 @@
   </div>
 
   <div id="gate-view">
-    <div id="gate-msg">Unable to locate Eleven Rack. Make sure Eleven Rack is connected and turned on.<br>Click Try Again to rescan. Click Quit to close.</div>
+    <div id="gate-msg">Unable to locate Eleven Rack. Make sure it is connected.<br><br>Click Try Again to rescan. Click Quit to close.</div>
     <div id="gate-buttons">
       <button id="btn-startup-retry">Try Again</button>
       <button id="btn-startup-quit">Quit</button>
@@ -164,7 +167,7 @@
         '<br><br>Click Quit to close.';
       retryBtn.style.display = 'none';
     } else {
-      gateMsg.innerHTML = 'Unable to locate Eleven Rack. Make sure Eleven Rack is connected and turned on.<br>Click Try Again to rescan. Click Quit to close.';
+      gateMsg.innerHTML = 'Unable to locate Eleven Rack. Make sure it is connected.<br><br>Click Try Again to rescan. Click Quit to close.';
       retryBtn.style.display = '';
     }
   });

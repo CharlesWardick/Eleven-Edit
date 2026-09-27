@@ -140,6 +140,16 @@ window.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight' || e.key === 'ArrowUp')   { e.preventDefault(); stepNav(1);  }
   if (e.key === 'ArrowLeft'  || e.key === 'ArrowDown') { e.preventDefault(); stepNav(-1); }
   if (e.key === ' ') { e.preventDefault(); if (autoTimer || autoPaused) togglePause(); else startAuto(); }
+  // build 140: T = tuner on/off; Esc = close whatever panel is open → back to Amp/Cab.
+  if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); sendCC(CC_TUNER, tunerOn ? 0 : 127); }
+  if (e.key === 'Escape') {
+    var vis = function(id) { var el = document.getElementById(id); return el && el.offsetParent !== null; };
+    if (typeof tunerPanelShown !== 'undefined' && tunerPanelShown) { sendCC(CC_TUNER, 0); return; }
+    if (vis('panel-audio-settings')) { document.getElementById('btn-audio-close').click(); return; }
+    if (vis('panel-settings')) { document.getElementById('btn-settings-close').click(); return; }
+    var open = document.querySelector('.chain-open.panel-open');
+    if (open) open.click();
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════
