@@ -170,7 +170,7 @@ function initLog() {
   if (!logsEnabled) return;
   try {
     const userDataPath = app.getPath('userData');
-    const logsDir = path.join(userDataPath, 'logs');
+    const logsDir = storeGet('logsDir', '') || path.join(userDataPath, 'logs');   // build 137: user-choosable
     if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 
     const now = new Date();
@@ -816,7 +816,21 @@ ipcMain.handle('scan-avid-graphics', function(e, rootDir) {
 });
 
 ipcMain.handle('get-logs-dir', function() {
-  return path.join(app.getPath('userData'), 'logs');
+  return storeGet('logsDir', '') || path.join(app.getPath('userData'), 'logs');
+});
+// build 137: Settings → Folders → Logs → Change… (takes effect on the next /LOGS launch)
+ipcMain.handle('choose-logs-dir', async function() {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    const cur = storeGet('logsDir', '') || path.join(app.getPath('userData'), 'logs');
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Choose Logs Folder', defaultPath: cur, properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths.length) return { ok: false, canceled: true };
+    storeSet('logsDir', result.filePaths[0]);
+    logWrite('Logs dir changed to: ' + result.filePaths[0]);
+    return { ok: true, dir: result.filePaths[0] };
+  } catch (e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('reset-captures-dir', function() {

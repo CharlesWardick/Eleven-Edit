@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   browseAvidDir:  ()              => ipcRenderer.invoke('browse-avid-dir'),
   getAvidDir:     ()              => ipcRenderer.invoke('get-avid-dir'),
   getLogsDir:     ()              => ipcRenderer.invoke('get-logs-dir'),
+  chooseLogsDir:  ()              => ipcRenderer.invoke('choose-logs-dir'),
   scanAvidGraphics: (rootDir)     => ipcRenderer.invoke('scan-avid-graphics', rootDir),
 
   // Bank export ("Export All Rigs…", 2026-08-10)
