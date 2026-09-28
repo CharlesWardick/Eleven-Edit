@@ -60,6 +60,7 @@ function rbBack() {
 function rbGo(slot) {
   rbOrigin = null; rbPendingHear = null;
   document.getElementById('rig-browser').classList.remove('open');
+  document.getElementById('rb-backdrop').classList.remove('open');
   rbBar();
   if (slot !== currentSlot) goToSlot(slot);
   // Land on the Amp view: close whatever effect panel is open.
@@ -143,6 +144,7 @@ function openRigBrowser() {
   if (typeof pauseRollerForNameEdit === 'function') pauseRollerForNameEdit();
   if (typeof closeSlotMatrix === 'function') closeSlotMatrix();
   document.getElementById('rig-browser').classList.add('open');
+  document.getElementById('rb-backdrop').classList.add('open');
   rbScrolled = false;
   rbBuildFilters();
   rbBar();
@@ -154,6 +156,7 @@ function closeRigBrowser() {
   if (rbOrigin !== null) rbBack();
   rbPendingHear = null; rbBar();
   document.getElementById('rig-browser').classList.remove('open');
+  document.getElementById('rb-backdrop').classList.remove('open');
 }
 // Called by rack-catalog.js whenever a slot updates.
 // build 154: the open buttons stay dimmed until every user slot has been
@@ -199,7 +202,12 @@ function rigBrowserRefresh() {
   });
   document.addEventListener('keydown', function(e) {
     var ov = document.getElementById('rig-browser');
-    if (e.key === 'Escape' && ov.classList.contains('open')) { e.preventDefault(); e.stopPropagation(); closeRigBrowser(); }
+    if (!ov.classList.contains('open')) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeRigBrowser(); return; }
+    // build 157: modal — app shortcuts (arrows, Space, T, +/-) don't reach the app
+    // behind; typing in the browser's own search box / lists still works.
+    if (!ov.contains(e.target)) { e.preventDefault(); e.stopPropagation(); }
+    else e.stopPropagation();
   }, true);
   rbUpdateButtons();
   ['btn-rig-browser-top', 'btn-rig-browser'].forEach(function(id) {
