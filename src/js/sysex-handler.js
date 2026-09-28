@@ -248,6 +248,7 @@ async function handleBulkTfxData(data, cmd) {
 
     captureCount++;
     appLog('Save confirmed — capturing TFX slot ' + slotNum + ' (' + slotName + ')');
+    if (typeof rackCatalogPut === 'function') rackCatalogPut(slotNum, body);   // build 151
 
     if (autoStartTime !== null && !autoPaused) {
       togglePause();

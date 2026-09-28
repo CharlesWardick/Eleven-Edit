@@ -388,6 +388,7 @@ async function importSlotEntry(entry) {
   // which harmlessly also refreshes patchNameCache for the Jump List.
   sendHex('F0 13 0B 0F 00 04 00 ' + slotHex + ' ' + asciiToHexBytes(name) + ' 00 F7');
   await sleep(150);
+  if (typeof rackCatalogPut === 'function') rackCatalogPut(slot, body);   // build 151
   return 'ok';
 }
 
