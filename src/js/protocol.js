@@ -1233,6 +1233,10 @@ function fracFor(v, raw) {
   return fracFromV127(v);
 }
 // Signed one-decimal dB text, halves rounded up like the rack; '+' above zero.
+// Parametric EQ Gain (build 147, walker-verified LF + LMF 128/128): plain linear
+// on the rack's v/128 grid (127 pinned to max) for ALL four bands. LF/HF
+// (-24..+12) have no exact 0.0 step; LMF/HMF (-18..+18) land 0.0 at 64.
+function peqGainText(v, minDb, maxDb) { return fmtDbSigned(minDb + (maxDb - minDb) * fracFromV127(v)); }
 function fmtDbSigned(db) {
   let r = Math.floor(db * 10 + 0.5 + 1e-9) / 10;
   if (Math.abs(r) < 0.05) r = 0;
@@ -2430,7 +2434,7 @@ const FX1_MODELS = [
     rows: [
       { group:'LF', rows: [
           [ {label:'Gain', lo:0x02, bandColor: 'var(--red-hot)',
-              display: function(v) { return eqSliderDb(v, -24, 12, true); }},
+              display: function(v) { return peqGainText(v, -24, 12); }},
             {label:'Freq', lo:0x03, bandColor: 'var(--red-hot)',
               display: function(v) { return eqFreqDisplay(20 * Math.pow(2000 / 20, fracFromV127(v))); }} ],
           [ {label:'Q',    lo:0x04, bandColor: 'var(--red-hot)',
@@ -2446,7 +2450,7 @@ const FX1_MODELS = [
       },
       { group:'LMF', rows: [
           [ {label:'Gain', lo:0x06, bandColor: 'var(--accent)',
-              display: function(v) { return eqSliderDb(v, -18, 18); }},
+              display: function(v) { return peqGainText(v, -18, 18); }},
             {label:'Freq', lo:0x07, bandColor: 'var(--accent)',
               display: function(v) { return eqFreqDisplay(100 * Math.pow(100, fracFromV127(v))); }} ],
           [ {label:'Q',    lo:0x08, bandColor: 'var(--accent)',
@@ -2455,7 +2459,7 @@ const FX1_MODELS = [
       },
       { group:'HMF', rows: [
           [ {label:'Gain', lo:0x09, bandColor: 'var(--green)',
-              display: function(v) { return eqSliderDb(v, -18, 18); }},
+              display: function(v) { return peqGainText(v, -18, 18); }},
             {label:'Freq', lo:0x0A, bandColor: 'var(--green)',
               display: function(v) { return eqFreqDisplay(200 * Math.pow(100, fracFromV127(v))); }} ],
           [ {label:'Q',    lo:0x0B, bandColor: 'var(--green)',
@@ -2464,7 +2468,7 @@ const FX1_MODELS = [
       },
       { group:'HF', rows: [
           [ {label:'Gain', lo:0x0C, bandColor: '#3f8fe0',
-              display: function(v) { return eqSliderDb(v, -24, 12, true); }},
+              display: function(v) { return peqGainText(v, -24, 12); }},
             {label:'Freq', lo:0x0D, bandColor: '#3f8fe0',
               display: function(v) { return eqFreqDisplay(200 * Math.pow(100, fracFromV127(v))); }} ],
           [ {label:'Q',    lo:0x0E, bandColor: '#3f8fe0',
