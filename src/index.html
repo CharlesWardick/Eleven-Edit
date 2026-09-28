@@ -3976,7 +3976,15 @@ function startPatchNameEdit() {
     if (applied) {
       currentPatchName = val;
       if (typeof markPatchDirty === 'function') markPatchDirty();
-      appLog('Patch name edited locally to "' + val + '" — not sent to hardware until Save');
+      // build 149: push the name to the rack's edit buffer now (same CMD 0x05 write
+      // Load TFX uses) — rack screen renames live, Save to Disk carries it. Slot
+      // stays unsaved until Save to Rack.
+      if (typeof bridgeMidiReady !== 'undefined' && bridgeMidiReady && typeof sendHex === 'function') {
+        sendHex('F0 13 0B 0F 00 05 ' + asciiToHexBytes(val) + ' 00 F7');
+        appLog('Patch name edited to "' + val + '" — sent to rack edit buffer (not saved)');
+      } else {
+        appLog('Patch name edited locally to "' + val + '" — not connected, not sent');
+      }
     }
   }
   input.addEventListener('keydown', function(ev) {
