@@ -222,7 +222,7 @@
   /* Tuner button */
   /* Physical push-button (build 15) — same raised-tile family as the chain-row
      pills. Off = neutral dim; on = green text + soft green ring. */
-  #btn-calibration, #btn-tuntest, #btn-facdump {
+  #btn-calibration, #btn-tuntest {
     background: linear-gradient(180deg, #333a44 0%, #232830 55%, #1a1e25 100%);
     border: 1px solid #0c0f14; color: #999; margin-right: 10px;
     border-radius: 6px; padding: 7px 12px; font-size: 12px; font-weight: bold;
@@ -1576,6 +1576,8 @@
   .rb-a { color: var(--green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rb-x { color: #9a9a9a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rb-none { color: #8a8a8a; padding: 14px 8px; }
+  .rb-div { color: var(--accent); font-weight: bold; font-size: 11px; letter-spacing: 1px; padding: 10px 8px 4px; border-bottom: 1px solid var(--accent-dim); }
+  #rb-count { min-width: 180px; }
   #rb-status { color: #9a9a9a; font-size: 11px; margin-top: 8px; }
   .rb-ic { display: flex; gap: 3px; }   /* build 157: always shown, no hover pop-in */
   .rb-ic span { width: 22px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
@@ -2108,8 +2110,6 @@
     <button id="btn-calibration" title="Calibration Walker (dev tool)">CAL</button>
     <!-- Tuner Test (dev tool, build 112) -->
     <button id="btn-tuntest" title="Tuner Test (dev tool)">TUN</button>
-    <!-- TEMP (build 159): one-time factory bank export for the shipped factory catalog -->
-    <button id="btn-facdump" title="Export all 104 FACTORY rigs (temporary dev tool)">FAC</button>
     <!-- Tuner -->
     <button id="btn-tuner" title="Toggle the Eleven Rack's built-in tuner">TUNER<span class="ind-bar"></span></button>
     <div class="tdiv"></div>
@@ -5014,7 +5014,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/peq-graph.js"></script>   <!-- PEQ graph view, build 119 -->   <!-- Classic/Modern chain-row view switch, build 86 -->
 <script src="js/rack-catalog.js"></script>
 <script src="js/rig-browser.js"></script>
-<script src="js/factory-dump.js"></script>   <!-- TEMP factory export, build 159 -->   <!-- Rig Browser, build 152 -->   <!-- Rack catalog for the Rig Browser, build 151 -->
+<script src="js/factory-catalog.js"></script>   <!-- shipped factory catalog, build 160 -->   <!-- Rig Browser, build 152 -->   <!-- Rack catalog for the Rig Browser, build 151 -->
 <script src="js/app-init.js"></script>
 </body>
 </html>

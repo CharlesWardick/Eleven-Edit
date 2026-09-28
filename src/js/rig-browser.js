@@ -22,7 +22,7 @@ var rbPendingHear = null;   // slot awaiting the unsaved-edits answer
 
 function rbIsDirty() { var b = document.getElementById('btn-save-menu'); return !!(b && b.classList.contains('green')); }
 function rbSlotText(slot) {
-  var e = rackCatalog.slots[slot];
+  var e = rbEntry(slot);
   return slotLabel(slot) + ' — ' + ((e && e.n) || (typeof patchNameCache !== 'undefined' && patchNameCache[slot]) || '');
 }
 function rbBar() {
@@ -37,7 +37,7 @@ function rbBar() {
     bar.innerHTML = '<span class="rb-idle">Hover a slot: 🎧 hear it (browser stays open) · ➜ or click to go to it</span>';
     bar.style.display = 'block'; return;
   }
-  var e = rackCatalog.slots[currentSlot];
+  var e = rbEntry(currentSlot);
   bar.innerHTML = '🎧 Hearing <b>' + rbEsc(rbSlotText(currentSlot)) + '</b>' + (e ? ' (' + rbEsc(rbAmpLabel(e.amp)) + ')' : '')
     + ' — play away, nothing is saved. <span class="rb-keys">➜ keep it · 🎧 another · '
     + '<button class="matrix-close-btn" id="rb-back">Back to ' + rbEsc(rbSlotText(rbOrigin)) + '</button></span>';
@@ -83,8 +83,8 @@ function rbFillSelect(sel, items, allLabel) {
 
 function rbBuildFilters() {
   var used = {}, cabs = {}, mics = {};
-  for (var s = 0; s <= MAX_SLOT; s++) {
-    var e = rackCatalog.slots[s]; if (!e) continue;
+  for (var s = 0; s <= MAX_NAV_SLOT; s++) {
+    var e = rbEntry(s); if (!e) continue;
     if (e.amp) used[e.amp] = true; if (e.cab) cabs[e.cab] = true; if (e.mic) mics[e.mic] = true;
   }
   // Amps in the rack's own list order; only ones actually used in the bank.
@@ -101,6 +101,12 @@ function rbBuildFilters() {
 // CLEAR brings them all back. Every slot listed (build 156).
 // build 156: every slot is listed — any name could be a real patch ("Empty Nest").
 function rbIsEmpty(e) { return !e; }
+// build 160: user slots from the live Rack Catalog, factory (a1-z4) from the
+// shipped FACTORY_CATALOG (factory-catalog.js) — never read from the rack.
+function rbEntry(slot) {
+  if (slot <= MAX_SLOT) return rackCatalog.slots[slot];
+  return (typeof FACTORY_CATALOG !== 'undefined') ? FACTORY_CATALOG[slot] : null;
+}
 function rbRender() {
   var ov = document.getElementById('rig-browser');
   if (!ov || !ov.classList.contains('open')) return;
@@ -109,15 +115,17 @@ function rbRender() {
       fm = document.getElementById('rb-mic').value;
   var active = !!(q || fa || fc || fm), shown = 0;
   var html = '<div class="rb-row rb-head"><span>Slot</span><span>Patch</span><span>Amp</span><span>Cab</span><span>Mic</span><span></span></div>';
-  for (var slot = 0; slot <= MAX_SLOT; slot++) {
-    var e = rackCatalog.slots[slot];
+  var shownUser = 0, divided = false;
+  for (var slot = 0; slot <= MAX_NAV_SLOT; slot++) {
+    var e = rbEntry(slot);
     if (rbIsEmpty(e)) continue;
     var amp = rbAmpLabel(e.amp);
     if (active) {
       var hay = (e.n + ' ' + amp + ' ' + (e.cab || '') + ' ' + (e.mic || '')).toLowerCase();
       if (!((!q || hay.indexOf(q) >= 0) && (!fa || e.amp === fa) && (!fc || e.cab === fc) && (!fm || e.mic === fm))) continue;
     }
-    shown++;
+    if (slot > MAX_SLOT && !divided) { divided = true; html += '<div class="rb-div">FACTORY PATCHES (a1–z4)</div>'; }
+    shown++; if (slot <= MAX_SLOT) shownUser++;
     var cls = 'rb-row rb-c' + (slot === currentSlot ? ' cur' : '') + (slot === rbOrigin ? ' org' : '')
       + (rbOrigin !== null && slot === currentSlot ? ' aud' : '');
     html += '<div class="' + cls + '" data-slot="' + slot + '">'
@@ -131,8 +139,8 @@ function rbRender() {
   }
   if (!shown) html += '<div class="rb-none">' + (active ? 'No patches match.' : 'No patches in the catalog yet.') + '</div>';
   document.getElementById('rb-grid').innerHTML = html;
-  document.getElementById('rb-count').textContent = active ? (shown + ' match' + (shown === 1 ? '' : 'es')) : (shown + ' patches');
-  document.getElementById('rb-status').textContent = 'All ' + (MAX_SLOT + 1) + ' user slots checked this session.';
+  document.getElementById('rb-count').textContent = (active ? (shown + ' match' + (shown === 1 ? '' : 'es')) : (shown + ' patches')) + ' (' + shownUser + ' user · ' + (shown - shownUser) + ' factory)';
+  document.getElementById('rb-status').textContent = 'All ' + (MAX_SLOT + 1) + ' user slots checked this session · factory patches built in.';
   var cur = document.querySelector('#rb-grid .rb-c.cur');
   if (cur && !active && !rbScrolled) { cur.scrollIntoView({ block: 'center' }); rbScrolled = true; }
 }
