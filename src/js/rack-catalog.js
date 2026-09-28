@@ -78,6 +78,7 @@ function rackCatalogPut(slot, body) {
   rackCatalog.slots[slot] = e;
   rcFresh[slot] = true;
   rcSave();
+  if (typeof rigBrowserRefresh === 'function') rigBrowserRefresh();
   appLog('Rack catalog: ' + slotLabel(slot) + ' = "' + e.n + '" amp=' + e.amp + ' cab=' + e.cab + ' mic=' + e.mic);
 }
 function rackCatalogCount() {
@@ -120,7 +121,6 @@ async function rcTick() {
       else { rcFresh[slot] = true; appLog('Rack catalog: ' + slotLabel(slot) + ' — no response, skipped this session'); }
     } catch (e) { appLog('Rack catalog read error: ' + e.message); }
     rcReading = false;
-    if (typeof setStatus === 'function' && rackCatalogCount() % 13 === 0) setStatus('Rack catalog: ' + rackCatalogCount() + ' of ' + (MAX_SLOT + 1) + ' slots');
     await new Promise(function(r) { setTimeout(r, EXPORT_SLOT_GAP_MS); });
   }
   rcTimer = setTimeout(rcTick, RC_TICK_MS);
