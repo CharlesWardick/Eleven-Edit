@@ -95,44 +95,46 @@ function rbBuildFilters() {
     MIC_TYPE_NAMES.filter(function(m) { return mics[m]; }).map(function(m) { return [m, m]; }), 'All mics');
 }
 
+// build 155: a LIST, one row per slot (Slot | Name | Amp | Cab | Mic). No search =
+// every used slot (scroll, hear, go); any search/filter = only the matches;
+// CLEAR brings them all back. Empty slots never listed.
+function rbIsEmpty(e) { return !e || !e.n || /^-(empty|unused)-/i.test(e.n); }
 function rbRender() {
   var ov = document.getElementById('rig-browser');
   if (!ov || !ov.classList.contains('open')) return;
   var q  = document.getElementById('rb-q').value.trim().toLowerCase();
   var fa = document.getElementById('rb-amp').value, fc = document.getElementById('rb-cab').value,
       fm = document.getElementById('rb-mic').value;
-  var active = !!(q || fa || fc || fm), hits = 0;
-  var grid = document.getElementById('rb-grid');
-  var html = '<div></div><div class="rb-colh">1</div><div class="rb-colh">2</div><div class="rb-colh">3</div><div class="rb-colh">4</div>';
-  for (var b = 0; b < 26; b++) {
-    html += '<div class="rb-bk">' + BANKS[b] + '</div>';
-    for (var p = 0; p < 4; p++) {
-      var slot = b * 4 + p, e = rackCatalog.slots[slot];
-      var name = e ? e.n : ((typeof patchNameCache !== 'undefined' && patchNameCache[slot]) || '');
-      var amp  = e ? rbAmpLabel(e.amp) : '';
-      var fresh = (typeof rcFresh !== 'undefined') && rcFresh[slot];
-      var cls = 'rb-c' + (slot === currentSlot ? ' cur' : '') + (slot === rbOrigin ? ' org' : '') + (rbOrigin !== null && slot === currentSlot ? ' aud' : '');
-      if (active) {
-        var hay = (name + ' ' + amp + ' ' + (e ? (e.cab || '') + ' ' + (e.mic || '') : '')).toLowerCase();
-        var hit = !!e && (!q || hay.indexOf(q) >= 0) && (!fa || e.amp === fa) && (!fc || e.cab === fc) && (!fm || e.mic === fm);
-        cls += hit ? ' hit' : ' miss'; if (hit) hits++;
-      }
-      var tip = e ? (name + '\nAmp: ' + amp + '\nCab: ' + (e.cab || '?') + '\nMic: ' + (e.mic || '?')) : name;
-      html += '<div class="' + cls + '" data-slot="' + slot + '" title="' + tip.replace(/"/g, '&quot;') + '">'
-        + '<div class="rb-n">' + rbEsc(name || '—') + '</div>'
-        + '<div class="rb-a">' + (e ? rbEsc(amp) + (fresh ? '' : ' <i>·</i>') : '<i>reading…</i>') + '</div>'
-        + '<div class="rb-ic"><span class="rb-ear" title="Hear it — browser stays open">🎧</span>'
-        + '<span class="rb-go" title="Go to it — closes the browser">➜</span></div></div>';
+  var active = !!(q || fa || fc || fm), shown = 0;
+  var html = '<div class="rb-row rb-head"><span>Slot</span><span>Patch</span><span>Amp</span><span>Cab</span><span>Mic</span><span></span></div>';
+  for (var slot = 0; slot <= MAX_SLOT; slot++) {
+    var e = rackCatalog.slots[slot];
+    if (rbIsEmpty(e)) continue;
+    var amp = rbAmpLabel(e.amp);
+    if (active) {
+      var hay = (e.n + ' ' + amp + ' ' + (e.cab || '') + ' ' + (e.mic || '')).toLowerCase();
+      if (!((!q || hay.indexOf(q) >= 0) && (!fa || e.amp === fa) && (!fc || e.cab === fc) && (!fm || e.mic === fm))) continue;
     }
+    shown++;
+    var cls = 'rb-row rb-c' + (slot === currentSlot ? ' cur' : '') + (slot === rbOrigin ? ' org' : '')
+      + (rbOrigin !== null && slot === currentSlot ? ' aud' : '');
+    html += '<div class="' + cls + '" data-slot="' + slot + '">'
+      + '<span class="rb-sl">' + slotLabel(slot) + '</span>'
+      + '<span class="rb-n">' + rbEsc(e.n) + '</span>'
+      + '<span class="rb-a">' + rbEsc(amp) + '</span>'
+      + '<span class="rb-x">' + rbEsc(e.cab || '') + '</span>'
+      + '<span class="rb-x">' + rbEsc(e.mic || '') + '</span>'
+      + '<span class="rb-ic"><span class="rb-ear" title="Hear it — browser stays open">🎧</span>'
+      + '<span class="rb-go" title="Go to it — closes the browser">➜</span></span></div>';
   }
-  grid.innerHTML = html;
-  document.getElementById('rb-count').textContent = active ? (hits + ' match' + (hits === 1 ? '' : 'es')) : '';
-  var n = (typeof rackCatalogCount === 'function') ? rackCatalogCount() : 0;
-  document.getElementById('rb-status').textContent = (rackCatalogMode() === 'off')
-    ? 'Rack catalog is off — showing the last saved catalog.'
-    : (n > MAX_SLOT ? 'Catalog up to date — all ' + (MAX_SLOT + 1) + ' user slots checked this session.'
-                    : 'Checking the rack in the background: ' + n + ' of ' + (MAX_SLOT + 1) + ' (· = not re-checked yet this session).');
+  if (!shown) html += '<div class="rb-none">' + (active ? 'No patches match.' : 'No patches in the catalog yet.') + '</div>';
+  document.getElementById('rb-grid').innerHTML = html;
+  document.getElementById('rb-count').textContent = active ? (shown + ' match' + (shown === 1 ? '' : 'es')) : (shown + ' patches');
+  document.getElementById('rb-status').textContent = 'All ' + (MAX_SLOT + 1) + ' user slots checked this session.';
+  var cur = document.querySelector('#rb-grid .rb-c.cur');
+  if (cur && !active && !rbScrolled) { cur.scrollIntoView({ block: 'center' }); rbScrolled = true; }
 }
+var rbScrolled = false;
 function rbEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 function openRigBrowser() {
@@ -140,6 +142,7 @@ function openRigBrowser() {
   if (typeof pauseRollerForNameEdit === 'function') pauseRollerForNameEdit();
   if (typeof closeSlotMatrix === 'function') closeSlotMatrix();
   document.getElementById('rig-browser').classList.add('open');
+  rbScrolled = false;
   rbBuildFilters();
   rbBar();
   rbRender();
@@ -155,7 +158,7 @@ function closeRigBrowser() {
 // build 154: the open buttons stay dimmed until every user slot has been
 // checked this session (catalog Off = always usable, last saved catalog).
 function rigBrowserReady() {
-  return rackCatalogMode() === 'off' || ((typeof rackCatalogCount === 'function') && rackCatalogCount() > MAX_SLOT);
+  return (typeof rackCatalogCount === 'function') && rackCatalogCount() > MAX_SLOT;
 }
 function rbUpdateButtons() {
   var ready = rigBrowserReady(), n = (typeof rackCatalogCount === 'function') ? rackCatalogCount() : 0;

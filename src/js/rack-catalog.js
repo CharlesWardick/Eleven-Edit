@@ -21,7 +21,7 @@
 // Rack, front-panel save echo, Import, Jump List drag-drop) update the slot
 // directly (rackCatalogPut).
 //
-// Mode (localStorage 'rackCatalogMode'): 'background' (default) | 'off'.
+// Background reading only (build 155 dropped the Off/At-startup options).
 // Factory space is NOT covered yet — the silent read only addresses A1-Z4.
 // ════════════════════════════════════════════════════════════════════
 
@@ -36,9 +36,6 @@ var rcFresh = {};            // slots read or updated THIS session
 var rcLastInput = 0, rcMouseDown = false, rcReading = false, rcTimer = null, rcStartAt = 0;
 var rcDoneLogged = false;
 
-function rackCatalogMode() {
-  try { return localStorage.getItem('rackCatalogMode') || 'background'; } catch (e) { return 'background'; }
-}
 function rcLoad() {
   try {
     var o = JSON.parse(localStorage.getItem('rackCatalog') || 'null');
@@ -106,7 +103,6 @@ function rcBusy() {
 
 async function rcTick() {
   rcTimer = null;
-  if (rackCatalogMode() === 'off') return;
   if (!rcReading && !rcBusy()) {
     var slot = -1;
     for (var s = 0; s <= MAX_SLOT; s++) if (!rcFresh[s]) { slot = s; break; }
@@ -127,7 +123,7 @@ async function rcTick() {
 }
 
 function rackCatalogStart() {
-  if (rcTimer || rackCatalogMode() === 'off') return;
+  if (rcTimer) return;
   rcTimer = setTimeout(rcTick, RC_TICK_MS);
 }
 
