@@ -33,7 +33,10 @@ function rbBar() {
       + ' <button class="matrix-close-btn" id="rb-hear-cancel">Cancel</button>';
     bar.style.display = 'block'; return;
   }
-  if (rbOrigin === null) { bar.style.display = 'none'; return; }
+  if (rbOrigin === null) {   // build 154: bar is permanent (no layout jump) — idle hint
+    bar.innerHTML = '<span class="rb-idle">Hover a slot: 🎧 hear it (browser stays open) · ➜ or click to go to it</span>';
+    bar.style.display = 'block'; return;
+  }
   var e = rackCatalog.slots[currentSlot];
   bar.innerHTML = '🎧 Hearing <b>' + rbEsc(rbSlotText(currentSlot)) + '</b>' + (e ? ' (' + rbEsc(rbAmpLabel(e.amp)) + ')' : '')
     + ' — play away, nothing is saved. <span class="rb-keys">➜ keep it · 🎧 another · '
@@ -44,9 +47,9 @@ function rbHear(slot, confirmed) {
   if (rbOrigin === null && !confirmed && rbIsDirty()) { rbPendingHear = slot; rbBar(); return; }
   rbPendingHear = null;
   if (rbOrigin === null) rbOrigin = currentSlot;
-  if (slot === currentSlot && slot !== rbOrigin) { rbBack(); return; }   // 🎧 again on the one playing = stop
+  // build 154: 🎧 only ever means "hear this" — no toggle-back, and hearing the
+  // start slot stays in hearing mode. Only Back / CLOSE / Esc / ➜ end it.
   if (slot !== currentSlot) goToSlot(slot);
-  if (slot === rbOrigin) rbOrigin = null;
   rbBar(); rbRender();
 }
 function rbBack() {
@@ -133,10 +136,12 @@ function rbRender() {
 function rbEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 function openRigBrowser() {
+  if (!rigBrowserReady()) return;
   if (typeof pauseRollerForNameEdit === 'function') pauseRollerForNameEdit();
   if (typeof closeSlotMatrix === 'function') closeSlotMatrix();
   document.getElementById('rig-browser').classList.add('open');
   rbBuildFilters();
+  rbBar();
   rbRender();
   var q = document.getElementById('rb-q'); q.focus(); q.select();
 }
@@ -147,7 +152,22 @@ function closeRigBrowser() {
   document.getElementById('rig-browser').classList.remove('open');
 }
 // Called by rack-catalog.js whenever a slot updates.
+// build 154: the open buttons stay dimmed until every user slot has been
+// checked this session (catalog Off = always usable, last saved catalog).
+function rigBrowserReady() {
+  return rackCatalogMode() === 'off' || ((typeof rackCatalogCount === 'function') && rackCatalogCount() > MAX_SLOT);
+}
+function rbUpdateButtons() {
+  var ready = rigBrowserReady(), n = (typeof rackCatalogCount === 'function') ? rackCatalogCount() : 0;
+  ['btn-rig-browser-top', 'btn-rig-browser'].forEach(function(id) {
+    var b = document.getElementById(id); if (!b) return;
+    b.classList.toggle('rb-wait', !ready);
+    b.title = ready ? 'Rig Browser — find a patch by name, amp, cab or mic'
+                    : 'Rig Browser — checking the rack… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots';
+  });
+}
 function rigBrowserRefresh() {
+  rbUpdateButtons();
   var ov = document.getElementById('rig-browser');
   if (ov && ov.classList.contains('open')) { rbBuildFilters(); rbRender(); }
 }
@@ -177,6 +197,7 @@ function rigBrowserRefresh() {
     var ov = document.getElementById('rig-browser');
     if (e.key === 'Escape' && ov.classList.contains('open')) { e.preventDefault(); e.stopPropagation(); closeRigBrowser(); }
   }, true);
+  rbUpdateButtons();
   ['btn-rig-browser-top', 'btn-rig-browser'].forEach(function(id) {
     var b = document.getElementById(id); if (b) b.addEventListener('click', function(e) { e.stopPropagation(); openRigBrowser(); });
   });

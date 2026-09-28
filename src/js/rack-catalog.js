@@ -118,7 +118,7 @@ async function rcTick() {
     try {
       var res = await readSlotBodySilent(slot);
       if (res && res.body) rackCatalogPut(slot, res.body);
-      else { rcFresh[slot] = true; appLog('Rack catalog: ' + slotLabel(slot) + ' — no response, skipped this session'); }
+      else { rcFresh[slot] = true; if (typeof rigBrowserRefresh === 'function') rigBrowserRefresh(); appLog('Rack catalog: ' + slotLabel(slot) + ' — no response, skipped this session'); }
     } catch (e) { appLog('Rack catalog read error: ' + e.message); }
     rcReading = false;
     await new Promise(function(r) { setTimeout(r, EXPORT_SLOT_GAP_MS); });
