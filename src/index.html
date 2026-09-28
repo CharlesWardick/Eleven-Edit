@@ -1570,7 +1570,7 @@
   .rb-head { color: var(--accent); font-weight: bold; font-size: 11px; letter-spacing: .5px; position: sticky; top: 0; background: #1a1a1a; z-index: 1; }
   .rb-c { cursor: pointer; }
   .rb-c:hover { background: #1f1f1f; border-color: var(--accent-dim); }
-  .rb-c.cur { outline: 1px solid var(--accent); }
+  .rb-c.cur { outline: 1px solid var(--accent); outline-offset: -1px; }   /* build 158: inside the row, not under the sticky header */
   .rb-sl { color: var(--accent); font-weight: bold; }
   .rb-n { color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rb-a { color: var(--green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1583,7 +1583,7 @@
   .rb-ic span:hover { color: var(--accent); }
   .rb-c.aud { border-color: var(--accent); background: #2a2110; }
   .rb-c.aud .rb-ear { color: var(--accent); }
-  .rb-c.org { outline: 1px dashed var(--accent-dim); }
+  .rb-c.org { outline: 1px dashed var(--accent-dim); outline-offset: -1px; }
   .rb-wait { opacity: .35; cursor: default !important; }
   #rb-bar .rb-idle { color: #8a8a8a; }
   #rb-bar { flex-shrink: 0; display: block; height: 24px; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; padding-top: 0 !important; padding-bottom: 0 !important; margin: 8px 14px 0; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 5px;
