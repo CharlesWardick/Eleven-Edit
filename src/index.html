@@ -1550,6 +1550,7 @@
   }
   #rig-browser.open { display: flex; }
   #rig-browser .matrix-header { justify-content: flex-start; flex-wrap: wrap; }
+  #rig-browser .matrix-header, #rb-bar { flex-shrink: 0; }
   #rb-q, #rig-browser select {
     background: #111; border: 1px solid #555; border-radius: 4px; color: #ddd; padding: 5px 7px; font-size: 12px;
   }
@@ -1581,7 +1582,7 @@
   .rb-c.org { outline: 1px dashed var(--accent-dim); }
   .rb-wait { opacity: .35; cursor: default !important; }
   #rb-bar .rb-idle { color: #8a8a8a; }
-  #rb-bar { display: block; height: 24px; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; padding-top: 0 !important; padding-bottom: 0 !important; margin: 8px 14px 0; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 5px;
+  #rb-bar { flex-shrink: 0; display: block; height: 24px; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; padding-top: 0 !important; padding-bottom: 0 !important; margin: 8px 14px 0; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 5px;
     background: #221a0c; font-size: 12px; color: #ddd; }
   #rb-bar b { color: var(--accent); }
   #rb-bar .rb-keys { float: right; color: #bbb; }
@@ -4094,7 +4095,7 @@ var matrixPickerResolve = null;
 // Sets both the header title and the footer scope note together — one
 // call site instead of two, so the two never drift out of sync.
 function setMatrixScopeText(title) {
-  document.querySelector('.matrix-title').textContent = title;
+  document.querySelector('#slot-matrix .matrix-title').textContent = title;
   var note = document.getElementById('matrix-scope-note');
   if (note) note.textContent = matrixSpace === 1
     ? 'Factory patches a1–z4 (104 slots, read-only — cannot be saved to directly)'

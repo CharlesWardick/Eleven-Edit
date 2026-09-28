@@ -97,8 +97,9 @@ function rbBuildFilters() {
 
 // build 155: a LIST, one row per slot (Slot | Name | Amp | Cab | Mic). No search =
 // every used slot (scroll, hear, go); any search/filter = only the matches;
-// CLEAR brings them all back. Empty slots never listed.
-function rbIsEmpty(e) { return !e || !e.n || /^-(empty|unused)-/i.test(e.n); }
+// CLEAR brings them all back. Every slot listed (build 156).
+// build 156: every slot is listed — any name could be a real patch ("Empty Nest").
+function rbIsEmpty(e) { return !e; }
 function rbRender() {
   var ov = document.getElementById('rig-browser');
   if (!ov || !ov.classList.contains('open')) return;
