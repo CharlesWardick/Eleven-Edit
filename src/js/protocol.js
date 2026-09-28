@@ -1236,7 +1236,7 @@ function fracFor(v, raw) {
 // Parametric EQ Gain (build 147, walker-verified LF + LMF 128/128): plain linear
 // on the rack's v/128 grid (127 pinned to max) for ALL four bands. LF/HF
 // (-24..+12) have no exact 0.0 step; LMF/HMF (-18..+18) land 0.0 at 64.
-function peqGainText(v, minDb, maxDb) { return fmtDbSigned(minDb + (maxDb - minDb) * fracFromV127(v)); }
+function peqGainText(v, minDb, maxDb, f) { return fmtDbSigned(minDb + (maxDb - minDb) * (f === undefined ? fracFromV127(v) : f)); }
 function fmtDbSigned(db) {
   let r = Math.floor(db * 10 + 0.5 + 1e-9) / 10;
   if (Math.abs(r) < 0.05) r = 0;
@@ -2434,11 +2434,11 @@ const FX1_MODELS = [
     rows: [
       { group:'LF', rows: [
           [ {label:'Gain', lo:0x02, bandColor: 'var(--red-hot)',
-              display: function(v) { return peqGainText(v, -24, 12); }},
+              display: function(v, f) { return peqGainText(v, -24, 12, f); }},
             {label:'Freq', lo:0x03, bandColor: 'var(--red-hot)',
-              display: function(v) { return eqFreqDisplay(20 * Math.pow(2000 / 20, fracFromV127(v))); }} ],
+              display: function(v, f) { return eqFreqDisplay(20 * Math.pow(2000 / 20, (f === undefined ? fracFromV127(v) : f))); }} ],
           [ {label:'Q',    lo:0x04, bandColor: 'var(--red-hot)',
-              display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }},
+              display: function(v, f) { return (0.2 * Math.pow(50, (f === undefined ? fracFromV127(v) : f))).toFixed(1); }},
             {label:'Type', lo:0x05, select:true, wrapCycle:true, options: [
               {label:'Low Shelf',   v127:0},
               {label:'Peaking',     v127:25},
@@ -2450,29 +2450,29 @@ const FX1_MODELS = [
       },
       { group:'LMF', rows: [
           [ {label:'Gain', lo:0x06, bandColor: 'var(--accent)',
-              display: function(v) { return peqGainText(v, -18, 18); }},
+              display: function(v, f) { return peqGainText(v, -18, 18, f); }},
             {label:'Freq', lo:0x07, bandColor: 'var(--accent)',
-              display: function(v) { return eqFreqDisplay(100 * Math.pow(100, fracFromV127(v))); }} ],
+              display: function(v, f) { return eqFreqDisplay(100 * Math.pow(100, (f === undefined ? fracFromV127(v) : f))); }} ],
           [ {label:'Q',    lo:0x08, bandColor: 'var(--accent)',
-              display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }} ]
+              display: function(v, f) { return (0.2 * Math.pow(50, (f === undefined ? fracFromV127(v) : f))).toFixed(1); }} ]
         ]
       },
       { group:'HMF', rows: [
           [ {label:'Gain', lo:0x09, bandColor: 'var(--green)',
-              display: function(v) { return peqGainText(v, -18, 18); }},
+              display: function(v, f) { return peqGainText(v, -18, 18, f); }},
             {label:'Freq', lo:0x0A, bandColor: 'var(--green)',
-              display: function(v) { return eqFreqDisplay(200 * Math.pow(100, fracFromV127(v))); }} ],
+              display: function(v, f) { return eqFreqDisplay(200 * Math.pow(100, (f === undefined ? fracFromV127(v) : f))); }} ],
           [ {label:'Q',    lo:0x0B, bandColor: 'var(--green)',
-              display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }} ]
+              display: function(v, f) { return (0.2 * Math.pow(50, (f === undefined ? fracFromV127(v) : f))).toFixed(1); }} ]
         ]
       },
       { group:'HF', rows: [
           [ {label:'Gain', lo:0x0C, bandColor: '#3f8fe0',
-              display: function(v) { return peqGainText(v, -24, 12); }},
+              display: function(v, f) { return peqGainText(v, -24, 12, f); }},
             {label:'Freq', lo:0x0D, bandColor: '#3f8fe0',
-              display: function(v) { return eqFreqDisplay(200 * Math.pow(100, fracFromV127(v))); }} ],
+              display: function(v, f) { return eqFreqDisplay(200 * Math.pow(100, (f === undefined ? fracFromV127(v) : f))); }} ],
           [ {label:'Q',    lo:0x0E, bandColor: '#3f8fe0',
-              display: function(v) { return (0.2 * Math.pow(50, fracFromV127(v))).toFixed(1); }},
+              display: function(v, f) { return (0.2 * Math.pow(50, (f === undefined ? fracFromV127(v) : f))).toFixed(1); }},
             {label:'Type', lo:0x0F, select:true, wrapCycle:true, options: [
               {label:'High Shelf',   v127:0},
               {label:'Peaking',      v127:25},
@@ -2484,7 +2484,7 @@ const FX1_MODELS = [
       },
       { rows: [
           [ {label:'Output', lo:0x10, bandColor: 'var(--red-hot)',
-              display: function(v) { return eqSliderDb(v, -24, 24); }} ]
+              display: function(v, f) { return eqSliderDb(v, -24, 24); }} ]
         ]
       }
     ]

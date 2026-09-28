@@ -2633,7 +2633,19 @@ var fxHostBuildSeq = 0;
 // for why a detached fragment needs this instead of the normal lookup.
 // No paint-buffering needed here: nothing in a detached fragment is ever
 // visible, so there's no flash to prevent, just plain direct writes.
+// Build 148: the rack's exact position for the reply being routed (between-step
+// values saved on the rack's front panel), else null = on the v/128 grid. Kept on
+// the knob wrap as data-frac so the graph can read it; local edits clear it.
+function fxHostFracNow(val) {
+  return (typeof lastParamFullRaw !== 'undefined' && lastParamFullRaw !== null) ? fracFor(val, lastParamFullRaw) : null;
+}
+function fxHostSetFrac(wrap, fr) { if (fr === null) delete wrap.dataset.frac; else wrap.dataset.frac = String(fr); }
+function fxHostCellText(cell, val, fr) {
+  const f = (fr === null) ? undefined : fr;
+  return (cell && typeof cell.display === 'function') ? cell.display(val, f) : valDisplay(val, f);
+}
 function paintFxHostCellIntoRefs(entry, cell, model, loHex, val) {
+  const fr = fxHostFracNow(val);
   if (!entry) return;
   if (entry.kind === 'sync') {
     const idx = syncIndexFromV127(val);
@@ -2663,11 +2675,12 @@ function paintFxHostCellIntoRefs(entry, cell, model, loHex, val) {
   if (entry.wrap) {
     entry.wrap.dataset.orig  = model ? blockBaselineSetIfUnset(openFxHostSlot, model.mid, loHex, val) : val;
     entry.wrap.dataset.value = val;
+    fxHostSetFrac(entry.wrap, fr);
     if (entry.kind === 'slider') drawEqSlider(entry.wrap.querySelector('canvas'), val, entry.wrap, cell.min, cell.max, cell.ticks, cell.linear);
     else                         drawKnob(entry.wrap.querySelector('canvas'), val);
   }
   if (entry.valEl) {
-    entry.valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);
+    entry.valEl.textContent = fxHostCellText(cell, val, fr);
   }
 }
 
@@ -2675,6 +2688,7 @@ function paintFxHostCellIntoRefs(entry, cell, model, loHex, val) {
 // dropdown/toggle pick. Looks up cell kind (knob/toggle/sync) against the
 // current model so the right widget gets updated.
 function updateFxHostKnob(paramLo, val) {
+  const fr = fxHostFracNow(val);
   if (fxHostPendingBuild) {
     const loHexPending = paramLo.toString(16).padStart(2,'0');
     let pendingCell = null;
@@ -2746,6 +2760,7 @@ function updateFxHostKnob(paramLo, val) {
     // fxBaseline, which reset on every model switch since it had no mid key).
     wrap.dataset.orig  = model ? blockBaselineSetIfUnset(openFxHostSlot, model.mid, loHex, val) : val;
     wrap.dataset.value = val;
+    fxHostSetFrac(wrap, fr);
     deferFxHostPaintOrRun(function() {
       if (cell && cell.slider) drawEqSlider(wrap.querySelector('canvas'), val, wrap, cell.min, cell.max, cell.ticks, cell.linear);
       else                     drawKnob(wrap.querySelector('canvas'), val);
@@ -2753,7 +2768,7 @@ function updateFxHostKnob(paramLo, val) {
   }
   if (valEl) {
     deferFxHostPaintOrRun(function() {
-      valEl.textContent = (cell && typeof cell.display === 'function') ? cell.display(val) : valDisplay(val);
+      valEl.textContent = fxHostCellText(cell, val, fr);
     });
   }
   if (fxHostArrivalGate) fxHostArrivalGate.markSeen(paramLo);

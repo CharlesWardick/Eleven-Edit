@@ -114,7 +114,14 @@ function peqgV(lo, orig) {
   if (s === undefined || s === '') s = w.dataset.value;
   var v = parseInt(s, 10); return isNaN(v) ? null : v;
 }
-function peqgVal(lo, orig) { var v = peqgV(lo, orig), t = peqgTable(lo); return (v === null || !t) ? null : t[v]; }
+// build 148: exact rack position (data-frac) for the LIVE value, else the table step.
+function peqgFrac(lo) { var w = peqgWrap(lo), f = w ? parseFloat(w.dataset.frac) : NaN; return isNaN(f) ? undefined : f; }
+function peqgVal(lo, orig) {
+  var v = peqgV(lo, orig), t = peqgTable(lo); if (v === null || !t) return null;
+  var f = orig ? undefined : peqgFrac(lo), c = f === undefined ? null : peqgCell(lo);
+  if (c) { var n = peqgNum(c.display(v, f)); if (n !== null) return n; }
+  return t[v];
+}
 function peqgTypeSel(band) { return band.type === null ? null : document.getElementById('fxhost-sel-' + peqgHex(band.type)); }
 function peqgTypeLabel(band, orig) {
   var sel = peqgTypeSel(band); if (!sel) return 'Peaking';
@@ -508,7 +515,7 @@ function peqgStrip() {
     var lo = parseInt(box.dataset.lo, 10), v = (lo in offG) ? offG[lo] : peqgV(lo), c = peqgCell(lo);
     var bb = null; PEQG_BANDS.forEach(function(x) { if (x.g === lo) bb = x; });
     var br = bb ? peqgFilters(bb) : null; box.disabled = !!(br && br.gainless);   // build 127
-    box.value = (v !== null && c) ? c.display(v) : '--';
+    box.value = (v !== null && c) ? c.display(v, (lo in offG) ? undefined : peqgFrac(lo)) : '--';
   });
   g.querySelectorAll('select.peqg-type').forEach(function(s) {
     var src = peqgTypeSel(PEQG_BANDS[parseInt(s.dataset.b, 10)]);
