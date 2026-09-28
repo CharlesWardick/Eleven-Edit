@@ -1571,6 +1571,19 @@
   .rb-c.hit .rb-a { color: var(--green); }
   .rb-c.miss { opacity: .25; }
   #rb-status { color: #9a9a9a; font-size: 11px; margin-top: 8px; }
+  .rb-c { position: relative; }
+  .rb-ic { position: absolute; right: 3px; top: 3px; display: none; gap: 3px; }
+  .rb-c:hover .rb-ic, .rb-c.aud .rb-ic { display: flex; }
+  .rb-ic span { width: 22px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; cursor: pointer; color: #ccc; background: linear-gradient(180deg, #333a44, #1a1e25); border: 1px solid #0c0f14; }
+  .rb-ic span:hover { color: var(--accent); }
+  .rb-c.aud { border-color: var(--accent); background: #2a2110; opacity: 1; }
+  .rb-c.aud .rb-ear { color: var(--accent); }
+  .rb-c.org { outline: 1px dashed var(--accent-dim); }
+  #rb-bar { display: none; margin-bottom: 8px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 5px;
+    background: #221a0c; font-size: 12px; color: #ddd; }
+  #rb-bar b { color: var(--accent); }
+  #rb-bar .rb-keys { float: right; color: #bbb; }
   .matrix-header {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-dim);
@@ -3465,6 +3478,7 @@
     <button class="matrix-close-btn" id="rb-close">CLOSE</button>
   </div>
   <div id="rb-scroll">
+    <div id="rb-bar"></div>
     <div id="rb-grid"></div>
     <div id="rb-status"></div>
   </div>

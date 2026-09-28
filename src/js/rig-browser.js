@@ -11,8 +11,57 @@
 // mic) and amp / cab / mic filters. Matches light green, the rest fade.
 // Click a slot = go to it (browser closes). Data = rack-catalog.js; a slot
 // the catalog hasn't read yet shows the Jump List name + "reading…".
-// Hear (🎧) / Go (➜) hover icons come in step 3.
+// Hear (🎧, build 153) = recall that slot but KEEP the browser open; the slot
+// you came from is remembered. Go (➜ or click) = go there and close. CLOSE /
+// Esc while hearing = back to where you came from. Hearing recalls the SAVED
+// patch, so unsaved edits on the origin patch are lost — asked first.
 // ════════════════════════════════════════════════════════════════════
+
+var rbOrigin = null;        // slot we came from while hearing, else null
+var rbPendingHear = null;   // slot awaiting the unsaved-edits answer
+
+function rbIsDirty() { var b = document.getElementById('btn-save-menu'); return !!(b && b.classList.contains('green')); }
+function rbSlotText(slot) {
+  var e = rackCatalog.slots[slot];
+  return slotLabel(slot) + ' — ' + ((e && e.n) || (typeof patchNameCache !== 'undefined' && patchNameCache[slot]) || '');
+}
+function rbBar() {
+  var bar = document.getElementById('rb-bar');
+  if (rbPendingHear !== null) {
+    bar.innerHTML = '<b>' + rbEsc(rbSlotText(currentSlot)) + '</b> has unsaved changes — hearing another patch loses them.'
+      + ' <button class="matrix-close-btn" id="rb-hear-anyway">Hear anyway</button>'
+      + ' <button class="matrix-close-btn" id="rb-hear-cancel">Cancel</button>';
+    bar.style.display = 'block'; return;
+  }
+  if (rbOrigin === null) { bar.style.display = 'none'; return; }
+  var e = rackCatalog.slots[currentSlot];
+  bar.innerHTML = '🎧 Hearing <b>' + rbEsc(rbSlotText(currentSlot)) + '</b>' + (e ? ' (' + rbEsc(rbAmpLabel(e.amp)) + ')' : '')
+    + ' — play away, nothing is saved. <span class="rb-keys">➜ keep it · 🎧 another · '
+    + '<button class="matrix-close-btn" id="rb-back">Back to ' + rbEsc(rbSlotText(rbOrigin)) + '</button></span>';
+  bar.style.display = 'block';
+}
+function rbHear(slot, confirmed) {
+  if (rbOrigin === null && !confirmed && rbIsDirty()) { rbPendingHear = slot; rbBar(); return; }
+  rbPendingHear = null;
+  if (rbOrigin === null) rbOrigin = currentSlot;
+  if (slot === currentSlot && slot !== rbOrigin) { rbBack(); return; }   // 🎧 again on the one playing = stop
+  if (slot !== currentSlot) goToSlot(slot);
+  if (slot === rbOrigin) rbOrigin = null;
+  rbBar(); rbRender();
+}
+function rbBack() {
+  var o = rbOrigin; rbOrigin = null; rbPendingHear = null;
+  if (o !== null && o !== currentSlot) goToSlot(o);
+  rbBar(); rbRender();
+}
+function rbGo(slot) {
+  rbOrigin = null; rbPendingHear = null;
+  document.getElementById('rig-browser').classList.remove('open');
+  rbBar();
+  if (slot !== currentSlot) goToSlot(slot);
+  // Land on the Amp view: close whatever effect panel is open.
+  var open = document.querySelector('.chain-open.panel-open'); if (open) open.click();
+}
 
 function rbAmpLabel(key) {
   var a = key && AMP_SELECT_BY_KEY[key];
@@ -59,7 +108,7 @@ function rbRender() {
       var name = e ? e.n : ((typeof patchNameCache !== 'undefined' && patchNameCache[slot]) || '');
       var amp  = e ? rbAmpLabel(e.amp) : '';
       var fresh = (typeof rcFresh !== 'undefined') && rcFresh[slot];
-      var cls = 'rb-c' + (slot === currentSlot ? ' cur' : '');
+      var cls = 'rb-c' + (slot === currentSlot ? ' cur' : '') + (slot === rbOrigin ? ' org' : '') + (rbOrigin !== null && slot === currentSlot ? ' aud' : '');
       if (active) {
         var hay = (name + ' ' + amp + ' ' + (e ? (e.cab || '') + ' ' + (e.mic || '') : '')).toLowerCase();
         var hit = !!e && (!q || hay.indexOf(q) >= 0) && (!fa || e.amp === fa) && (!fc || e.cab === fc) && (!fm || e.mic === fm);
@@ -68,7 +117,9 @@ function rbRender() {
       var tip = e ? (name + '\nAmp: ' + amp + '\nCab: ' + (e.cab || '?') + '\nMic: ' + (e.mic || '?')) : name;
       html += '<div class="' + cls + '" data-slot="' + slot + '" title="' + tip.replace(/"/g, '&quot;') + '">'
         + '<div class="rb-n">' + rbEsc(name || '—') + '</div>'
-        + '<div class="rb-a">' + (e ? rbEsc(amp) + (fresh ? '' : ' <i>·</i>') : '<i>reading…</i>') + '</div></div>';
+        + '<div class="rb-a">' + (e ? rbEsc(amp) + (fresh ? '' : ' <i>·</i>') : '<i>reading…</i>') + '</div>'
+        + '<div class="rb-ic"><span class="rb-ear" title="Hear it — browser stays open">🎧</span>'
+        + '<span class="rb-go" title="Go to it — closes the browser">➜</span></div></div>';
     }
   }
   grid.innerHTML = html;
@@ -89,7 +140,12 @@ function openRigBrowser() {
   rbRender();
   var q = document.getElementById('rb-q'); q.focus(); q.select();
 }
-function closeRigBrowser() { document.getElementById('rig-browser').classList.remove('open'); }
+// CLOSE / Esc: while hearing, go back to where you came from.
+function closeRigBrowser() {
+  if (rbOrigin !== null) rbBack();
+  rbPendingHear = null; rbBar();
+  document.getElementById('rig-browser').classList.remove('open');
+}
 // Called by rack-catalog.js whenever a slot updates.
 function rigBrowserRefresh() {
   var ov = document.getElementById('rig-browser');
@@ -108,8 +164,14 @@ function rigBrowserRefresh() {
   document.getElementById('rb-grid').addEventListener('click', function(e) {
     var c = e.target.closest('.rb-c'); if (!c) return;
     var slot = parseInt(c.dataset.slot, 10); if (isNaN(slot)) return;
-    closeRigBrowser();
-    if (slot !== currentSlot && typeof goToSlot === 'function') goToSlot(slot);
+    if (e.target.closest('.rb-ear')) rbHear(slot, false);
+    else rbGo(slot);
+  });
+  document.getElementById('rb-bar').addEventListener('click', function(e) {
+    var id = e.target && e.target.id;
+    if (id === 'rb-back') rbBack();
+    else if (id === 'rb-hear-cancel') { rbPendingHear = null; rbBar(); }
+    else if (id === 'rb-hear-anyway') { var s = rbPendingHear; rbPendingHear = null; rbHear(s, true); }
   });
   document.addEventListener('keydown', function(e) {
     var ov = document.getElementById('rig-browser');
