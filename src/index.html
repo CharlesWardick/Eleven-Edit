@@ -4428,6 +4428,8 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
     saveTargetSlot = null;
     document.querySelector('.rack-save-title').textContent = action === 'rack' ? 'Save to Rack' : 'Save to Disk';
     input.value = (typeof currentPatchName !== 'undefined' ? currentPatchName : '') || '';
+    var nameLbl = document.querySelector('label[for="rack-save-input"]');
+    if (nameLbl) nameLbl.firstChild.nodeValue = action === 'rack' ? 'Patch Name ' : 'File Name ';
     var slotLine = document.querySelector('.rack-save-slot-line');
     if (slotLine) slotLine.style.display = action === 'rack' ? '' : 'none';
     // Factory heads-up INSIDE this dialog (Charlie's call, 2026-09-09): a factory
@@ -4494,11 +4496,8 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
       var targetSlot = (saveTargetSlot !== null) ? saveTargetSlot : defaultRackSaveTarget();
       if (typeof saveToRackAndDisk === 'function') saveToRackAndDisk(name, targetSlot);
     } else {
-      // Disk only — update name then capture
-      if (typeof currentPatchName !== 'undefined') currentPatchName = name;
-      var nameEl = document.getElementById('patch-name');
-      if (nameEl) nameEl.textContent = name;
-      if (typeof captureCurrentPatchNow === 'function') captureCurrentPatchNow();
+      // Disk only (build 150) — typed name = FILE name; header/rack patch name untouched.
+      if (typeof captureCurrentPatchNow === 'function') captureCurrentPatchNow(name);
     }
   }
   document.getElementById('rack-save-ok').addEventListener('click', doRackSave);

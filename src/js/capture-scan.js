@@ -9,8 +9,12 @@
 // the Scan Bank feature.
 // ════════════════════════════════════════════════════════════════════
 
-function captureCurrentPatchNow() {
+// build 150: Save to Disk's typed name is the FILE name only (the patch name is
+// the rack's, set live by the header rename). null = use the patch name.
+var pendingDiskFileName = null;
+function captureCurrentPatchNow(fileName) {
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
+  pendingDiskFileName = (typeof fileName === 'string' && fileName) ? fileName : null;
   pendingManualCapture = true;
   setStatus('Capturing current patch from hardware...');
   appLog('Manual capture requested — REQU SEND_PATCH');
@@ -20,6 +24,7 @@ function captureCurrentPatchNow() {
   setTimeout(function() {
     if (pendingManualCapture) {
       pendingManualCapture = false;
+      pendingDiskFileName = null;
       appLog('Manual capture: no response received within 4s — giving up');
       setStatus('Capture failed — no response from hardware. Check MIDI Monitor.');
     }

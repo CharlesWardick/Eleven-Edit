@@ -395,7 +395,9 @@ async function handleBulkTfxData(data, cmd) {
     // deliberate, user-named pulls, not a hardware event.
     if (pendingManualCapture) {
       pendingManualCapture = false;
-      const captureName = (currentPatchName || 'patch').replace(/[\\/:*?"<>|]/g, '_').substring(0,24);
+      const fileBase = (typeof pendingDiskFileName !== 'undefined' && pendingDiskFileName) || currentPatchName;
+      if (typeof pendingDiskFileName !== 'undefined') pendingDiskFileName = null;
+      const captureName = (fileBase || 'patch').replace(/[\\/:*?"<>|]/g, '_').substring(0,24);
       try {
         const result = await window.electronAPI.saveTfx(captureName, payload, { incrementIfExists: true });
         if (result && result.ok) {
