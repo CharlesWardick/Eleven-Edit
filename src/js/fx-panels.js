@@ -276,7 +276,14 @@ function updateDistKnob(paramLo, val) {
     // Display the current value; anchor the baseline PER MODEL (blockModelBaseline,
     // generic engine above) so it survives panel close/reopen AND a model
     // switch — first value seen for THIS model this patch becomes its truth.
-    wrap.dataset.orig  = model ? blockBaselineSetIfUnset(SLOT_DIST, model.mid, loHex, val) : val;
+    // (Still recorded even when a preset overrides the tick, so REVERT keeps
+    // targeting the patch's saved state.)
+    var base = model ? blockBaselineSetIfUnset(SLOT_DIST, model.mid, loHex, val) : val;
+    // When a block preset is loaded, its values become the tick reference (so
+    // red/green shows change from the loaded preset, not the patch).
+    var ref = (window.blockPresets && window.blockPresets.distTickRef)
+      ? window.blockPresets.distTickRef(loHex) : undefined;
+    wrap.dataset.orig  = (ref !== undefined) ? ref : base;
     wrap.dataset.value = val;
     drawKnob(wrap.querySelector('canvas'), val);
   }

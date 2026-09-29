@@ -255,7 +255,10 @@
     Object.keys(map.params).forEach(function (lo) { nameToLo[map.params[lo].name] = parseInt(lo, 10); });
     var orderedLos = Object.keys(map.params).map(function (x) { return parseInt(x, 10); }).sort(function (a, b) { return a - b; });
 
-    var applied = 0, posIdx = 0;
+    // Resolve each file param to its lo + v127 first, so the tick reference
+    // (distPresetRef) is set BEFORE updateDistKnob paints — the knobs then
+    // anchor their reference tick on the loaded preset's values.
+    var applied = [], posIdx = 0;
     parsed.params.forEach(function (pm) {
       var lo = nameToLo[pm.name];
       if (lo === undefined) { lo = orderedLos[posIdx]; }   // positional fallback
@@ -265,13 +268,17 @@
       var v127 = (pm.type === 'l' || (field && field.type === 'l'))
         ? Math.max(0, Math.min(127, pm.value | 0))
         : bpFloatToV127(map.family, pm.value);
-      if (typeof updateDistKnob === 'function') updateDistKnob(lo, v127);
-      if (typeof sendDistParamWrite === 'function') sendDistParamWrite(lo, v127);
-      applied++;
+      applied.push({ lo: lo, v127: v127 });
+    });
+    distPresetRef = {};
+    applied.forEach(function (a) { distPresetRef[a.lo.toString(16).padStart(2, '0')] = a.v127; });
+    applied.forEach(function (a) {
+      if (typeof updateDistKnob === 'function') updateDistKnob(a.lo, a.v127);
+      if (typeof sendDistParamWrite === 'function') sendDistParamWrite(a.lo, a.v127);
     });
     bpSetLoadedName('dist', filename.replace(/\.tfx$/i, ''));
     setStatus && setStatus('Loaded "' + filename.replace(/\.tfx$/i, '') + '"'
-      + (applied ? '' : ' (no matching parameters).'));
+      + (applied.length ? '' : ' (no matching parameters).'));
   }
 
   // Apply a {loHex: v127} baseline map to the current DIST model.
@@ -294,6 +301,7 @@
   function revertDist() {
     var blk = distBlock();
     if (!blk) return;
+    clearDistPresetRef();   // ticks go back to the patch baseline
     var savedMid = (typeof blockSavedModel !== 'undefined' && typeof SLOT_DIST !== 'undefined')
       ? blockSavedModel[SLOT_DIST] : undefined;
     if (savedMid === undefined) { setStatus && setStatus('No saved state captured yet — open the panel on a patch first.'); return; }
@@ -330,6 +338,7 @@
     } else {
       // Genuine patch nav or manual model change — no preset is "loaded".
       bpLoaded.dist = null;
+      clearDistPresetRef();   // ticks return to the patch baseline
       bpRefreshCaption('dist');
     }
   }
@@ -340,6 +349,16 @@
   // settings came from, so we never invent a preset source. After a real
   // file load, show that filename ("Loaded: <name>"). REVERT clears it.
   var bpLoaded = { dist: null };
+
+  // When a DIST preset is loaded, its values become the knobs' tick reference
+  // (red/green shows change from the loaded preset). {loHex: v127} or null.
+  // The patch baseline (blockModelBaseline) is untouched, so REVERT still
+  // targets the patch's saved state.
+  var distPresetRef = null;
+  function distTickRef(loHex) {
+    return (distPresetRef && distPresetRef[loHex] !== undefined) ? distPresetRef[loHex] : undefined;
+  }
+  function clearDistPresetRef() { distPresetRef = null; }
 
   function bpDistSavedName() {
     if (typeof blockSavedModel === 'undefined' || typeof SLOT_DIST === 'undefined') return null;
@@ -397,7 +416,8 @@
   window.blockPresets = {
     init: initPresetBars,
     onDistChainRefreshed: bpOnDistChainRefreshed,
-    refreshCaption: bpRefreshCaption
+    refreshCaption: bpRefreshCaption,
+    distTickRef: distTickRef
   };
 
   if (document.readyState === 'loading') {
