@@ -445,7 +445,7 @@
     bpRefreshCaption(blkKey);
   }
 
-  function buildPresetBar(blkKey, onSave, onLoad, onRevert, onStep) {
+  function buildPresetBar(blkKey, onSave, onLoad, onStep) {
     var bar = document.createElement('div');
     bar.className = 'preset-bar';
     bar.id = 'bp-bar-' + blkKey;
@@ -457,11 +457,9 @@
       + '<button class="bt-btn bp-step-btn" id="bp-prev-' + blkKey + '" title="Previous preset in the folder">−</button>'
       + '<button class="bt-btn bp-step-btn" id="bp-next-' + blkKey + '" title="Next preset in the folder">+</button>'
       + '</span>'
-      + '<button class="bt-btn" id="bp-revert-' + blkKey + '" title="Restore this block to the patch\'s saved state">↺ REVERT</button>'
       + '<span class="pname" id="bp-name-' + blkKey + '">Loaded: <b>—</b></span>';
     bar.querySelector('#bp-save-' + blkKey).addEventListener('click', onSave);
     bar.querySelector('#bp-load-' + blkKey).addEventListener('click', onLoad);
-    bar.querySelector('#bp-revert-' + blkKey).addEventListener('click', onRevert);
     bar.querySelector('#bp-prev-' + blkKey).addEventListener('click', function () { onStep(-1); });
     bar.querySelector('#bp-next-' + blkKey).addEventListener('click', function () { onStep(1); });
     return bar;
@@ -470,7 +468,10 @@
   function initPresetBars() {
     var distPanel = document.getElementById('panel-dist');
     if (distPanel && !document.getElementById('bp-bar-dist')) {
-      distPanel.appendChild(buildPresetBar('dist', exportDist, importDist, revertDist, distStep));
+      distPanel.appendChild(buildPresetBar('dist', exportDist, importDist, distStep));
+      // REVERT lives as a ↺ icon in the panel header (right of the dropdown).
+      var rev = document.getElementById('btn-dist-revert');
+      if (rev) rev.addEventListener('click', revertDist);
       bpRefreshCaption('dist');
       updateDistStepperEnabled();
     }
