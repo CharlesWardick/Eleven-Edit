@@ -291,7 +291,7 @@
     cursor: pointer; white-space: nowrap; text-align: center; flex-shrink: 0;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.10), inset 0 -4px 8px rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.45);
     transition: color 0.12s, box-shadow 0.12s;
-    width: 178px; box-sizing: border-box;
+    width: 90px; box-sizing: border-box;   /* build 162: was 178px "AUDIO ENGINE"; now short "ENABLE", pairs with MUTE (90px). The amber "Audio Path" tag + divider carries the name, matching the Auto Advance / Preset·Bank rows. */
   }
   #audiostrip .as-toggle:hover { color: #ccc; }
   #audiostrip .as-toggle:active { box-shadow: inset 0 2px 6px rgba(0,0,0,.6); }
@@ -3443,7 +3443,11 @@
      Default position is bottom (here); JS moves it under the toolbar if the
      user picks Top in Audio Setup. ══ -->
 <div id="audiostrip" class="engine-off bottom">
-  <button id="audio-engine-toggle" class="as-toggle" title="Turn the audio engine on/off">AUDIO ENGINE<span class="ind-bar"></span></button>
+  <span class="as-grp" style="gap:10px;">
+    <span class="bt-section-label" style="min-width:auto;font-size:14px;">Audio Path</span>
+    <div class="bt-sep"></div>
+    <button id="audio-engine-toggle" class="as-toggle" title="Turn audio passthrough on/off">ENABLE<span class="ind-bar"></span></button>
+  </span>
   <button id="audio-mute-btn" class="as-mute" title="Mute output">MUTE<span class="ind-bar"></span></button>
   <span class="as-grp">
     <span class="tb-label">sig</span>
