@@ -162,9 +162,28 @@ TOP BAR
   let you jump straight to any patch instead of stepping through one at
   a time.
 
-  Click directly on the patch NAME TEXT itself to rename it. A rename
-  is a real edit — it dirties the patch and isn't written to the rack
-  until you Save, just like changing a knob.
+  Click directly on the patch NAME TEXT itself to rename it. The new
+  name shows on the rack's screen right away, but like any edit it is
+  not stored in the slot until you Save to Rack (moving to another patch
+  without saving brings the old name back).
+
+  RIG BROWSER (next to the patch name; also Rig Browser... on the
+  PRESET / BANK row) — find a patch by its sound, not its name. It lists
+  every user patch (A1-Z4) and then every factory patch (a1-z4) with its
+  amp, cab and mic.
+    - Search box: matches patch name, amp, cab or mic ("800", "Green 25W",
+      "121"...). The amp / cab / mic lists narrow it further. CLEAR shows
+      everything again. Your last search is kept.
+    - 🎧 (hear) — plays that patch while the browser stays open, so you
+      can try several in a row. The bar at the top shows what is playing;
+      Back (or CLOSE / Esc) returns you to the patch you started on. If
+      that patch has unsaved changes you are asked first.
+    - ➜ or a click on the row — goes to that patch and closes the browser.
+  While it is open the rest of the app is locked. After Eleven Edit
+  starts it quietly reads your user patches in the background whenever
+  you are idle (about two minutes in all); the RIG BROWSER and Rig
+  Balancing buttons stay dimmed until that is done. Saves and imports
+  keep it up to date. Factory patches are built in.
 
   Drag and drop a .tfx: drop ONE .tfx file from Windows onto a USER slot
   in the Jump List and choose Write (saves it to that slot), Try (loads
@@ -385,8 +404,11 @@ SAVING AND LOADING
   These live in the PRESET / BANK row.
 
   SAVE (bottom left) — Save to Rack commits your current edits to a
-  slot on the hardware. Save to Disk writes a .tfx file to your
-  computer instead, without touching the rack.
+  slot on the hardware; the name you type is the patch name. Save to
+  Disk writes a .tfx file to your computer instead, without touching the
+  rack; the name you type there is only the FILE name (the patch keeps
+  its own name inside the file — rename the patch first if you want it
+  changed).
 
   Load TFX... — loads a .tfx file into hardware memory for editing (it
   does not commit to a slot until you explicitly save it there).
@@ -410,8 +432,9 @@ BACKUP AND SAFETY
   if uploads fail across the board.
 
   Rig Balancing... — a dedicated screen for leveling output volume
-  across all 104 user rigs. On opening it reads every rig's volume
-  directly (a few seconds; the rack stays on your current patch). Turn
+  across all 104 user rigs. It opens instantly with every rig's volume
+  already known (from the same background read the Rig Browser uses; the
+  button is dimmed until that has finished after startup). Turn
   the app's knob or the rack's own Rig Vol knob — both edit the selected
   row. Changes are buffered until you commit them with Save Changed, so
   you can Discard All and back out cleanly if you change your mind.
@@ -454,7 +477,8 @@ KEYBOARD SHORTCUTS
     Left / Right, Up / Down arrows — previous / next patch
     Space — start / pause Auto Advance
     T — tuner on / off
-    Esc — close the open panel (back to Amp / Cab), About or Jump List
+    Esc — close the Rig Browser, the open panel (back to Amp / Cab),
+          About or Jump List
     + / - — window zoom
 
   The ? button opens this manual.

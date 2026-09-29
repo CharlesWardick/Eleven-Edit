@@ -21,9 +21,20 @@ rack's front panel does. Read from the rack at startup; not saved per patch.
 user slot in the Jump List, then choose Write (save it to that slot), Try
 (audition it without saving), or Cancel.
 
-**Rig Balancing opens faster and quieter.** It now reads all 104 rig volumes
-directly, without stepping the rack through every patch — no front-panel
-flicker, a few seconds instead of about a minute, and no Quick/Detail choice.
+**Rig Browser.** A new way to find a patch when you don't know exactly which one
+you want: open RIG BROWSER (next to the patch name, or Rig Browser… on the
+Preset / Bank row) to see every user and factory patch in one list with its amp,
+cab and mic. Search by any of them (e.g. "800", "Green 25W", "121") or pick from
+the amp / cab / mic lists; CLEAR brings everything back. 🎧 plays a patch while the
+browser stays open, so you can audition several in a row, and Back (or CLOSE / Esc)
+returns you to where you started; ➜ or a click goes to the patch. After startup
+Eleven Edit quietly reads your user patches in the background whenever you are idle
+(about two minutes in all) and keeps the list up to date as you save or import; the
+buttons stay dimmed until it is done. Factory patches are built in.
+
+**Rig Balancing opens instantly.** It uses the same background read, so all 104
+rig volumes are already known when you open it — no front-panel flicker and no
+waiting (the button is dimmed until the read has finished after startup).
 
 **Parametric EQ graph view.** The Parametric EQ panel has a KNOBS | GRAPH switch.
 GRAPH opens a large response graph across the full panel width: drag a band's dot
@@ -66,8 +77,9 @@ like the output mutes — always reads MUTE, lit red while muted.
 
 **Exact readouts.** Knob readouts across the app now use the rack's own value
 steps, so they show what the rack's screen shows (Rig Vol, Amp Out, tone knobs,
-Gate Release and effect knobs verified against the rack), instead of occasionally being 0.1–0.2 dB
-off. In Rig Balancing you can also turn the rack's own Rig Vol knob: the
+Gate Release, Parametric EQ gain and effect knobs verified against the rack), instead of occasionally
+being 0.1–0.2 dB off. Values stored in a patch between knob steps (set on the rack's front panel) now
+read exactly in the effect panels too. In Rig Balancing you can also turn the rack's own Rig Vol knob: the
 selected row follows it, and Save Changed stores exactly what you dialed.
 
 **Chain row views: Classic or Modern.** Settings → Chain Row → View picks how the
@@ -99,6 +111,11 @@ shows how many of the 39 chain-row images a scan found: green = all, amber = som
 **Keyboard shortcuts.** T turns the tuner on/off; Esc closes the open panel
 (back to Amp / Cab) as well as About and the Jump List. Neither acts while you are
 typing in a box or have a dropdown selected.
+
+**Rename sends to the rack.** Renaming a patch in the name box now shows the new
+name on the rack's screen straight away (the patch is still unsaved until you Save
+to Rack), so Save to Disk writes it with the new name inside. In Save to Disk the
+name box is the file name only.
 
 **Smaller touches.** The version and build number show in the title bar and
 About box; the Avid-editor warning in the status bar stays on one line. Knobs
