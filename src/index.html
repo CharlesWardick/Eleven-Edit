@@ -1425,6 +1425,10 @@
   .preset-bar .bp-step { display: inline-flex; gap: 4px; }
   .preset-bar .bp-step-btn { padding: 4px 10px; font-weight: 700; min-width: 30px; }
   .preset-bar .bp-disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+  /* Anchor the PRESET bar to the bottom of the panel so it never hops when the
+     knob layout changes row count (e.g. 1-row Tri-Knob Fuzz vs 2-row DC). */
+  #panel-dist { display: flex; flex-direction: column; }
+  #panel-dist .preset-bar { margin-top: auto; }
 
   /* ══ STATUS BAR ══ */
   #statusbar {
