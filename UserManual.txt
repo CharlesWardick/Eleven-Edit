@@ -39,7 +39,7 @@ WHAT'S NEW IN v1.1.0
 --------------------------------------------------
   - Built-in audio engine: one-button ASIO/WASAPI passthrough from your
     rig to your speakers — no DAW or third-party app needed. See
-    BUILT-IN AUDIO ENGINE below.
+    BUILT-IN AUDIO below.
   - Quick Mix: a slim wet-amount slider on each active effect block, right
     in the chain row. See QUICK MIX below.
   - Chain row: AMP and CAB are now one split pill (left = AMP, right =
@@ -181,9 +181,12 @@ TOP BAR
     - ➜ or a click on the row — goes to that patch and closes the browser.
   While it is open the rest of the app is locked. After Eleven Edit
   starts it quietly reads your user patches in the background whenever
-  you are idle (about two minutes in all); the RIG BROWSER and Rig
-  Balancing buttons stay dimmed until that is done. Saves and imports
-  keep it up to date. Factory patches are built in.
+  you are idle (about two minutes in all). Until that read is done the
+  whole Preset / Bank row waits — RIG BROWSER, Rig Balancing, SAVE, Load
+  TFX, Export All Rigs and Import Rigs (and dragging a .tfx onto a slot)
+  stay dimmed so nothing competes with it, and re-enable on their own when
+  it finishes. Saves and imports keep the list up to date. Factory patches
+  are built in.
 
   Drag and drop a .tfx: drop ONE .tfx file from Windows onto a USER slot
   in the Jump List and choose Write (saves it to that slot), Try (loads
@@ -311,7 +314,7 @@ EFFECT PANELS
   Preset / Bank rows; switch to KNOBS or close the panel to get them back
   (for example, to SAVE).
 
-  SPECTRUM: with the audio engine on, a live spectrum is drawn behind the
+  SPECTRUM: with audio passthrough on, a live spectrum is drawn behind the
   curves; the SPECTRUM button turns it off. It shows the rack's final
   output after the whole chain, not the signal at the EQ's position — a
   broad guide only; use your ears for detail.
@@ -340,7 +343,7 @@ AUTO ADVANCE
   PAUSE and STOP are available at any time.
 
 
-BUILT-IN AUDIO ENGINE
+BUILT-IN AUDIO (PASSTHROUGH)
 --------------------------------------------------
 
 Eleven Edit can pass audio straight through your rig — guitar in, your
@@ -349,15 +352,15 @@ It is monitoring only: the rack makes the tone, Eleven Edit just routes the
 audio. (New in v1.1.0.)
 
 TURNING IT ON
-  The first time you run Eleven Edit it asks whether to enable the audio
-  engine. You can change this any time in Settings -> Audio Setup, under
-  "Built-in Audio Engine" (Enabled / Disabled). Disabled hides the whole
+  The first time you run Eleven Edit it asks whether to enable audio
+  passthrough. You can change this any time in Settings -> Audio Setup, under
+  "Built-in Audio Passthrough" (Enabled / Disabled). Disabled hides the whole
   feature; Enabled shows the audio bar.
 
 THE AUDIO BAR
-  When the engine is enabled, a slim bar appears (above the status bar by
-  default). It holds:
-    - AUDIO ENGINE ON / OFF — turns the passthrough on or off. ON grabs the
+  When it is enabled, a slim bar appears (above the status bar by
+  default). It leads with an amber AUDIO CONTROL label, then:
+    - ENABLE — turns the passthrough on or off. ON grabs the
       audio device; OFF fully RELEASES it, so a DAW can use the same
       interface for re-amping. Toggling is instant.
     - IN / OUT level and an input signal meter.
@@ -367,24 +370,24 @@ THE AUDIO BAR
 
 AUDIO SETUP (Settings -> Audio Setup)
   - Device Type — ASIO (recommended, low latency) or WASAPI.
-  - Audio Device — the interface to use. The engine runs input and output on
+  - Audio Device — the interface to use. Audio runs input and output on
     ONE device (one interface, one clock): pick your audio interface, or the
     Eleven Rack itself if you use it as your interface.
   - Input Mode — Mono (one input to both monitors) or Stereo, and which
     input channel(s) to use.
   - Output (Monitors) — the output pair to send to.
   - Sample Rate / Audio Buffer Size — set these HERE, not in the interface's
-    own ASIO control panel. While the engine is ON, Eleven Edit owns the
+    own ASIO control panel. While audio is ON, Eleven Edit owns the
     device and can't follow changes made in the driver's panel.
 
 START WITH IT RUNNING (optional)
-  Add the flag /AUDIOON to a desktop shortcut to launch with the engine
+  Add the flag /AUDIOON to a desktop shortcut to launch with audio passthrough
   already on — handy for a "just play guitar" shortcut. It only auto-starts
-  once you have set up a device; if the engine is Disabled, the flag is
+  once you have set up a device; if passthrough is Disabled, the flag is
   ignored. See COMMAND-LINE FLAGS for this and the other startup flags.
 
 REQUIREMENTS AND DRIVERS
-  - The engine needs the Microsoft Visual C++ runtime. The Eleven Edit installer
+  - Audio passthrough needs the Microsoft Visual C++ runtime. The Eleven Edit installer
     installs it for you automatically (it is skipped if you already have it), so
     there is nothing to do here.
   - A note on ASIO. ASIO on Windows is machine-specific — whether a driver
@@ -460,8 +463,8 @@ ABOUT / SETTINGS
     - Rig-Wide Hardware Settings — Hardware Loop Global Routing and
       Digital Output Mode, two global (not per-patch) settings that
       live here rather than in the amp/effect panels.
-    - Audio Engine — Audio Setup... opens the built-in audio passthrough
-      configuration (see BUILT-IN AUDIO ENGINE above).
+    - Audio — Audio Setup... opens the built-in audio passthrough
+      configuration (see BUILT-IN AUDIO above).
     - Chain Row — View (Classic or Modern 1–5, see CHAIN ROW) and the
       Quick Mix sliders Show checkbox.
     - Colors — Green, Red and Amber intensity. Each slider brightens or
@@ -492,7 +495,7 @@ COMMAND-LINE FLAGS (optional)
   "C:\...\Eleven Edit.exe" /AUDIOON). They are not case-sensitive. Keep a
   plain shortcut with no flags for normal use.
 
-    - /AUDIOON  Start with the built-in audio engine already running —
+    - /AUDIOON  Start with the built-in audio passthrough already running —
                 only if you have already set up an audio device, otherwise
                 it is ignored. Good for a dedicated "just play" shortcut.
     - /LOGS     Write a session log to disk for troubleshooting. Logging
@@ -566,10 +569,10 @@ TROUBLESHOOTING
     Windows 10 is unaffected. Like the upload issue above, this is the Windows
     MIDI layer, not Eleven Edit — and since most people export/import only
     when first setting up, most will never see it.
-  - Built-in audio engine shows no ASIO devices, or won't start — most
+  - Built-in audio shows no ASIO devices, or won't start — most
     often the Avid 1.1.12 driver, which fails to start ASIO on many Windows
     versions. Use Avid driver 1.1.11 instead, or switch Device Type to
-    WASAPI in Audio Setup. See BUILT-IN AUDIO ENGINE.
+    WASAPI in Audio Setup. See BUILT-IN AUDIO.
   - For anything not covered here, see the project's GitHub page for
     the full technical documentation, or open an issue there.
 

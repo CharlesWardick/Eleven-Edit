@@ -71,8 +71,9 @@ patch name, a unified green, a new two-tone "Eleven Edit" wordmark, restyled
 dialogs, and a cleaner header. The output mute buttons now read MUTE (dim
 normally, red when muted), and the Speaker Breakup slider matches the audio
 volume slider. Quick Mix sliders use the same amber ball with a grey
-saved-value tick, and no longer turn red when moved. The audio bar is scaled up to
-match its AUDIO ENGINE button, and its MUTE (mirrored in Audio Setup) now works
+saved-value tick, and no longer turn red when moved. The audio bar leads with an
+amber AUDIO CONTROL label and a compact ENABLE button (matching the Auto Advance
+and Preset / Bank rows), and its MUTE (mirrored in Audio Setup) now works
 like the output mutes — always reads MUTE, lit red while muted.
 
 **Exact readouts.** Knob readouts across the app now use the rack's own value
@@ -102,7 +103,7 @@ longer moves anything on screen; a panel taller than the window scrolls inside
 its own frame.
 
 **Redesigned Settings.** Settings is now five columns: Folders, Rig-Wide Hardware,
-Audio Engine, Chain Row and Colors. The long path lines are gone — Captures, Logs
+Audio Configuration, Chain Row and Colors. The long path lines are gone — Captures, Logs
 and Avid Graphics are buttons with a status light; click one to see its path and
 change or open it. The Logs folder can now be changed. The Avid Graphics light
 shows how many of the 39 chain-row images a scan found: green = all, amber = some
@@ -125,6 +126,20 @@ is now labelled PRESET / BANK and lines up with the AUTO ADVANCE row. New instal
 start with the Modern 4 (Glow) chain row, and in Modern views the INPUT label sits
 on a raised band matching the chosen look. The "rack not found" startup screen has
 a shorter message and the new button style.
+
+**Clearer audio wording.** The built-in passthrough is no longer called an
+"engine": the bar reads AUDIO CONTROL / ENABLE, Settings has an Audio Configuration
+column with Built-in Audio Passthrough, and Audio Setup's button is Restart Audio.
+Nothing about how it works has changed.
+
+**Preset / Bank waits for the catalog too.** SAVE, Load TFX, Export All Rigs and
+Import Rigs — and dragging a .tfx onto a slot — now stay dimmed alongside Rig
+Browser and Rig Balancing during the ~2-minute background read after startup, so
+nothing competes with it. They re-enable automatically when the read finishes.
+
+**Status messages are visible again.** Short notes (patch changes, loads, saves,
+errors and the like) now appear in the bottom status bar and clear after a few
+seconds.
 
 ---
 
