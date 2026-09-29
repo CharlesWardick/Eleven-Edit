@@ -1389,6 +1389,13 @@
   .bt-btn.green:hover { color: var(--green-hi); }
   .bt-sep { width: 1px; height: 22px; background: var(--border-dim); flex-shrink: 0; }
   #capture-path-label { font-size: 11px; color: #777; margin-left: auto; white-space: nowrap; font-family: 'Consolas', monospace; }
+  /* Block-preset PRESET bar (Part IX) — bottom of each wired FX panel */
+  .preset-bar { display: flex; align-items: center; gap: 12px; padding: 9px 16px;
+    background: #141414; border-top: 1px solid var(--border-dim); }
+  .preset-bar .preset-tag { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; font-weight: 600; }
+  .preset-bar .pname { margin-left: auto; font-size: 12px; color: var(--muted); font-style: italic;
+    max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preset-bar .pname b { color: var(--text); font-style: normal; }
 
   /* ══ STATUS BAR ══ */
   #statusbar {
@@ -5019,6 +5026,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/rack-catalog.js"></script>
 <script src="js/rig-browser.js"></script>
 <script src="js/factory-catalog.js"></script>   <!-- shipped factory catalog, build 160 -->   <!-- Rig Browser, build 152 -->   <!-- Rack catalog for the Rig Browser, build 151 -->
+<script src="js/block-presets.js"></script>   <!-- Block presets: per-FX save/load, Part IX build 167 -->
 <script src="js/app-init.js"></script>
 </body>
 </html>

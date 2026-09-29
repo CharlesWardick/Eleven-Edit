@@ -72,6 +72,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCapturesDir:   ()            => ipcRenderer.invoke('get-captures-dir'),
   loadTfxDialog:    ()            => ipcRenderer.invoke('load-tfx-dialog'),
   loadTfxBytes:     (arg)         => ipcRenderer.invoke('load-tfx-bytes', arg),
+  saveBlockPreset:  (sub, name, bytes) => ipcRenderer.invoke('save-block-preset', sub, name, bytes),
+  loadBlockPresetDialog: (sub)    => ipcRenderer.invoke('load-block-preset-dialog', sub),
   chooseCapturesDir:()            => ipcRenderer.invoke('choose-captures-dir'),
   resetCapturesDir: ()            => ipcRenderer.invoke('reset-captures-dir'),
   openPath:       (path)          => ipcRenderer.invoke('open-path', path),

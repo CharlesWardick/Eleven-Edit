@@ -300,6 +300,7 @@ function refreshDistPanelAfterChainMap() {
     const applied = model && blockCacheApply(SLOT_DIST, model.mid, updateDistKnob,
       function(lo, val) { if (typeof sendDistParamWrite === 'function') sendDistParamWrite(lo, val); });
     if (!applied) setTimeout(requestDistParams, 150);
+    if (window.blockPresets) window.blockPresets.onDistChainRefreshed();
     appLog('refreshDistPanelAfterChainMap: own switch confirmed, mid=0x'
       + distBlk.modelId.toString(16).padStart(2,'0'));
     return;
@@ -312,6 +313,7 @@ function refreshDistPanelAfterChainMap() {
     syncLoadedMarker(sel, 'dist-model-select');
     renderDistKnobs(distBlk.modelId);
     setTimeout(requestDistParams, 150);
+    if (window.blockPresets) window.blockPresets.onDistChainRefreshed();
     appLog('refreshDistPanelAfterChainMap: dropdown resync, mid=0x'
       + distBlk.modelId.toString(16).padStart(2,'0'));
     return;

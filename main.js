@@ -264,6 +264,59 @@ function getCapturesDir() {
   return defaultDir;
 }
 
+// ── Block presets (Part IX) — per-effect .tfx "Complete Controls State"
+// files, cross-compatible with the Avid Eleven Rack Editor. Kept in a
+// Presets/<EffectType>/ tree. The renderer builds the file bytes (format
+// lives in js/block-presets.js); main only does the OS dialogs + fs I/O.
+function getPresetsDir(subfolder) {
+  const base = storeGet('presetsDir', null)
+    || path.join(app.getPath('userData'), 'Presets');
+  const dir = subfolder ? path.join(base, String(subfolder).replace(/[\\/:*?"<>|]/g, '_')) : base;
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+ipcMain.handle('save-block-preset', async function(e, subfolder, suggestName, bytesArray) {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    const dir = getPresetsDir(subfolder);
+    const safe = String(suggestName || 'Preset').replace(/[\\/:*?"<>|]/g, '_').substring(0, 60);
+    const result = await dialog.showSaveDialog(win, {
+      title: 'Save Block Preset',
+      defaultPath: path.join(dir, safe + '.tfx'),
+      filters: [{ name: 'Effect Preset', extensions: ['tfx'] }]
+    });
+    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+    fs.writeFileSync(result.filePath, Buffer.from(bytesArray));
+    logWrite('Block preset saved: ' + result.filePath);
+    return { ok: true, path: result.filePath, filename: path.basename(result.filePath) };
+  } catch (err) {
+    logWrite('Block preset save error: ' + err.message);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('load-block-preset-dialog', async function(e, subfolder) {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Load Block Preset',
+      defaultPath: getPresetsDir(subfolder),
+      filters: [{ name: 'Effect Preset', extensions: ['tfx'] }],
+      properties: ['openFile']
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths.length) {
+      return { ok: false, canceled: true };
+    }
+    const fpath = result.filePaths[0];
+    const bytes = Array.from(fs.readFileSync(fpath));
+    return { ok: true, path: fpath, filename: path.basename(fpath), bytes: bytes };
+  } catch (err) {
+    logWrite('Block preset load error: ' + err.message);
+    return { ok: false, error: err.message };
+  }
+});
+
 // 7-bit decode — verified 7/12/2026, aligned with protocol.js version
 // (confirmed byte-exact against AE/EH gold standard files).
 // Previous version had a stale savePos variable and produced truncated
