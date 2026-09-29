@@ -1021,6 +1021,16 @@
   #panel-area > * { flex-grow: 1; flex-shrink: 0; }
   #panel-ampcab { display: flex; flex-direction: column; }
   #panel-ampcab > .scard { flex-grow: 1; }
+  /* Bypassed-block panel dim: an off block's panel must not look live. Dim the
+     body (controls stay editable — HW knobs can still change a bypassed block)
+     and stamp a BYPASSED tag in the header. */
+  .scard.panel-bypassed { position: relative; }
+  .scard.panel-bypassed > *:not(.scard-hdr) { opacity: 0.4; transition: opacity 0.15s; }
+  .scard.panel-bypassed::after {
+    content: 'BYPASSED'; position: absolute; top: 10px; right: 46px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    color: #ff6a6a; background: #2a1414; border: 1px solid #6a2a2a;
+    border-radius: 4px; padding: 2px 8px; pointer-events: none; }
   /* build 131: the two anchored bars become flat edge-to-edge strips matching the
      audio row (#0f0f0f, thin divider, ~44px). Negative margins escape #main's padding;
      the last one also eats #main's bottom padding so it sits on the audio row. */
@@ -3747,6 +3757,8 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
         other.style.display = '';
         other.textContent = panel.toUpperCase() + ' — effect controls (coming soon)';
       }
+      // Dim the just-opened panel if its block is bypassed.
+      if (typeof refreshPanelBypassDim === 'function') refreshPanelBypassDim();
     }
   });
 });

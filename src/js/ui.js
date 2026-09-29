@@ -2476,6 +2476,34 @@ function refreshBlockBypassDisplays() {
   });
   // Quick Mix sliders dim/activate with their block's bypass state.
   if (typeof quickMixUpdateActive === 'function') quickMixUpdateActive();
+  // Dim the open FX panel when its block is bypassed (so an off block can't
+  // masquerade as live — you'd otherwise only know from the chain row).
+  refreshPanelBypassDim();
+}
+
+// Slot -> single-effect panel element. AMP/CAB (the two-in-one block) is
+// handled separately; the FX-host slots share one panel, dimmed by whichever
+// host slot is open (openFxHostSlot).
+var PANEL_DIM_SLOTS = {};
+PANEL_DIM_SLOTS[SLOT_DIST]   = 'panel-dist';
+PANEL_DIM_SLOTS[SLOT_REVERB] = 'panel-reverb';
+PANEL_DIM_SLOTS[SLOT_WAH]    = 'panel-wah';
+PANEL_DIM_SLOTS[SLOT_VOL]    = 'panel-vol';
+PANEL_DIM_SLOTS[SLOT_LOOP]   = 'panel-fxloop';
+PANEL_DIM_SLOTS[SLOT_DELAY]  = 'panel-delay';
+
+function refreshPanelBypassDim() {
+  Object.keys(PANEL_DIM_SLOTS).forEach(function(slot) {
+    var el = document.getElementById(PANEL_DIM_SLOTS[slot]);
+    if (!el) return;
+    el.classList.toggle('panel-bypassed', blockBypass[slot] === false);
+  });
+  var fh = document.getElementById('panel-fxhost');
+  if (fh) {
+    var st = (typeof openFxHostSlot !== 'undefined' && openFxHostSlot != null)
+      ? blockBypass[openFxHostSlot] : undefined;
+    fh.classList.toggle('panel-bypassed', st === false);
+  }
 }
 
 // Click a slot label = real bypass toggle.
