@@ -186,6 +186,18 @@ function rbUpdateButtons() {
     b.title = ready ? 'Rig Browser — find a patch by name, amp, cab or mic'
                     : 'Rig Browser — checking the rack… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots';
   });
+  // build 164: the Preset/Bank rack read/write actions (SAVE, Load TFX,
+  // Export All Rigs, Import Rigs) dim until the catalog is fully read this
+  // session — same wait state as Rig Browser / Rig Balancing, so nothing
+  // competes with the background silent reads. Clicks are also blocked (guard
+  // in rigBrowserInit); drag-drop onto a slot is guarded in capture-scan.js.
+  ['btn-save-menu', 'btn-load-tfx', 'btn-export-all-rigs', 'btn-import-rigs'].forEach(function(id) {
+    var b = document.getElementById(id); if (!b) return;
+    if (b.dataset.readyTitle === undefined) b.dataset.readyTitle = b.title || '';
+    b.classList.toggle('rb-wait', !ready);
+    b.title = ready ? b.dataset.readyTitle
+                    : 'Reading the rack catalog… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots — please wait';
+  });
 }
 function rigBrowserRefresh() {
   rbUpdateButtons();
@@ -227,4 +239,14 @@ function rigBrowserRefresh() {
   ['btn-rig-browser-top', 'btn-rig-browser'].forEach(function(id) {
     var b = document.getElementById(id); if (b) b.addEventListener('click', function(e) { e.stopPropagation(); openRigBrowser(); });
   });
+  // build 164: block the Preset/Bank rack actions (incl. the SAVE menu) while
+  // the catalog is still reading — capturing so it fires before their own
+  // click handlers open the dropdown / dialog.
+  document.addEventListener('click', function(e) {
+    if (rigBrowserReady()) return;
+    if (!e.target.closest('#btn-save-menu, #btn-load-tfx, #btn-export-all-rigs, #btn-import-rigs, #save-dropdown')) return;
+    e.stopPropagation(); e.preventDefault();
+    var n = (typeof rackCatalogCount === 'function') ? rackCatalogCount() : 0;
+    if (typeof setStatus === 'function') setStatus('Reading the rack catalog… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots — please wait.');
+  }, true);
 })();

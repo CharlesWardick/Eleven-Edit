@@ -366,6 +366,13 @@ function tfxEsc(s) {
 }
 
 async function handleTfxDropOnCell(e, rawSlot) {
+  // build 164: rack read/write is dimmed until the catalog is read — the drop
+  // writes to the rack, so hold it too (a note, not a silent vanish).
+  if (typeof rigBrowserReady === 'function' && !rigBrowserReady()) {
+    var nRC = (typeof rackCatalogCount === 'function') ? rackCatalogCount() : 0;
+    setStatus('Reading the rack catalog… ' + nRC + ' of ' + (MAX_SLOT + 1) + ' slots — try again in a moment.');
+    return;
+  }
   // Factory side is read-only — a note, not a silent vanish.
   if (matrixSpace !== 0) { setStatus('Factory patches are read-only — drop onto a user slot (A1–Z4).'); return; }
   if (!bridgeMidiReady) { setStatus('Bridge MIDI not connected'); return; }
