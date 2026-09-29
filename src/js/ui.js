@@ -3195,7 +3195,21 @@ function updateDisplay(slot) {
   }
 }
 
-function setStatus(msg) { document.getElementById('status-msg').textContent = msg; }
+// build 166: the status message area was display:none in the markup, so every
+// setStatus() note was written to a hidden span and never seen. Now: show the
+// message when there is one, auto-clear (and re-hide) after a few seconds so the
+// bar stays clean between notes. Empty/blank message hides it immediately.
+var _statusClearTimer = null;
+function setStatus(msg) {
+  var el = document.getElementById('status-msg');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? '' : 'none';
+  if (_statusClearTimer) { clearTimeout(_statusClearTimer); _statusClearTimer = null; }
+  if (msg) _statusClearTimer = setTimeout(function () {
+    el.textContent = ''; el.style.display = 'none';
+  }, 6000);
+}
 
 // ── Tuner state — single source of truth is the confirmed hardware
 // broadcast (CC 69: 0x40=ON, 0x3F=OFF), not our own click assumption.

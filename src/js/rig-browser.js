@@ -174,17 +174,19 @@ function rigBrowserReady() {
 }
 function rbUpdateButtons() {
   var ready = rigBrowserReady(), n = (typeof rackCatalogCount === 'function') ? rackCatalogCount() : 0;
+  // build 164: ONE shared wait tooltip for all six catalog-gated controls.
+  var waitMsg = 'Checking the rack catalog… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots — please wait';
   var rbal = document.getElementById('btn-rig-balance');   // build 161: Rig Balancing reads the catalog too
   if (rbal) {
     rbal.classList.toggle('rb-wait', !ready);
     rbal.title = ready ? 'Even out Rig Volume across all 104 user rigs by ear, with a proper abort (Discard)'
-                       : 'Rig Balancing — checking the rack… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots';
+                       : waitMsg;
   }
   ['btn-rig-browser-top', 'btn-rig-browser'].forEach(function(id) {
     var b = document.getElementById(id); if (!b) return;
     b.classList.toggle('rb-wait', !ready);
     b.title = ready ? 'Rig Browser — find a patch by name, amp, cab or mic'
-                    : 'Rig Browser — checking the rack… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots';
+                    : waitMsg;
   });
   // build 164: the Preset/Bank rack read/write actions (SAVE, Load TFX,
   // Export All Rigs, Import Rigs) dim until the catalog is fully read this
@@ -196,7 +198,7 @@ function rbUpdateButtons() {
     if (b.dataset.readyTitle === undefined) b.dataset.readyTitle = b.title || '';
     b.classList.toggle('rb-wait', !ready);
     b.title = ready ? b.dataset.readyTitle
-                    : 'Reading the rack catalog… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots — please wait';
+                    : waitMsg;
   });
 }
 function rigBrowserRefresh() {
