@@ -2912,7 +2912,7 @@
       </div>
 
       <div class="settings-col">
-        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Audio Engine</div>
+        <div class="settings-title" style="border-bottom:none;padding-bottom:0;margin-bottom:0;font-size:11px;">Audio Configuration</div>
         <div class="settings-row">
           <div class="settings-row-label">Built-in Audio Passthrough</div>
           <div class="settings-row-controls">
@@ -2992,7 +2992,7 @@
          keeps the device grid below balanced. -->
     <div class="audio-grid">
       <div class="settings-row" id="audio-enabled-row">
-        <div class="settings-row-label">Built-in Audio Engine</div>
+        <div class="settings-row-label">Built-in Audio Passthrough</div>
         <div class="settings-row-controls">
           <div class="settings-select-wrap">
             <select id="audio-enabled-select" class="settings-select">
@@ -3136,13 +3136,13 @@
     <div class="settings-row">
       <div class="settings-row-controls">
         <button class="settings-btn" id="audio-mute-panel" title="Mute / unmute output">MUTE<span class="ind-bar"></span></button>
-        <button class="settings-btn" id="audio-restart-btn" title="Close and reopen the audio stream (recover after a driver hiccup)">Restart Engine</button>
+        <button class="settings-btn" id="audio-restart-btn" title="Close and reopen the audio stream (recover after a driver hiccup)">Restart Audio</button>
       </div>
     </div>
 
     <div class="settings-row">
       <div class="settings-row-controls">
-        <div class="settings-path" id="audio-setup-status">Engine off.</div>
+        <div class="settings-path" id="audio-setup-status">Audio off.</div>
       </div>
     </div>
 
@@ -3150,8 +3150,8 @@
       <div class="settings-row-controls">
         <div class="settings-path" style="color:var(--accent);line-height:1.5;">
           ⚠ Set Sample Rate / Buffer <b>here</b>, not in your interface's own ASIO control panel.
-          While the engine is ON, Eleven Edit owns the device exclusively and can't follow changes made
-          in the driver's panel — doing so drops the audio. Turn the engine OFF first if you need the
+          While audio is ON, Eleven Edit owns the device exclusively and can't follow changes made
+          in the driver's panel — doing so drops the audio. Turn audio OFF first if you need the
           driver panel.
         </div>
       </div>
@@ -3164,16 +3164,16 @@
   <div id="roller-strip">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;">
       <div class="bt-section-label">Auto Advance</div>
-      <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
+      <div class="bt-sep"></div>
       <span style="font-size:inherit;color:#999;font-weight:600;">FROM</span>
       <select id="range-from" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:3px 8px;border-radius:4px;min-width:64px;"></select>
       <span style="font-size:inherit;color:#999;font-weight:600;">TO</span>
       <select id="range-to" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:3px 8px;border-radius:4px;min-width:64px;"></select>
-      <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
+      <div class="bt-sep"></div>
       <button id="btn-start" class="auto-btn">▶ START</button>
       <button id="btn-pause" class="auto-btn" disabled>⏸ PAUSE</button>
       <button id="btn-stop"  class="auto-btn" disabled>■ STOP</button>
-      <div style="width:1px;height:20px;background:#444;flex-shrink:0;"></div>
+      <div class="bt-sep"></div>
       <span style="font-size:inherit;color:#999;">EVERY</span>
       <select id="interval-select" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:4px 6px;border-radius:4px;width:52px;text-align:center;">
         <option value="5">5</option><option value="6">6</option>
@@ -3290,7 +3290,7 @@
 
 <div id="audio-intent-modal">
   <div class="rack-save-box" style="max-width:600px;width:88vw;">
-    <div class="rack-save-title">Built-in Audio Engine</div>
+    <div class="rack-save-title">Built-in Audio Passthrough</div>
     <div style="font-size:14px;color:var(--text);line-height:1.6;">
       Eleven Edit can pass audio straight through your rig — guitar in, processed sound out —
       without a DAW or any other app.<br><br>
@@ -3299,7 +3299,7 @@
     </div>
     <div class="rack-save-btns">
       <button id="audio-intent-no">Not now</button>
-      <button id="audio-intent-yes">Enable audio engine</button>
+      <button id="audio-intent-yes">Enable audio passthrough</button>
     </div>
   </div>
 </div>
@@ -3444,7 +3444,7 @@
      user picks Top in Audio Setup. ══ -->
 <div id="audiostrip" class="engine-off bottom">
   <span class="as-grp" style="gap:10px;">
-    <span class="bt-section-label" style="min-width:auto;font-size:14px;">Audio Path</span>
+    <span class="bt-section-label" style="font-size:14px;">Audio Control</span>
     <div class="bt-sep"></div>
     <button id="audio-engine-toggle" class="as-toggle" title="Turn audio passthrough on/off">ENABLE<span class="ind-bar"></span></button>
   </span>

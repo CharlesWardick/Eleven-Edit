@@ -132,14 +132,14 @@
   }
   function showInterfaceModal() {
     var m = $('audio-device-modal'), body = $('audio-device-modal-body');
-    if (!m || !body) { status('Audio device not available — turn on your interface, then toggle the engine.'); return; }
+    if (!m || !body) { status('Audio device not available — turn on your interface, then toggle audio.'); return; }
     var t = settings.deviceType;
     var who = (t === 'asio') ? ('“' + esc(settings.asioDevName || '') + '”')
       : ('input “' + esc(settings.inDevName || '?') + '” / output “' + esc(settings.outDevName || '?') + '”');
     body.innerHTML = '<div style="color:var(--red);margin-bottom:8px;">The audio device ' + who + ' isn’t available right now.</div>'
       + '<div style="color:#b3b3b3;">Turn your interface on, then <b>Try Again</b>. '
       + 'Or <b>Open Audio Setup</b> to choose a different device. '
-      + 'Or <b>Ignore</b> to carry on without the audio engine.</div>';
+      + 'Or <b>Ignore</b> to carry on without audio passthrough.</div>';
     m.classList.add('open');
   }
   var bb;
@@ -252,9 +252,9 @@
     setDisabled(false);
     if (settings.deviceType === 'none' || !namesChosen()) {
       openAudioPanel();
-      setupStatus('Audio engine enabled — choose a Device Type and device to finish setup.');
+      setupStatus('Audio passthrough enabled — choose a Device Type and device to finish setup.');
     } else {
-      setupStatus('Audio engine enabled — turn it on from the bar.');
+      setupStatus('Audio passthrough enabled — turn it on from the bar.');
     }
     if (cb) cb(true);
   }
@@ -324,7 +324,7 @@
       setBusy(false);           // nothing chosen yet — send them to setup
       status('Audio: choose a device type and device(s) first.');
       openAudioPanel();
-      setupStatus('Pick a Device Type and device(s), then turn the engine on.');
+      setupStatus('Pick a Device Type and device(s), then turn audio on.');
       return;
     }
     // Re-scan right before starting: an interface's ASIO driver only appears in
@@ -357,7 +357,7 @@
     updateMuteBtn();
     setClip(false);
     log('Audio: requesting engine ON' + (muted ? ' (muted)' : ''));
-    status('Audio engine starting…' + (muted ? ' (muted — raise/unmute when ready)' : ''));
+    status('Audio starting…' + (muted ? ' (muted — raise/unmute when ready)' : ''));
     api.audioStart(startOpts());
   }
 
@@ -365,7 +365,7 @@
     log('Audio: requesting engine OFF (releasing device)');
     api.audioStop();
     setToggleState(false);
-    status('Audio engine stopped — device released.');
+    status('Audio stopped — device released.');
   }
 
   if (elToggle) {
@@ -385,13 +385,13 @@
 
   // Restart Engine — close & reopen the stream (recover a silent driver drop)
   if ((b = $('audio-restart-btn'))) b.addEventListener('click', function () {
-    if (running) { setClip(false); status('Restarting audio engine…'); api.audioStart(startOpts()); }
+    if (running) { setClip(false); status('Restarting audio…'); api.audioStart(startOpts()); }
     else startEngine();
   });
   // Reset First-Run (dev) — re-arm the muted first-time setup
   if ((b = $('audio-reset-firstrun-btn'))) b.addEventListener('click', function () {
     settings.configured = false; saveSettings();
-    setupStatus('First-run re-armed — the next engine start will be muted.');
+    setupStatus('First-run re-armed — the next audio start will be muted.');
   });
 
   // --- monitor level slider (audio bar) ---
@@ -430,7 +430,7 @@
   if ((b = $('audio-rescan-btn'))) b.addEventListener('click', function () {
     // A device can't be enumerated while it's open, so stop the engine first,
     // then rescan once it has released (helper kill ~200ms).
-    if (running) { stopEngine(); setupStatus('Engine stopped for rescan…'); setTimeout(requestDevices, 500); }
+    if (running) { stopEngine(); setupStatus('Audio stopped for rescan…'); setTimeout(requestDevices, 500); }
     else requestDevices();
   });
 
@@ -461,8 +461,8 @@
     if (apiName === 'none') { setupStatus('No audio device selected.'); return; }
     // A device can't be enumerated while it's open, so reuse the cache while running.
     if (running) {
-      if (devCache[apiName] && devCache[apiName].length) { populateDevices(apiName); setupStatus('Engine running — showing last scan. Stop the engine to rescan.'); }
-      else setupStatus('Turn the engine OFF to scan for audio devices.');
+      if (devCache[apiName] && devCache[apiName].length) { populateDevices(apiName); setupStatus('Audio running — showing last scan. Stop audio to rescan.'); }
+      else setupStatus('Turn audio OFF to scan for audio devices.');
       return;
     }
     setupStatus('Scanning ' + apiName.toUpperCase() + ' devices…');
@@ -594,7 +594,7 @@
     }
     if (deviceMissing()) setupStatus('Selected device isn’t connected — reconnect it or pick another.');
     fillBufferSelect();
-    setupStatus(running ? 'Engine running.' : 'Ready — turn the engine on from the bar.');
+    setupStatus(running ? 'Audio running.' : 'Ready — turn audio on from the bar.');
     updateBarLabel();
   }
 
@@ -604,7 +604,7 @@
   onCtl('audio-enabled-select', function () {
     if (this.value === 'disabled') {
       setDisabled(true);
-      setupStatus('Audio engine disabled — bar hidden, no prompts until you re-enable it here.');
+      setupStatus('Audio passthrough disabled — bar hidden, no prompts until you re-enable it here.');
     } else {
       requestEnable();   // runs the runtime gate; reverts to disabled if it fails
     }
@@ -614,7 +614,7 @@
     // Changing device type always stops the engine first (it releases the old
     // device so the new API can be enumerated cleanly).
     var wasRunning = running;
-    if (wasRunning) { stopEngine(); setupStatus('Engine stopped — switching device type…'); }
+    if (wasRunning) { stopEngine(); setupStatus('Audio stopped — switching device type…'); }
     settings.deviceType = this.value;
     saveSettings();
     setTimeout(requestDevices, wasRunning ? 500 : 0);   // scan the new API (or show 'none')
@@ -687,7 +687,7 @@
         window.audioEngineRunning = false;
         if (typeof peqGraphRefresh === 'function') peqGraphRefresh();
         flashToggleErr();
-        var hint = 'Audio engine couldn’t start — is your interface on? Turn it on, then click AUDIO ENGINE OFF→ON, or open Audio Setup.';
+        var hint = 'Audio couldn’t start — is your interface on? Turn it on, then click ENABLE off→on, or open Audio Setup.';
         status(hint);
         setupStatus('Couldn’t start: ' + s.error + ' — check the interface / device, then try again.');
         return;
@@ -701,11 +701,11 @@
         // First successful bring-up → mark configured so future starts aren't auto-muted.
         if (!settings.configured) { settings.configured = true; saveSettings(); }
         updateMuteBtn();
-        status('Audio engine ON.' + (muted ? ' (muted)' : ''));
+        status('Audio ON.' + (muted ? ' (muted)' : ''));
         updateBarLabel();
         var snap = (s.requestedFrames && s.frames && s.requestedFrames !== s.frames)
           ? ' (driver set ' + s.frames + ', you asked ' + s.requestedFrames + ')' : '';
-        setupStatus('Engine running — ' + (s.rate / 1000) + 'k · ' + s.frames + ' buffer' + snap +
+        setupStatus('Audio running — ' + (s.rate / 1000) + 'k · ' + s.frames + ' buffer' + snap +
           (muted ? ' · MUTED' : '') + '.');
       } else {
         actualFrames = null; actualRate = null;
