@@ -174,6 +174,12 @@ function rigBrowserReady() {
 }
 function rbUpdateButtons() {
   var ready = rigBrowserReady(), n = (typeof rackCatalogCount === 'function') ? rackCatalogCount() : 0;
+  var rbal = document.getElementById('btn-rig-balance');   // build 161: Rig Balancing reads the catalog too
+  if (rbal) {
+    rbal.classList.toggle('rb-wait', !ready);
+    rbal.title = ready ? 'Even out Rig Volume across all 104 user rigs by ear, with a proper abort (Discard)'
+                       : 'Rig Balancing — checking the rack… ' + n + ' of ' + (MAX_SLOT + 1) + ' slots';
+  }
   ['btn-rig-browser-top', 'btn-rig-browser'].forEach(function(id) {
     var b = document.getElementById(id); if (!b) return;
     b.classList.toggle('rb-wait', !ready);

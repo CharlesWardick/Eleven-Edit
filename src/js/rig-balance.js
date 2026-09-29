@@ -248,9 +248,16 @@ function rbSetKnobBusyUI(busy) {
 //    104/104 slots (build 59 verify, 2026-09-24); gateRawToV127's rounding was
 //    one step low on 10. Returns v127 (0-127) or null.
 async function rbReadStoredSilent(slot) {
-  var res = await readSlotBodySilent(slot);
-  if (!res || !res.body) return null;
-  var raw = readSignedLE32(res.body, 0x2C);
+  // build 161: the Rack Catalog already holds every user slot's stored Rig Vol,
+  // checked this session (and kept current by saves) — use it, no rack read.
+  var ce = (typeof rcFresh !== 'undefined' && rcFresh[slot]) ? rackCatalog.slots[slot] : null;
+  var raw;
+  if (ce && ce.rv !== null && ce.rv !== undefined) raw = ce.rv;
+  else {
+    var res = await readSlotBodySilent(slot);
+    if (!res || !res.body) return null;
+    raw = readSignedLE32(res.body, 0x2C);
+  }
   if (raw === null || raw === undefined) return null;
   rigBalExactDb[slot] = rigVolDbFromRaw(raw);   // build 75: exact rack readout
   rigBalStoredRaw[slot] = raw;
@@ -452,7 +459,10 @@ document.addEventListener('keydown', function(e) {
 // ── Wire buttons.
 (function wireRigBalance() {
   var byId = function(id) { return document.getElementById(id); };
-  if (byId('btn-rig-balance')) byId('btn-rig-balance').addEventListener('click', rbOpenEntry);
+  if (byId('btn-rig-balance')) byId('btn-rig-balance').addEventListener('click', function() {
+    if (typeof rigBrowserReady === 'function' && !rigBrowserReady()) return;   // build 161: dimmed until the catalog is ready
+    rbOpenEntry();
+  });
   if (byId('rigbal-save'))    byId('rigbal-save').addEventListener('click', rbRequestSave);
   if (byId('rigbal-discard')) byId('rigbal-discard').addEventListener('click', rbRequestDiscard);
   if (byId('rigbal-cancel'))  byId('rigbal-cancel').addEventListener('click', rbRequestDiscard);

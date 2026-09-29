@@ -63,6 +63,7 @@ function rackCatalogEntryFromBody(body) {
     amp: (ampId !== null && AMP_ID_TO_KEY[ampId >>> 0]) || null,
     cab: cabIdx !== null ? CAB_TYPE_LIST[cabIdx].name : null,
     mic: (mic !== null && mic >= 0 && mic < MIC_TYPE_NAMES.length) ? MIC_TYPE_NAMES[mic] : null,
+    rv:  (body.length > 0x2F) ? readSignedLE32(body, 0x2C) : null,   // build 161: stored Rig Vol (raw int32) for Rig Balancing
     t:   Date.now()
   };
 }
