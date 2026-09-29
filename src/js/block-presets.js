@@ -76,8 +76,11 @@
   // EE uses these constants BOTH ways, so EE round-trip is exact regardless
   // of whether lo/hi match Avid. Tune lo/hi after a hardware reading to make
   // foreign imports land right. ────────────────────────────────────────
+  // Distortion stores the actual 0.0–10.0 knob value (confirmed from Benoni
+  // Green JRC presets: Drive 9.65 / Tone 9.15 / Level 7.93 …), so v127 maps
+  // linearly to 0–10. Exact for EE round-trip; close for foreign presets.
   var BP_SCALE = {
-    Dstr: { lo: 0.0, hi: 4.0 }   // provisional — Benoni Green JRC floats sit ~2.5
+    Dstr: { lo: 0.0, hi: 10.0 }
   };
 
   function bpFloatToV127(family, f) {
