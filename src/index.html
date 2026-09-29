@@ -1021,6 +1021,32 @@
   #panel-area > * { flex-grow: 1; flex-shrink: 0; }
   #panel-ampcab { display: flex; flex-direction: column; }
   #panel-ampcab > .scard { flex-grow: 1; }
+  /* Bypassed-block panel dim: an off block's panel must not look live. Dim the
+     body (controls stay editable — HW knobs can still change a bypassed block)
+     and stamp a BYPASSED tag in the header. */
+  .scard.panel-bypassed > *:not(.scard-hdr) { opacity: 0.4; transition: opacity 0.15s; }
+  .scard.panel-bypassed .scard-hdr { position: relative; }
+  /* dim every header control too (model dropdown, PEQ KNOBS/GRAPH/SPECTRUM +
+     note, title, X) — only the BYPASSED badge (::after) stays lit. */
+  .scard.panel-bypassed .scard-hdr > * { opacity: 0.4; transition: opacity 0.15s; }
+  .scard.panel-bypassed .scard-hdr::after {
+    content: 'BYPASSED'; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    color: #ff6a6a; background: #2a1414; border: 1px solid #6a2a2a;
+    border-radius: 4px; padding: 2px 8px; pointer-events: none; }
+  /* AMP/CAB two-in-one: dim the AMP set on amp bypass, the CAB set on cab
+     bypass; GLOBALS + True-Z stay lit. Two badges in the free top-right. */
+  #panel-ampcab { position: relative; }
+  #panel-ampcab.amp-off .bp-amp { opacity: 0.4; transition: opacity 0.15s; }
+  #panel-ampcab.cab-off .bp-cab { opacity: 0.4; transition: opacity 0.15s; }
+  #panel-ampcab.amp-off::before, #panel-ampcab.cab-off::after {
+    position: absolute; right: 24px; font-size: 10px; font-weight: 700;
+    letter-spacing: 1.5px; color: #ff6a6a; background: #2a1414;
+    border: 1px solid #6a2a2a; border-radius: 4px; padding: 2px 8px;
+    pointer-events: none; z-index: 5; }
+  #panel-ampcab.amp-off::before { content: 'AMP BYPASSED'; top: 72px; }
+  #panel-ampcab.cab-off::after  { content: 'CAB BYPASSED'; top: 100px; }
   /* build 131: the two anchored bars become flat edge-to-edge strips matching the
      audio row (#0f0f0f, thin divider, ~44px). Negative margins escape #main's padding;
      the last one also eats #main's bottom padding so it sits on the audio row. */
@@ -2374,12 +2400,12 @@
     <!-- SINGLE AMP/CAB CARD -->
     <div class="scard">
       <div class="scard-hdr" style="flex-wrap:wrap;gap:10px;">
-        <div class="ctrl-dd">
+        <div class="ctrl-dd bp-amp">
           <label>Amp Model</label>
           <select id="amp-select" disabled style="min-width:210px;"></select>
         </div>
         <span id="amp-name-display" style="display:none;"></span>
-        <div class="ctrl-dd">
+        <div class="ctrl-dd bp-cab">
           <label>Cab</label>
           <select id="cab-type-select" style="min-width:155px;">
             <option value="-1" disabled selected>— Cabinet —</option>
@@ -2400,7 +2426,7 @@
             <option value="14">8x10 Blue Line</option>
           </select>
         </div>
-        <div class="ctrl-dd">
+        <div class="ctrl-dd bp-cab">
           <label>Mic</label>
           <select id="mic-type-select" style="min-width:140px;">
             <option value="-1" disabled selected>— Mic —</option>
@@ -2414,11 +2440,11 @@
             <option value="7">Ribbon 121</option>
           </select>
         </div>
-        <div class="ctrl-tog">
+        <div class="ctrl-tog bp-cab">
           <label>Axis</label>
           <button class="tog-btn" id="axis-btn">ON AXIS<span class="ind-bar"></span></button>
         </div>
-        <div class="sctrl">
+        <div class="sctrl bp-cab">
           <label>Speaker Breakup</label>
           <div class="sctrl-row">
             <div class="sctrl-track-wrap">
@@ -2578,7 +2604,7 @@
                to drag a knob NAME (not the knob itself) to reorder,
                matching the chain row's smooth slide feel. Reset clears
                this amp's saved order only. -->
-          <div class="tone-dock">
+          <div class="tone-dock bp-amp">
             <button id="tone-reset-btn" class="dock-btn" title="Reset this amp's knob order to default">⟲</button>
             <button id="number-display-btn" class="dock-btn" title="Cycle numeric readout visibility on this panel (global setting, all patches)">#</button>
           </div>
@@ -2587,7 +2613,7 @@
           <!-- Tone stack knobs — id'd container so the reorder-drag wiring
                (wireToneKnobDrag, ui.js) can scope its listeners and hit-tests
                to just this row, not the whole document. -->
-          <div id="tone-knobs-row" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+          <div id="tone-knobs-row" class="bp-amp" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
             <div class="ctrl-knob knob-disabled" id="tone-k0">
               <label id="tone-l0">Gain</label>
               <div class="knob-wrap" id="tone-w0" data-value="64" data-base="amp" data-tone-idx="0" data-style="tick"><canvas class="knob-canvas" width="70" height="70"></canvas></div>
@@ -2633,7 +2659,7 @@
           <!-- Bright / Tremolo / Sync — vertical stack, right of the tone
                knobs. Each item is shown only when the current amp has it, so
                a 3-knob Tweed shows none of them and a DC shows all three. -->
-          <div id="amp-toggles-row" class="amp-tog-stack" style="display:none;">
+          <div id="amp-toggles-row" class="amp-tog-stack bp-amp" style="display:none;">
             <button id="btn-bright" class="amp-toggle-btn" style="display:none;"><span class="amp-tog-lbl">BRIGHT</span><span class="ind-bar"></span></button>
             <button id="btn-trem"   class="amp-toggle-btn" style="display:none;">TREMOLO<span class="ind-bar"></span></button>
             <div id="sync-group" style="display:none;">
@@ -3754,6 +3780,8 @@ document.querySelectorAll('.chain-open').forEach(function(btn) {
         other.style.display = '';
         other.textContent = panel.toUpperCase() + ' — effect controls (coming soon)';
       }
+      // Dim the just-opened panel if its block is bypassed.
+      if (typeof refreshPanelBypassDim === 'function') refreshPanelBypassDim();
     }
   });
 });
@@ -5026,7 +5054,7 @@ document.getElementById('about-overlay').addEventListener('click', function(e) {
 <script src="js/rack-catalog.js"></script>
 <script src="js/rig-browser.js"></script>
 <script src="js/factory-catalog.js"></script>   <!-- shipped factory catalog, build 160 -->   <!-- Rig Browser, build 152 -->   <!-- Rack catalog for the Rig Browser, build 151 -->
-<script src="js/block-presets.js"></script>   <!-- Block presets: per-FX save/load, Part IX build 170 -->
+<script src="js/block-presets.js"></script>   <!-- Block presets: per-FX save/load, Part IX build 178 -->
 <script src="js/app-init.js"></script>
 </body>
 </html>

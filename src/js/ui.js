@@ -2476,6 +2476,49 @@ function refreshBlockBypassDisplays() {
   });
   // Quick Mix sliders dim/activate with their block's bypass state.
   if (typeof quickMixUpdateActive === 'function') quickMixUpdateActive();
+  // Dim the open FX panel when its block is bypassed (so an off block can't
+  // masquerade as live — you'd otherwise only know from the chain row).
+  refreshPanelBypassDim();
+}
+
+// Slot -> single-effect panel element. AMP/CAB (the two-in-one block) is
+// handled separately; the FX-host slots share one panel, dimmed by whichever
+// host slot is open (openFxHostSlot).
+var PANEL_DIM_SLOTS = {};
+PANEL_DIM_SLOTS[SLOT_DIST]   = 'panel-dist';
+PANEL_DIM_SLOTS[SLOT_REVERB] = 'panel-reverb';
+PANEL_DIM_SLOTS[SLOT_WAH]    = 'panel-wah';
+PANEL_DIM_SLOTS[SLOT_VOL]    = 'panel-vol';
+PANEL_DIM_SLOTS[SLOT_LOOP]   = 'panel-fxloop';
+PANEL_DIM_SLOTS[SLOT_DELAY]  = 'panel-delay';
+
+function refreshPanelBypassDim() {
+  Object.keys(PANEL_DIM_SLOTS).forEach(function(slot) {
+    var el = document.getElementById(PANEL_DIM_SLOTS[slot]);
+    if (!el) return;
+    el.classList.toggle('panel-bypassed', blockBypass[slot] === false);
+  });
+  var fh = document.getElementById('panel-fxhost');
+  if (fh) {
+    var st = (typeof openFxHostSlot !== 'undefined' && openFxHostSlot != null)
+      ? blockBypass[openFxHostSlot] : undefined;
+    fh.classList.toggle('panel-bypassed', st === false);
+  }
+  refreshAmpCabPanelDim();
+}
+
+// AMP/CAB is one panel with two independently-bypassable halves — dim the
+// AMP set (.bp-amp) when the amp is off and the CAB set (.bp-cab) when the
+// cab is off, independently. GLOBALS + True-Z always stay lit.
+function refreshAmpCabPanelDim() {
+  var p = document.getElementById('panel-ampcab');
+  if (!p) return;
+  p.classList.toggle('amp-off', blockBypass[SLOT_AMP] === false);
+  // Effective cab-off mirrors the chain row: per-patch cab bypass OR the
+  // global "Cab Always Off" (CMD 0x38) override.
+  var cabOff = (typeof cabBypassActive !== 'undefined' && cabBypassActive === false)
+    || (typeof globalCabBypass !== 'undefined' && globalCabBypass === true);
+  p.classList.toggle('cab-off', cabOff);
 }
 
 // Click a slot label = real bypass toggle.
@@ -2509,6 +2552,7 @@ function updateAmpBypassDisplay(isOn) {
   el.classList.remove('slot-on','slot-off','slot-unknown');
   if (isOn === null || isOn === undefined) el.classList.add('slot-unknown');
   else el.classList.add(isOn ? 'slot-on' : 'slot-off');
+  if (typeof refreshAmpCabPanelDim === 'function') refreshAmpCabPanelDim();
 }
 
 function updateCabBypassDisplay(isOn) {
@@ -2526,6 +2570,7 @@ function updateCabBypassDisplay(isOn) {
   el.classList.remove('slot-on','slot-off','slot-unknown');
   if (effOn === null || effOn === undefined) el.classList.add('slot-unknown');
   else el.classList.add(effOn ? 'slot-on' : 'slot-off');
+  if (typeof refreshAmpCabPanelDim === 'function') refreshAmpCabPanelDim();
 }
 
 // Click to toggle amp / cab bypass.
