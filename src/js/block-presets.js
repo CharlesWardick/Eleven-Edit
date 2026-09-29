@@ -209,6 +209,7 @@
       if (r && r.ok) {
         bpSetLoadedName('dist', r.filename.replace(/\.tfx$/i, ''));
         setStatus && setStatus('Saved preset: ' + r.filename);
+        distRefreshFolder();   // new file may have appeared; re-point the stepper
       } else if (r && !r.canceled) {
         setStatus && setStatus('Save failed: ' + (r.error || 'unknown error'));
       }
@@ -216,31 +217,84 @@
   }
 
   // ── IMPORT: file → current DIST block ──────────────────────────────
+  // Shared loader for a preset's bytes (used by the LOAD dialog and the +/-
+  // stepper). Parses, gates on capability, auto-switches the model if needed,
+  // then applies. On success, syncs the folder pointer to this file.
+  function loadDistFromBytes(bytes, filename) {
+    var parsed = parsePreset(bytes);
+    if (!parsed.ok) { setStatus && setStatus(parsed.error); return; }
+    if (BLOCKS.dist.families.indexOf(parsed.family) < 0) {
+      setStatus && setStatus("That's not a distortion preset — DIST can't host it. Nothing changed.");
+      return;
+    }
+    distSyncFolderIndex(filename);   // remember position for +/- stepping
+    var targetMid = null;
+    for (var mid in DIST_MAP) { if (DIST_MAP[mid].code === parsed.code) { targetMid = parseInt(mid, 10); break; } }
+    var cur = distBlock();
+    if (targetMid !== null && cur && cur.modelId !== targetMid) {
+      bpPendingApply = { blk: 'dist', parsed: parsed, mid: targetMid, filename: filename };
+      if (typeof sendDistModelChange === 'function') sendDistModelChange(targetMid);
+      setStatus && setStatus('Switching DIST to load "' + filename.replace(/\.tfx$/i, '') + '"…');
+      return;
+    }
+    applyDistParsed(parsed, filename);
+  }
+
   function importDist() {
     var blk = distBlock();
     if (!blk) { setStatus && setStatus('Navigate to a patch first.'); return; }
     window.electronAPI.loadBlockPresetDialog(BLOCKS.dist.subfolder).then(function (r) {
       if (!r || r.canceled) return;
       if (!r.ok) { setStatus && setStatus('Load failed: ' + (r.error || 'unknown error')); return; }
-      var parsed = parsePreset(r.bytes);
-      if (!parsed.ok) { setStatus && setStatus(parsed.error); return; }
-      // Capability gate: DIST hosts only the Dstr family.
-      if (BLOCKS.dist.families.indexOf(parsed.family) < 0) {
-        setStatus && setStatus("That's not a distortion preset — DIST can't host it. Nothing changed.");
-        return;
-      }
-      // Find the EE mid for this file's model code (auto-switch target).
-      var targetMid = null;
-      for (var mid in DIST_MAP) { if (DIST_MAP[mid].code === parsed.code) { targetMid = parseInt(mid, 10); break; } }
-      var cur = distBlock();
-      if (targetMid !== null && cur && cur.modelId !== targetMid) {
-        // Auto-switch the DIST model, then apply once the new chain map arrives.
-        bpPendingApply = { blk: 'dist', parsed: parsed, mid: targetMid, filename: r.filename };
-        if (typeof sendDistModelChange === 'function') sendDistModelChange(targetMid);
-        setStatus && setStatus('Switching DIST to load "' + r.filename.replace(/\.tfx$/i, '') + '"…');
-        return;
-      }
-      applyDistParsed(parsed, r.filename);
+      distRefreshFolder(function () { loadDistFromBytes(r.bytes, r.filename); });
+    });
+  }
+
+  // ── +/- stepper: cycle through the effect's Presets/<Type>/ folder ──
+  var distFolder = [];        // [{name, path}] sorted, Windows order
+  var distFolderIndex = -1;   // pointer to the loaded preset in distFolder
+
+  // Reload the folder listing, then run cb (optional).
+  function distRefreshFolder(cb) {
+    window.electronAPI.listBlockPresets(BLOCKS.dist.subfolder).then(function (r) {
+      distFolder = (r && r.ok && r.files) ? r.files : [];
+      // Keep the pointer aligned to the currently-loaded preset by name.
+      if (bpLoaded.dist) distSyncFolderIndex(bpLoaded.dist + '.tfx');
+      else distFolderIndex = -1;
+      updateDistStepperEnabled();
+      if (typeof cb === 'function') cb();
+    });
+  }
+
+  // Point the folder index at the file with this basename (name or name.tfx).
+  function distSyncFolderIndex(filename) {
+    var base = String(filename || '').replace(/\.tfx$/i, '');
+    distFolderIndex = -1;
+    for (var i = 0; i < distFolder.length; i++) {
+      if (distFolder[i].name === base) { distFolderIndex = i; break; }
+    }
+    updateDistStepperEnabled();
+  }
+
+  function updateDistStepperEnabled() {
+    var has = distFolder.length > 0;
+    ['bp-prev-dist', 'bp-next-dist'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (b) { b.disabled = !has; b.classList.toggle('bp-disabled', !has); }
+    });
+  }
+
+  // Step ±1 with WRAP; load that preset (becomes the new reference).
+  function distStep(dir) {
+    if (!distFolder.length) return;
+    var n = distFolder.length;
+    var idx = (distFolderIndex < 0)
+      ? (dir > 0 ? 0 : n - 1)                       // nothing loaded: first / last
+      : ((distFolderIndex + dir) % n + n) % n;      // wrap
+    var entry = distFolder[idx];
+    window.electronAPI.readBlockPresetPath(entry.path).then(function (r) {
+      if (!r || !r.ok) { setStatus && setStatus('Could not read preset: ' + (r && r.error || '')); return; }
+      loadDistFromBytes(r.bytes, r.filename);
     });
   }
 
@@ -388,7 +442,7 @@
     bpRefreshCaption(blkKey);
   }
 
-  function buildPresetBar(blkKey, onSave, onLoad, onRevert) {
+  function buildPresetBar(blkKey, onSave, onLoad, onRevert, onStep) {
     var bar = document.createElement('div');
     bar.className = 'preset-bar';
     bar.id = 'bp-bar-' + blkKey;
@@ -396,19 +450,26 @@
       '<span class="preset-tag">PRESET</span>'
       + '<button class="bt-btn" id="bp-save-' + blkKey + '">SAVE PRESET</button>'
       + '<button class="bt-btn" id="bp-load-' + blkKey + '">LOAD PRESET</button>'
+      + '<span class="bp-step">'
+      + '<button class="bt-btn bp-step-btn" id="bp-prev-' + blkKey + '" title="Previous preset in the folder">−</button>'
+      + '<button class="bt-btn bp-step-btn" id="bp-next-' + blkKey + '" title="Next preset in the folder">+</button>'
+      + '</span>'
       + '<button class="bt-btn" id="bp-revert-' + blkKey + '" title="Restore this block to the patch\'s saved state">↺ REVERT</button>'
       + '<span class="pname" id="bp-name-' + blkKey + '">Loaded: <b>—</b></span>';
     bar.querySelector('#bp-save-' + blkKey).addEventListener('click', onSave);
     bar.querySelector('#bp-load-' + blkKey).addEventListener('click', onLoad);
     bar.querySelector('#bp-revert-' + blkKey).addEventListener('click', onRevert);
+    bar.querySelector('#bp-prev-' + blkKey).addEventListener('click', function () { onStep(-1); });
+    bar.querySelector('#bp-next-' + blkKey).addEventListener('click', function () { onStep(1); });
     return bar;
   }
 
   function initPresetBars() {
     var distPanel = document.getElementById('panel-dist');
     if (distPanel && !document.getElementById('bp-bar-dist')) {
-      distPanel.appendChild(buildPresetBar('dist', exportDist, importDist, revertDist));
+      distPanel.appendChild(buildPresetBar('dist', exportDist, importDist, revertDist, distStep));
       bpRefreshCaption('dist');
+      updateDistStepperEnabled();
     }
   }
 
@@ -417,7 +478,8 @@
     init: initPresetBars,
     onDistChainRefreshed: bpOnDistChainRefreshed,
     refreshCaption: bpRefreshCaption,
-    distTickRef: distTickRef
+    distTickRef: distTickRef,
+    refreshFolder: distRefreshFolder
   };
 
   if (document.readyState === 'loading') {

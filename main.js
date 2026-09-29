@@ -296,6 +296,28 @@ ipcMain.handle('save-block-preset', async function(e, subfolder, suggestName, by
   }
 });
 
+ipcMain.handle('list-block-presets', function(e, subfolder) {
+  try {
+    const dir = getPresetsDir(subfolder);
+    const files = fs.readdirSync(dir)
+      .filter(function(f) { return /\.tfx$/i.test(f); })
+      .sort(function(a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }); })
+      .map(function(f) { return { name: f.replace(/\.tfx$/i, ''), path: path.join(dir, f) }; });
+    return { ok: true, files: files };
+  } catch (err) {
+    return { ok: false, error: err.message, files: [] };
+  }
+});
+
+ipcMain.handle('read-block-preset-path', function(e, fpath) {
+  try {
+    const bytes = Array.from(fs.readFileSync(fpath));
+    return { ok: true, path: fpath, filename: path.basename(fpath), bytes: bytes };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('load-block-preset-dialog', async function(e, subfolder) {
   try {
     const win = BrowserWindow.getAllWindows()[0];
