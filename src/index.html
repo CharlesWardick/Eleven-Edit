@@ -1026,7 +1026,9 @@
      and stamp a BYPASSED tag in the header. */
   .scard.panel-bypassed > *:not(.scard-hdr) { opacity: 0.4; transition: opacity 0.15s; }
   .scard.panel-bypassed .scard-hdr { position: relative; }
-  .scard.panel-bypassed .scard-hdr select { opacity: 0.4; }   /* dim the model dropdown too */
+  /* dim every header control too (model dropdown, PEQ KNOBS/GRAPH/SPECTRUM +
+     note, title, X) — only the BYPASSED badge (::after) stays lit. */
+  .scard.panel-bypassed .scard-hdr > * { opacity: 0.4; transition: opacity 0.15s; }
   .scard.panel-bypassed .scard-hdr::after {
     content: 'BYPASSED'; position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
