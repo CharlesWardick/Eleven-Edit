@@ -325,14 +325,48 @@
       setTimeout(function () {
         var m = applyDistValues(rest.values);
         setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Reverted DIST model.');
+        bpRefreshCaption('dist');
       }, 60);
+    } else {
+      // Genuine patch nav or manual model change — no preset is "loaded".
+      bpLoaded.dist = null;
+      bpRefreshCaption('dist');
     }
   }
 
-  // ── PRESET bar UI (injected into each wired panel) ─────────────────
-  function bpSetLoadedName(blkKey, name) {
+  // ── PRESET bar caption ─────────────────────────────────────────────
+  // Honest wording: with no preset loaded THIS session, show the patch's
+  // saved block type ("Saved: Green JRC") — a patch never records where its
+  // settings came from, so we never invent a preset source. After a real
+  // file load, show that filename ("Loaded: <name>"). REVERT clears it.
+  var bpLoaded = { dist: null };
+
+  function bpDistSavedName() {
+    if (typeof blockSavedModel === 'undefined' || typeof SLOT_DIST === 'undefined') return null;
+    var mid = blockSavedModel[SLOT_DIST];
+    if (mid === undefined) {
+      var blk = distBlock();
+      mid = blk ? blk.modelId : undefined;
+    }
+    if (mid === undefined || typeof DIST_MODEL_BY_MID === 'undefined') return null;
+    var model = DIST_MODEL_BY_MID[mid];
+    return model ? model.name : null;
+  }
+
+  function bpRefreshCaption(blkKey) {
     var el = document.getElementById('bp-name-' + blkKey);
-    if (el) el.innerHTML = name ? ('Loaded: <b>' + name + '</b>') : 'Loaded: <b>—</b>';
+    if (!el) return;
+    if (bpLoaded[blkKey]) {
+      el.innerHTML = 'Loaded: <b>' + bpLoaded[blkKey] + '</b>';
+    } else {
+      var saved = (blkKey === 'dist') ? bpDistSavedName() : null;
+      el.innerHTML = saved ? ('Saved: <b>' + saved + '</b>') : 'Saved: <b>—</b>';
+    }
+  }
+
+  function bpSetLoadedName(blkKey, name) {
+    bpLoaded[blkKey] = name || null;
+    bpRefreshCaption(blkKey);
   }
 
   function buildPresetBar(blkKey, onSave, onLoad, onRevert) {
@@ -355,13 +389,15 @@
     var distPanel = document.getElementById('panel-dist');
     if (distPanel && !document.getElementById('bp-bar-dist')) {
       distPanel.appendChild(buildPresetBar('dist', exportDist, importDist, revertDist));
+      bpRefreshCaption('dist');
     }
   }
 
   // Expose the hooks other modules call.
   window.blockPresets = {
     init: initPresetBars,
-    onDistChainRefreshed: bpOnDistChainRefreshed
+    onDistChainRefreshed: bpOnDistChainRefreshed,
+    refreshCaption: bpRefreshCaption
   };
 
   if (document.readyState === 'loading') {
