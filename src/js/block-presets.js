@@ -41,18 +41,21 @@
   // VERIFIED entries come from real sample files; others are provisional.
   //
   // DIST models (mids 0x17..0x1B). Only Green JRC is verified.
+  // Param field names are the FULL 6-char record name (prefix + 4 chars),
+  // matching what the parser extracts and what Avid writes: 'd_'+abbrev
+  // (float) or 'l_'+abbrev (int enum).
   var DIST_MAP = {
     0x19: { family: 'Dstr', code: 'TS8', verified: true,   // Green JRC Overdrive (Tube Screamer)
-            params: { 0x02: {name:'Driv', type:'d'}, 0x03: {name:'Tone', type:'d'}, 0x04: {name:'Levl', type:'d'} } },
+            params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Tone', type:'d'}, 0x04: {name:'d_Levl', type:'d'} } },
     // ── UNVERIFIED below: codes/names are best-effort; confirm from an Avid export. ──
     0x17: { family: 'Dstr', code: 'TKF', verified: false,  // Tri-Knob Fuzz
-            params: { 0x02: {name:'Volu', type:'d'}, 0x03: {name:'Sust', type:'d'}, 0x04: {name:'Tone', type:'d'} } },
+            params: { 0x02: {name:'d_Volu', type:'d'}, 0x03: {name:'d_Sust', type:'d'}, 0x04: {name:'d_Tone', type:'d'} } },
     0x18: { family: 'Dstr', code: 'BOD', verified: false,  // Black Op Distortion
-            params: { 0x02: {name:'Dist', type:'d'}, 0x03: {name:'Cut',  type:'d'}, 0x04: {name:'Volu', type:'d'} } },
+            params: { 0x02: {name:'d_Dist', type:'d'}, 0x03: {name:'d_Cut ', type:'d'}, 0x04: {name:'d_Volu', type:'d'} } },
     0x1A: { family: 'Dstr', code: 'WBO', verified: false,  // White Boost
-            params: { 0x02: {name:'Gain', type:'d'}, 0x03: {name:'Treb', type:'d'}, 0x04: {name:'Bass', type:'d'}, 0x05: {name:'Volu', type:'d'} } },
+            params: { 0x02: {name:'d_Gain', type:'d'}, 0x03: {name:'d_Treb', type:'d'}, 0x04: {name:'d_Bass', type:'d'}, 0x05: {name:'d_Volu', type:'d'} } },
     0x1B: { family: 'Dstr', code: 'DCD', verified: false,  // DC Distortion
-            params: { 0x02: {name:'Dist', type:'d'}, 0x03: {name:'Treb', type:'d'}, 0x04: {name:'Bass', type:'d'}, 0x05: {name:'Levl', type:'d'} } }
+            params: { 0x02: {name:'d_Dist', type:'d'}, 0x03: {name:'d_Treb', type:'d'}, 0x04: {name:'d_Bass', type:'d'}, 0x05: {name:'d_Levl', type:'d'} } }
   };
 
   // Which EE block a family code can be hosted by, and how to reach that
@@ -155,7 +158,7 @@
     out.push(0x01, 0x01, 0x01, 0x01);
     // records: 6-byte name + 2 pad + 4 value
     params.forEach(function (pm) {
-      out = out.concat(ascii(pm.name));
+      out = out.concat(ascii((pm.name + '      ').substring(0, 6)));   // exactly 6-byte name
       out.push(0, 0);
       if (pm.type === 'd') putBEDouble(out, pm.value); else putBEInt(out, pm.value | 0);
     });
@@ -213,6 +216,21 @@
   }
 
   // ── IMPORT: file → current DIST block ──────────────────────────────
+  // Snapshot of the DIST block (model + knob v127s) taken just before a
+  // preset load, so REVERT can undo the load — including an auto-switch.
+  var bpSnapshotDist = null;
+  function snapshotDist() {
+    var blk = distBlock();
+    var model = (blk && typeof DIST_MODEL_BY_MID !== 'undefined') ? DIST_MODEL_BY_MID[blk.modelId] : null;
+    if (!blk || !model) return null;
+    var values = {};
+    model.paramLos.forEach(function (lo) {
+      var v = distKnobV127(lo.toString(16).padStart(2, '0'));
+      if (v !== undefined && !isNaN(v)) values[lo] = v;
+    });
+    return { mid: blk.modelId, values: values };
+  }
+
   function importDist() {
     var blk = distBlock();
     if (!blk) { setStatus && setStatus('Navigate to a patch first.'); return; }
@@ -226,6 +244,8 @@
         setStatus && setStatus("That's not a distortion preset — DIST can't host it. Nothing changed.");
         return;
       }
+      // Snapshot the block BEFORE we change anything, for REVERT.
+      bpSnapshotDist = snapshotDist();
       // Find the EE mid for this file's model code (auto-switch target).
       var targetMid = null;
       for (var mid in DIST_MAP) { if (DIST_MAP[mid].code === parsed.code) { targetMid = parseInt(mid, 10); break; } }
@@ -271,16 +291,45 @@
       + (applied ? '' : ' (no matching parameters).'));
   }
 
-  // ── REVERT: restore DIST block to the patch's baseline (data-orig) ──
+  // Apply a snapshot's raw v127 values to the current DIST model.
+  function applyDistSnapshot(snap) {
+    var n = 0;
+    Object.keys(snap.values).forEach(function (lo) {
+      var loNum = parseInt(lo, 10), v = snap.values[lo];
+      if (typeof updateDistKnob === 'function') updateDistKnob(loNum, v);
+      if (typeof sendDistParamWrite === 'function') sendDistParamWrite(loNum, v);
+      n++;
+    });
+    return n;
+  }
+
+  // ── REVERT: undo the last preset load (restore the pre-load snapshot,
+  // switching the model back first if the load auto-switched it). Falls
+  // back to the per-model baseline (data-orig) if there is no snapshot. ──
   function revertDist() {
     var blk = distBlock();
     if (!blk) return;
+    if (bpSnapshotDist) {
+      var snap = bpSnapshotDist; bpSnapshotDist = null;
+      if (snap.mid !== blk.modelId) {
+        // Load had auto-switched the model — switch back, then apply.
+        bpPendingRestore = snap;
+        if (typeof sendDistModelChange === 'function') sendDistModelChange(snap.mid);
+        setStatus && setStatus('Reverting DIST…');
+        bpSetLoadedName('dist', '');
+        return;
+      }
+      var m = applyDistSnapshot(snap);
+      bpSetLoadedName('dist', '');
+      setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Nothing to revert.');
+      return;
+    }
+    // Fallback: restore each knob to its per-model baseline.
     var model = (typeof DIST_MODEL_BY_MID !== 'undefined') ? DIST_MODEL_BY_MID[blk.modelId] : null;
     if (!model) return;
     var n = 0;
     model.paramLos.forEach(function (lo) {
-      var loHex = lo.toString(16).padStart(2, '0');
-      var orig = distKnobOrig(loHex);
+      var orig = distKnobOrig(lo.toString(16).padStart(2, '0'));
       if (orig === undefined || isNaN(orig)) return;
       if (typeof updateDistKnob === 'function') updateDistKnob(lo, orig);
       if (typeof sendDistParamWrite === 'function') sendDistParamWrite(lo, orig);
@@ -290,14 +339,20 @@
     setStatus && setStatus(n ? 'Reverted DIST to the patch\'s saved state.' : 'Nothing to revert.');
   }
 
-  // Pending auto-switch apply — completed by the model-change readback hook.
-  var bpPendingApply = null;
+  // Pending work completed by the model-change readback hook.
+  var bpPendingApply = null;     // apply a parsed file after auto-switch (import)
+  var bpPendingRestore = null;   // apply a snapshot after switch-back (revert)
   // Called from fx-panels.js refreshDistPanelAfterChainMap after a switch.
   function bpOnDistChainRefreshed() {
     if (bpPendingApply && bpPendingApply.blk === 'dist') {
       var pend = bpPendingApply; bpPendingApply = null;
-      // Give the panel a beat to render the new model's knobs.
       setTimeout(function () { applyDistParsed(pend.parsed, pend.filename); }, 60);
+    } else if (bpPendingRestore) {
+      var snap = bpPendingRestore; bpPendingRestore = null;
+      setTimeout(function () {
+        var m = applyDistSnapshot(snap);
+        setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Nothing to revert.');
+      }, 60);
     }
   }
 
