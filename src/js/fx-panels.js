@@ -125,6 +125,10 @@ function blockCacheApply(slotId, mid, applyValueFn, sendWriteFn) {
 }
 
 function blockBaselineSetIfUnset(slotId, mid, loHex, val) {
+  // First model seen for this slot since the last patch nav / Save = the
+  // patch's saved model (block presets' REVERT target). The panel always
+  // reads the patch before the user can touch the model dropdown.
+  if (blockSavedModel[slotId] === undefined) blockSavedModel[slotId] = mid;
   if (!blockModelBaseline[slotId]) blockModelBaseline[slotId] = {};
   if (!blockModelBaseline[slotId][mid]) blockModelBaseline[slotId][mid] = {};
   if (blockModelBaseline[slotId][mid][loHex] === undefined) {
@@ -140,7 +144,7 @@ function blockBaselineSetIfUnset(slotId, mid, loHex, val) {
 // points DELAY's own store uses.
 function clearBlockModelState(slotId) {
   if (slotId === undefined) {
-    blockModelCache = {}; blockModelBaseline = {}; blockModelSwitchPending = {};
+    blockModelCache = {}; blockModelBaseline = {}; blockModelSwitchPending = {}; blockSavedModel = {};
     // Bump every slot's apply-sequence rather than just deleting the
     // entries — a blockCacheApply stagger already in flight when a real
     // nav lands must not write its now-stale captured values once the
@@ -155,6 +159,7 @@ function clearBlockModelState(slotId) {
   delete blockModelCache[slotId];
   delete blockModelBaseline[slotId];
   delete blockModelSwitchPending[slotId];
+  delete blockSavedModel[slotId];
   if (blockCacheApplySeq[slotId]) blockCacheApplySeq[slotId]++;
   if (slotId === SLOT_REVERB) reverbLoadTypeKey = null;
 }

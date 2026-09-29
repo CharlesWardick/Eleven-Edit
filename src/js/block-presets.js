@@ -216,21 +216,6 @@
   }
 
   // ── IMPORT: file → current DIST block ──────────────────────────────
-  // Snapshot of the DIST block (model + knob v127s) taken just before a
-  // preset load, so REVERT can undo the load — including an auto-switch.
-  var bpSnapshotDist = null;
-  function snapshotDist() {
-    var blk = distBlock();
-    var model = (blk && typeof DIST_MODEL_BY_MID !== 'undefined') ? DIST_MODEL_BY_MID[blk.modelId] : null;
-    if (!blk || !model) return null;
-    var values = {};
-    model.paramLos.forEach(function (lo) {
-      var v = distKnobV127(lo.toString(16).padStart(2, '0'));
-      if (v !== undefined && !isNaN(v)) values[lo] = v;
-    });
-    return { mid: blk.modelId, values: values };
-  }
-
   function importDist() {
     var blk = distBlock();
     if (!blk) { setStatus && setStatus('Navigate to a patch first.'); return; }
@@ -244,8 +229,6 @@
         setStatus && setStatus("That's not a distortion preset — DIST can't host it. Nothing changed.");
         return;
       }
-      // Snapshot the block BEFORE we change anything, for REVERT.
-      bpSnapshotDist = snapshotDist();
       // Find the EE mid for this file's model code (auto-switch target).
       var targetMid = null;
       for (var mid in DIST_MAP) { if (DIST_MAP[mid].code === parsed.code) { targetMid = parseInt(mid, 10); break; } }
@@ -291,11 +274,12 @@
       + (applied ? '' : ' (no matching parameters).'));
   }
 
-  // Apply a snapshot's raw v127 values to the current DIST model.
-  function applyDistSnapshot(snap) {
+  // Apply a {loHex: v127} baseline map to the current DIST model.
+  function applyDistValues(valuesByLoHex) {
     var n = 0;
-    Object.keys(snap.values).forEach(function (lo) {
-      var loNum = parseInt(lo, 10), v = snap.values[lo];
+    Object.keys(valuesByLoHex).forEach(function (loHex) {
+      var loNum = parseInt(loHex, 16), v = valuesByLoHex[loHex];
+      if (v === undefined || isNaN(v)) return;
       if (typeof updateDistKnob === 'function') updateDistKnob(loNum, v);
       if (typeof sendDistParamWrite === 'function') sendDistParamWrite(loNum, v);
       n++;
@@ -303,55 +287,44 @@
     return n;
   }
 
-  // ── REVERT: undo the last preset load (restore the pre-load snapshot,
-  // switching the model back first if the load auto-switched it). Falls
-  // back to the per-model baseline (data-orig) if there is no snapshot. ──
+  // ── REVERT: restore the DIST block to the patch's SAVED state — the saved
+  // model and its baseline knob values (blockSavedModel / blockModelBaseline,
+  // reset only on patch nav / Save). Undoes a manual model switch, knob
+  // edits, and preset loads alike. ──────────────────────────────────────
   function revertDist() {
     var blk = distBlock();
     if (!blk) return;
-    if (bpSnapshotDist) {
-      var snap = bpSnapshotDist; bpSnapshotDist = null;
-      if (snap.mid !== blk.modelId) {
-        // Load had auto-switched the model — switch back, then apply.
-        bpPendingRestore = snap;
-        if (typeof sendDistModelChange === 'function') sendDistModelChange(snap.mid);
-        setStatus && setStatus('Reverting DIST…');
-        bpSetLoadedName('dist', '');
-        return;
-      }
-      var m = applyDistSnapshot(snap);
+    var savedMid = (typeof blockSavedModel !== 'undefined' && typeof SLOT_DIST !== 'undefined')
+      ? blockSavedModel[SLOT_DIST] : undefined;
+    if (savedMid === undefined) { setStatus && setStatus('No saved state captured yet — open the panel on a patch first.'); return; }
+    var baseline = (typeof blockModelBaseline !== 'undefined' && blockModelBaseline[SLOT_DIST])
+      ? blockModelBaseline[SLOT_DIST][savedMid] : null;
+    if (savedMid !== blk.modelId) {
+      // Model was switched — switch back, then apply the saved knobs.
+      bpPendingRestore = { mid: savedMid, values: baseline || {} };
+      if (typeof sendDistModelChange === 'function') sendDistModelChange(savedMid);
+      setStatus && setStatus('Reverting DIST to the patch\'s saved state…');
       bpSetLoadedName('dist', '');
-      setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Nothing to revert.');
       return;
     }
-    // Fallback: restore each knob to its per-model baseline.
-    var model = (typeof DIST_MODEL_BY_MID !== 'undefined') ? DIST_MODEL_BY_MID[blk.modelId] : null;
-    if (!model) return;
-    var n = 0;
-    model.paramLos.forEach(function (lo) {
-      var orig = distKnobOrig(lo.toString(16).padStart(2, '0'));
-      if (orig === undefined || isNaN(orig)) return;
-      if (typeof updateDistKnob === 'function') updateDistKnob(lo, orig);
-      if (typeof sendDistParamWrite === 'function') sendDistParamWrite(lo, orig);
-      n++;
-    });
+    var n = baseline ? applyDistValues(baseline) : 0;
     bpSetLoadedName('dist', '');
     setStatus && setStatus(n ? 'Reverted DIST to the patch\'s saved state.' : 'Nothing to revert.');
   }
 
   // Pending work completed by the model-change readback hook.
   var bpPendingApply = null;     // apply a parsed file after auto-switch (import)
-  var bpPendingRestore = null;   // apply a snapshot after switch-back (revert)
+  var bpPendingRestore = null;   // apply saved knobs after switch-back (revert)
   // Called from fx-panels.js refreshDistPanelAfterChainMap after a switch.
   function bpOnDistChainRefreshed() {
     if (bpPendingApply && bpPendingApply.blk === 'dist') {
       var pend = bpPendingApply; bpPendingApply = null;
       setTimeout(function () { applyDistParsed(pend.parsed, pend.filename); }, 60);
     } else if (bpPendingRestore) {
-      var snap = bpPendingRestore; bpPendingRestore = null;
+      var rest = bpPendingRestore; bpPendingRestore = null;
       setTimeout(function () {
-        var m = applyDistSnapshot(snap);
-        setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Nothing to revert.');
+        var m = applyDistValues(rest.values);
+        setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Reverted DIST model.');
       }, 60);
     }
   }

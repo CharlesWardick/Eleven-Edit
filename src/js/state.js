@@ -208,6 +208,10 @@ let delayModelSwitchPending = false;
 // Both keyed slotId -> mid -> {paramLo: v127}.
 let blockModelCache = {};
 let blockModelBaseline = {};
+// slotId -> mid : the model a block was on in the patch's SAVED state (the
+// first model seen after a patch nav / Save clear). Block presets' REVERT
+// uses it to restore the saved model even after a manual model switch.
+let blockSavedModel = {};
 // slotId -> bool, same role as delayModelSwitchPending but per-block.
 let blockModelSwitchPending = {};
 // slotId -> sequence number, bumped on every blockCacheApply call for that
