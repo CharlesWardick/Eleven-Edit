@@ -349,7 +349,7 @@
   function updateAutoBtn() {
     var b = document.getElementById('bp-auto-dist');
     if (!b) return;
-    b.textContent = autoTimer ? '⏹' : '▶';
+    b.textContent = autoTimer ? '■' : '▶';
     b.classList.toggle('bp-playing', !!autoTimer);
     b.title = autoTimer ? 'Stop auto-step' : 'Auto-step through the scope every N seconds';
   }
@@ -568,7 +568,11 @@
   function initPresetBars() {
     var distPanel = document.getElementById('panel-dist');
     if (distPanel && !document.getElementById('bp-bar-dist')) {
-      distPanel.appendChild(buildPresetBar('dist', exportDist, importDist, distStep));
+      // Top bar: sits directly under the panel header, above the knob row —
+      // declutters the crowded bottom and never hops when knob rows change.
+      var bar = buildPresetBar('dist', exportDist, importDist, distStep);
+      var knobRow = document.getElementById('dist-knob-row');
+      if (knobRow) distPanel.insertBefore(bar, knobRow); else distPanel.appendChild(bar);
       // REVERT lives as a ↺ icon in the panel header (right of the dropdown).
       var rev = document.getElementById('btn-dist-revert');
       if (rev) rev.addEventListener('click', revertDist);

@@ -1417,7 +1417,7 @@
   #capture-path-label { font-size: 11px; color: #777; margin-left: auto; white-space: nowrap; font-family: 'Consolas', monospace; }
   /* Block-preset PRESET bar (Part IX) — bottom of each wired FX panel */
   .preset-bar { display: flex; align-items: center; gap: 10px; padding: 9px 16px;
-    background: #141414; border-top: 1px solid var(--border-dim); }
+    background: #141414; border-bottom: 1px solid var(--border-dim); }
   .preset-bar .preset-tag { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; font-weight: 600; }
   .preset-bar .bp-scope { background: #181818; color: var(--text); border: 1px solid var(--border);
     border-radius: 5px; padding: 4px 8px; font: inherit; font-size: 12px; min-width: 150px; }
@@ -1440,10 +1440,9 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .preset-bar .pname b { color: var(--text); font-style: normal; }
   .preset-bar .bp-disabled { opacity: 0.35; cursor: default; pointer-events: none; }
-  /* Anchor the PRESET bar to the bottom of the panel so it never hops when the
-     knob layout changes row count (e.g. 1-row Tri-Knob Fuzz vs 2-row DC). */
+  /* PRESET bar now sits under the header (top of the panel), so no bottom
+     anchor is needed — a knob-row row-count change no longer moves it. */
   #panel-dist { display: flex; flex-direction: column; }
-  #panel-dist .preset-bar { margin-top: auto; }
 
   /* ══ STATUS BAR ══ */
   #statusbar {
