@@ -128,7 +128,14 @@ function blockBaselineSetIfUnset(slotId, mid, loHex, val) {
   // First model seen for this slot since the last patch nav / Save = the
   // patch's saved model (block presets' REVERT target). The panel always
   // reads the patch before the user can touch the model dropdown.
-  if (blockSavedModel[slotId] === undefined) blockSavedModel[slotId] = mid;
+  if (blockSavedModel[slotId] === undefined) {
+    blockSavedModel[slotId] = mid;
+    // Let block presets add the virtual "Original" stop now that the patch's
+    // saved model is known (it was built before this read-back arrived).
+    if (slotId === SLOT_DIST && window.blockPresets && window.blockPresets.onDistSavedModelKnown) {
+      window.blockPresets.onDistSavedModelKnown();
+    }
+  }
   if (!blockModelBaseline[slotId]) blockModelBaseline[slotId] = {};
   if (!blockModelBaseline[slotId][mid]) blockModelBaseline[slotId][mid] = {};
   if (blockModelBaseline[slotId][mid][loHex] === undefined) {

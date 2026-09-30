@@ -674,6 +674,23 @@
     }
   }
 
+  // The patch's saved model just became known (first rack read-back after a
+  // patch load/nav). Rebuild the ring so the virtual "Original" stop appears
+  // (it couldn't be added earlier — blockSavedModel wasn't set yet).
+  function onDistSavedModelKnown() {
+    if (distScope === null) distScope = distCurrentModelName();
+    distBuildRing();
+    if (!bpLoadedPath.dist) {
+      distRingIndex = distIncludeOrigin() ? 0 : -1;
+      distOnOrigin = distIncludeOrigin();
+    } else {
+      distSyncRingIndex(bpLoadedPath.dist);
+    }
+    updateDistStepperEnabled();
+    updateDistCounter();
+    bpRefreshCaption('dist');
+  }
+
   // Panel opened — default the scope to the current model and re-list.
   function onDistPanelOpen() {
     autoStop();
@@ -690,7 +707,8 @@
     refreshCaption: bpRefreshCaption,
     distTickRef: distTickRef,
     refreshFolder: distRefreshFolder,
-    onDistPanelOpen: onDistPanelOpen
+    onDistPanelOpen: onDistPanelOpen,
+    onDistSavedModelKnown: onDistSavedModelKnown
   };
 
   if (document.readyState === 'loading') {
