@@ -958,6 +958,7 @@ function wahCellReadValue(cell) {
   return w ? parseInt(w.dataset.value) : undefined;
 }
 
+var wahPaint = makePaintBuffer();   // buffer the readback so all knobs paint in one pass (no pop-in)
 function updateWahKnob(paramLo, val) {
   const loHex = paramLo.toString(16).padStart(2,'0');
   const wahBlk = currentChain.find(function(b) { return b.slotId === SLOT_WAH; });
@@ -965,11 +966,13 @@ function updateWahKnob(paramLo, val) {
   const wrap  = document.getElementById('wah-w-' + loHex);
   const valEl = document.getElementById('wah-v-' + loHex);
   if (wrap) {
+    // Bookkeeping stays LIVE (un-deferred); only the visible paint is buffered.
     wrap.dataset.orig  = model ? blockBaselineSetIfUnset(SLOT_WAH, model.mid, loHex, val) : val;
     wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
+    wahPaint.defer(function() { drawKnob(wrap.querySelector('canvas'), val); });
   }
-  if (valEl) valEl.textContent = valDisplay(val);
+  if (valEl) wahPaint.defer(function() { valEl.textContent = valDisplay(val); });
+  wahPaint.markSeen(paramLo);
 }
 
 function refreshWahPanelAfterChainMap() {

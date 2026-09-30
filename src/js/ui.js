@@ -120,6 +120,32 @@ function makeArrivalGate(los, timeoutMs, onDone) {
 // (sysex-handler.js) reports into it as each reply lands.
 var navAmpArrivalGate = null;
 
+// ── Per-panel paint buffer ──────────────────────────────────────────
+// Generalises the DELAY panel's proven buffer (delayPendingBuild +
+// deferDelayPaintOrRun + delayArrivalGate): while a readback burst's replies
+// are landing, hold the VISIBLE paints (canvas draw + value text) and flush
+// them all in ONE pass once every queried paramLo has arrived (or a timeout
+// fires). Without it, the FX panels paint each knob the instant its own reply
+// lands, so the pointers pop in one-by-one (visible once the fake-centred
+// placeholder was removed, build 206). Bookkeeping (dataset.value/.orig)
+// must stay LIVE and un-deferred at the call site — only the paint closures
+// go through .defer(). Live broadcasts (no begin() active) paint immediately.
+function makePaintBuffer() {
+  var deferred = false, queue = [], gate = null;
+  return {
+    begin: function(los, timeoutMs) {
+      deferred = true; queue = [];
+      gate = makeArrivalGate(los, timeoutMs || 500, function() {
+        deferred = false;
+        var q = queue; queue = []; gate = null;
+        q.forEach(function(fn) { fn(); });
+      });
+    },
+    defer: function(fn) { if (deferred) queue.push(fn); else fn(); },
+    markSeen: function(lo) { if (gate) gate.markSeen(lo); }
+  };
+}
+
 // ── Pointer-only knob style (trialled on row 1 2026-09-03, rolled out to
 // every plain rotary knob same session) ─────────────────────────────────
 // Charlie's ask: drop the ring and the red/amber colour-change entirely —

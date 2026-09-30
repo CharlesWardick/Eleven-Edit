@@ -230,6 +230,9 @@ function requestWahParams() {
     return;
   }
   const hh = wahBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  // Buffer the paints so every knob appears in one pass when the replies land,
+  // instead of popping in one-by-one as each reply arrives.
+  if (typeof wahPaint !== 'undefined') wahPaint.begin(model.paramLos, 600);
   model.paramLos.forEach(function(lo) {
     sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
   });
