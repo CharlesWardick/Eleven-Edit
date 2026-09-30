@@ -49,6 +49,34 @@
   var STATE_LABEL = 'Complete Controls State';
   var SCOPE_ALL = '__ALL__';
 
+  // ── Feature opt-in (localStorage 'blockPresetsEnabled', default OFF) ──
+  // Block presets ship OFF so a v1.1 user installing v1.2 sees the exact same
+  // panels until they tick Settings → Other Configuration → Panel presets.
+  // When off, the preset bar + ↺ RELOAD buttons are hidden AND every
+  // window.blockPresets.* hook goes inert (returns the falsy/undefined value
+  // the fx-panels guards fall back on), so the panels behave identically to
+  // dev — no second panel implementation, the dev path is simply what runs.
+  var bpFeatureEnabled = false;
+  function bpLoadEnabled() {
+    try { bpFeatureEnabled = window.localStorage.getItem('blockPresetsEnabled') === '1'; }
+    catch (e) { bpFeatureEnabled = false; }
+  }
+  function bpApplyEnabled() {
+    ['dist', 'reverb'].forEach(function (K) {
+      var bar = document.getElementById('bp-bar-' + K);
+      if (bar) bar.style.display = bpFeatureEnabled ? '' : 'none';
+      var rev = document.getElementById('btn-' + K + '-revert');
+      if (rev) rev.style.display = bpFeatureEnabled ? '' : 'none';
+    });
+    if (!bpFeatureEnabled) { autoStop(); }
+    else { dist.onPanelOpen(); reverb.onPanelOpen(); }   // populate the open panel's bar now
+  }
+  function bpSetEnabled(on) {
+    bpFeatureEnabled = !!on;
+    try { window.localStorage.setItem('blockPresetsEnabled', on ? '1' : '0'); } catch (e) {}
+    bpApplyEnabled();
+  }
+
   // ── EE block ⇄ Avid file identity ──────────────────────────────────
   // Each entry: the Avid family/model codes for an EE base mid, plus the
   // per-paramLo file field {name, type, scale?}. type 'd' = float (8 bytes),
@@ -307,6 +335,7 @@
 
     // ── Tick reference (loaded-preset deviation) ──
     function tickRef(loHex) {
+      if (!bpFeatureEnabled) return undefined;
       return (st.presetRef && st.presetRef[loHex] !== undefined) ? st.presetRef[loHex] : undefined;
     }
     function clearPresetRef() { st.presetRef = null; }
@@ -569,6 +598,7 @@
 
     // Called from the block's refresh…AfterChainMap after a model switch.
     function onChainRefreshed() {
+      if (!bpFeatureEnabled) return false;   // inert → fx-panels runs the dev readback path
       if (st.pendingApply) {
         var p = st.pendingApply; st.pendingApply = null;
         applyParsed(p.parsed, p.filename);   // synchronous → overwrites the default paint, no flash
@@ -596,6 +626,7 @@
     }
 
     function onSavedModelKnown() {
+      if (!bpFeatureEnabled) return;
       if (st.scope === null) st.scope = curModelName();
       buildRing();
       if (!st.loadedPath) { st.ringIndex = includeOrigin() ? 0 : -1; st.onOrigin = includeOrigin(); }
@@ -605,9 +636,10 @@
       refreshCaption();
     }
 
-    function onBaselineProgress() { updateStepperEnabled(); }
+    function onBaselineProgress() { if (!bpFeatureEnabled) return; updateStepperEnabled(); }
 
     function onPanelOpen() {
+      if (!bpFeatureEnabled) return;
       autoStop();
       st.scope = curModelName();
       syncScopeSelect();
@@ -781,7 +813,21 @@
     }
   });
 
-  function initPresetBars() { dist.initBar(); reverb.initBar(); }
+  function initPresetBars() {
+    bpLoadEnabled();
+    dist.initBar();
+    reverb.initBar();
+    var cb = document.getElementById('bp-enable-checkbox');
+    if (cb) { cb.checked = bpFeatureEnabled; cb.addEventListener('change', function () { bpSetEnabled(cb.checked); }); }
+    // Hide the bars + RELOAD buttons when the feature is off (default). Don't
+    // call bpApplyEnabled's enable-side refresh here — just set visibility.
+    ['dist', 'reverb'].forEach(function (K) {
+      var bar = document.getElementById('bp-bar-' + K);
+      if (bar) bar.style.display = bpFeatureEnabled ? '' : 'none';
+      var rev = document.getElementById('btn-' + K + '-revert');
+      if (rev) rev.style.display = bpFeatureEnabled ? '' : 'none';
+    });
+  }
 
   // ── Public API (per-block hooks the app calls) ──────────────────────
   window.blockPresets = {
