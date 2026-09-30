@@ -285,6 +285,7 @@ function renderDistKnobs(mid) {
 
 // Update a single DIST knob from a CMD 0x11 broadcast or REQU response.
 // Looks up by paramLo directly — no index arithmetic needed.
+var distPaint = makePaintBuffer();   // buffer the readback so all knobs paint in one pass (no pop-in)
 function updateDistKnob(paramLo, val) {
   const loHex = paramLo.toString(16).padStart(2,'0');
   const distBlk = currentChain.find(function(b) { return b.slotId === SLOT_DIST; });
@@ -302,11 +303,12 @@ function updateDistKnob(paramLo, val) {
     // red/green shows change from the loaded preset, not the patch).
     var ref = (window.blockPresets && window.blockPresets.distTickRef)
       ? window.blockPresets.distTickRef(loHex) : undefined;
-    wrap.dataset.orig  = (ref !== undefined) ? ref : base;
+    wrap.dataset.orig  = (ref !== undefined) ? ref : base;   // bookkeeping stays live
     wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
+    distPaint.defer(function() { drawKnob(wrap.querySelector('canvas'), val); });
   }
-  if (valEl) valEl.textContent = valDisplay(val);
+  if (valEl) distPaint.defer(function() { valEl.textContent = valDisplay(val); });
+  distPaint.markSeen(paramLo);
 }
 
 // Called from sysex-handler CMD 0x21 handler after currentChain is updated.
