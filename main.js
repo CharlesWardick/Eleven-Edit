@@ -265,22 +265,44 @@ function getCapturesDir() {
 }
 
 // ── Block presets (Part IX) — per-effect .tfx "Complete Controls State"
-// files, cross-compatible with the Avid Eleven Rack Editor. Kept in a
-// Presets/<EffectType>/ tree. The renderer builds the file bytes (format
-// lives in js/block-presets.js); main only does the OS dialogs + fs I/O.
-function getPresetsDir(subfolder) {
+// files, cross-compatible with the Avid Eleven Rack Editor. Tree is
+// Presets/<Family>/<Model>/ — one subfolder per rack model. `model` null/''
+// means the family root (used for a recursive "ALL" listing). The renderer
+// builds the file bytes (format lives in js/block-presets.js); main only does
+// the OS dialogs + fs I/O.
+function sanitizeSeg(s) { return String(s || '').replace(/[\\/:*?"<>|]/g, '_'); }
+function getPresetsDir(family, model) {
   const base = storeGet('presetsDir', null)
     || path.join(app.getPath('userData'), 'Presets');
-  const dir = subfolder ? path.join(base, String(subfolder).replace(/[\\/:*?"<>|]/g, '_')) : base;
+  let dir = base;
+  if (family) dir = path.join(dir, sanitizeSeg(family));
+  if (model)  dir = path.join(dir, sanitizeSeg(model));
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-ipcMain.handle('save-block-preset', async function(e, subfolder, suggestName, bytesArray) {
+// Recursively collect *.tfx under dir, returning {name, path, model} where
+// model is the immediate parent folder name (the rack model).
+function listTfxRecursive(dir, family) {
+  const out = [];
+  let entries = [];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return out; }
+  entries.forEach(function(ent) {
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) { out.push.apply(out, listTfxRecursive(full, family)); }
+    else if (/\.tfx$/i.test(ent.name)) {
+      out.push({ name: ent.name.replace(/\.tfx$/i, ''), path: full,
+                 model: path.basename(path.dirname(full)) });
+    }
+  });
+  return out;
+}
+
+ipcMain.handle('save-block-preset', async function(e, family, model, suggestName, bytesArray) {
   try {
     const win = BrowserWindow.getAllWindows()[0];
-    const dir = getPresetsDir(subfolder);
-    const safe = String(suggestName || 'Preset').replace(/[\\/:*?"<>|]/g, '_').substring(0, 60);
+    const dir = getPresetsDir(family, model);
+    const safe = sanitizeSeg(suggestName || 'Preset').substring(0, 60);
     const result = await dialog.showSaveDialog(win, {
       title: 'Save Block Preset',
       defaultPath: path.join(dir, safe + '.tfx'),
@@ -296,13 +318,23 @@ ipcMain.handle('save-block-preset', async function(e, subfolder, suggestName, by
   }
 });
 
-ipcMain.handle('list-block-presets', function(e, subfolder) {
+// list-block-presets(family, model): a single model's folder when `model` is
+// set, else recursive over the whole family ("ALL"). Sorted Windows-style; ALL
+// groups by model folder then name.
+ipcMain.handle('list-block-presets', function(e, family, model) {
   try {
-    const dir = getPresetsDir(subfolder);
-    const files = fs.readdirSync(dir)
-      .filter(function(f) { return /\.tfx$/i.test(f); })
-      .sort(function(a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }); })
-      .map(function(f) { return { name: f.replace(/\.tfx$/i, ''), path: path.join(dir, f) }; });
+    let files;
+    const coll = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    if (model) {
+      const dir = getPresetsDir(family, model);
+      files = fs.readdirSync(dir)
+        .filter(function(f) { return /\.tfx$/i.test(f); })
+        .sort(coll)
+        .map(function(f) { return { name: f.replace(/\.tfx$/i, ''), path: path.join(dir, f), model: model }; });
+    } else {
+      files = listTfxRecursive(getPresetsDir(family, null), family)
+        .sort(function(a, b) { return coll(a.model, b.model) || coll(a.name, b.name); });
+    }
     return { ok: true, files: files };
   } catch (err) {
     return { ok: false, error: err.message, files: [] };
@@ -318,12 +350,12 @@ ipcMain.handle('read-block-preset-path', function(e, fpath) {
   }
 });
 
-ipcMain.handle('load-block-preset-dialog', async function(e, subfolder) {
+ipcMain.handle('load-block-preset-dialog', async function(e, family, model) {
   try {
     const win = BrowserWindow.getAllWindows()[0];
     const result = await dialog.showOpenDialog(win, {
       title: 'Load Block Preset',
-      defaultPath: getPresetsDir(subfolder),
+      defaultPath: getPresetsDir(family, model),
       filters: [{ name: 'Effect Preset', extensions: ['tfx'] }],
       properties: ['openFile']
     });

@@ -67,7 +67,7 @@
       slotName: 'SLOT_DIST',
       families: ['Dstr'],
       modelMap: DIST_MAP,
-      subfolder: 'Distortion'
+      familyFolder: 'Distortion'   // Presets/Distortion/<Model>/
     }
   };
 
@@ -185,6 +185,19 @@
     var w = document.getElementById('dist-w-' + loHex);
     return (w && w.dataset.orig !== undefined && w.dataset.orig !== '') ? parseInt(w.dataset.orig, 10) : undefined;
   }
+  function distModelName(mid) {
+    return (typeof DIST_MODEL_BY_MID !== 'undefined' && DIST_MODEL_BY_MID[mid]) ? DIST_MODEL_BY_MID[mid].name : null;
+  }
+  function distCurrentModelName() {
+    var b = distBlock();
+    return b ? distModelName(b.modelId) : null;
+  }
+
+  // Scope = which folder the stepper + auto-step cycle. A model name, or the
+  // ALL sentinel (recursive over every model subfolder). Defaults to the
+  // current block model; reset on patch nav / manual model change.
+  var SCOPE_ALL = '__ALL__';
+  var distScope = null;   // model name or SCOPE_ALL; null = not yet initialised
 
   // ── EXPORT: current DIST block → file ──────────────────────────────
   function exportDist() {
@@ -208,9 +221,11 @@
 
     var bytes = serializePreset(map.family, map.code, params);
     var suggest = (model.name || 'Distortion');
-    window.electronAPI.saveBlockPreset(BLOCKS.dist.subfolder, suggest, bytes).then(function (r) {
+    // Save defaults into this model's own subfolder.
+    window.electronAPI.saveBlockPreset(BLOCKS.dist.familyFolder, model.name, suggest, bytes).then(function (r) {
       if (r && r.ok) {
         bpSetLoadedName('dist', r.filename.replace(/\.tfx$/i, ''));
+        bpLoadedPath.dist = r.path;
         setStatus && setStatus('Saved preset: ' + r.filename);
         distRefreshFolder();   // new file may have appeared; re-point the stepper
       } else if (r && !r.canceled) {
@@ -223,14 +238,14 @@
   // Shared loader for a preset's bytes (used by the LOAD dialog and the +/-
   // stepper). Parses, gates on capability, auto-switches the model if needed,
   // then applies. On success, syncs the folder pointer to this file.
-  function loadDistFromBytes(bytes, filename) {
+  function loadDistFromBytes(bytes, filename, fpath) {
     var parsed = parsePreset(bytes);
     if (!parsed.ok) { setStatus && setStatus(parsed.error); return; }
     if (BLOCKS.dist.families.indexOf(parsed.family) < 0) {
       setStatus && setStatus("That's not a distortion preset — DIST can't host it. Nothing changed.");
       return;
     }
-    distSyncFolderIndex(filename);   // remember position for +/- stepping
+    if (fpath) { bpLoadedPath.dist = fpath; distSyncFolderIndex(fpath); }   // stepper position
     var targetMid = null;
     for (var mid in DIST_MAP) { if (DIST_MAP[mid].code === parsed.code) { targetMid = parseInt(mid, 10); break; } }
     var cur = distBlock();
@@ -246,45 +261,58 @@
   function importDist() {
     var blk = distBlock();
     if (!blk) { setStatus && setStatus('Navigate to a patch first.'); return; }
-    window.electronAPI.loadBlockPresetDialog(BLOCKS.dist.subfolder).then(function (r) {
+    // Default the dialog into the current model's folder.
+    window.electronAPI.loadBlockPresetDialog(BLOCKS.dist.familyFolder, distCurrentModelName()).then(function (r) {
       if (!r || r.canceled) return;
       if (!r.ok) { setStatus && setStatus('Load failed: ' + (r.error || 'unknown error')); return; }
-      distRefreshFolder(function () { loadDistFromBytes(r.bytes, r.filename); });
+      distRefreshFolder(function () { loadDistFromBytes(r.bytes, r.filename, r.path); });
     });
   }
 
-  // ── +/- stepper: cycle through the effect's Presets/<Type>/ folder ──
-  var distFolder = [];        // [{name, path}] sorted, Windows order
+  // ── +/- stepper + auto-step: cycle the SCOPE folder (a model, or ALL) ──
+  var distFolder = [];        // [{name, path, model}] sorted (Windows order)
   var distFolderIndex = -1;   // pointer to the loaded preset in distFolder
 
-  // Reload the folder listing, then run cb (optional).
+  // Reload the scope's folder listing, then run cb (optional).
   function distRefreshFolder(cb) {
-    window.electronAPI.listBlockPresets(BLOCKS.dist.subfolder).then(function (r) {
+    if (distScope === null) distScope = distCurrentModelName();   // default = current model
+    var model = (distScope === SCOPE_ALL) ? null : distScope;
+    window.electronAPI.listBlockPresets(BLOCKS.dist.familyFolder, model).then(function (r) {
       distFolder = (r && r.ok && r.files) ? r.files : [];
-      // Keep the pointer aligned to the currently-loaded preset by name.
-      if (bpLoaded.dist) distSyncFolderIndex(bpLoaded.dist + '.tfx');
+      if (bpLoadedPath.dist) distSyncFolderIndex(bpLoadedPath.dist);
       else distFolderIndex = -1;
       updateDistStepperEnabled();
+      updateDistCounter();
       if (typeof cb === 'function') cb();
     });
   }
 
-  // Point the folder index at the file with this basename (name or name.tfx).
-  function distSyncFolderIndex(filename) {
-    var base = String(filename || '').replace(/\.tfx$/i, '');
+  // Point the folder index at the file with this exact path (ALL can have the
+  // same name in different model folders, so match by path, not name).
+  function distSyncFolderIndex(fpath) {
     distFolderIndex = -1;
     for (var i = 0; i < distFolder.length; i++) {
-      if (distFolder[i].name === base) { distFolderIndex = i; break; }
+      if (distFolder[i].path === fpath) { distFolderIndex = i; break; }
     }
     updateDistStepperEnabled();
+    updateDistCounter();
   }
 
   function updateDistStepperEnabled() {
     var has = distFolder.length > 0;
-    ['bp-prev-dist', 'bp-next-dist'].forEach(function (id) {
+    ['bp-prev-dist', 'bp-next-dist', 'bp-auto-dist'].forEach(function (id) {
       var b = document.getElementById(id);
       if (b) { b.disabled = !has; b.classList.toggle('bp-disabled', !has); }
     });
+    if (!has) autoStop();
+  }
+
+  function updateDistCounter() {
+    var el = document.getElementById('bp-count-dist');
+    if (!el) return;
+    var n = distFolder.length;
+    if (!n) { el.textContent = '0 / 0'; return; }
+    el.textContent = (distFolderIndex < 0 ? '—' : (distFolderIndex + 1)) + ' / ' + n;
   }
 
   // Step ±1 with WRAP; load that preset (becomes the new reference).
@@ -297,9 +325,41 @@
     var entry = distFolder[idx];
     window.electronAPI.readBlockPresetPath(entry.path).then(function (r) {
       if (!r || !r.ok) { setStatus && setStatus('Could not read preset: ' + (r && r.error || '')); return; }
-      loadDistFromBytes(r.bytes, r.filename);
+      loadDistFromBytes(r.bytes, r.filename, entry.path);
     });
   }
+
+  // ── Auto-step: fire +1 every N seconds; ANY other interaction stops it. ──
+  var autoTimer = null;
+  function autoStepSeconds() {
+    var f = document.getElementById('bp-sec-dist');
+    var v = f ? parseInt(f.value, 10) : 5;
+    return (isNaN(v) || v < 1) ? 5 : Math.min(v, 999);
+  }
+  function autoStart() {
+    if (!distFolder.length) return;
+    autoStop();
+    autoTimer = setInterval(function () { distStep(1); }, autoStepSeconds() * 1000);
+    updateAutoBtn();
+  }
+  function autoStop() {
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; updateAutoBtn(); }
+  }
+  function autoToggle() { if (autoTimer) autoStop(); else autoStart(); }
+  function updateAutoBtn() {
+    var b = document.getElementById('bp-auto-dist');
+    if (!b) return;
+    b.textContent = autoTimer ? '⏹' : '▶';
+    b.classList.toggle('bp-playing', !!autoTimer);
+    b.title = autoTimer ? 'Stop auto-step' : 'Auto-step through the scope every N seconds';
+  }
+  // Any interaction anywhere (except the auto button itself) stops auto-step.
+  document.addEventListener('pointerdown', function (e) {
+    if (!autoTimer) return;
+    if (e.target && e.target.closest && e.target.closest('#bp-auto-dist')) return;
+    autoStop();
+  }, true);
+  document.addEventListener('keydown', function () { if (autoTimer) autoStop(); }, true);
 
   // Apply parsed params to whatever DIST model is currently loaded.
   function applyDistParsed(parsed, filename) {
@@ -359,6 +419,7 @@
     var blk = distBlock();
     if (!blk) return;
     clearDistPresetRef();   // ticks go back to the patch baseline
+    bpLoadedPath.dist = null;
     var savedMid = (typeof blockSavedModel !== 'undefined' && typeof SLOT_DIST !== 'undefined')
       ? blockSavedModel[SLOT_DIST] : undefined;
     if (savedMid === undefined) { setStatus && setStatus('No saved state captured yet — open the panel on a patch first.'); return; }
@@ -398,8 +459,14 @@
       return true;
     } else {
       // Genuine patch nav or manual model change — no preset is "loaded".
+      // Reset the scope to the (new) current model and re-list its folder.
       bpLoaded.dist = null;
+      bpLoadedPath.dist = null;
       clearDistPresetRef();   // ticks return to the patch baseline
+      autoStop();
+      distScope = distCurrentModelName();
+      syncDistScopeSelect();
+      distRefreshFolder();
       bpRefreshCaption('dist');
     }
     return false;
@@ -411,6 +478,7 @@
   // settings came from, so we never invent a preset source. After a real
   // file load, show that filename ("Loaded: <name>"). REVERT clears it.
   var bpLoaded = { dist: null };
+  var bpLoadedPath = { dist: null };   // absolute path of the loaded preset (stepper anchor)
 
   // When a DIST preset is loaded, its values become the knobs' tick reference
   // (red/green shows change from the loaded preset). {loHex: v127} or null.
@@ -450,23 +518,50 @@
     bpRefreshCaption(blkKey);
   }
 
+  // Build the scope dropdown options: every DIST model + ALL.
+  function buildDistScopeOptions() {
+    var sel = document.getElementById('bp-scope-dist');
+    if (!sel || typeof DIST_MODELS === 'undefined') return;
+    var opts = DIST_MODELS.map(function (m) {
+      return '<option value="' + m.name.replace(/"/g, '') + '">' + m.name + '</option>';
+    }).join('');
+    sel.innerHTML = opts + '<option value="' + SCOPE_ALL + '">ALL</option>';
+  }
+  // Reflect distScope in the dropdown selection.
+  function syncDistScopeSelect() {
+    var sel = document.getElementById('bp-scope-dist');
+    if (sel && distScope) sel.value = distScope;
+  }
+
   function buildPresetBar(blkKey, onSave, onLoad, onStep) {
     var bar = document.createElement('div');
     bar.className = 'preset-bar';
     bar.id = 'bp-bar-' + blkKey;
     bar.innerHTML =
       '<span class="preset-tag">PRESET</span>'
-      + '<button class="bt-btn" id="bp-save-' + blkKey + '">SAVE PRESET</button>'
-      + '<button class="bt-btn" id="bp-load-' + blkKey + '">LOAD PRESET</button>'
+      + '<button class="bt-btn" id="bp-save-' + blkKey + '">SAVE</button>'
+      + '<button class="bt-btn" id="bp-load-' + blkKey + '">LOAD</button>'
+      + '<select class="bp-scope" id="bp-scope-' + blkKey + '" title="Which presets − + and ▶ cycle"></select>'
       + '<span class="bp-step">'
-      + '<button class="bt-btn bp-step-btn" id="bp-prev-' + blkKey + '" title="Previous preset in the folder">−</button>'
-      + '<button class="bt-btn bp-step-btn" id="bp-next-' + blkKey + '" title="Next preset in the folder">+</button>'
+      + '<button class="bt-btn bp-step-btn" id="bp-prev-' + blkKey + '" title="Previous preset">−</button>'
+      + '<button class="bt-btn bp-step-btn" id="bp-next-' + blkKey + '" title="Next preset">+</button>'
       + '</span>'
-      + '<span class="pname" id="bp-name-' + blkKey + '">Loaded: <b>—</b></span>';
+      + '<button class="bt-btn bp-auto-btn" id="bp-auto-' + blkKey + '" title="Auto-step">▶</button>'
+      + '<span class="bp-secwrap"><input class="bp-sec" id="bp-sec-' + blkKey + '" value="5" inputmode="numeric"><span>s</span></span>'
+      + '<span class="bp-state">'
+      + '<span class="bp-count" id="bp-count-' + blkKey + '">0 / 0</span>'
+      + '<span class="pname" id="bp-name-' + blkKey + '">Saved: <b>—</b></span>'
+      + '</span>';
     bar.querySelector('#bp-save-' + blkKey).addEventListener('click', onSave);
     bar.querySelector('#bp-load-' + blkKey).addEventListener('click', onLoad);
     bar.querySelector('#bp-prev-' + blkKey).addEventListener('click', function () { onStep(-1); });
     bar.querySelector('#bp-next-' + blkKey).addEventListener('click', function () { onStep(1); });
+    bar.querySelector('#bp-auto-' + blkKey).addEventListener('click', autoToggle);
+    bar.querySelector('#bp-scope-' + blkKey).addEventListener('change', function () {
+      distScope = this.value;
+      bpLoadedPath.dist = null;   // pointer meaningless in a different folder
+      distRefreshFolder();
+    });
     return bar;
   }
 
@@ -477,9 +572,22 @@
       // REVERT lives as a ↺ icon in the panel header (right of the dropdown).
       var rev = document.getElementById('btn-dist-revert');
       if (rev) rev.addEventListener('click', revertDist);
+      buildDistScopeOptions();
+      distScope = distCurrentModelName();
+      syncDistScopeSelect();
       bpRefreshCaption('dist');
+      updateAutoBtn();
       updateDistStepperEnabled();
     }
+  }
+
+  // Panel opened — default the scope to the current model and re-list.
+  function onDistPanelOpen() {
+    autoStop();
+    distScope = distCurrentModelName();
+    syncDistScopeSelect();
+    bpRefreshCaption('dist');
+    distRefreshFolder();
   }
 
   // Expose the hooks other modules call.
@@ -488,7 +596,8 @@
     onDistChainRefreshed: bpOnDistChainRefreshed,
     refreshCaption: bpRefreshCaption,
     distTickRef: distTickRef,
-    refreshFolder: distRefreshFolder
+    refreshFolder: distRefreshFolder,
+    onDistPanelOpen: onDistPanelOpen
   };
 
   if (document.readyState === 'loading') {

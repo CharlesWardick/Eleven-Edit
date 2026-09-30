@@ -201,7 +201,7 @@ function openDistPanel() {
   renderDistKnobs(distBlk.modelId);
   // Query hardware for current values
   requestDistParams();
-  if (window.blockPresets) { window.blockPresets.refreshCaption('dist'); window.blockPresets.refreshFolder(); }
+  if (window.blockPresets) window.blockPresets.onDistPanelOpen();
   appLog('openDistPanel: mid=0x' + distBlk.modelId.toString(16).padStart(2,'0')
     + ' handle=0x' + distBlk.handle.toString(16).padStart(2,'0').toUpperCase());
 }
