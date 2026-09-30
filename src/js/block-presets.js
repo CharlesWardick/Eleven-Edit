@@ -238,14 +238,27 @@
   // Shared loader for a preset's bytes (used by the LOAD dialog and the +/-
   // stepper). Parses, gates on capability, auto-switches the model if needed,
   // then applies. On success, syncs the folder pointer to this file.
-  function loadDistFromBytes(bytes, filename, fpath) {
+  // Parse + capability check. {ok:true, parsed} | {ok:false, kind:'parse'|'reject', msg}.
+  function bpParseValid(bytes) {
     var parsed = parsePreset(bytes);
-    if (!parsed.ok) { setStatus && setStatus(parsed.error); return; }
-    if (BLOCKS.dist.families.indexOf(parsed.family) < 0) {
-      setStatus && setStatus("That's not a distortion preset — DIST can't host it. Nothing changed.");
-      return;
-    }
-    if (fpath) { bpLoadedPath.dist = fpath; distSyncFolderIndex(fpath); }   // stepper position
+    if (!parsed.ok) return { ok: false, kind: 'parse', msg: parsed.error };
+    if (BLOCKS.dist.families.indexOf(parsed.family) < 0)
+      return { ok: false, kind: 'reject', msg: "That's not a distortion preset — DIST can't host it." };
+    return { ok: true, parsed: parsed };
+  }
+
+  // Prominent modal for a deliberate (manual) wrong-type load.
+  function bpRejectModal(name, msg) {
+    if (typeof showModalMessage === 'function') {
+      showModalMessage("Can't load this preset",
+        '<div style="padding:4px 2px;line-height:1.5;">' + (msg || "This block can't host that preset.")
+        + (name ? ('<br><br>File: <b>' + name + '</b>') : '') + '</div>');
+    } else if (setStatus) { setStatus(msg); }
+  }
+
+  // Apply an already-validated preset (auto-switch model if needed, then set).
+  function loadDistValidated(parsed, filename, fpath) {
+    if (fpath) { bpLoadedPath.dist = fpath; distSyncFolderIndex(fpath); }
     var targetMid = null;
     for (var mid in DIST_MAP) { if (DIST_MAP[mid].code === parsed.code) { targetMid = parseInt(mid, 10); break; } }
     var cur = distBlock();
@@ -265,7 +278,15 @@
     window.electronAPI.loadBlockPresetDialog(BLOCKS.dist.familyFolder, distCurrentModelName()).then(function (r) {
       if (!r || r.canceled) return;
       if (!r.ok) { setStatus && setStatus('Load failed: ' + (r.error || 'unknown error')); return; }
-      distRefreshFolder(function () { loadDistFromBytes(r.bytes, r.filename, r.path); });
+      distRefreshFolder(function () {
+        var v = bpParseValid(r.bytes);
+        if (!v.ok) {
+          if (v.kind === 'reject') bpRejectModal(r.filename.replace(/\.tfx$/i, ''), v.msg);
+          else setStatus && setStatus(v.msg);
+          return;
+        }
+        loadDistValidated(v.parsed, r.filename, r.path);
+      });
     });
   }
 
@@ -315,17 +336,30 @@
     el.textContent = (distFolderIndex < 0 ? '—' : (distFolderIndex + 1)) + ' / ' + n;
   }
 
-  // Step ±1 with WRAP; load that preset (becomes the new reference).
-  function distStep(dir) {
+  // Step ±1 with WRAP; load that preset (becomes the new reference). In auto
+  // mode a non-loadable file (wrong type / unreadable) is SKIPPED to the next
+  // valid one (one lap max, then stop). Manual mode shows a modal on a wrong
+  // type instead of skipping (the user picked it deliberately).
+  function distStep(dir, opts) {
     if (!distFolder.length) return;
+    opts = opts || {};
+    var auto = !!opts.auto;
     var n = distFolder.length;
-    var idx = (distFolderIndex < 0)
-      ? (dir > 0 ? 0 : n - 1)                       // nothing loaded: first / last
-      : ((distFolderIndex + dir) % n + n) % n;      // wrap
+    var fromIdx = (typeof opts.fromIdx === 'number') ? opts.fromIdx : distFolderIndex;
+    var tries = (typeof opts.tries === 'number') ? opts.tries : n;
+    var idx = (fromIdx < 0) ? (dir > 0 ? 0 : n - 1) : (((fromIdx + dir) % n) + n) % n;
     var entry = distFolder[idx];
     window.electronAPI.readBlockPresetPath(entry.path).then(function (r) {
-      if (!r || !r.ok) { setStatus && setStatus('Could not read preset: ' + (r && r.error || '')); return; }
-      loadDistFromBytes(r.bytes, r.filename, entry.path);
+      var v = (r && r.ok) ? bpParseValid(r.bytes) : { ok: false, kind: 'parse', msg: 'Could not read preset.' };
+      if (v.ok) { loadDistValidated(v.parsed, r.filename, entry.path); return; }
+      if (auto) {
+        if (tries > 1) { distStep(dir, { auto: true, fromIdx: idx, tries: tries - 1 }); return; }  // skip
+        autoStop();
+        setStatus && setStatus('Auto-step stopped — no loadable presets in this scope.');
+        return;
+      }
+      if (v.kind === 'reject') bpRejectModal(entry.name, v.msg);
+      else setStatus && setStatus(v.msg);
     });
   }
 
@@ -339,7 +373,7 @@
   function autoStart() {
     if (!distFolder.length) return;
     autoStop();
-    autoTimer = setInterval(function () { distStep(1); }, autoStepSeconds() * 1000);
+    autoTimer = setInterval(function () { distStep(1, { auto: true }); }, autoStepSeconds() * 1000);
     updateAutoBtn();
   }
   function autoStop() {
