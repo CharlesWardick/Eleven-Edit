@@ -294,17 +294,21 @@ function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks, linear) {
 
   // Thumb — a horizontal bar, matching the Avid fader look. 0 = bottom,
   // 127 = top (dragging UP raises the value, same convention as every
-  // knob's vertical drag).
-  const y = bottom - (value127 / 127) * trackH;
-  ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(cx - 9, y); ctx.lineTo(cx + 9, y);
-  ctx.stroke();
-  // Centre notch on the thumb, like the real fader cap
-  ctx.fillStyle = '#1a1a1a';
-  ctx.beginPath();
-  ctx.arc(cx, y, 2, 0, Math.PI*2);
-  ctx.fill();
+  // knob's vertical drag). A null/undefined/NaN value = "not read from the
+  // rack yet": draw the groove + calibration only, no thumb (honest state;
+  // no fake value that jumps when the readback lands).
+  if (value127 !== null && value127 !== undefined && !isNaN(value127)) {
+    const y = bottom - (value127 / 127) * trackH;
+    ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 9, y); ctx.lineTo(cx + 9, y);
+    ctx.stroke();
+    // Centre notch on the thumb, like the real fader cap
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(cx, y, 2, 0, Math.PI*2);
+    ctx.fill();
+  }
 }
 
 // clearMainKnobBaselines REMOVED 2026-09-03 (Charlie's ask) — used to wipe

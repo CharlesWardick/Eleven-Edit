@@ -273,7 +273,7 @@ function renderDistKnobs(mid) {
           + '<canvas class="knob-canvas" width="70" height="70"></canvas></div>'
           + '<span class="knob-val" id="dist-v-' + loHex + '">--</span>';
         rowDiv.appendChild(knobDiv);
-        drawKnob(knobDiv.querySelector('canvas'), 64);
+        drawKnob(knobDiv.querySelector('canvas'), null);   // no placeholder value — body only until the rack readback lands
       }
     });
 
@@ -551,7 +551,7 @@ function renderReverbKnobs(mid) {
       + 'background:#1a1a1a;color:var(--text);border:1px solid var(--border-dim);'
       + 'border-radius:4px;padding:4px 6px;font-size:12px;">' + opts + '</select>';
     rowDiv.appendChild(cell);
-    drawKnob(cell.querySelector('canvas'), 64);
+    drawKnob(cell.querySelector('canvas'), null);   // Type knob: body only until the rack readback lands
     // Dropdown pick → snap the knob to that zone and send. The sub-cache
     // save/apply/seed sequence now lives INSIDE updateReverbKnob itself
     // (reverbHandleTypeChange, below) so it fires no matter which input
@@ -598,7 +598,7 @@ function renderReverbKnobs(mid) {
       + '<canvas class="knob-canvas" width="70" height="70"></canvas></div>'
       + '<span class="knob-val" id="reverb-v-' + loHex + '">--</span>';
     rowDiv.appendChild(knobDiv);
-    drawKnob(knobDiv.querySelector('canvas'), 64);
+    drawKnob(knobDiv.querySelector('canvas'), null);
   });
 
   wrapper.appendChild(rowDiv);
@@ -1119,7 +1119,7 @@ function renderVolKnobs(mid) {
           + '<canvas class="knob-canvas" width="70" height="70"></canvas></div>'
           + '<span class="knob-val" id="vol-v-' + loHex + '">--</span>';
         rowDiv.appendChild(knobDiv);
-        drawKnob(knobDiv.querySelector('canvas'), 64);
+        drawKnob(knobDiv.querySelector('canvas'), null);   // no placeholder value — body only until the rack readback lands
       }
     });
 
@@ -1278,7 +1278,7 @@ function renderFxLoopKnobs(mid) {
         + '<canvas class="knob-canvas" width="70" height="70"></canvas></div>'
         + '<span class="knob-val" id="fxloop-v-' + loHex + '">--</span>';
       rowDiv.appendChild(knobDiv);
-      drawKnob(knobDiv.querySelector('canvas'), 64);
+      drawKnob(knobDiv.querySelector('canvas'), null);
     });
 
     wrapper.appendChild(rowDiv);
@@ -1590,7 +1590,7 @@ function renderDelayCell(cell, rowDiv) {
       + '<canvas class="knob-canvas" width="70" height="70"></canvas></div>'
       + '<span class="knob-val" id="delay-v-' + loHex + '">--</span>';
     rowDiv.appendChild(knobDiv);
-    drawKnob(knobDiv.querySelector('canvas'), 64);
+    drawKnob(knobDiv.querySelector('canvas'), null);
   }
 }
 
@@ -2458,7 +2458,7 @@ function renderFxHostCell(cell, rowDiv) {
           + '<span class="knob-val" id="fxhost-v-' + loHex + '">--</span>';
         rowDiv.appendChild(sliderDiv);
         const sWrap = sliderDiv.querySelector('.knob-wrap');
-        drawEqSlider(sWrap.querySelector('canvas'), 64, sWrap, cell.min, cell.max, cell.ticks, cell.linear);
+        drawEqSlider(sWrap.querySelector('canvas'), null, sWrap, cell.min, cell.max, cell.ticks, cell.linear);   // no thumb until the rack readback lands
       } else {
         // cell.bandColor (Parametric EQ, 7/31/2026) — a fixed per-band
         // pointer accent instead of the usual amber/green base, matching
@@ -2478,7 +2478,7 @@ function renderFxHostCell(cell, rowDiv) {
           + '<canvas class="knob-canvas" width="70" height="70"></canvas></div>'
           + '<span class="knob-val" id="fxhost-v-' + loHex + '">--</span>';
         rowDiv.appendChild(knobDiv);
-        drawKnob(knobDiv.querySelector('canvas'), 64);
+        drawKnob(knobDiv.querySelector('canvas'), null);   // no placeholder value — body only until the rack readback lands
       }
 }
 
