@@ -135,6 +135,9 @@ function blockBaselineSetIfUnset(slotId, mid, loHex, val) {
     if (slotId === SLOT_DIST && window.blockPresets && window.blockPresets.onDistSavedModelKnown) {
       window.blockPresets.onDistSavedModelKnown();
     }
+    if (slotId === SLOT_REVERB && window.blockPresets && window.blockPresets.onReverbSavedModelKnown) {
+      window.blockPresets.onReverbSavedModelKnown();
+    }
   }
   if (!blockModelBaseline[slotId]) blockModelBaseline[slotId] = {};
   if (!blockModelBaseline[slotId][mid]) blockModelBaseline[slotId][mid] = {};
@@ -145,6 +148,9 @@ function blockBaselineSetIfUnset(slotId, mid, loHex, val) {
     // or Original/Save would apply a half-read state).
     if (slotId === SLOT_DIST && window.blockPresets && window.blockPresets.onDistBaselineProgress) {
       window.blockPresets.onDistBaselineProgress();
+    }
+    if (slotId === SLOT_REVERB && window.blockPresets && window.blockPresets.onReverbBaselineProgress) {
+      window.blockPresets.onReverbBaselineProgress();
     }
   }
   return blockModelBaseline[slotId][mid][loHex];
@@ -497,6 +503,7 @@ function openReverbPanel() {
   if (sel && model) { sel.value = String(model.mid); syncLoadedMarker(sel, 'reverb-model-select'); }   // base mid identifies the model
   renderReverbKnobs(rvBlk.modelId);
   requestReverbParams();
+  if (window.blockPresets && window.blockPresets.onReverbPanelOpen) window.blockPresets.onReverbPanelOpen();
   appLog('openReverbPanel: mid=0x' + rvBlk.modelId.toString(16).padStart(2,'0')
     + ' handle=0x' + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase());
 }
@@ -697,7 +704,12 @@ function updateReverbKnob(paramLo, val, isInteractive) {
     // knobs — reverbBaselineKey) — survives panel close/reopen, a model
     // switch, AND a Type switch.
     const baselineKey = model ? reverbBaselineKey(model, paramLo) : null;
-    wrap.dataset.orig  = baselineKey ? blockBaselineSetIfUnset(SLOT_REVERB, baselineKey, loHex, val) : val;
+    const base = baselineKey ? blockBaselineSetIfUnset(SLOT_REVERB, baselineKey, loHex, val) : val;
+    // When a block preset is loaded, its values become the tick reference so
+    // red/green shows change from the loaded preset, not the patch baseline.
+    const ref = (window.blockPresets && window.blockPresets.reverbTickRef)
+      ? window.blockPresets.reverbTickRef(loHex) : undefined;
+    wrap.dataset.orig  = (ref !== undefined) ? ref : base;
     wrap.dataset.value = val;
     drawKnob(wrap.querySelector('canvas'), val);
     // TEMP DIAGNOSTIC (2026-09-01, Charlie's Type-sub-cache tick report) —
@@ -755,7 +767,10 @@ function refreshReverbPanelAfterChainMap() {
     // NO baseline clear — per-model reference must survive a switch.
     const applied = model && blockCacheApply(SLOT_REVERB, model.mid, updateReverbKnob,
       function(lo, val) { if (typeof sendReverbParamWrite === 'function') sendReverbParamWrite(lo, val); });
-    if (!applied) setTimeout(requestReverbParams, 150);
+    // A pending block-preset apply paints synchronously and is authoritative —
+    // skip the readback so it can't repaint the rack's defaults over it.
+    const bpHandled = window.blockPresets && window.blockPresets.onReverbChainRefreshed();
+    if (!applied && !bpHandled) setTimeout(requestReverbParams, 150);
     appLog('refreshReverbPanelAfterChainMap: own switch confirmed, mid=0x'
       + rvBlk.modelId.toString(16).padStart(2,'0'));
     return;
@@ -766,12 +781,18 @@ function refreshReverbPanelAfterChainMap() {
     sel.value = String(model.mid);
     syncLoadedMarker(sel, 'reverb-model-select');
     renderReverbKnobs(rvBlk.modelId);
-    setTimeout(requestReverbParams, 150);
+    // Preset-driven switch applies synchronously here and is authoritative —
+    // skip the readback so it can't flash the rack defaults.
+    const bpHandled = window.blockPresets && window.blockPresets.onReverbChainRefreshed();
+    if (!bpHandled) setTimeout(requestReverbParams, 150);
     appLog('refreshReverbPanelAfterChainMap: dropdown resync, mid=0x'
       + rvBlk.modelId.toString(16).padStart(2,'0'));
     return;
   }
-  setTimeout(requestReverbParams, 150);
+  // Same-model refresh (e.g. patch nav) — let block presets clear any stale
+  // loaded-preset caption / tick reference, then read the rack.
+  const bpHandled = window.blockPresets && window.blockPresets.onReverbChainRefreshed();
+  if (!bpHandled) setTimeout(requestReverbParams, 150);
   appLog('refreshReverbPanelAfterChainMap: mid=0x' + rvBlk.modelId.toString(16).padStart(2,'0')
     + ' handle=0x' + rvBlk.handle.toString(16).padStart(2,'0').toUpperCase());
 }
