@@ -312,8 +312,10 @@ function refreshDistPanelAfterChainMap() {
     // nav or Save resets it (clearBlockModelState).
     const applied = model && blockCacheApply(SLOT_DIST, model.mid, updateDistKnob,
       function(lo, val) { if (typeof sendDistParamWrite === 'function') sendDistParamWrite(lo, val); });
-    if (!applied) setTimeout(requestDistParams, 150);
-    if (window.blockPresets) window.blockPresets.onDistChainRefreshed();
+    // A pending block-preset apply paints synchronously and is authoritative —
+    // skip the readback so it can't repaint the rack's defaults over it.
+    const bpHandled = window.blockPresets && window.blockPresets.onDistChainRefreshed();
+    if (!applied && !bpHandled) setTimeout(requestDistParams, 150);
     appLog('refreshDistPanelAfterChainMap: own switch confirmed, mid=0x'
       + distBlk.modelId.toString(16).padStart(2,'0'));
     return;
@@ -325,14 +327,18 @@ function refreshDistPanelAfterChainMap() {
     sel.value = String(distBlk.modelId);
     syncLoadedMarker(sel, 'dist-model-select');
     renderDistKnobs(distBlk.modelId);
-    setTimeout(requestDistParams, 150);
-    if (window.blockPresets) window.blockPresets.onDistChainRefreshed();
+    // Preset-driven switch (block-presets) applies synchronously here and is
+    // authoritative — skip the readback so it can't flash the rack defaults.
+    const bpHandled = window.blockPresets && window.blockPresets.onDistChainRefreshed();
+    if (!bpHandled) setTimeout(requestDistParams, 150);
     appLog('refreshDistPanelAfterChainMap: dropdown resync, mid=0x'
       + distBlk.modelId.toString(16).padStart(2,'0'));
     return;
   }
-  // Short delay so firmware handle assignment settles before we query
-  setTimeout(requestDistParams, 150);
+  // Same-model refresh (e.g. patch nav) — let block-presets clear any stale
+  // loaded-preset caption / tick reference, then read the rack.
+  const bpHandled = window.blockPresets && window.blockPresets.onDistChainRefreshed();
+  if (!bpHandled) setTimeout(requestDistParams, 150);
   appLog('refreshDistPanelAfterChainMap: mid=0x' + distBlk.modelId.toString(16).padStart(2,'0')
     + ' handle=0x' + distBlk.handle.toString(16).padStart(2,'0').toUpperCase());
 }

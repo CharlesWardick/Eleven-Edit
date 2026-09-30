@@ -383,21 +383,26 @@
   // Called from fx-panels.js refreshDistPanelAfterChainMap after a switch.
   function bpOnDistChainRefreshed() {
     if (bpPendingApply && bpPendingApply.blk === 'dist') {
+      // Apply SYNCHRONOUSLY, in the same frame the knobs just rendered, so the
+      // default (64/centre) paint is overwritten before the browser shows it —
+      // no midpoint flash. Returning true tells the caller to skip the rack
+      // readback (we are authoritative on the values we just wrote).
       var pend = bpPendingApply; bpPendingApply = null;
-      setTimeout(function () { applyDistParsed(pend.parsed, pend.filename); }, 60);
+      applyDistParsed(pend.parsed, pend.filename);
+      return true;
     } else if (bpPendingRestore) {
       var rest = bpPendingRestore; bpPendingRestore = null;
-      setTimeout(function () {
-        var m = applyDistValues(rest.values);
-        setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Reverted DIST model.');
-        bpRefreshCaption('dist');
-      }, 60);
+      var m = applyDistValues(rest.values);
+      setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Reverted DIST model.');
+      bpRefreshCaption('dist');
+      return true;
     } else {
       // Genuine patch nav or manual model change — no preset is "loaded".
       bpLoaded.dist = null;
       clearDistPresetRef();   // ticks return to the patch baseline
       bpRefreshCaption('dist');
     }
+    return false;
   }
 
   // ── PRESET bar caption ─────────────────────────────────────────────
