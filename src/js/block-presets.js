@@ -592,15 +592,12 @@
   function bpRefreshCaption(blkKey) {
     var el = document.getElementById('bp-name-' + blkKey);
     if (!el) return;
-    if (blkKey === 'dist' && distOnOrigin) {
-      var om = bpDistSavedName();
-      el.innerHTML = '★ Original' + (om ? (' <b>' + om + '</b>') : '');   // ★ Original <model>
-    } else if (bpLoaded[blkKey]) {
-      el.innerHTML = 'Loaded: <b>' + bpLoaded[blkKey] + '</b>';
-    } else {
-      var saved = (blkKey === 'dist') ? bpDistSavedName() : null;
-      el.innerHTML = saved ? ('Saved: <b>' + saved + '</b>') : 'Saved: <b>—</b>';
-    }
+    var pre, nm;
+    if (blkKey === 'dist' && distOnOrigin) { pre = '★ Original'; nm = bpDistSavedName() || ''; }
+    else if (bpLoaded[blkKey]) { pre = 'Loaded:'; nm = bpLoaded[blkKey]; }
+    else { pre = 'Saved:'; nm = (blkKey === 'dist' ? bpDistSavedName() : null) || '—'; }
+    // Fixed-width prefix column so the bold name never shifts between states.
+    el.innerHTML = '<span class="bp-pre">' + pre + '</span><b>' + nm + '</b>';
   }
 
   function bpSetLoadedName(blkKey, name) {
