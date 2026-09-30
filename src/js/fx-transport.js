@@ -168,6 +168,7 @@ function requestReverbParams() {
   const los = model.typeControl
     ? [model.typeControl.lo].concat(model.paramLos.filter(function(lo) { return lo !== model.typeControl.lo; }))
     : model.paramLos;
+  if (typeof reverbPaint !== 'undefined') reverbPaint.begin(los, 600);
   los.forEach(function(lo) {
     sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
   });
@@ -297,6 +298,7 @@ function requestVolParams() {
     return;
   }
   const hh = volBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  if (typeof volPaint !== 'undefined') volPaint.begin(model.paramLos, 600);
   model.paramLos.forEach(function(lo) {
     sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
   });
@@ -340,6 +342,7 @@ function requestFxLoopParams() {
     return;
   }
   const hh = loopBlk.handle.toString(16).padStart(2,'0').toUpperCase();
+  if (typeof fxloopPaint !== 'undefined') fxloopPaint.begin(model.paramLos, 600);
   model.paramLos.forEach(function(lo) {
     sendHex('F0 13 0B 0F 01 11 ' + hh + ' ' + lo.toString(16).padStart(2,'0').toUpperCase() + ' F7');
   });

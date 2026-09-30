@@ -690,6 +690,7 @@ function reverbHandleTypeChange(model, oldIdx, newIdx) {
 // on an already-known Type hits the exact same trap. Gating on WHO is
 // calling, rather than inferring from a snapshot of DOM state, closes
 // that gap for good instead of chasing each new race it produces.
+var reverbPaint = makePaintBuffer();   // buffer the readback so all knobs paint in one pass
 function updateReverbKnob(paramLo, val, isInteractive) {
   const loHex = paramLo.toString(16).padStart(2,'0');
   const wrap  = document.getElementById('reverb-w-' + loHex);
@@ -711,9 +712,9 @@ function updateReverbKnob(paramLo, val, isInteractive) {
     // red/green shows change from the loaded preset, not the patch baseline.
     const ref = (window.blockPresets && window.blockPresets.reverbTickRef)
       ? window.blockPresets.reverbTickRef(loHex) : undefined;
-    wrap.dataset.orig  = (ref !== undefined) ? ref : base;
+    wrap.dataset.orig  = (ref !== undefined) ? ref : base;   // bookkeeping stays live
     wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
+    reverbPaint.defer(function() { drawKnob(wrap.querySelector('canvas'), val); });
     // TEMP DIAGNOSTIC (2026-09-01, Charlie's Type-sub-cache tick report) —
     // one line per knob update showing exactly what the tick logic saw:
     // which key it compared against, the stored baseline, the incoming
@@ -758,8 +759,9 @@ function updateReverbKnob(paramLo, val, isInteractive) {
       reverbHandleTypeChange(model, oldTypeIdx, idx);
     }
   } else if (valEl) {
-    valEl.textContent = reverbKnobDisplay(paramLo, val);
+    reverbPaint.defer(function() { valEl.textContent = reverbKnobDisplay(paramLo, val); });
   }
+  reverbPaint.markSeen(paramLo);
 }
 
 // Re-sync dropdown + knobs after a chain map (model may have changed on
@@ -1134,6 +1136,7 @@ function renderVolKnobs(mid) {
   container.appendChild(wrapper);
 }
 
+var volPaint = makePaintBuffer();   // buffer the readback so controls paint in one pass
 function updateVolKnob(paramLo, val) {
   const loHex = paramLo.toString(16).padStart(2,'0');
   // Check if this paramLo is a toggle cell
@@ -1154,8 +1157,9 @@ function updateVolKnob(paramLo, val) {
     const btn = document.getElementById('vol-tgl-' + loHex);
     if (btn) {
       btn.dataset.orig  = fxBaselineSetIfUnset(SLOT_VOL, loHex, val);
-      paintFxToggle(btn, val);
+      volPaint.defer(function() { paintFxToggle(btn, val); });
     }
+    volPaint.markSeen(paramLo);
     return;
   }
   const wrap  = document.getElementById('vol-w-' + loHex);
@@ -1163,9 +1167,10 @@ function updateVolKnob(paramLo, val) {
   if (wrap) {
     wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_VOL, loHex, val);
     wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
+    volPaint.defer(function() { drawKnob(wrap.querySelector('canvas'), val); });
   }
-  if (valEl) valEl.textContent = valDisplay(val);
+  if (valEl) volPaint.defer(function() { valEl.textContent = valDisplay(val); });
+  volPaint.markSeen(paramLo);
 }
 
 function refreshVolPanelAfterChainMap() {
@@ -1320,6 +1325,7 @@ function fxLoopKnobDisplay(paramLo, val) {
   return valDisplay(val);
 }
 
+var fxloopPaint = makePaintBuffer();   // buffer the readback so all knobs paint in one pass
 function updateFxLoopKnob(paramLo, val) {
   const loHex = paramLo.toString(16).padStart(2,'0');
   const wrap  = document.getElementById('fxloop-w-' + loHex);
@@ -1327,9 +1333,10 @@ function updateFxLoopKnob(paramLo, val) {
   if (wrap) {
     wrap.dataset.orig  = fxBaselineSetIfUnset(SLOT_LOOP, loHex, val);
     wrap.dataset.value = val;
-    drawKnob(wrap.querySelector('canvas'), val);
+    fxloopPaint.defer(function() { drawKnob(wrap.querySelector('canvas'), val); });
   }
-  if (valEl) valEl.textContent = fxLoopKnobDisplay(paramLo, val);
+  if (valEl) fxloopPaint.defer(function() { valEl.textContent = fxLoopKnobDisplay(paramLo, val); });
+  fxloopPaint.markSeen(paramLo);
 }
 
 function refreshFxLoopPanelAfterChainMap() {
