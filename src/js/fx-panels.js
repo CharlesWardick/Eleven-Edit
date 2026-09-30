@@ -1834,6 +1834,10 @@ function updateDelayKnob(paramLo, val) {
   // comment above (buildDelayPanel) for the full mechanism.
   if (delayPendingBuild && cell) {
     paintDelayCellIntoRefs(delayPendingBuild.cellsByLo, cell, delayPendingBuild.model, loHex, val);
+    // Record the per-model baseline even on the off-DOM build path, so the
+    // block-preset bar's baseline-ready gate (all paramLos) can complete and
+    // Original/RELOAD can restore every param (build 211).
+    if (delayPendingBuild.model) delayBaselineSetIfUnset(delayPendingBuild.model.mid, loHex, val);
     if (delayArrivalGate) delayArrivalGate.markSeen(paramLo);
     return;
   }
@@ -1880,6 +1884,7 @@ function updateDelayKnob(paramLo, val) {
         syncLoadedMarker(sel, 'delay-sel-' + loHex + ':' + (model ? model.mid : ''));
       });
     }
+    if (model) delayBaselineSetIfUnset(model.mid, loHex, val);   // baseline for the Feedback-Mode select (build 211)
     if (delayArrivalGate) delayArrivalGate.markSeen(paramLo);
     return;
   }
@@ -1920,6 +1925,7 @@ function updateDelaySync(val) {
       delayAllCells(delayPendingBuild.model).forEach(function(c) { if (c.delaySync) syncCell = c; });
     }
     if (syncCell) paintDelayCellIntoRefs(delayPendingBuild.cellsByLo, syncCell, delayPendingBuild.model, '05', val);
+    if (delayPendingBuild.model) delayBaselineSetIfUnset(delayPendingBuild.model.mid, '05', val);   // Sync baseline (build 211)
     if (delayArrivalGate) delayArrivalGate.markSeen(0x05);
     return;
   }
@@ -1933,6 +1939,9 @@ function updateDelaySync(val) {
     // meaning collision the way there is for delay-sel's Feedback Mode.
     syncLoadedMarker(sel, 'delay-sync-select');
   });
+  var dSyncBlk = currentChain.find(function(b) { return b.slotId === SLOT_DELAY; });
+  var dSyncModel = dSyncBlk ? DELAY_MODEL_BY_MID[dSyncBlk.modelId] : null;
+  if (dSyncModel) delayBaselineSetIfUnset(dSyncModel.mid, '05', val);   // Sync baseline (build 211)
   if (delayArrivalGate) delayArrivalGate.markSeen(0x05);
 }
 

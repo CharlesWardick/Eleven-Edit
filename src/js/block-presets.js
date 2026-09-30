@@ -920,8 +920,36 @@
       var m = (b && typeof DELAY_MODEL_BY_MID !== 'undefined') ? DELAY_MODEL_BY_MID[b.modelId] : null;
       return m ? m.name : null;
     },
-    knobV127: function (loHex) { var w = document.getElementById('delay-w-' + loHex); return w ? parseInt(w.dataset.value, 10) : undefined; },
-    updateKnob: function (lo, v) { if (typeof updateDelayKnob === 'function') updateDelayKnob(lo, v); },
+    knobV127: function (loHex) {
+      // DELAY controls aren't all knob-wraps: Sync + Feedback Mode are
+      // dropdowns, toggles are tiles. Read each control's live value by cell
+      // kind so SAVE captures every param.
+      var lo = parseInt(loHex, 16);
+      var blk = (typeof currentChain !== 'undefined' && typeof SLOT_DELAY !== 'undefined')
+        ? currentChain.find(function (b) { return b.slotId === SLOT_DELAY; }) : null;
+      var model = (blk && typeof DELAY_MODEL_BY_MID !== 'undefined') ? DELAY_MODEL_BY_MID[blk.modelId] : null;
+      var cell = null;
+      if (model && typeof delayAllCells === 'function') delayAllCells(model).forEach(function (c) { if (c && c.lo === lo) cell = c; });
+      if (cell && cell.delaySync) {
+        var ss = document.getElementById('delay-sync-select');
+        return (ss && typeof syncV127FromIndex === 'function') ? syncV127FromIndex(parseInt(ss.value, 10) || 0) : undefined;
+      }
+      if (cell && cell.select) {
+        var se = document.getElementById('delay-sel-' + loHex);
+        if (se && cell.options) { var i = parseInt(se.value, 10) || 0; return cell.options[i] ? cell.options[i].v127 : undefined; }
+        return undefined;
+      }
+      if (cell && cell.toggle) {
+        var tg = document.getElementById('delay-tgl-' + loHex);
+        return tg ? parseInt(tg.dataset.value, 10) : undefined;
+      }
+      var w = document.getElementById('delay-w-' + loHex);
+      return w ? parseInt(w.dataset.value, 10) : undefined;
+    },
+    updateKnob: function (lo, v) {
+      if (lo === 0x05 && typeof updateDelaySync === 'function') { updateDelaySync(v); return; }   // Sync is a dropdown
+      if (typeof updateDelayKnob === 'function') updateDelayKnob(lo, v);
+    },
     sendParamWrite: function (lo, v) { if (typeof sendDelayParamWrite === 'function') sendDelayParamWrite(lo, v); },
     sendModelChange: function (mid) { if (typeof sendDelayModelChange === 'function') sendDelayModelChange(mid); },
     scopeModels: function () { return (typeof DELAY_MODELS !== 'undefined') ? DELAY_MODELS.map(function (m) { return m.name; }) : []; },
