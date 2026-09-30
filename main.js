@@ -298,6 +298,28 @@ function listTfxRecursive(dir, family) {
   return out;
 }
 
+ipcMain.handle('get-presets-base-dir', function() {
+  return storeGet('presetsDir', null) || path.join(app.getPath('userData'), 'Presets');
+});
+
+ipcMain.handle('choose-presets-dir', async function() {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    const cur = storeGet('presetsDir', null) || path.join(app.getPath('userData'), 'Presets');
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Choose Presets Folder',
+      defaultPath: cur,
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths.length) return { ok: false, canceled: true };
+    storeSet('presetsDir', result.filePaths[0]);
+    logWrite('Presets dir changed to: ' + result.filePaths[0]);
+    return { ok: true, dir: result.filePaths[0] };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle('save-block-preset', async function(e, family, model, suggestName, bytesArray) {
   try {
     const win = BrowserWindow.getAllWindows()[0];

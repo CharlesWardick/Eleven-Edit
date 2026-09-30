@@ -2920,6 +2920,8 @@
           <button class="settings-btn fold-btn" data-pop="fpop-captures">Captures <span class="fold-led" id="fled-captures"></span></button></div>
         <div class="settings-row"><div class="settings-row-label">Logs</div>
           <button class="settings-btn fold-btn" data-pop="fpop-logs">Logs <span class="fold-led" id="fled-logs"></span></button></div>
+        <div class="settings-row"><div class="settings-row-label">Presets</div>
+          <button class="settings-btn fold-btn" data-pop="fpop-presets">Presets <span class="fold-led" id="fled-presets"></span></button></div>
         <div class="settings-row"><div class="settings-row-label">Avid Graphics</div>
           <button class="settings-btn fold-btn" data-pop="fpop-avid">Avid Graphics <span class="fold-led" id="fled-avid"></span></button></div>
         <div class="fold-pop" id="fpop-captures"><div class="fold-pop-t">Captures Folder</div>
@@ -2929,6 +2931,10 @@
           <div class="settings-path" id="settings-logs-path">—</div>
           <div class="fold-pop-note">Logging runs only when started with /LOGS. A change applies from the next launch.</div>
           <div class="fold-pop-btns"><button class="settings-btn" id="settings-btn-set-logs">Change…</button><button class="settings-btn" id="settings-btn-open-logs">Open Folder</button><button class="settings-btn fold-close">Close</button></div></div>
+        <div class="fold-pop" id="fpop-presets"><div class="fold-pop-t">Presets Folder</div>
+          <div class="settings-path" id="settings-presets-path">—</div>
+          <div class="fold-pop-note">Block presets are saved here, in per-effect subfolders (e.g. Distortion/Green JRC Overdrive).</div>
+          <div class="fold-pop-btns"><button class="settings-btn" id="settings-btn-set-presets">Change…</button><button class="settings-btn" id="settings-btn-open-presets">Open Folder</button><button class="settings-btn fold-close">Close</button></div></div>
         <div class="fold-pop" id="fpop-avid"><div class="fold-pop-t">Avid Graphics Folder</div>
           <div class="settings-path" id="settings-avid-path">—</div>
           <div class="settings-path" id="settings-avid-scan-result">Not scanned yet.</div>
@@ -4713,6 +4719,7 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
     }
     led('fled-captures', document.getElementById('settings-captures-path').textContent);
     led('fled-logs', document.getElementById('settings-logs-path').textContent);
+    led('fled-presets', document.getElementById('settings-presets-path').textContent);
     led('fled-avid', document.getElementById('settings-avid-path').textContent);
     // build 139: Avid light = scan coverage. red = none/failed, amber = some, green = all.
     var al = document.getElementById('fled-avid');
@@ -4722,7 +4729,7 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
     } else if (al) { al.classList.remove('amber', 'red'); }
   }
   var avidCov = null;
-  ['settings-captures-path', 'settings-logs-path', 'settings-avid-path'].forEach(function(id) {
+  ['settings-captures-path', 'settings-logs-path', 'settings-presets-path', 'settings-avid-path'].forEach(function(id) {
     new MutationObserver(foldLeds).observe(document.getElementById(id), { childList: true, characterData: true, subtree: true });
   });
   function foldCloseAll() { document.querySelectorAll('.fold-pop.open').forEach(function(p) { p.classList.remove('open'); }); }
@@ -4745,6 +4752,21 @@ document.getElementById('breakup-slider').addEventListener('dblclick', function(
     window.electronAPI.chooseLogsDir().then(function(res) {
       if (res && res.ok) document.getElementById('settings-logs-path').textContent = res.dir;
     }).catch(function(){});
+  });
+
+  // Presets folder (block presets root) — same pattern as Logs/Captures.
+  if (window.electronAPI && window.electronAPI.getPresetsBaseDir) {
+    window.electronAPI.getPresetsBaseDir().then(function(d) { document.getElementById('settings-presets-path').textContent = d || '—'; }).catch(function(){});
+  }
+  document.getElementById('settings-btn-set-presets').addEventListener('click', function() {
+    if (!window.electronAPI || !window.electronAPI.choosePresetsDir) return;
+    window.electronAPI.choosePresetsDir().then(function(res) {
+      if (res && res.ok) document.getElementById('settings-presets-path').textContent = res.dir;
+    }).catch(function(){});
+  });
+  document.getElementById('settings-btn-open-presets').addEventListener('click', function() {
+    if (!window.electronAPI) return;
+    window.electronAPI.getPresetsBaseDir().then(function(d) { if (d) window.electronAPI.openPath(d); }).catch(function(){});
   });
 
   document.getElementById('settings-btn-set-captures').addEventListener('click', function() {

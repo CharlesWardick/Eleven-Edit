@@ -75,6 +75,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveBlockPreset:  (fam, model, name, bytes) => ipcRenderer.invoke('save-block-preset', fam, model, name, bytes),
   loadBlockPresetDialog: (fam, model) => ipcRenderer.invoke('load-block-preset-dialog', fam, model),
   listBlockPresets:  (fam, model) => ipcRenderer.invoke('list-block-presets', fam, model),
+  getPresetsBaseDir: ()           => ipcRenderer.invoke('get-presets-base-dir'),
+  choosePresetsDir:  ()           => ipcRenderer.invoke('choose-presets-dir'),
   readBlockPresetPath: (p)        => ipcRenderer.invoke('read-block-preset-path', p),
   chooseCapturesDir:()            => ipcRenderer.invoke('choose-captures-dir'),
   resetCapturesDir: ()            => ipcRenderer.invoke('reset-captures-dir'),
