@@ -1444,7 +1444,7 @@
   .preset-bar .bp-disabled { opacity: 0.35; cursor: default; pointer-events: none; }
   /* PRESET bar now sits under the header (top of the panel), so no bottom
      anchor is needed — a knob-row row-count change no longer moves it. */
-  #panel-dist, #panel-reverb { display: flex; flex-direction: column; }
+  #panel-dist, #panel-reverb, #panel-delay { display: flex; flex-direction: column; }
 
   /* ══ STATUS BAR ══ */
   #statusbar {
@@ -2820,6 +2820,8 @@
           <option value="32">Dyn Delay</option>
         </select>
       </div>
+      <button id="btn-delay-revert" class="bt-btn" title="Restore DELAY to the patch's saved state"
+        style="align-self:flex-end;margin-bottom:3px;padding:3px 10px;font-size:11px;">↺ RELOAD</button>
       <button id="btn-delay-close" title="Close"
         style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 6px;"
         onmouseover="this.style.color='var(--fg)'" onmouseout="this.style.color='var(--muted)'">✕</button>

@@ -62,14 +62,14 @@
     catch (e) { bpFeatureEnabled = false; }
   }
   function bpApplyEnabled() {
-    ['dist', 'reverb'].forEach(function (K) {
+    ['dist', 'reverb', 'delay'].forEach(function (K) {
       var bar = document.getElementById('bp-bar-' + K);
       if (bar) bar.style.display = bpFeatureEnabled ? '' : 'none';
       var rev = document.getElementById('btn-' + K + '-revert');
       if (rev) rev.style.display = bpFeatureEnabled ? '' : 'none';
     });
     if (!bpFeatureEnabled) { autoStop(); }
-    else { dist.onPanelOpen(); reverb.onPanelOpen(); }   // populate the open panel's bar now
+    else { dist.onPanelOpen(); reverb.onPanelOpen(); delay.onPanelOpen(); }   // populate the open panel's bar now
   }
   function bpSetEnabled(on) {
     bpFeatureEnabled = !!on;
@@ -110,6 +110,52 @@
                       0x06: {name:'d_PDly', type:'d', scale:{lo:0, hi:200}} } }                // whole ms, 0–200
   };
 
+  // DELAY models — THREE file families, one per model (samples verified
+  // 2026-09-30, byte-identical round-trip): EP Tape Echo = EcPl/EC2, BBD
+  // Delay = MeMn/MM2, Dyn Delay = DyDl/AD2. Record order = paramLos ascending
+  // (matches Avid). Each param carries its own `enc` (see encToFile). The Dyn
+  // log curves (HiCt/LoCt/Rate), bipolar sign (EnFb/EnMx) and Feedback-Mode
+  // index order are the inferred-not-proven ones — verify on hardware.
+  var FBMODE_OPTS = [ {v127:0}, {v127:42}, {v127:85}, {v127:127} ];   // Mono/Stereo/Cross/Pong
+  var DELAY_MAP = {
+    0x1C: { family: 'EcPl', code: 'EC2', verified: true,   // EP Tape Echo
+            params: {
+              0x02: {name:'d_Vol ', type:'d', enc:{kind:'linear', lo:1, hi:9}},   // Mix 1–9
+              0x03: {name:'d_Sust', type:'d', enc:{kind:'linear', lo:1, hi:9}},   // Feedback 1–9
+              0x04: {name:'d_EDly', type:'d', enc:{kind:'frac'}},                 // Delay (position)
+              0x05: {name:'l_Sync', type:'l', enc:{kind:'sync'}},
+              0x06: {name:'d_Rec ', type:'d', enc:{kind:'linear', lo:0, hi:10}},  // Rec Level 0–10
+              0x07: {name:'d_Wow ', type:'d', enc:{kind:'linear', lo:0, hi:2}},   // Wow/Flutter 0–2%
+              0x08: {name:'d_Tilt', type:'d', enc:{kind:'linear', lo:0, hi:10}},  // Head Tilt 0–10
+              0x09: {name:'l_4X  ', type:'l', enc:{kind:'toggle'}},               // Expanded Delay
+              0x0A: {name:'l_Hiss', type:'l', enc:{kind:'toggle'}} } },
+    0x1E: { family: 'MeMn', code: 'MM2', verified: true,   // BBD Delay (Memory Man)
+            params: {
+              0x02: {name:'d_Blnd', type:'d', enc:{kind:'linear', lo:0, hi:10}},  // Mix 0–10
+              0x03: {name:'d_Fdbk', type:'d', enc:{kind:'linear', lo:0, hi:10}},  // Feedback 0–10
+              0x04: {name:'d_Dly ', type:'d', enc:{kind:'frac'}},                 // Delay (position)
+              0x05: {name:'l_Sync', type:'l', enc:{kind:'sync'}},
+              0x06: {name:'d_InLv', type:'d', enc:{kind:'linear', lo:0, hi:10}},  // Input 0–10
+              0x07: {name:'d_Dpth', type:'d', enc:{kind:'linear', lo:0, hi:10}},  // Depth 0–10
+              0x08: {name:'l_ChVb', type:'l', enc:{kind:'toggle'}},               // Chorus/Vibrato
+              0x09: {name:'l_4X  ', type:'l', enc:{kind:'toggle'}},               // Expanded Delay
+              0x0A: {name:'l_Nois', type:'l', enc:{kind:'toggle'}} } },
+    0x20: { family: 'DyDl', code: 'AD2', verified: true,   // Dyn Delay
+            params: {
+              0x02: {name:'d_DMix', type:'d', enc:{kind:'frac'}},                 // Mix 0–100%
+              0x03: {name:'d_Fdbk', type:'d', enc:{kind:'frac'}},                 // Feedback 0–100%
+              0x04: {name:'d_Dly ', type:'d', enc:{kind:'frac'}},                 // Delay (position)
+              0x05: {name:'l_Sync', type:'l', enc:{kind:'sync'}},
+              0x06: {name:'l_Mode', type:'l', enc:{kind:'select', options:FBMODE_OPTS}},  // Feedback Mode (order: verify HW)
+              0x07: {name:'d_Rtio', type:'d', enc:{kind:'frac'}},                 // L/R Ratio (position)
+              0x08: {name:'d_Wdth', type:'d', enc:{kind:'frac'}},                 // Stereo Width 0–100%
+              0x09: {name:'d_HiCt', type:'d', enc:{kind:'log', lo:1000, hi:20000}}, // High Cut Hz (verify HW)
+              0x0A: {name:'d_LoCt', type:'d', enc:{kind:'log', lo:20, hi:1000}},    // Low Cut Hz (verify HW)
+              0x0B: {name:'d_EnRt', type:'d', enc:{kind:'log', lo:0.01, hi:1}},     // Env Rate s (verify HW)
+              0x0C: {name:'d_EnFb', type:'d', enc:{kind:'bipolar'}},                // Env FBK ±% (verify HW)
+              0x0D: {name:'d_EnMx', type:'d', enc:{kind:'bipolar'}} } }            // Env Mix ±% (verify HW)
+  };
+
   // ── Value scale per family (linear v127 0..127 ⇄ float lo..hi). A param's
   // own `scale` (see d_PDly) wins over the family scale. ────────────────
   var BP_SCALE = {
@@ -129,6 +175,46 @@
   }
   function bpV127ToFloat(scale, v127) {
     return scale.lo + (v127 / 127) * (scale.hi - scale.lo);
+  }
+
+  // ── Per-param encoders (DELAY) ──────────────────────────────────────
+  // DELAY's stored floats are NOT one uniform family scale — each param has
+  // its own encoding. A field carries an `enc`; when present it wins over the
+  // family scale. enc.kind:
+  //   frac            v127/127 (0–1 normalised)
+  //   linear(lo,hi)   display units, linear
+  //   log(lo,hi)      display units, log (Hz / time knobs)  [Dyn — verify HW]
+  //   bipolar         ±% around centre v127=64               [Dyn — verify HW]
+  //   sync            SYNC_DIVISIONS index  (l_)
+  //   select(options) option index, v127 = options[i].v127  (l_)
+  //   toggle          0/1 ↔ off/on                           (l_)
+  // encToFile: v127 → stored value. encFromFile: stored value → v127.
+  function encToFile(enc, v127) {
+    switch (enc.kind) {
+      case 'frac':    return v127 / 127;
+      case 'linear':  return enc.lo + (v127 / 127) * (enc.hi - enc.lo);
+      case 'log':     return enc.lo * Math.pow(enc.hi / enc.lo, v127 / 127);
+      case 'bipolar': return (v127 < 64) ? (v127 - 64) * (100 / 64) : (v127 - 64) * (100 / 63);
+      case 'sync':    return (typeof syncIndexFromV127 === 'function') ? syncIndexFromV127(v127) : 0;
+      case 'select':  { var b = 0, bd = Infinity; enc.options.forEach(function (o, i) { var d = Math.abs(o.v127 - v127); if (d < bd) { bd = d; b = i; } }); return b; }
+      case 'toggle':  return v127 >= 64 ? 1 : 0;
+    }
+    return v127;
+  }
+  function encFromFile(enc, fv) {
+    var frac;
+    switch (enc.kind) {
+      case 'frac':    frac = fv; break;
+      case 'linear':  frac = (fv - enc.lo) / (enc.hi - enc.lo); break;
+      case 'log':     frac = Math.log(fv / enc.lo) / Math.log(enc.hi / enc.lo); break;
+      case 'bipolar': { var v = (fv < 0) ? Math.round(64 + fv * 64 / 100) : Math.round(64 + fv * 63 / 100); return Math.max(0, Math.min(127, v)); }
+      case 'sync':    return (typeof syncV127FromIndex === 'function') ? syncV127FromIndex(fv | 0) : 0;
+      case 'select':  { var i = Math.max(0, Math.min(enc.options.length - 1, fv | 0)); return enc.options[i].v127; }
+      case 'toggle':  return (fv | 0) > 0 ? 127 : 0;
+      default:        frac = fv;
+    }
+    if (isNaN(frac)) return 0;
+    return Math.max(0, Math.min(127, Math.round(frac * 127)));
   }
 
   // ── Low-level byte helpers ─────────────────────────────────────────
@@ -356,7 +442,8 @@
         if (!field) return;
         var v127 = cfg.knobV127(hex(lo));
         if (v127 === undefined || isNaN(v127)) return;
-        if (field.type === 'l') params.push({ name: field.name, type: 'l', value: cfg.enumSave(lo, v127) });
+        if (field.enc) params.push({ name: field.name, type: field.type, value: encToFile(field.enc, v127) });
+        else if (field.type === 'l') params.push({ name: field.name, type: 'l', value: cfg.enumSave(lo, v127) });
         else params.push({ name: field.name, type: 'd', value: bpV127ToFloat(paramScale(cfg.map, bmid, lo), v127) });
       });
       if (!params.length) { setStatusSafe('No values to save (open the panel first).'); return; }
@@ -415,9 +502,10 @@
         posIdx++;
         if (lo === undefined) return;
         var field = entry.params[lo];
-        var v127 = (pm.type === 'l' || (field && field.type === 'l'))
-          ? cfg.enumLoadV127(lo, pm.value | 0)
-          : bpFloatToV127(paramScale(cfg.map, bmid, lo), pm.value);
+        var v127;
+        if (field && field.enc) v127 = encFromFile(field.enc, pm.value);
+        else if (pm.type === 'l' || (field && field.type === 'l')) v127 = cfg.enumLoadV127(lo, pm.value | 0);
+        else v127 = bpFloatToV127(paramScale(cfg.map, bmid, lo), pm.value);
         applied.push({ lo: lo, v127: v127 });
       });
       // Block-specific apply order (REVERB: Type control first, so the knob
@@ -813,15 +901,66 @@
     }
   });
 
+  var delay = makeBlock({
+    key: 'delay', label: 'DELAY', lower: 'delay',
+    familyFolder: 'Delay', families: ['DyDl', 'EcPl', 'MeMn'],
+    rejectMsg: "That's not a delay preset — DELAY can't host it.",
+    map: DELAY_MAP,
+    modelByMid: (typeof DELAY_MODEL_BY_MID !== 'undefined') ? DELAY_MODEL_BY_MID : {},
+    panelId: 'panel-delay', knobRowId: 'delay-knob-row',
+    block: function () {
+      return (typeof currentChain !== 'undefined' && typeof SLOT_DELAY !== 'undefined')
+        ? (currentChain.find(function (b) { return b.slotId === SLOT_DELAY; }) || null) : null;
+    },
+    baseMid: function (mid) { var m = (typeof DELAY_MODEL_BY_MID !== 'undefined') ? DELAY_MODEL_BY_MID[mid] : null; return m ? m.mid : mid; },
+    modelName: function (mid) { var m = (typeof DELAY_MODEL_BY_MID !== 'undefined') ? DELAY_MODEL_BY_MID[mid] : null; return m ? m.name : null; },
+    currentModelName: function () {
+      var b = (typeof currentChain !== 'undefined' && typeof SLOT_DELAY !== 'undefined')
+        ? currentChain.find(function (x) { return x.slotId === SLOT_DELAY; }) : null;
+      var m = (b && typeof DELAY_MODEL_BY_MID !== 'undefined') ? DELAY_MODEL_BY_MID[b.modelId] : null;
+      return m ? m.name : null;
+    },
+    knobV127: function (loHex) { var w = document.getElementById('delay-w-' + loHex); return w ? parseInt(w.dataset.value, 10) : undefined; },
+    updateKnob: function (lo, v) { if (typeof updateDelayKnob === 'function') updateDelayKnob(lo, v); },
+    sendParamWrite: function (lo, v) { if (typeof sendDelayParamWrite === 'function') sendDelayParamWrite(lo, v); },
+    sendModelChange: function (mid) { if (typeof sendDelayModelChange === 'function') sendDelayModelChange(mid); },
+    scopeModels: function () { return (typeof DELAY_MODELS !== 'undefined') ? DELAY_MODELS.map(function (m) { return m.name; }) : []; },
+    enumSave: function (lo, v127) { return v127; },                                  // unused — every delay field carries enc
+    enumLoadV127: function (lo, intVal) { return Math.max(0, Math.min(127, intVal)); },
+    applyOrder: function (bmid, applied) {
+      // Enum/toggle/sync params first — Sync must go OFF before the Delay knob
+      // (the rack refuses a Delay write while Sync sits on a division).
+      var entry = DELAY_MAP[bmid]; if (!entry) return applied;
+      var ls = [], ds = [];
+      applied.forEach(function (a) { var f = entry.params[a.lo]; if (f && f.type === 'l') ls.push(a); else ds.push(a); });
+      return ls.concat(ds);
+    },
+    baselineReady: function () {
+      var b = (typeof currentChain !== 'undefined' && typeof SLOT_DELAY !== 'undefined')
+        ? currentChain.find(function (x) { return x.slotId === SLOT_DELAY; }) : null;
+      var model = (b && typeof DELAY_MODEL_BY_MID !== 'undefined') ? DELAY_MODEL_BY_MID[b.modelId] : null;
+      if (!model) return false;
+      var base = (typeof delayModelBaseline !== 'undefined') ? delayModelBaseline[model.mid] : null;
+      if (!base) return false;
+      return model.paramLos.every(function (lo) { return base[hex(lo)] !== undefined; });
+    },
+    savedMidNumeric: function () { return (typeof delaySavedModel !== 'undefined') ? delaySavedModel : undefined; },
+    collectSavedValues: function (savedMid) {
+      var base = (typeof delayModelBaseline !== 'undefined') ? (delayModelBaseline[savedMid] || {}) : {};
+      return Object.keys(base).map(function (loHex) { return { lo: parseInt(loHex, 16), v127: base[loHex] }; });
+    }
+  });
+
   function initPresetBars() {
     bpLoadEnabled();
     dist.initBar();
     reverb.initBar();
+    delay.initBar();
     var cb = document.getElementById('bp-enable-checkbox');
     if (cb) { cb.checked = bpFeatureEnabled; cb.addEventListener('change', function () { bpSetEnabled(cb.checked); }); }
     // Hide the bars + RELOAD buttons when the feature is off (default). Don't
     // call bpApplyEnabled's enable-side refresh here — just set visibility.
-    ['dist', 'reverb'].forEach(function (K) {
+    ['dist', 'reverb', 'delay'].forEach(function (K) {
       var bar = document.getElementById('bp-bar-' + K);
       if (bar) bar.style.display = bpFeatureEnabled ? '' : 'none';
       var rev = document.getElementById('btn-' + K + '-revert');
@@ -844,9 +983,15 @@
     onReverbPanelOpen: reverb.onPanelOpen,
     onReverbSavedModelKnown: reverb.onSavedModelKnown,
     onReverbBaselineProgress: reverb.onBaselineProgress,
+    // DELAY
+    onDelayChainRefreshed: delay.onChainRefreshed,
+    delayTickRef: delay.tickRef,
+    onDelayPanelOpen: delay.onPanelOpen,
+    onDelaySavedModelKnown: delay.onSavedModelKnown,
+    onDelayBaselineProgress: delay.onBaselineProgress,
     // generic
-    refreshCaption: function (k) { (k === 'reverb' ? reverb : dist).refreshCaption(); },
-    refreshFolder: function (k) { (k === 'reverb' ? reverb : dist).refreshFolder(); }
+    refreshCaption: function (k) { (k === 'reverb' ? reverb : k === 'delay' ? delay : dist).refreshCaption(); },
+    refreshFolder: function (k) { (k === 'reverb' ? reverb : k === 'delay' ? delay : dist).refreshFolder(); }
   };
 
   if (document.readyState === 'loading') {

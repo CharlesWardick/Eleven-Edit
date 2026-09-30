@@ -1420,6 +1420,7 @@ function openDelayPanel() {
     delayArrivalGate = makeArrivalGate(model.paramLos, 1500, flushDelayPaint);
   }
   requestDelayParams();
+  if (window.blockPresets && window.blockPresets.onDelayPanelOpen) window.blockPresets.onDelayPanelOpen();
   appLog('openDelayPanel: mid=0x' + delayBlk.modelId.toString(16).padStart(2,'0')
     + ' handle=0x' + delayBlk.handle.toString(16).padStart(2,'0').toUpperCase());
 }
@@ -1885,7 +1886,11 @@ function updateDelayKnob(paramLo, val) {
   const wrap  = document.getElementById('delay-w-' + loHex);
   const valEl = document.getElementById('delay-v-' + loHex);
   if (wrap) {
-    wrap.dataset.orig  = model ? delayBaselineSetIfUnset(model.mid, loHex, val) : val;
+    const dBase = model ? delayBaselineSetIfUnset(model.mid, loHex, val) : val;
+    // When a block preset is loaded, its values become the tick reference.
+    const dRef = (window.blockPresets && window.blockPresets.delayTickRef)
+      ? window.blockPresets.delayTickRef(loHex) : undefined;
+    wrap.dataset.orig  = (dRef !== undefined) ? dRef : dBase;
     wrap.dataset.value = val;
     // drawKnob's own self-guard only knows about the MAIN nav buffer
     // (navPaintDeferred, ui.js) — this panel's buffer is a separate flag,
@@ -1991,12 +1996,22 @@ function clearDelayModelCache() { delayModelCache = {}; }
 // paramLo), since DELAY needs one fixed reference PER MODEL, not one for
 // the whole slot that a model switch is allowed to disturb.
 function delayBaselineSetIfUnset(mid, loHex, val) {
+  // First model seen since the last nav/save clear = the patch's saved DELAY
+  // model (block-preset Original/RELOAD target). A later user model switch
+  // reads under a different mid but must NOT move this.
+  if (delaySavedModel === undefined) {
+    delaySavedModel = mid;
+    if (window.blockPresets && window.blockPresets.onDelaySavedModelKnown) window.blockPresets.onDelaySavedModelKnown();
+  }
   if (!delayModelBaseline[mid]) delayModelBaseline[mid] = {};
-  if (delayModelBaseline[mid][loHex] === undefined) delayModelBaseline[mid][loHex] = val;
+  if (delayModelBaseline[mid][loHex] === undefined) {
+    delayModelBaseline[mid][loHex] = val;
+    if (window.blockPresets && window.blockPresets.onDelayBaselineProgress) window.blockPresets.onDelayBaselineProgress();
+  }
   return delayModelBaseline[mid][loHex];
 }
 
-function clearDelayModelBaseline() { delayModelBaseline = {}; }
+function clearDelayModelBaseline() { delayModelBaseline = {}; delaySavedModel = undefined; }
 
 function refreshDelayPanelAfterChainMap() {
   if (!delayPanelOpen) return;
@@ -2034,6 +2049,7 @@ function refreshDelayPanelAfterChainMap() {
           delayPendingBuild = null;
           delayArrivalGate = null;
           swapInDelayPanel(dbuilt1.frag);
+          if (window.blockPresets && window.blockPresets.onDelayChainRefreshed) window.blockPresets.onDelayChainRefreshed();
         }
       });
       applyDelayModelCache(model.mid);
@@ -2045,6 +2061,7 @@ function refreshDelayPanelAfterChainMap() {
             delayPendingBuild = null;
             delayArrivalGate = null;
             swapInDelayPanel(dbuilt1.frag);
+            if (window.blockPresets && window.blockPresets.onDelayChainRefreshed) window.blockPresets.onDelayChainRefreshed();
           }
         });
         requestDelayParams();
@@ -2072,6 +2089,7 @@ function refreshDelayPanelAfterChainMap() {
           delayPendingBuild = null;
           delayArrivalGate = null;
           swapInDelayPanel(dbuilt2.frag);
+          if (window.blockPresets && window.blockPresets.onDelayChainRefreshed) window.blockPresets.onDelayChainRefreshed();
         }
       });
       requestDelayParams();
@@ -2091,6 +2109,9 @@ function refreshDelayPanelAfterChainMap() {
     }
     requestDelayParams();
   }, 150);
+  // Same-model refresh (patch nav) — let block presets clear any stale
+  // loaded-preset caption / tick reference (no pending apply on this path).
+  if (window.blockPresets && window.blockPresets.onDelayChainRefreshed) window.blockPresets.onDelayChainRefreshed();
   appLog('refreshDelayPanelAfterChainMap: mid=0x' + delayBlk.modelId.toString(16).padStart(2,'0')
     + ' handle=0x' + delayBlk.handle.toString(16).padStart(2,'0').toUpperCase());
 }

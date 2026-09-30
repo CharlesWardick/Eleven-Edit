@@ -188,6 +188,11 @@ let delayModelCache = {};
 // clearFxBaselines() call for every other effect panel) — a save makes the
 // current state the new "unchanged" reference, same as everywhere else.
 let delayModelBaseline = {};
+// The patch's saved DELAY model (base mid) — the block-preset Original/RELOAD
+// target, set on the first baseline read after a nav/save clear (mirrors
+// blockSavedModel for DIST/REVERB, which DELAY doesn't use). Reset in
+// clearDelayModelBaseline.
+let delaySavedModel;
 
 // Set true right when the Model dropdown itself sends a model-change write;
 // consumed by refreshDelayPanelAfterChainMap so it can tell "this chain-map
