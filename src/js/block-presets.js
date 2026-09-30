@@ -324,8 +324,9 @@
     window.electronAPI.listBlockPresets(BLOCKS.dist.familyFolder, model).then(function (r) {
       distFolder = (r && r.ok && r.files) ? r.files : [];
       distBuildRing();
-      if (bpLoadedPath.dist) distSyncRingIndex(bpLoadedPath.dist);
-      else distRingIndex = distIncludeOrigin() ? 0 : -1;   // start on Original when present
+      if (bpLoadedPath.dist) { distSyncRingIndex(bpLoadedPath.dist); distOnOrigin = false; }
+      else { distRingIndex = distIncludeOrigin() ? 0 : -1; distOnOrigin = distIncludeOrigin(); }
+      bpRefreshCaption('dist');
       updateDistStepperEnabled();
       updateDistCounter();
       if (typeof cb === 'function') cb();
@@ -365,6 +366,7 @@
     distRingIndex = idx;
     bpLoadedPath.dist = null;
     bpLoaded.dist = null;
+    distOnOrigin = true;
     clearDistPresetRef();
     var savedMid = blockSavedModel[SLOT_DIST];
     var baseline = (typeof blockModelBaseline !== 'undefined' && blockModelBaseline[SLOT_DIST])
@@ -471,6 +473,7 @@
       if (typeof updateDistKnob === 'function') updateDistKnob(a.lo, a.v127);
       if (typeof sendDistParamWrite === 'function') sendDistParamWrite(a.lo, a.v127);
     });
+    distOnOrigin = false;   // a preset is loaded, not the Original
     bpSetLoadedName('dist', filename.replace(/\.tfx$/i, ''));
     setStatus && setStatus('Loaded "' + filename.replace(/\.tfx$/i, '') + '"'
       + (applied.length ? '' : ' (no matching parameters).'));
@@ -498,6 +501,7 @@
     if (!blk) return;
     clearDistPresetRef();   // ticks go back to the patch baseline
     bpLoadedPath.dist = null;
+    distOnOrigin = true;    // RELOAD = the Original/patch state
     distRingIndex = distIncludeOrigin() ? 0 : -1;   // sit on Original in the ring
     updateDistCounter();
     var savedMid = (typeof blockSavedModel !== 'undefined' && typeof SLOT_DIST !== 'undefined')
@@ -543,6 +547,7 @@
       // Reset the scope to the (new) current model and re-list its folder.
       bpLoaded.dist = null;
       bpLoadedPath.dist = null;
+      distOnOrigin = false;
       clearDistPresetRef();   // ticks return to the patch baseline
       autoStop();
       distScope = distCurrentModelName();
@@ -560,6 +565,7 @@
   // file load, show that filename ("Loaded: <name>"). REVERT clears it.
   var bpLoaded = { dist: null };
   var bpLoadedPath = { dist: null };   // absolute path of the loaded preset (stepper anchor)
+  var distOnOrigin = false;            // ring is sitting on the virtual "Original" stop
 
   // When a DIST preset is loaded, its values become the knobs' tick reference
   // (red/green shows change from the loaded preset). {loHex: v127} or null.
@@ -586,7 +592,10 @@
   function bpRefreshCaption(blkKey) {
     var el = document.getElementById('bp-name-' + blkKey);
     if (!el) return;
-    if (bpLoaded[blkKey]) {
+    if (blkKey === 'dist' && distOnOrigin) {
+      var om = bpDistSavedName();
+      el.innerHTML = '★ Original' + (om ? (' <b>' + om + '</b>') : '');   // ★ Original <model>
+    } else if (bpLoaded[blkKey]) {
       el.innerHTML = 'Loaded: <b>' + bpLoaded[blkKey] + '</b>';
     } else {
       var saved = (blkKey === 'dist') ? bpDistSavedName() : null;
