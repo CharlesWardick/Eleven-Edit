@@ -738,6 +738,17 @@ function updateReverbKnob(paramLo, val, isInteractive) {
     if (!isInteractive && model && reverbLoadTypeKey === null) {
       reverbLoadTypeKey = reverbTypeKey(model.mid, idx);
     }
+    // A rack readback just settled the Type control on its true value. The
+    // block-preset bar's "baseline ready" check keys Eleven SR's knob
+    // baselines by the CURRENT Type — on a panel reopen it ran while the Type
+    // knob still showed its placeholder (wrong key → looked unread → dimmed),
+    // and nothing re-fired it once the real Type arrived because those
+    // baselines were already stored (blockBaselineSetIfUnset only pings on a
+    // NEW value). Re-check readiness now that the Type is correct so the bar
+    // un-dims (build 202).
+    if (!isInteractive && window.blockPresets && window.blockPresets.onReverbBaselineProgress) {
+      window.blockPresets.onReverbBaselineProgress();
+    }
     // Run the sub-cache switch machinery whenever the Type genuinely
     // changed — covers the dropdown, a knob drag, a wheel notch, or a
     // live hardware broadcast, all in one place (2026-09-01 fix).
