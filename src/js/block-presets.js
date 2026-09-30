@@ -290,7 +290,17 @@
       var pre, nm;
       if (st.onOrigin) { pre = '★ Original'; nm = savedModelName() || ''; }
       else if (st.loaded) { pre = 'Loaded:'; nm = st.loaded; }
-      else { pre = 'Saved:'; nm = savedModelName() || '—'; }
+      else {
+        // No preset loaded and not on the Original stop. If we're viewing the
+        // patch's OWN saved model, the knobs are the patch's stored tone →
+        // "Saved: <model>". If the user switched to a DIFFERENT model, there's
+        // no saved reference for it (its Original would be another model), so
+        // show the current model honestly → "Model: <model>". (RULE 4.)
+        var cur = curModelName();
+        var saved = savedModelName();
+        if (cur && saved && cur !== saved) { pre = 'Model:'; nm = cur; }
+        else { pre = 'Saved:'; nm = saved || '—'; }
+      }
       el.innerHTML = '<span class="bp-pre">' + pre + '</span><b>' + nm + '</b>';
     }
     function setLoadedName(name) { st.loaded = name || null; refreshCaption(); }
