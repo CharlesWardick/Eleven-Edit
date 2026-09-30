@@ -189,16 +189,22 @@ function drawTickKnob(canvas, value127, wrap) {
   }
 
   // Live pointer — single tick, no colour-by-state (Charlie's call).
-  const rot = angleFor(value127);
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(rot + Math.PI/2);
-  ctx.beginPath();
-  ctx.moveTo(0, -(r-9));
-  ctx.lineTo(0, -Math.max(0, r-31));
-  ctx.strokeStyle = pointerCol; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  ctx.stroke();
-  ctx.restore();
+  // A null/undefined/NaN value means "not read from the rack yet" — draw the
+  // knob body but NO pointer, so a freshly-opened panel never shows a fake
+  // centred value that then jumps when the real readback lands (RULE 4:
+  // honest state; better a delayed pointer than wrong-then-right).
+  if (value127 !== null && value127 !== undefined && !isNaN(value127)) {
+    const rot = angleFor(value127);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot + Math.PI/2);
+    ctx.beginPath();
+    ctx.moveTo(0, -(r-9));
+    ctx.lineTo(0, -Math.max(0, r-31));
+    ctx.strokeStyle = pointerCol; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 // Every knob uses the pointer style (drawTickKnob). The old ring engine

@@ -927,11 +927,13 @@ function renderWahKnobs(mid) {
         knobDiv.className = 'ctrl-knob';
         knobDiv.innerHTML =
           '<label>' + cell.label + '</label>'
-          + '<div class="knob-wrap" id="wah-w-' + loHex + '" data-value="64" data-base="fx" data-wah-lo="' + loHex + '" data-style="tick">'
+          + '<div class="knob-wrap" id="wah-w-' + loHex + '" data-base="fx" data-wah-lo="' + loHex + '" data-style="tick">'
           + '<canvas class="knob-canvas" width="70" height="70"></canvas></div>'
           + '<span class="knob-val" id="wah-v-' + loHex + '">--</span>';
         rowDiv.appendChild(knobDiv);
-        drawKnob(knobDiv.querySelector('canvas'), 64);
+        // No placeholder value — draw the body only (no pointer) until the rack
+        // readback lands, so the panel never flashes a fake centred value.
+        drawKnob(knobDiv.querySelector('canvas'), null);
       }
     });
 
