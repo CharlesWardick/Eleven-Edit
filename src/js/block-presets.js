@@ -258,7 +258,7 @@
 
   // Apply an already-validated preset (auto-switch model if needed, then set).
   function loadDistValidated(parsed, filename, fpath) {
-    if (fpath) { bpLoadedPath.dist = fpath; distSyncFolderIndex(fpath); }
+    if (fpath) { bpLoadedPath.dist = fpath; distSyncRingIndex(fpath); }
     var targetMid = null;
     for (var mid in DIST_MAP) { if (DIST_MAP[mid].code === parsed.code) { targetMid = parseInt(mid, 10); break; } }
     var cur = distBlock();
@@ -290,37 +290,60 @@
     });
   }
 
-  // ── +/- stepper + auto-step: cycle the SCOPE folder (a model, or ALL) ──
+  // ── +/- stepper + auto-step: cycle the SCOPE's RING ──────────────────
+  // The ring = an optional virtual "Original" stop (the patch's saved state,
+  // i.e. the RELOAD target) at the front, then the scope folder's files. So a
+  // cycle is  Original → preset1 → … → presetN → Original …  and your starting
+  // tone comes back around. Origin is included only when the scope is the
+  // patch's own model or ALL (not when auditioning a different single type).
   var distFolder = [];        // [{name, path, model}] sorted (Windows order)
-  var distFolderIndex = -1;   // pointer to the loaded preset in distFolder
+  var distRing = [];          // [ {origin:true} ? ] + distFolder
+  var distRingIndex = -1;     // pointer into distRing
 
-  // Reload the scope's folder listing, then run cb (optional).
+  function distOriginAvailable() {
+    return (typeof blockSavedModel !== 'undefined' && typeof SLOT_DIST !== 'undefined'
+      && blockSavedModel[SLOT_DIST] !== undefined);
+  }
+  function distOriginModelName() {
+    return distOriginAvailable() ? distModelName(blockSavedModel[SLOT_DIST]) : null;
+  }
+  function distIncludeOrigin() {
+    if (!distOriginAvailable()) return false;
+    return (distScope === SCOPE_ALL) || (distScope === distOriginModelName());
+  }
+  function distBuildRing() {
+    var origin = distIncludeOrigin()
+      ? [{ origin: true, name: 'Original (' + distOriginModelName() + ')' }] : [];
+    distRing = origin.concat(distFolder);
+  }
+
+  // Reload the scope's folder listing + rebuild the ring, then run cb.
   function distRefreshFolder(cb) {
     if (distScope === null) distScope = distCurrentModelName();   // default = current model
     var model = (distScope === SCOPE_ALL) ? null : distScope;
     window.electronAPI.listBlockPresets(BLOCKS.dist.familyFolder, model).then(function (r) {
       distFolder = (r && r.ok && r.files) ? r.files : [];
-      if (bpLoadedPath.dist) distSyncFolderIndex(bpLoadedPath.dist);
-      else distFolderIndex = -1;
+      distBuildRing();
+      if (bpLoadedPath.dist) distSyncRingIndex(bpLoadedPath.dist);
+      else distRingIndex = distIncludeOrigin() ? 0 : -1;   // start on Original when present
       updateDistStepperEnabled();
       updateDistCounter();
       if (typeof cb === 'function') cb();
     });
   }
 
-  // Point the folder index at the file with this exact path (ALL can have the
-  // same name in different model folders, so match by path, not name).
-  function distSyncFolderIndex(fpath) {
-    distFolderIndex = -1;
-    for (var i = 0; i < distFolder.length; i++) {
-      if (distFolder[i].path === fpath) { distFolderIndex = i; break; }
+  // Point the ring index at the file with this exact path (origin has no path).
+  function distSyncRingIndex(fpath) {
+    distRingIndex = -1;
+    for (var i = 0; i < distRing.length; i++) {
+      if (!distRing[i].origin && distRing[i].path === fpath) { distRingIndex = i; break; }
     }
     updateDistStepperEnabled();
     updateDistCounter();
   }
 
   function updateDistStepperEnabled() {
-    var has = distFolder.length > 0;
+    var has = distRing.length > 0;
     ['bp-prev-dist', 'bp-next-dist', 'bp-auto-dist'].forEach(function (id) {
       var b = document.getElementById(id);
       if (b) { b.disabled = !has; b.classList.toggle('bp-disabled', !has); }
@@ -331,24 +354,45 @@
   function updateDistCounter() {
     var el = document.getElementById('bp-count-dist');
     if (!el) return;
-    var n = distFolder.length;
+    var n = distRing.length;
     if (!n) { el.textContent = '0 / 0'; return; }
-    el.textContent = (distFolderIndex < 0 ? '—' : (distFolderIndex + 1)) + ' / ' + n;
+    el.textContent = (distRingIndex < 0 ? '—' : (distRingIndex + 1)) + ' / ' + n;
   }
 
-  // Step ±1 with WRAP; load that preset (becomes the new reference). In auto
-  // mode a non-loadable file (wrong type / unreadable) is SKIPPED to the next
-  // valid one (one lap max, then stop). Manual mode shows a modal on a wrong
-  // type instead of skipping (the user picked it deliberately).
+  // Apply the virtual Original stop = restore the patch's saved state (model +
+  // baseline), like RELOAD but keeping the ring position so auto-step rolls on.
+  function distApplyOrigin(idx) {
+    distRingIndex = idx;
+    bpLoadedPath.dist = null;
+    bpLoaded.dist = null;
+    clearDistPresetRef();
+    var savedMid = blockSavedModel[SLOT_DIST];
+    var baseline = (typeof blockModelBaseline !== 'undefined' && blockModelBaseline[SLOT_DIST])
+      ? blockModelBaseline[SLOT_DIST][savedMid] : null;
+    var blk = distBlock();
+    if (blk && savedMid !== blk.modelId) {
+      bpPendingRestore = { mid: savedMid, values: baseline || {} };
+      if (typeof sendDistModelChange === 'function') sendDistModelChange(savedMid);
+    } else if (baseline) {
+      applyDistValues(baseline);
+    }
+    bpRefreshCaption('dist');
+    updateDistCounter();
+  }
+
+  // Step ±1 with WRAP through the ring. Origin is a stop; a file is read +
+  // validated. In auto mode a non-loadable file is SKIPPED to the next valid
+  // one (one lap max, then stop). Manual mode shows a modal on a wrong type.
   function distStep(dir, opts) {
-    if (!distFolder.length) return;
+    if (!distRing.length) return;
     opts = opts || {};
     var auto = !!opts.auto;
-    var n = distFolder.length;
-    var fromIdx = (typeof opts.fromIdx === 'number') ? opts.fromIdx : distFolderIndex;
+    var n = distRing.length;
+    var fromIdx = (typeof opts.fromIdx === 'number') ? opts.fromIdx : distRingIndex;
     var tries = (typeof opts.tries === 'number') ? opts.tries : n;
     var idx = (fromIdx < 0) ? (dir > 0 ? 0 : n - 1) : (((fromIdx + dir) % n) + n) % n;
-    var entry = distFolder[idx];
+    var entry = distRing[idx];
+    if (entry.origin) { distApplyOrigin(idx); return; }
     window.electronAPI.readBlockPresetPath(entry.path).then(function (r) {
       var v = (r && r.ok) ? bpParseValid(r.bytes) : { ok: false, kind: 'parse', msg: 'Could not read preset.' };
       if (v.ok) { loadDistValidated(v.parsed, r.filename, entry.path); return; }
@@ -454,6 +498,8 @@
     if (!blk) return;
     clearDistPresetRef();   // ticks go back to the patch baseline
     bpLoadedPath.dist = null;
+    distRingIndex = distIncludeOrigin() ? 0 : -1;   // sit on Original in the ring
+    updateDistCounter();
     var savedMid = (typeof blockSavedModel !== 'undefined' && typeof SLOT_DIST !== 'undefined')
       ? blockSavedModel[SLOT_DIST] : undefined;
     if (savedMid === undefined) { setStatus && setStatus('No saved state captured yet — open the panel on a patch first.'); return; }
@@ -490,6 +536,7 @@
       var m = applyDistValues(rest.values);
       setStatus && setStatus(m ? 'Reverted DIST to the patch\'s saved state.' : 'Reverted DIST model.');
       bpRefreshCaption('dist');
+      updateDistCounter();
       return true;
     } else {
       // Genuine patch nav or manual model change — no preset is "loaded".
