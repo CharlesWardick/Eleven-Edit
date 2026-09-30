@@ -343,14 +343,46 @@
     updateDistCounter();
   }
 
-  function updateDistStepperEnabled() {
-    var has = distRing.length > 0;
-    ['bp-prev-dist', 'bp-next-dist', 'bp-auto-dist'].forEach(function (id) {
-      var b = document.getElementById(id);
-      if (b) { b.disabled = !has; b.classList.toggle('bp-disabled', !has); }
+  // The block's baseline is "ready" once every paramLo of the current model
+  // has been read back for this patch. Until then the bar is disabled — a load
+  // / Original / Save against a half-read baseline moves the wrong knobs.
+  function distBaselineReady() {
+    var blk = distBlock();
+    var model = (blk && typeof DIST_MODEL_BY_MID !== 'undefined') ? DIST_MODEL_BY_MID[blk.modelId] : null;
+    if (!model) return false;
+    var base = (typeof blockModelBaseline !== 'undefined' && blockModelBaseline[SLOT_DIST])
+      ? blockModelBaseline[SLOT_DIST][blk.modelId] : null;
+    if (!base) return false;
+    return model.paramLos.every(function (lo) {
+      return base[lo.toString(16).padStart(2, '0')] !== undefined;
     });
-    if (!has) autoStop();
   }
+
+  function bpDim(id, off) {
+    var b = document.getElementById(id);
+    if (b) { b.disabled = off; b.classList.toggle('bp-disabled', off); }
+  }
+
+  function updateDistStepperEnabled() {
+    var ready = distBaselineReady();
+    var hasFiles = distRing.length > 0;
+    // These need a fully-read baseline (Save/Load/Reload/scope/interval).
+    ['bp-save-dist', 'bp-load-dist', 'bp-scope-dist', 'bp-sec-dist', 'btn-dist-revert'].forEach(function (id) {
+      bpDim(id, !ready);
+    });
+    // Stepper + auto also need presets in the ring.
+    ['bp-prev-dist', 'bp-next-dist', 'bp-auto-dist'].forEach(function (id) {
+      bpDim(id, !ready || !hasFiles);
+    });
+    // Only stop a running auto-step when the ring truly empties — NOT on the
+    // transient not-ready during a cross-model apply (baseline fills in the
+    // same synchronous loop). The disabled ▶ prevents starting before ready.
+    if (!hasFiles) autoStop();
+  }
+
+  // A DIST baseline value just arrived — re-check readiness to (re-)enable the
+  // bar the moment the block's read-back completes.
+  function onDistBaselineProgress() { updateDistStepperEnabled(); }
 
   function updateDistCounter() {
     var el = document.getElementById('bp-count-dist');
@@ -708,7 +740,8 @@
     distTickRef: distTickRef,
     refreshFolder: distRefreshFolder,
     onDistPanelOpen: onDistPanelOpen,
-    onDistSavedModelKnown: onDistSavedModelKnown
+    onDistSavedModelKnown: onDistSavedModelKnown,
+    onDistBaselineProgress: onDistBaselineProgress
   };
 
   if (document.readyState === 'loading') {

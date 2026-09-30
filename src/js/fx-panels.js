@@ -140,6 +140,12 @@ function blockBaselineSetIfUnset(slotId, mid, loHex, val) {
   if (!blockModelBaseline[slotId][mid]) blockModelBaseline[slotId][mid] = {};
   if (blockModelBaseline[slotId][mid][loHex] === undefined) {
     blockModelBaseline[slotId][mid][loHex] = val;
+    // Each new DIST baseline value read — let block presets re-check whether
+    // this block's baseline is now complete (its bar stays disabled until so,
+    // or Original/Save would apply a half-read state).
+    if (slotId === SLOT_DIST && window.blockPresets && window.blockPresets.onDistBaselineProgress) {
+      window.blockPresets.onDistBaselineProgress();
+    }
   }
   return blockModelBaseline[slotId][mid][loHex];
 }
