@@ -206,6 +206,7 @@
     var map = DIST_MAP[blk.modelId];
     var model = (typeof DIST_MODEL_BY_MID !== 'undefined') ? DIST_MODEL_BY_MID[blk.modelId] : null;
     if (!map || !model) { setStatus && setStatus('This distortion model has no preset mapping yet.'); return; }
+    if (!distBaselineReady()) { setStatus && setStatus('Still reading the patch — try Save again in a moment.'); return; }
 
     var params = [];
     model.paramLos.forEach(function (lo) {
@@ -395,6 +396,8 @@
   // Apply the virtual Original stop = restore the patch's saved state (model +
   // baseline), like RELOAD but keeping the ring position so auto-step rolls on.
   function distApplyOrigin(idx) {
+    // Never apply a half-read Original — its knobs come from the baseline.
+    if (!distBaselineReady()) { setStatus && setStatus('Original not ready — still reading the patch.'); return; }
     distRingIndex = idx;
     bpLoadedPath.dist = null;
     bpLoaded.dist = null;
@@ -426,7 +429,17 @@
     var tries = (typeof opts.tries === 'number') ? opts.tries : n;
     var idx = (fromIdx < 0) ? (dir > 0 ? 0 : n - 1) : (((fromIdx + dir) % n) + n) % n;
     var entry = distRing[idx];
-    if (entry.origin) { distApplyOrigin(idx); return; }
+    if (entry.origin) {
+      // Origin needs a fully-read baseline. If it isn't ready, skip it in auto
+      // (advance to the next stop) so the timer never applies a half-read
+      // state; in manual, just say so.
+      if (!distBaselineReady()) {
+        if (auto && tries > 1) { distStep(dir, { auto: true, fromIdx: idx, tries: tries - 1 }); return; }
+        if (!auto) setStatus && setStatus('Original not ready — still reading the patch.');
+        return;
+      }
+      distApplyOrigin(idx); return;
+    }
     window.electronAPI.readBlockPresetPath(entry.path).then(function (r) {
       var v = (r && r.ok) ? bpParseValid(r.bytes) : { ok: false, kind: 'parse', msg: 'Could not read preset.' };
       if (v.ok) { loadDistValidated(v.parsed, r.filename, entry.path); return; }
@@ -531,6 +544,7 @@
   function revertDist() {
     var blk = distBlock();
     if (!blk) return;
+    if (!distBaselineReady()) { setStatus && setStatus('Still reading the patch — try Reload in a moment.'); return; }
     clearDistPresetRef();   // ticks go back to the patch baseline
     bpLoadedPath.dist = null;
     distOnOrigin = true;    // RELOAD = the Original/patch state
