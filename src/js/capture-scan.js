@@ -157,22 +157,24 @@ const NAME_SCAN_GAP_MS = 20;   // ms between queries — read-only, can be brisk
 async function scanPatchNames() {
   if (patchNameScanInProgress || !bridgeMidiReady) return;
   patchNameScanInProgress = true;
-  appLog('Patch name scan (Jump List) started — 208 slots (user + factory), read-only');
+  appLog('Patch name scan (Jump List) started — 104 user slots, read-only');
   for (let slot = 0; slot <= 103; slot++) {
     if (!bridgeMidiReady) break;   // dropped mid-scan — stop, don't flood a dead socket
     sendPatchNameQuery(slot, 0);
     await new Promise(r => setTimeout(r, NAME_SCAN_GAP_MS));
   }
-  // Factory names (2026-08-28) — added once the Jump List got a real
-  // factory-side view (Stage 2); before that a factory scan would have
-  // populated a cache nothing ever read. Same query, spaceIdx=1.
-  for (let rawSlot = 0; rawSlot <= 103; rawSlot++) {
-    if (!bridgeMidiReady) break;
-    sendPatchNameQuery(rawSlot, 1);
-    await new Promise(r => setTimeout(r, NAME_SCAN_GAP_MS));
+  // Factory names (a1-z4) never change — build 227 takes them from the shipped
+  // FACTORY_CATALOG instead of 104 more rack queries.
+  if (typeof FACTORY_CATALOG !== 'undefined') {
+    Object.keys(FACTORY_CATALOG).forEach(function(k) {
+      var slot = parseInt(k, 10), e = FACTORY_CATALOG[k];
+      if (!e || !e.n) return;
+      patchNameCache[slot] = e.n;
+      if (typeof refreshNamedMatrixSlot === 'function') refreshNamedMatrixSlot(slot);
+    });
   }
   patchNameScanInProgress = false;
-  appLog('Patch name scan: all 208 requests sent (replies arrive asynchronously)');
+  appLog('Patch name scan: 104 user requests sent (replies arrive asynchronously); factory names from FACTORY_CATALOG');
 }
 
 // Called immediately on a confirmed slot change, before the REQU responses
