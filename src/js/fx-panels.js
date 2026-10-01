@@ -2789,9 +2789,13 @@ function blockKnobFrac(slotId, paramLo, val) {
   }
   return (typeof lastParamFullRaw !== 'undefined' && lastParamFullRaw !== null) ? fracFor(val, lastParamFullRaw) : null;
 }
+// build 225: the rack's max raw (3F 7F 7F 7F) decodes to 1 - 2^-32, a hair under
+// 1 — it means FULL SCALE (rack shows 200 ms / 10.0), so treat it as max, not as
+// the step below (which read 198 ms / 9.9).
+var BP_FULL_SCALE = 1 - 1e-6;
 function bpVEff(val, fr) {
   if (fr === null || fr === undefined) return val;
-  return (fr >= 1) ? 127 : Math.min(fr * 128, 126.9999);
+  return (fr >= BP_FULL_SCALE) ? 127 : Math.min(fr * 128, 126.9999);
 }
 function fxHostSetFrac(wrap, fr) { if (fr === null) delete wrap.dataset.frac; else wrap.dataset.frac = String(fr); }
 function fxHostCellText(cell, val, fr) {
@@ -2803,7 +2807,7 @@ function fxHostCellText(cell, val, fr) {
   // with no per-model rewrite. Integer `val` still drives the pointer, baseline
   // and dataset elsewhere — only this text path uses the sub-step v.
   var vEff = val;
-  if (fr !== null && fr !== undefined) vEff = (fr >= 1) ? 127 : Math.min(fr * 128, 126.9999);
+  if (fr !== null && fr !== undefined) vEff = (fr >= BP_FULL_SCALE) ? 127 : Math.min(fr * 128, 126.9999);
   const f = (fr === null) ? undefined : fr;
   return (cell && typeof cell.display === 'function') ? cell.display(vEff, f) : valDisplay(vEff, f);
 }
