@@ -102,6 +102,30 @@ function rcBusy() {
   return null;
 }
 
+// ── TEMP DIAG (build 222): Amp Out jump during cache build. Remember the last
+// few catalog reads + each slot's own Amp Out, so an unsolicited rack change
+// can be compared against the slot just read. REMOVE once root-caused. ──
+var rcDiagReads = [];
+function rcDiagAmpOutDb(body) {
+  try {
+    var b = body instanceof Uint8Array ? body : new Uint8Array(body);
+    var ai = decodeAmpKey(b);
+    if (!ai || ai.markerPos == null) return '?';
+    var raw = readSignedLE32(b, ai.markerPos + AMP_OUT_OFFSET_FROM_AMP + 4);
+    return (raw === null) ? '?' : ampOutTextFromFrac(fracFromRaw(raw));
+  } catch (e) { return '?'; }
+}
+function rcDiagNoteRead(slot, body) {
+  rcDiagReads.push({ slot: slot, t: performance.now(), ao: rcDiagAmpOutDb(body) });
+  if (rcDiagReads.length > 4) rcDiagReads.shift();
+}
+function rcDiagSummary() {
+  var now = performance.now();
+  return rcDiagReads.map(function(r) {
+    return slotLabel(r.slot) + ' AO=' + r.ao + ' (' + Math.round(now - r.t) + 'ms ago)';
+  }).join(' | ');
+}
+
 async function rcTick() {
   rcTimer = null;
   if (!rcReading && !rcBusy()) {
@@ -114,7 +138,7 @@ async function rcTick() {
     rcReading = true;
     try {
       var res = await readSlotBodySilent(slot);
-      if (res && res.body) rackCatalogPut(slot, res.body);
+      if (res && res.body) { rackCatalogPut(slot, res.body); rcDiagNoteRead(slot, res.body); }
       else { rcFresh[slot] = true; if (typeof rigBrowserRefresh === 'function') rigBrowserRefresh(); appLog('Rack catalog: ' + slotLabel(slot) + ' — no response, skipped this session'); }
     } catch (e) { appLog('Rack catalog read error: ' + e.message); }
     rcReading = false;

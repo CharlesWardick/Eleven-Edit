@@ -1114,6 +1114,14 @@ if (typeof window !== 'undefined') { window.paramFullRawGet = paramFullRawGet; }
 // build 85: set only for the duration of routing ONE reply, so cache-apply and
 // other non-reply paints never pick up a stale value.
 function handleParamReadback(data) {
+  // TEMP DIAG (build 222): log every unsolicited rack param change with the
+  // recent catalog reads, to prove/disprove the Amp Out leak. REMOVE later.
+  if (data.length >= 13 && data[4] === 0x02 && typeof rcDiagSummary === 'function') {
+    var dRaw = decodeFull32(data, 8);
+    var dTxt = (data[7] === 0x03 && data[6] === currentParamHi && dRaw !== null) ? ' AmpOut=' + ampOutTextFromFrac(fracFromRaw(dRaw)) : '';
+    appLog('DIAG unsolicited 0x11 inst=0x' + data[6].toString(16) + ' lo=0x' + data[7].toString(16) +
+      ' cur=' + slotLabel(currentSlot) + dTxt + ' | recent reads: ' + (rcDiagSummary() || 'none'));
+  }
   lastParamFullRaw = (data.length >= 13) ? decodeFull32(data, data.length - 6) : null;
   try { return handleParamReadbackInner(data); }
   finally { lastParamFullRaw = null; }
