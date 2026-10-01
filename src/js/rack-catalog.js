@@ -5,44 +5,30 @@
  * See LICENSE in the project root for full license text.
  */
 // ════════════════════════════════════════════════════════════════════
-// RACK-CATALOG.JS — per-slot {name, amp, cab, mic} for every USER slot
-// (A1-Z4), feeding the Rig Browser (build 151, feature/rig-browser).
+// RACK-CATALOG.JS — per-slot {name, amp, cab, mic, rig vol} for every USER
+// slot (A1-Z4), feeding the Rig Browser and Rig Balancing.
 //
-// Source: the same silent by-slot read Export All uses (readSlotBodySilent,
-// bank-transfer.js) — never navigates the rack. Decoded with the same keys
-// the live patch load uses (sld6 amp, sldK cab, sldL mic — decodeAmpKey /
-// decodeCabMicValues, protocol.js), done quietly here (no per-call logging).
+// build 226 — ON DEMAND ONLY. The old background walker (build 151) re-read
+// every slot each session while EE was idle; reading slots in the background
+// makes the rack itself randomly change LIVE-patch settings (Amp Out, WAH
+// Position — proven 2026-10-01; Avid never reads in the background), which
+// needed a pile of workarounds. Also dropped: the localStorage copy — USER
+// space can change outside EE at any time, so a saved copy is never trusted.
 //
-// Kept in localStorage ('rackCatalog') so it shows instantly next launch.
-// USER space can change while EE is closed, so every session re-reads each
-// slot once in the BACKGROUND: one slot at a time, only while EE is idle
-// (no clicks/keys for a moment, no nav, export, import, roller, Rig Balance),
-// yielding immediately when the user acts. Saves EE sees in between (Save to
-// Rack, front-panel save echo, Import, Jump List drag-drop) update the slot
-// directly (rackCatalogPut).
-//
-// Background reading only (build 155 dropped the Off/At-startup options).
-// Factory space is NOT covered yet — the silent read only addresses A1-Z4.
+// Now: the first time per session that the Rig Browser or Rig Balancing opens,
+// rackCatalogEnsure() reads all 104 slots back-to-back (silent by-slot read,
+// never navigates) behind the progress overlay, with Cancel. After that the
+// catalog is kept current by saves/imports EE makes (rackCatalogPut), and
+// Export All Rigs fills it as a side effect. While any build/export read is in
+// flight the param guard (sysex-handler.js) restores rack self-changes.
+// Factory space comes from the shipped FACTORY_CATALOG, never read.
 // ════════════════════════════════════════════════════════════════════
 
-var RC_VERSION = 1;
-var RC_IDLE_MS = 2000;       // quiet time after the last click/key/wheel before a read
-var RC_NAV_QUIET_MS = 4000;  // quiet time after a patch nav
-var RC_TICK_MS = 500;        // how often the walker checks for idle
-var RC_START_DELAY_MS = 8000;// after the app is revealed, before the first read
-
-var rackCatalog = { v: RC_VERSION, slots: {} };   // slot -> {n, amp, cab, mic, t}
-var rcFresh = {};            // slots read or updated THIS session
-var rcLastInput = 0, rcMouseDown = false, rcReading = false, rcTimer = null, rcStartAt = 0;
-var rcDoneLogged = false;
-
-function rcLoad() {
-  try {
-    var o = JSON.parse(localStorage.getItem('rackCatalog') || 'null');
-    if (o && o.v === RC_VERSION && o.slots) rackCatalog = o;
-  } catch (e) {}
-}
-function rcSave() { try { localStorage.setItem('rackCatalog', JSON.stringify(rackCatalog)); } catch (e) {} }
+var rackCatalog = { slots: {} };   // slot -> {n, amp, cab, mic, rv, t}
+var rcFresh = {};                  // slots read or updated THIS session
+var rcBuilding = false, rcCancel = false;
+var rcLastReadEnd = 0;             // end time of the last silent read (param guard)
+var RC_GUARD_MS = 3000;
 
 // Quiet decode of one body -> entry, or null if it doesn't look like a patch.
 function rcKey(body, s) {
@@ -75,7 +61,6 @@ function rackCatalogPut(slot, body) {
   if (!e) return;
   rackCatalog.slots[slot] = e;
   rcFresh[slot] = true;
-  rcSave();
   if (typeof rigBrowserRefresh === 'function') rigBrowserRefresh();
   appLog('Rack catalog: ' + slotLabel(slot) + ' = "' + e.n + '" amp=' + e.amp + ' cab=' + e.cab + ' mic=' + e.mic);
 }
@@ -83,98 +68,63 @@ function rackCatalogCount() {
   var n = 0; for (var s = 0; s <= MAX_SLOT; s++) if (rcFresh[s]) n++; return n;
 }
 
-function rcBusy() {
-  var now = performance.now();
-  if (typeof bridgeMidiReady === 'undefined' || !bridgeMidiReady) return 'no-midi';
-  if (typeof appRevealed !== 'undefined' && !appRevealed) return 'startup';
-  if (!rcStartAt) rcStartAt = now + RC_START_DELAY_MS;   // first tick after reveal
-  if (now < rcStartAt) return 'start-delay';
-  if (rcMouseDown || now - rcLastInput < RC_IDLE_MS) return 'user';
-  if (typeof lastNavTime !== 'undefined' && lastNavTime !== null && now - lastNavTime < RC_NAV_QUIET_MS) return 'nav';
-  if (typeof exportInProgress !== 'undefined' && exportInProgress) return 'export';
-  if (typeof importInProgress !== 'undefined' && importInProgress) return 'import';
-  if (typeof scanInProgress !== 'undefined' && scanInProgress) return 'scan';
-  if (typeof patchNameScanInProgress !== 'undefined' && patchNameScanInProgress) return 'names';
-  if (typeof pendingSilentResolve !== 'undefined' && pendingSilentResolve) return 'silent-read';
-  if (typeof pendingManualCapture !== 'undefined' && pendingManualCapture) return 'capture';
-  if (typeof rigBalActive !== 'undefined' && rigBalActive) return 'rig-balance';
-  if (typeof autoStartTime !== 'undefined' && autoStartTime !== null && !autoPaused) return 'roller';
-  return null;
+// ── Param guard window. True while a silent slot read (catalog build, Export
+// All Rigs) is in flight or just finished — the rack's self-changes to the
+// live patch happen only then. EE is blocked behind the overlay, so any live
+// param change in this window is the rack glitch (or a front-panel touch).
+var rcSilentReading = 0;
+function rcNoteSilentRead(active) {
+  rcSilentReading += active ? 1 : -1;
+  if (rcSilentReading < 0) rcSilentReading = 0;
+  if (!active) rcLastReadEnd = performance.now();
+}
+function rcParamGuardActive() {
+  return rcSilentReading > 0 || (rcLastReadEnd > 0 && performance.now() - rcLastReadEnd < RC_GUARD_MS);
 }
 
-// ── TEMP DIAG (build 222): Amp Out jump during cache build. Remember the last
-// few catalog reads + each slot's own Amp Out, so an unsolicited rack change
-// can be compared against the slot just read. REMOVE once root-caused. ──
-var rcDiagReads = [];
-var rcLastReadEnd = 0;   // build 223: end time of the last catalog read (Amp Out guard)
-function rcDiagAmpOutDb(body) {
-  try {
-    var b = body instanceof Uint8Array ? body : new Uint8Array(body);
-    var ai = decodeAmpKey(b);
-    if (!ai || ai.markerPos == null) return '?';
-    var raw = readSignedLE32(b, ai.markerPos + AMP_OUT_OFFSET_FROM_AMP + 4);
-    return (raw === null) ? '?' : ampOutTextFromFrac(fracFromRaw(raw));
-  } catch (e) { return '?'; }
-}
-function rcDiagNoteRead(slot, body) {
-  rcDiagReads.push({ slot: slot, t: performance.now(), ao: rcDiagAmpOutDb(body) });
-  if (rcDiagReads.length > 4) rcDiagReads.shift();
-}
-function rcDiagSummary() {
-  var now = performance.now();
-  return rcDiagReads.map(function(r) {
-    return slotLabel(r.slot) + ' AO=' + r.ao + ' (' + Math.round(now - r.t) + 'ms ago)';
-  }).join(' | ');
-}
-
-// ── Amp Out guard window (build 223). The rack, while answering background
-// catalog reads, sometimes changes the LIVE patch's Amp Out by itself (log-
-// proven: unsolicited 0x11 lo=0x03 only ever during the cache build; rack front
-// panel moves too; Avid Editor, which never reads in the background, never sees
-// it). True while a read is in flight or just finished AND the user has not
-// touched EE recently — an Amp Out change then is the rack glitch, not a person.
-var RC_GUARD_MS = 3000;
-function rcAmpOutGuardActive() {
-  if (rcDoneLogged) return false;
-  var now = performance.now();
-  if (rcMouseDown || now - rcLastInput < RC_IDLE_MS) return false;
-  return rcReading || (rcLastReadEnd && now - rcLastReadEnd < RC_GUARD_MS);
-}
-
-async function rcTick() {
-  rcTimer = null;
-  if (!rcReading && !rcBusy()) {
-    var slot = -1;
-    for (var s = 0; s <= MAX_SLOT; s++) if (!rcFresh[s]) { slot = s; break; }
-    if (slot < 0) {
-      if (!rcDoneLogged) { rcDoneLogged = true; appLog('Rack catalog: all ' + (MAX_SLOT + 1) + ' user slots read this session'); }
-      return;   // done for this session; live upkeep takes over
-    }
-    rcReading = true;
-    try {
-      var res = await readSlotBodySilent(slot);
-      if (res && res.body) { rackCatalogPut(slot, res.body); rcDiagNoteRead(slot, res.body); }
-      else { rcFresh[slot] = true; if (typeof rigBrowserRefresh === 'function') rigBrowserRefresh(); appLog('Rack catalog: ' + slotLabel(slot) + ' — no response, skipped this session'); }
-    } catch (e) { appLog('Rack catalog read error: ' + e.message); }
-    rcReading = false;
-    rcLastReadEnd = performance.now();
-    await new Promise(function(r) { setTimeout(r, EXPORT_SLOT_GAP_MS); });
+// ── Build the catalog for this session if it isn't complete. Resolves true
+// when every user slot has been read, false if cancelled/unavailable.
+async function rackCatalogEnsure() {
+  if (rackCatalogCount() > MAX_SLOT) return true;
+  if (rcBuilding) return false;
+  if (typeof bridgeMidiReady === 'undefined' || !bridgeMidiReady) {
+    if (typeof setStatus === 'function') setStatus('Rig catalog: rack not connected');
+    return false;
   }
-  rcTimer = setTimeout(rcTick, RC_TICK_MS);
-}
-
-function rackCatalogStart() {
-  if (rcTimer) return;
-  rcTimer = setTimeout(rcTick, RC_TICK_MS);
+  rcBuilding = true; rcCancel = false;
+  var ov = document.getElementById('scan-overlay');
+  var ovTitle = ov ? ov.querySelector('h3') : null;
+  var ovText = document.getElementById('scan-progress-text');
+  var ovBar = document.getElementById('scan-progress-bar');
+  var ovCancel = document.getElementById('btn-scan-skip');
+  var oldTitle = ovTitle ? ovTitle.textContent : '';
+  if (ovTitle) ovTitle.textContent = 'Reading Rigs — please leave the rack alone';
+  if (ovCancel) ovCancel.style.display = '';
+  if (ov) ov.classList.add('open');
+  appLog('Rack catalog: building (on demand)');
+  var t0 = performance.now();
+  for (var slot = 0; slot <= MAX_SLOT && !rcCancel; slot++) {
+    if (ovText) ovText.textContent = 'Reading slot ' + (slot + 1) + ' / ' + (MAX_SLOT + 1) + '  —  ' + slotLabel(slot);
+    if (ovBar) ovBar.style.width = (((slot + 1) / (MAX_SLOT + 1)) * 100).toFixed(1) + '%';
+    if (rcFresh[slot]) continue;
+    var res = null;
+    try { res = await readSlotBodySilent(slot); } catch (e) { appLog('Rack catalog read error: ' + e.message); }
+    if (res && res.body) rackCatalogPut(slot, res.body);
+    else { rcFresh[slot] = true; appLog('Rack catalog: ' + slotLabel(slot) + ' — no response, skipped this session'); }
+    await new Promise(function(r) { setTimeout(r, EXPORT_SLOT_GAP_MS); });   // Win11 MIDI settle (see Export)
+  }
+  if (ov) ov.classList.remove('open');
+  if (ovTitle) ovTitle.textContent = oldTitle;
+  rcBuilding = false;
+  var done = rackCatalogCount() > MAX_SLOT;
+  appLog('Rack catalog: ' + (done ? 'all ' + (MAX_SLOT + 1) + ' user slots read in ' + ((performance.now() - t0) / 1000).toFixed(1) + 's'
+                                  : 'build cancelled at ' + rackCatalogCount() + ' of ' + (MAX_SLOT + 1)));
+  if (typeof rigBrowserRefresh === 'function') rigBrowserRefresh();
+  return done;
 }
 
 (function rackCatalogInit() {
-  rcLoad();
-  ['mousedown', 'keydown', 'wheel', 'touchstart'].forEach(function(t) {
-    window.addEventListener(t, function() { rcLastInput = performance.now(); if (t === 'mousedown') rcMouseDown = true; }, true);
-  });
-  window.addEventListener('mouseup', function() { rcMouseDown = false; rcLastInput = performance.now(); }, true);
-  window.addEventListener('blur', function() { rcMouseDown = false; });
-  // Walker checks readiness itself (MIDI up, app revealed) — just keep it ticking.
-  rackCatalogStart();
+  var c = document.getElementById('btn-scan-skip');
+  if (c) c.addEventListener('click', function() { if (rcBuilding) rcCancel = true; });
+  try { localStorage.removeItem('rackCatalog'); } catch (e) {}   // build 226: drop the old saved copy
 })();

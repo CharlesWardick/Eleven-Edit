@@ -1113,7 +1113,7 @@ function paramFullRawGet(instId, pLo, v127arg) {
 if (typeof window !== 'undefined') { window.paramFullRawGet = paramFullRawGet; }
 // build 85: set only for the duration of routing ONE reply, so cache-apply and
 // other non-reply paints never pick up a stale value.
-// ── Param guard (build 224; Amp-Out-only in 223) — see rcAmpOutGuardActive
+// ── Param guard (build 224; Amp-Out-only in 223) — see rcParamGuardActive
 // (rack-catalog.js). While the Rig Cache reads slots in the background, the
 // rack sometimes changes LIVE-patch settings by itself (confirmed: Amp Out,
 // WAH Position). paramTruth holds the last trusted value of every (handle,
@@ -1152,7 +1152,7 @@ function paramGuardCheck(data) {
   if (raw === null) return false;
   paramTruthSyncSlot();
   var key = paramTruthKey(h, lo), truth = paramTruth[key];
-  var inWindow = typeof rcAmpOutGuardActive === 'function' && rcAmpOutGuardActive();
+  var inWindow = typeof rcParamGuardActive === 'function' && rcParamGuardActive();
   if (!inWindow) { paramTruth[key] = raw; return false; }
   if (truth === undefined) {
     // A reply to EE's own read (dir 0x12, e.g. the patch-load readback) seeds truth.
@@ -1175,14 +1175,6 @@ function paramGuardCheck(data) {
 }
 
 function handleParamReadback(data) {
-  // TEMP DIAG (build 222): log every unsolicited rack param change with the
-  // recent catalog reads, to prove/disprove the Amp Out leak. REMOVE later.
-  if (data.length >= 13 && data[4] === 0x02 && typeof rcDiagSummary === 'function') {
-    var dRaw = decodeFull32(data, 8);
-    var dTxt = (data[7] === 0x03 && data[6] === currentParamHi && dRaw !== null) ? ' AmpOut=' + ampOutTextFromFrac(fracFromRaw(dRaw)) : '';
-    appLog('DIAG unsolicited 0x11 inst=0x' + data[6].toString(16) + ' lo=0x' + data[7].toString(16) +
-      ' cur=' + slotLabel(currentSlot) + dTxt + ' | recent reads: ' + (rcDiagSummary() || 'none'));
-  }
   if (paramGuardCheck(data)) return;
   lastParamFullRaw = (data.length >= 13) ? decodeFull32(data, data.length - 6) : null;
   try { return handleParamReadbackInner(data); }

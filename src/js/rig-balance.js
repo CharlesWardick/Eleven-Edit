@@ -460,8 +460,11 @@ document.addEventListener('keydown', function(e) {
 (function wireRigBalance() {
   var byId = function(id) { return document.getElementById(id); };
   if (byId('btn-rig-balance')) byId('btn-rig-balance').addEventListener('click', function() {
-    if (typeof rigBrowserReady === 'function' && !rigBrowserReady()) return;   // build 161: dimmed until the catalog is ready
-    rbOpenEntry();
+    // build 226: first open per session builds the catalog (progress + Cancel).
+    (async function() {
+      if (typeof rigBrowserReady === 'function' && !rigBrowserReady() && !(await rackCatalogEnsure())) return;
+      rbOpenEntry();
+    })();
   });
   if (byId('rigbal-save'))    byId('rigbal-save').addEventListener('click', rbRequestSave);
   if (byId('rigbal-discard')) byId('rigbal-discard').addEventListener('click', rbRequestDiscard);

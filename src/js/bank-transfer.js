@@ -83,10 +83,13 @@ function cancelBankExport() {
 // navigates the rack, so the user's current patch and any unsaved edits are
 // left untouched. Returns { body, slotNum } or null. ──
 function readSlotBodySilent(slot) {
+  if (typeof rcNoteSilentRead === 'function') rcNoteSilentRead(true);   // build 226: param guard window
   return new Promise((resolve) => {
     let done = false;
     let attempt = 0;
-    function finish(res) { if (!done) { done = true; resolve(res); } }
+    function finish(res) {
+      if (!done) { done = true; if (typeof rcNoteSilentRead === 'function') rcNoteSilentRead(false); resolve(res); }
+    }
     function fire() {
       attempt++;
       pendingSilentSlot = slot;
@@ -136,6 +139,7 @@ async function exportAllRigsSilent(bankName, targetDir) {
       continue;
     }
 
+    if (typeof rackCatalogPut === 'function') rackCatalogPut(slot, result.body);   // build 226: export fills the catalog
     const name = extractNameFromBody(result.body) || '-unused-';
     const safeName = name.replace(/[\\/:*?"<>|]/g, '_');
     const count = seen[safeName] || 0;
