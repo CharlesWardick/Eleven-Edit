@@ -1079,6 +1079,38 @@ function handleTrueZ(data) {
 // FORMAT B (a 0x04 marker at data[6] shifting the fields right) never existed here
 // (Tech Ref Sec 3 / C11); the check below is kept as harmless vestigial handling.
 var lastParamFullRaw = null;   // build 82: full-precision value of the reply being routed
+
+// ── Per-knob full-precision cache (build 218). lastParamFullRaw lives only for
+// the duration of routing ONE reply, but FX/knob paints are DEFERRED and
+// same-burst replies reset it — so by paint time the exact value was gone and
+// the readout fell back to the v/128 step (the ±0.1/0.2 drift Charlie saw:
+// EE −18.3 where the rack/Avid read −18.0, even though the reply carried the
+// exact value). This cache, keyed by (block handle + paramLo), survives that
+// and is consulted AT PAINT time. The value bytes are ALWAYS data[8..12] (right
+// after paramLo) — a stable offset, unlike the fragile data.length−6. A stepped
+// message (sub-bytes all zero, e.g. the rack's unsolicited broadcasts) never
+// overwrites a cached full value unless its step differs (= a genuine change).
+var paramFullRawCache = {};
+function paramFullCacheKey(instId, pLo) { return instId + ':' + pLo; }
+function paramFullRawNote(instId, pLo, v127arg, d) {
+  if (!d || d.length < 13 || typeof decodeFull32 !== 'function') return;
+  var raw = decodeFull32(d, 8);
+  if (raw === null) return;
+  var key = paramFullCacheKey(instId, pLo);
+  var subNonZero = (d[9] & 0x7F) | (d[10] & 0x7F) | (d[11] & 0x7F) | (d[12] & 0x0F);
+  if (subNonZero) { paramFullRawCache[key] = raw; return; }
+  var cached = paramFullRawCache[key];
+  if (cached !== undefined) {
+    var cachedStep = Math.min(127, Math.floor(fracFromRaw(cached) * 128));
+    if (cachedStep !== v127arg) delete paramFullRawCache[key];   // genuine change
+  }
+}
+function paramFullRawGet(instId, pLo, v127arg) {
+  var cached = paramFullRawCache[paramFullCacheKey(instId, pLo)];
+  if (cached === undefined) return null;
+  return (Math.min(127, Math.floor(fracFromRaw(cached) * 128)) === v127arg) ? cached : null;
+}
+if (typeof window !== 'undefined') { window.paramFullRawGet = paramFullRawGet; }
 // build 85: set only for the duration of routing ONE reply, so cache-apply and
 // other non-reply paints never pick up a stale value.
 function handleParamReadback(data) {
@@ -1105,6 +1137,7 @@ function handleParamReadbackInner(data) {
   const paramLo = data[7];
   const v0      = data[8];
   const val     = (v0 >= 0x40) ? (v0 - 0x40) : (v0 + 64);
+  paramFullRawNote(instId, paramLo, val, data);   // build 218: per-knob full-precision cache
 
   // FORMAT A is a spontaneous ASYNC broadcast — i.e. a real control just
   // changed on hardware (front panel or Avid editor), unlike FORMAT B above

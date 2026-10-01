@@ -2753,7 +2753,20 @@ var fxHostBuildSeq = 0;
 // Build 148: the rack's exact position for the reply being routed (between-step
 // values saved on the rack's front panel), else null = on the v/128 grid. Kept on
 // the knob wrap as data-frac so the graph can read it; local edits clear it.
-function fxHostFracNow(val) {
+function fxHostFracNow(val, paramLo) {
+  // build 218: prefer the per-knob full-precision cache (survives paint
+  // deferral and same-burst reply resets), then the transient reply global,
+  // else null = the v/128 step. This is what keeps a loaded/navigated knob
+  // reading the rack's exact value (−18.0) instead of the step (−18.3).
+  if (paramLo !== undefined && typeof paramFullRawGet === 'function' &&
+      typeof openFxHostSlot !== 'undefined' && openFxHostSlot != null &&
+      typeof currentChain !== 'undefined') {
+    var blk = currentChain.find(function (b) { return b.slotId === openFxHostSlot; });
+    if (blk) {
+      var raw = paramFullRawGet(blk.handle, paramLo, val);
+      if (raw !== null) return fracFor(val, raw);
+    }
+  }
   return (typeof lastParamFullRaw !== 'undefined' && lastParamFullRaw !== null) ? fracFor(val, lastParamFullRaw) : null;
 }
 function fxHostSetFrac(wrap, fr) { if (fr === null) delete wrap.dataset.frac; else wrap.dataset.frac = String(fr); }
@@ -2762,7 +2775,7 @@ function fxHostCellText(cell, val, fr) {
   return (cell && typeof cell.display === 'function') ? cell.display(val, f) : valDisplay(val, f);
 }
 function paintFxHostCellIntoRefs(entry, cell, model, loHex, val) {
-  const fr = fxHostFracNow(val);
+  const fr = fxHostFracNow(val, parseInt(loHex, 16));
   if (!entry) return;
   if (entry.kind === 'sync') {
     const idx = syncIndexFromV127(val);
@@ -2805,7 +2818,7 @@ function paintFxHostCellIntoRefs(entry, cell, model, loHex, val) {
 // dropdown/toggle pick. Looks up cell kind (knob/toggle/sync) against the
 // current model so the right widget gets updated.
 function updateFxHostKnob(paramLo, val) {
-  const fr = fxHostFracNow(val);
+  const fr = fxHostFracNow(val, paramLo);
   if (fxHostPendingBuild) {
     const loHexPending = paramLo.toString(16).padStart(2,'0');
     let pendingCell = null;
