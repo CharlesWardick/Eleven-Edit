@@ -313,7 +313,8 @@ function updateDistKnob(paramLo, val) {
     wrap.dataset.value = val;
     distPaint.defer(function() { drawKnob(wrap.querySelector('canvas'), val); });
   }
-  if (valEl) distPaint.defer(function() { valEl.textContent = valDisplay(val); });
+  if (valEl) { var distVEff = bpVEff(val, blockKnobFrac(SLOT_DIST, paramLo, val));   // build 221: full precision
+    distPaint.defer(function() { valEl.textContent = valDisplay(distVEff); }); }
   distPaint.markSeen(paramLo);
 }
 
@@ -765,7 +766,8 @@ function updateReverbKnob(paramLo, val, isInteractive) {
       reverbHandleTypeChange(model, oldTypeIdx, idx);
     }
   } else if (valEl) {
-    reverbPaint.defer(function() { valEl.textContent = reverbKnobDisplay(paramLo, val); });
+    var rvVEff = bpVEff(val, blockKnobFrac(SLOT_REVERB, paramLo, val));   // build 221: full precision
+    reverbPaint.defer(function() { valEl.textContent = reverbKnobDisplay(paramLo, rvVEff); });
   }
   reverbPaint.markSeen(paramLo);
 }
@@ -1753,7 +1755,8 @@ function paintDelayCellIntoRefs(cellsByLo, cell, model, loHex, val) {
         if (c.affectedByToggle === cell.lo && !c.toggle && !c.select && !c.delaySync) {
           const dEntry = cellsByLo[c.lo];
           if (dEntry && dEntry.wrap && dEntry.valEl) {
-            dEntry.valEl.textContent = delayKnobDisplay(c.lo, parseInt(dEntry.wrap.dataset.value) || 0);
+            var dev = parseInt(dEntry.wrap.dataset.value) || 0;
+            dEntry.valEl.textContent = delayKnobDisplay(c.lo, bpVEff(dev, blockKnobFrac(SLOT_DELAY, c.lo, dev)));   // build 221
           }
         }
       });
@@ -1785,7 +1788,7 @@ function paintDelayCellIntoRefs(cellsByLo, cell, model, loHex, val) {
     entry.wrap.dataset.value = val;
     drawKnob(entry.wrap.querySelector('canvas'), val);
   }
-  if (entry.valEl) entry.valEl.textContent = delayKnobDisplay(cell.lo, val);
+  if (entry.valEl) entry.valEl.textContent = delayKnobDisplay(cell.lo, bpVEff(val, blockKnobFrac(SLOT_DELAY, cell.lo, val)));   // build 221: full precision
 }
 
 // Live entry point — builds and attaches in one step. Used by openDelayPanel
@@ -1821,7 +1824,7 @@ function delayKnobDisplay(paramLo, val) {
     const cell = cells[i];
     if (cell.lo !== paramLo) continue;
     if (typeof cell.display === 'function') return cell.display(val);
-    if (cell.display === 'delayTen') return (val / 127 * 10).toFixed(1);
+    if (cell.display === 'delayTen') return (fracFromV127(val) * 10).toFixed(1);   // build 221: rack v/128 grid (was /127), lets full-precision vEff read exact
   }
   return valDisplay(val);
 }
@@ -1866,7 +1869,8 @@ function updateDelayKnob(paramLo, val) {
           const dValEl = document.getElementById('delay-v-' + dLoHex);
           if (dWrap && dValEl) {
             deferDelayPaintOrRun(function() {
-              dValEl.textContent = delayKnobDisplay(c.lo, parseInt(dWrap.dataset.value) || 0);
+              var dv = parseInt(dWrap.dataset.value) || 0;
+              dValEl.textContent = delayKnobDisplay(c.lo, bpVEff(dv, blockKnobFrac(SLOT_DELAY, c.lo, dv)));   // build 221
             });
           }
         }
@@ -1909,7 +1913,8 @@ function updateDelayKnob(paramLo, val) {
     // the value text below.
     deferDelayPaintOrRun(function() { drawKnob(wrap.querySelector('canvas'), val); });
   }
-  if (valEl) deferDelayPaintOrRun(function() { valEl.textContent = delayKnobDisplay(paramLo, val); });
+  if (valEl) { var dlVEff = bpVEff(val, blockKnobFrac(SLOT_DELAY, paramLo, val));   // build 221: full precision
+    deferDelayPaintOrRun(function() { valEl.textContent = delayKnobDisplay(paramLo, dlVEff); }); }
   if (delayArrivalGate) delayArrivalGate.markSeen(paramLo);
 }
 
@@ -2768,6 +2773,25 @@ function fxHostFracNow(val, paramLo) {
     }
   }
   return (typeof lastParamFullRaw !== 'undefined' && lastParamFullRaw !== null) ? fracFor(val, lastParamFullRaw) : null;
+}
+// ── Shared full-precision helpers (build 221) — the same two-part fix proven
+// on the FX host, generalized for DIST/REVERB/DELAY (and reusable by the main
+// knobs). blockKnobFrac: the rack's exact fraction for a knob, preferring the
+// per-knob cache (survives paint deferral), then the transient reply global,
+// else null = the v/128 step. bpVEff: a sub-step "effective v" whose
+// fracFromV127 equals that fraction, so the existing display formulas yield the
+// precise value with no per-formula rewrite (integer val still drives the
+// pointer/baseline).
+function blockKnobFrac(slotId, paramLo, val) {
+  if (typeof paramFullRawGet === 'function' && typeof currentChain !== 'undefined') {
+    var blk = currentChain.find(function (b) { return b.slotId === slotId; });
+    if (blk) { var raw = paramFullRawGet(blk.handle, paramLo, val); if (raw !== null) return fracFor(val, raw); }
+  }
+  return (typeof lastParamFullRaw !== 'undefined' && lastParamFullRaw !== null) ? fracFor(val, lastParamFullRaw) : null;
+}
+function bpVEff(val, fr) {
+  if (fr === null || fr === undefined) return val;
+  return (fr >= 1) ? 127 : Math.min(fr * 128, 126.9999);
 }
 function fxHostSetFrac(wrap, fr) { if (fr === null) delete wrap.dataset.frac; else wrap.dataset.frac = String(fr); }
 function fxHostCellText(cell, val, fr) {
