@@ -2764,6 +2764,7 @@ function fxHostFracNow(val, paramLo) {
     var blk = currentChain.find(function (b) { return b.slotId === openFxHostSlot; });
     if (blk) {
       var raw = paramFullRawGet(blk.handle, paramLo, val);
+      if (typeof appLog === 'function') appLog('DIAG fxHostFracNow lo=0x' + paramLo.toString(16) + ' val=' + val + ' handle=0x' + blk.handle.toString(16) + ' cacheRaw=' + raw + ' lastFull=' + lastParamFullRaw);
       if (raw !== null) return fracFor(val, raw);
     }
   }
