@@ -62,14 +62,14 @@
     catch (e) { bpFeatureEnabled = false; }
   }
   function bpApplyEnabled() {
-    ['dist', 'reverb', 'delay'].forEach(function (K) {
+    ['dist', 'reverb', 'delay', 'fxhost'].forEach(function (K) {
       var bar = document.getElementById('bp-bar-' + K);
       if (bar) bar.style.display = bpFeatureEnabled ? '' : 'none';
       var rev = document.getElementById('btn-' + K + '-revert');
       if (rev) rev.style.display = bpFeatureEnabled ? '' : 'none';
     });
     if (!bpFeatureEnabled) { autoStop(); }
-    else { dist.onPanelOpen(); reverb.onPanelOpen(); delay.onPanelOpen(); }   // populate the open panel's bar now
+    else { dist.onPanelOpen(); reverb.onPanelOpen(); delay.onPanelOpen(); fxhost.onPanelOpen(); }   // populate the open panel's bar now
   }
   function bpSetEnabled(on) {
     bpFeatureEnabled = !!on;
@@ -156,6 +156,57 @@
               0x0D: {name:'d_EnMx', type:'d', enc:{kind:'bipolar'}} } }            // Env Mix ±% (verify HW)
   };
 
+  // FX-host (FX1/FX2/MOD) models — 10 models, 10 families, samples verified
+  // byte-identical 2026-10-01. Per-param enc derived from the FX1_MODELS
+  // panel display formulas + the sample values. FLAGGED (inferred, verify on
+  // hardware): Dyn3 Attack/Release unit + Knee/Gain mapping; MultiChorus
+  // Rate/Depth/PreDelay/LowCut; all EQ gains (samples were at 0 dB). EQ bands
+  // store dB (eqsym = two-slope like eqSliderDb); both Outputs store a
+  // unity-at-0dB linear gain (outgain). Record order = paramLos ascending.
+  var VOICES_OPTS = [{v127:0},{v127:32},{v127:64},{v127:95},{v127:127}];
+  var PEQ_TYPE_OPTS = [{v127:0},{v127:25},{v127:51},{v127:76},{v127:102},{v127:127}];
+  var ROTO_SPEED_OPTS = [{v127:0},{v127:64},{v127:127}];
+  var ROTO_TYPE_OPTS = [{v127:0},{v127:18},{v127:36},{v127:54},{v127:73},{v127:91},{v127:109},{v127:127}];
+  var FX1_MAP = {
+    0x01: { family: 'Chor', code: 'BC2', verified: true,   // C1 Chorus/Vibrato
+            params: { 0x02:{name:'d_ChIn',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x03:{name:'d_VbDp',type:'d',enc:{kind:'linear',lo:0,hi:10}},
+                      0x04:{name:'d_VbRt',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x05:{name:'l_Mode',type:'l',enc:{kind:'toggle'}}, 0x06:{name:'l_Sync',type:'l',enc:{kind:'sync'}} } },
+    0x16: { family: 'dn3c', code: 'D32', verified: true,   // Dyn3 Compressor  (FLAG: times + knee/gain)
+            params: { 0x02:{name:'d_sldC',type:'d',enc:{kind:'linear',lo:-60,hi:0}},      // Threshold dB
+                      0x03:{name:'d_sld1',type:'d',enc:{kind:'log',lo:0.00001,hi:0.3}},   // Attack s
+                      0x04:{name:'d_sld3',type:'d',enc:{kind:'log',lo:0.005,hi:4}},       // Release s
+                      0x05:{name:'d_sld2',type:'d',enc:{kind:'log',lo:1,hi:100}},         // Ratio
+                      0x06:{name:'d_sldG',type:'d',enc:{kind:'linear',lo:0,hi:30}},       // Knee dB (EE 0x06)
+                      0x07:{name:'d_sldD',type:'d',enc:{kind:'linear',lo:0,hi:40}} } },   // Gain dB (EE 0x07)
+    0x08: { family: 'Flng', code: 'GF2', verified: true,   // Flanger
+            params: { 0x02:{name:'d_Sped',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x03:{name:'d_Dpth',type:'d',enc:{kind:'linear',lo:0,hi:10}},
+                      0x04:{name:'d_Fdbk',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x05:{name:'d_PDly',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x06:{name:'l_Sync',type:'l',enc:{kind:'sync'}} } },
+    0x11: { family: 'EQ  ', code: 'EQ2', verified: true,   // Graphic EQ  (FLAG: gains at 0 dB)
+            params: { 0x02:{name:'d_LwSh',type:'d',enc:{kind:'eqsym',lo:-12,hi:12}}, 0x03:{name:'d_LMGn',type:'d',enc:{kind:'eqsym',lo:-18,hi:18}},
+                      0x04:{name:'d_MGn ',type:'d',enc:{kind:'eqsym',lo:-18,hi:18}}, 0x05:{name:'d_HMGn',type:'d',enc:{kind:'eqsym',lo:-18,hi:18}},
+                      0x06:{name:'d_HiSh',type:'d',enc:{kind:'eqsym',lo:-12,hi:12}}, 0x07:{name:'d_Out ',type:'d',enc:{kind:'outgain',slope:'linear',lo:-20,hi:6}} } },
+    0x14: { family: 'Comp', code: 'ROS', verified: true,   // Gray Compressor
+            params: { 0x02:{name:'d_Sust',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x03:{name:'d_Levl',type:'d',enc:{kind:'linear',lo:0,hi:10}} } },
+    0x06: { family: 'MCho', code: 'MC2', verified: true,   // MultiChorus  (FLAG: Rate/Depth/PreDelay/LowCut)
+            params: { 0x02:{name:'d_Rate',type:'d',enc:{kind:'log',lo:0.01,hi:10}}, 0x03:{name:'l_Sync',type:'l',enc:{kind:'sync'}},
+                      0x04:{name:'d_Dpth',type:'d',enc:{kind:'frac'}}, 0x05:{name:'d_Mix ',type:'d',enc:{kind:'frac'}}, 0x06:{name:'d_PDly',type:'d',enc:{kind:'frac'}},
+                      0x07:{name:'l_Voic',type:'l',enc:{kind:'select',options:VOICES_OPTS}}, 0x08:{name:'d_LoCt',type:'d',enc:{kind:'log',lo:20,hi:1000}},
+                      0x09:{name:'d_Wdth',type:'d',enc:{kind:'frac'}}, 0x0A:{name:'l_Wave',type:'l',enc:{kind:'toggle'}} } },
+    0x0C: { family: 'Phsr', code: 'P92', verified: true,   // Orange Phaser
+            params: { 0x02:{name:'d_Sped',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x03:{name:'l_Sync',type:'l',enc:{kind:'sync'}} } },
+    0x13: { family: 'PEQ ', code: 'PE2', verified: true,   // Parametric EQ  (FLAG: gains at 0 dB)
+            params: { 0x02:{name:'d_B1Gn',type:'d',enc:{kind:'linear',lo:-24,hi:12}}, 0x03:{name:'d_B1Fr',type:'d',enc:{kind:'log',lo:20,hi:2000}}, 0x04:{name:'d_B1Q ',type:'d',enc:{kind:'log',lo:0.2,hi:10}}, 0x05:{name:'l_B1Ty',type:'l',enc:{kind:'select',options:PEQ_TYPE_OPTS}},
+                      0x06:{name:'d_B2Gn',type:'d',enc:{kind:'linear',lo:-18,hi:18}}, 0x07:{name:'d_B2Fr',type:'d',enc:{kind:'log',lo:100,hi:10000}}, 0x08:{name:'d_B2Q ',type:'d',enc:{kind:'log',lo:0.2,hi:10}},
+                      0x09:{name:'d_B3Gn',type:'d',enc:{kind:'linear',lo:-18,hi:18}}, 0x0A:{name:'d_B3Fr',type:'d',enc:{kind:'log',lo:200,hi:20000}}, 0x0B:{name:'d_B3Q ',type:'d',enc:{kind:'log',lo:0.2,hi:10}},
+                      0x0C:{name:'d_B4Gn',type:'d',enc:{kind:'linear',lo:-24,hi:12}}, 0x0D:{name:'d_B4Fr',type:'d',enc:{kind:'log',lo:200,hi:20000}}, 0x0E:{name:'d_B4Q ',type:'d',enc:{kind:'log',lo:0.2,hi:10}}, 0x0F:{name:'l_B4Ty',type:'l',enc:{kind:'select',options:PEQ_TYPE_OPTS}},
+                      0x10:{name:'d_Out ',type:'d',enc:{kind:'outgain',slope:'sym',lo:-24,hi:24}} } },
+    0x0F: { family: 'RSpk', code: 'RS2', verified: true,   // Roto Speaker
+            params: { 0x02:{name:'l_Sped',type:'l',enc:{kind:'select',options:ROTO_SPEED_OPTS}}, 0x03:{name:'l_Type',type:'l',enc:{kind:'select',options:ROTO_TYPE_OPTS}}, 0x04:{name:'d_Blnc',type:'d',enc:{kind:'linear',lo:0,hi:100}} } },
+    0x0A: { family: 'UVib', code: 'UV2', verified: true,   // Vibe Phaser
+            params: { 0x02:{name:'d_Sped',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x03:{name:'d_Intn',type:'d',enc:{kind:'linear',lo:0,hi:10}},
+                      0x04:{name:'d_Levl',type:'d',enc:{kind:'linear',lo:0,hi:10}}, 0x05:{name:'l_Chor',type:'l',enc:{kind:'toggle'}}, 0x06:{name:'l_Sync',type:'l',enc:{kind:'sync'}} } }
+  };
+
   // ── Value scale per family (linear v127 0..127 ⇄ float lo..hi). A param's
   // own `scale` (see d_PDly) wins over the family scale. ────────────────
   var BP_SCALE = {
@@ -189,12 +240,21 @@
   //   select(options) option index, v127 = options[i].v127  (l_)
   //   toggle          0/1 ↔ off/on                           (l_)
   // encToFile: v127 → stored value. encFromFile: stored value → v127.
+  // Two-slope dB anchored at v127=64 (Graphic EQ symmetric bands / PEQ Output
+  // — mirrors eqSliderDb/eqDbToV127, ui.js).
+  function twoSlopeDb(v127, lo, hi) { return (v127 < 64) ? (v127 - 64) * (-lo / 64) : (v127 - 64) * (hi / 63); }
+  function twoSlopeV127(db, lo, hi) { if (db === 0) return 64; return (db < 0) ? 64 + db / (-lo / 64) : 64 + db / (hi / 63); }
   function encToFile(enc, v127) {
     switch (enc.kind) {
       case 'frac':    return v127 / 127;
       case 'linear':  return enc.lo + (v127 / 127) * (enc.hi - enc.lo);
       case 'log':     return enc.lo * Math.pow(enc.hi / enc.lo, v127 / 127);
       case 'bipolar': return (v127 < 64) ? (v127 - 64) * (100 / 64) : (v127 - 64) * (100 / 63);
+      case 'eqsym':   return twoSlopeDb(v127, enc.lo, enc.hi);                           // EQ gain, stored as dB
+      case 'outgain': {                                                                  // EQ Output, stored as a unity-at-0dB linear gain
+        var dB = (enc.slope === 'sym') ? twoSlopeDb(v127, enc.lo, enc.hi) : enc.lo + (v127 / 127) * (enc.hi - enc.lo);
+        return Math.pow(10, dB / 20);
+      }
       case 'sync':    return (typeof syncIndexFromV127 === 'function') ? syncIndexFromV127(v127) : 0;
       case 'select':  { var b = 0, bd = Infinity; enc.options.forEach(function (o, i) { var d = Math.abs(o.v127 - v127); if (d < bd) { bd = d; b = i; } }); return b; }
       case 'toggle':  return v127 >= 64 ? 1 : 0;
@@ -208,6 +268,12 @@
       case 'linear':  frac = (fv - enc.lo) / (enc.hi - enc.lo); break;
       case 'log':     frac = Math.log(fv / enc.lo) / Math.log(enc.hi / enc.lo); break;
       case 'bipolar': { var v = (fv < 0) ? Math.round(64 + fv * 64 / 100) : Math.round(64 + fv * 63 / 100); return Math.max(0, Math.min(127, v)); }
+      case 'eqsym':   return Math.max(0, Math.min(127, Math.round(twoSlopeV127(fv, enc.lo, enc.hi))));
+      case 'outgain': {
+        var dB = 20 * Math.log(fv > 0 ? fv : 1e-6) / Math.LN10;
+        var vv = (enc.slope === 'sym') ? twoSlopeV127(dB, enc.lo, enc.hi) : ((dB - enc.lo) / (enc.hi - enc.lo)) * 127;
+        return Math.max(0, Math.min(127, Math.round(vv)));
+      }
       case 'sync':    return (typeof syncV127FromIndex === 'function') ? syncV127FromIndex(fv | 0) : 0;
       case 'select':  { var i = Math.max(0, Math.min(enc.options.length - 1, fv | 0)); return enc.options[i].v127; }
       case 'toggle':  return (fv | 0) > 0 ? 127 : 0;
@@ -729,6 +795,7 @@
     function onPanelOpen() {
       if (!bpFeatureEnabled) return;
       autoStop();
+      buildScopeOptions();   // FX-host's model list changes per slot (MOD vs FX1/FX2)
       st.scope = curModelName();
       syncScopeSelect();
       refreshCaption();
@@ -979,16 +1046,79 @@
     }
   });
 
+  // FX-host: ONE slot-aware instance serves FX1, FX2 and MOD (they share
+  // #panel-fxhost and the generic baseline keyed by openFxHostSlot). MOD just
+  // offers fewer models (FX_HOST_MODEL_FILTER). Presets are shared in one
+  // Presets/FX/<Model>/ tree since a model's preset is identical in any slot.
+  function fxhBlk() {
+    return (typeof currentChain !== 'undefined' && typeof openFxHostSlot !== 'undefined' && openFxHostSlot != null)
+      ? (currentChain.find(function (b) { return b.slotId === openFxHostSlot; }) || null) : null;
+  }
+  var fxhost = makeBlock({
+    key: 'fxhost', label: 'FX', lower: 'FX',
+    familyFolder: 'FX', families: ['Chor', 'dn3c', 'Flng', 'EQ  ', 'Comp', 'MCho', 'Phsr', 'PEQ ', 'RSpk', 'UVib'],
+    rejectMsg: "That's not an FX-host preset — this block can't host it.",
+    map: FX1_MAP,
+    modelByMid: (typeof FX1_MODEL_BY_MID !== 'undefined') ? FX1_MODEL_BY_MID : {},
+    panelId: 'panel-fxhost', knobRowId: 'fxhost-knob-row',
+    block: fxhBlk,
+    baseMid: function (mid) { var m = (typeof FX1_MODEL_BY_MID !== 'undefined') ? FX1_MODEL_BY_MID[mid] : null; return m ? m.mid : mid; },
+    modelName: function (mid) { var m = (typeof FX1_MODEL_BY_MID !== 'undefined') ? FX1_MODEL_BY_MID[mid] : null; return m ? m.name : null; },
+    currentModelName: function () { var b = fxhBlk(); var m = (b && typeof FX1_MODEL_BY_MID !== 'undefined') ? FX1_MODEL_BY_MID[b.modelId] : null; return m ? m.name : null; },
+    knobV127: function (loHex) {
+      var lo = parseInt(loHex, 16);
+      var b = fxhBlk(); var model = (b && typeof FX1_MODEL_BY_MID !== 'undefined') ? FX1_MODEL_BY_MID[b.modelId] : null;
+      var cell = null;
+      if (model && typeof fxHostAllCells === 'function') fxHostAllCells(model).forEach(function (c) { if (c && c.lo === lo) cell = c; });
+      if (cell && cell.sync) { var ss = document.getElementById('fxhost-sync-' + loHex); return (ss && typeof syncV127FromIndex === 'function') ? syncV127FromIndex(parseInt(ss.value, 10) || 0) : undefined; }
+      if (cell && cell.select) { var se = document.getElementById('fxhost-sel-' + loHex); if (se && cell.options) { var i = parseInt(se.value, 10) || 0; return cell.options[i] ? cell.options[i].v127 : undefined; } return undefined; }
+      if (cell && cell.toggle) { var tg = document.getElementById('fxhost-tgl-' + loHex); return tg ? parseInt(tg.dataset.value, 10) : undefined; }
+      var w = document.getElementById('fxhost-w-' + loHex); return w ? parseInt(w.dataset.value, 10) : undefined;
+    },
+    updateKnob: function (lo, v) { if (typeof updateFxHostKnob === 'function') updateFxHostKnob(lo, v); },
+    sendParamWrite: function (lo, v) { if (typeof sendFxHostParamWrite === 'function') sendFxHostParamWrite(lo, v); },
+    sendModelChange: function (mid) { if (typeof sendFxHostModelChange === 'function') sendFxHostModelChange(openFxHostSlot, mid); },
+    scopeModels: function () {
+      var filter = (typeof FX_HOST_ALLOWED_MIDS !== 'undefined' && openFxHostSlot != null) ? FX_HOST_ALLOWED_MIDS[openFxHostSlot] : null;
+      var names = [];
+      if (typeof FX1_MODELS !== 'undefined') FX1_MODELS.forEach(function (m) { if (!filter || filter.indexOf(m.mid) >= 0) names.push(m.name); });
+      return names;
+    },
+    enumSave: function (lo, v127) { return v127; },
+    enumLoadV127: function (lo, intVal) { return Math.max(0, Math.min(127, intVal)); },
+    applyOrder: function (bmid, applied) {
+      var entry = FX1_MAP[bmid]; if (!entry) return applied;
+      var ls = [], ds = [];
+      applied.forEach(function (a) { var f = entry.params[a.lo]; if (f && f.type === 'l') ls.push(a); else ds.push(a); });
+      return ls.concat(ds);
+    },
+    baselineReady: function () {
+      var b = fxhBlk(); var model = (b && typeof FX1_MODEL_BY_MID !== 'undefined') ? FX1_MODEL_BY_MID[b.modelId] : null;
+      if (!model) return false;
+      var bm = (typeof blockModelBaseline !== 'undefined' && openFxHostSlot != null) ? blockModelBaseline[openFxHostSlot] : null;
+      var base = bm ? bm[model.mid] : null;
+      if (!base) return false;
+      return model.paramLos.every(function (lo) { return base[hex(lo)] !== undefined; });
+    },
+    savedMidNumeric: function () { return (typeof blockSavedModel !== 'undefined' && openFxHostSlot != null) ? blockSavedModel[openFxHostSlot] : undefined; },
+    collectSavedValues: function (savedMid) {
+      var bm = (typeof blockModelBaseline !== 'undefined' && openFxHostSlot != null) ? (blockModelBaseline[openFxHostSlot] || {}) : {};
+      var base = bm[savedMid] || {};
+      return Object.keys(base).map(function (loHex) { return { lo: parseInt(loHex, 16), v127: base[loHex] }; });
+    }
+  });
+
   function initPresetBars() {
     bpLoadEnabled();
     dist.initBar();
     reverb.initBar();
     delay.initBar();
+    fxhost.initBar();
     var cb = document.getElementById('bp-enable-checkbox');
     if (cb) { cb.checked = bpFeatureEnabled; cb.addEventListener('change', function () { bpSetEnabled(cb.checked); }); }
     // Hide the bars + RELOAD buttons when the feature is off (default). Don't
     // call bpApplyEnabled's enable-side refresh here — just set visibility.
-    ['dist', 'reverb', 'delay'].forEach(function (K) {
+    ['dist', 'reverb', 'delay', 'fxhost'].forEach(function (K) {
       var bar = document.getElementById('bp-bar-' + K);
       if (bar) bar.style.display = bpFeatureEnabled ? '' : 'none';
       var rev = document.getElementById('btn-' + K + '-revert');
@@ -1017,9 +1147,15 @@
     onDelayPanelOpen: delay.onPanelOpen,
     onDelaySavedModelKnown: delay.onSavedModelKnown,
     onDelayBaselineProgress: delay.onBaselineProgress,
+    // FX-host (FX1/FX2/MOD — one slot-aware instance)
+    onFxHostChainRefreshed: fxhost.onChainRefreshed,
+    fxHostTickRef: fxhost.tickRef,
+    onFxHostPanelOpen: fxhost.onPanelOpen,
+    onFxHostSavedModelKnown: fxhost.onSavedModelKnown,
+    onFxHostBaselineProgress: fxhost.onBaselineProgress,
     // generic
-    refreshCaption: function (k) { (k === 'reverb' ? reverb : k === 'delay' ? delay : dist).refreshCaption(); },
-    refreshFolder: function (k) { (k === 'reverb' ? reverb : k === 'delay' ? delay : dist).refreshFolder(); }
+    refreshCaption: function (k) { return (k === 'reverb' ? reverb : k === 'delay' ? delay : k === 'fxhost' ? fxhost : dist).refreshCaption(); },
+    refreshFolder: function (k) { return (k === 'reverb' ? reverb : k === 'delay' ? delay : k === 'fxhost' ? fxhost : dist).refreshFolder(); }
   };
 
   if (document.readyState === 'loading') {

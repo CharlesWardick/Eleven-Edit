@@ -138,6 +138,9 @@ function blockBaselineSetIfUnset(slotId, mid, loHex, val) {
     if (slotId === SLOT_REVERB && window.blockPresets && window.blockPresets.onReverbSavedModelKnown) {
       window.blockPresets.onReverbSavedModelKnown();
     }
+    if ((slotId === SLOT_FX1 || slotId === SLOT_FX2 || slotId === SLOT_MOD) && window.blockPresets && window.blockPresets.onFxHostSavedModelKnown) {
+      window.blockPresets.onFxHostSavedModelKnown();
+    }
   }
   if (!blockModelBaseline[slotId]) blockModelBaseline[slotId] = {};
   if (!blockModelBaseline[slotId][mid]) blockModelBaseline[slotId][mid] = {};
@@ -151,6 +154,9 @@ function blockBaselineSetIfUnset(slotId, mid, loHex, val) {
     }
     if (slotId === SLOT_REVERB && window.blockPresets && window.blockPresets.onReverbBaselineProgress) {
       window.blockPresets.onReverbBaselineProgress();
+    }
+    if ((slotId === SLOT_FX1 || slotId === SLOT_FX2 || slotId === SLOT_MOD) && window.blockPresets && window.blockPresets.onFxHostBaselineProgress) {
+      window.blockPresets.onFxHostBaselineProgress();
     }
   }
   return blockModelBaseline[slotId][mid][loHex];
@@ -2283,6 +2289,7 @@ function openFxHostPanel(slotId) {
     fxHostArrivalGate = makeArrivalGate(openModel.paramLos, 1500, flushFxHostPaint);
   }
   requestFxHostParams(slotId);
+  if (window.blockPresets && window.blockPresets.onFxHostPanelOpen) window.blockPresets.onFxHostPanelOpen();
   appLog('openFxHostPanel: slot=0x' + slotId.toString(16).padStart(2,'0')
     + ' mid=0x' + blk.modelId.toString(16).padStart(2,'0')
     + ' handle=0x' + blk.handle.toString(16).padStart(2,'0').toUpperCase());
@@ -2806,6 +2813,9 @@ function updateFxHostKnob(paramLo, val) {
       fxHostAllCells(fxHostPendingBuild.model).forEach(function(c) { if (c.lo === paramLo) pendingCell = c; });
     }
     paintFxHostCellIntoRefs(fxHostPendingBuild.cellsByLo[paramLo], pendingCell, fxHostPendingBuild.model, loHexPending, val);
+    // Record the per-model baseline on the off-DOM build path too, so the
+    // block-preset bar's baseline-ready gate (all paramLos) can complete.
+    if (fxHostPendingBuild.model) blockBaselineSetIfUnset(openFxHostSlot, fxHostPendingBuild.model.mid, loHexPending, val);
     if (fxHostArrivalGate) fxHostArrivalGate.markSeen(paramLo);
     return;
   }
@@ -2824,6 +2834,7 @@ function updateFxHostKnob(paramLo, val) {
     if (sel) deferFxHostPaintOrRun(function() {
       sel.value = String(idx); syncLoadedMarker(sel, 'fxhost-sync:' + openFxHostSlot + ':' + loHex);
     });
+    if (model) blockBaselineSetIfUnset(openFxHostSlot, model.mid, loHex, val);   // Sync baseline (block presets)
     if (fxHostArrivalGate) fxHostArrivalGate.markSeen(paramLo);
     return;
   }
@@ -2848,6 +2859,7 @@ function updateFxHostKnob(paramLo, val) {
         peqCurveSchedule();
       });
     }
+    if (model) blockBaselineSetIfUnset(openFxHostSlot, model.mid, loHex, val);   // select baseline (block presets)
     if (fxHostArrivalGate) fxHostArrivalGate.markSeen(paramLo);
     return;
   }
@@ -2868,7 +2880,9 @@ function updateFxHostKnob(paramLo, val) {
     // so it survives panel close/reopen AND a model switch — same pattern
     // DIST/REVERB/WAH use (2026-09-02, migrated off the old per-slot-only
     // fxBaseline, which reset on every model switch since it had no mid key).
-    wrap.dataset.orig  = model ? blockBaselineSetIfUnset(openFxHostSlot, model.mid, loHex, val) : val;
+    const fhBase = model ? blockBaselineSetIfUnset(openFxHostSlot, model.mid, loHex, val) : val;
+    const fhRef = (window.blockPresets && window.blockPresets.fxHostTickRef) ? window.blockPresets.fxHostTickRef(loHex) : undefined;
+    wrap.dataset.orig  = (fhRef !== undefined) ? fhRef : fhBase;
     wrap.dataset.value = val;
     fxHostSetFrac(wrap, fr);
     deferFxHostPaintOrRun(function() {
@@ -2929,6 +2943,7 @@ function refreshFxHostPanelAfterChainMap() {
     if (applied) {
       fxHostPendingBuild = null;
       swapInFxHostPanel(built1.frag);
+      if (window.blockPresets && window.blockPresets.onFxHostChainRefreshed) window.blockPresets.onFxHostChainRefreshed();
     } else {
       setTimeout(function() {
         if (!(fxHostPendingBuild && fxHostPendingBuild.seq === seq1)) return;   // superseded during the 150ms wait
@@ -2937,6 +2952,7 @@ function refreshFxHostPanelAfterChainMap() {
             fxHostPendingBuild = null;
             fxHostArrivalGate = null;
             swapInFxHostPanel(built1.frag);
+            if (window.blockPresets && window.blockPresets.onFxHostChainRefreshed) window.blockPresets.onFxHostChainRefreshed();
           }
           // else: superseded by a newer build meanwhile — drop this one,
           // it was never attached to the page.
@@ -2967,6 +2983,7 @@ function refreshFxHostPanelAfterChainMap() {
           fxHostPendingBuild = null;
           fxHostArrivalGate = null;
           swapInFxHostPanel(built2.frag);
+          if (window.blockPresets && window.blockPresets.onFxHostChainRefreshed) window.blockPresets.onFxHostChainRefreshed();
         }
       });
       requestFxHostParams(slotId);
@@ -2985,6 +3002,9 @@ function refreshFxHostPanelAfterChainMap() {
     }
     requestFxHostParams(slotId);
   }, 150);
+  // Same-model refresh (patch nav) — let block presets clear any stale
+  // loaded-preset caption / tick reference.
+  if (window.blockPresets && window.blockPresets.onFxHostChainRefreshed) window.blockPresets.onFxHostChainRefreshed();
   appLog('refreshFxHostPanelAfterChainMap: slot=0x' + slotId.toString(16).padStart(2,'0')
     + ' mid=0x' + blk.modelId.toString(16).padStart(2,'0')
     + ' handle=0x' + blk.handle.toString(16).padStart(2,'0').toUpperCase());
