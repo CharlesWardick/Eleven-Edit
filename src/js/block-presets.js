@@ -221,11 +221,10 @@
     return BP_SCALE[fam] || { lo: 0.0, hi: 4.0 };
   }
   function bpFloatToV127(scale, f) {
-    var v = Math.round((f - scale.lo) / (scale.hi - scale.lo) * 127);
-    return Math.max(0, Math.min(127, v));
+    return frac2v((f - scale.lo) / (scale.hi - scale.lo));   // rack v/128 grid (build 214)
   }
   function bpV127ToFloat(scale, v127) {
-    return scale.lo + (v127 / 127) * (scale.hi - scale.lo);
+    return scale.lo + v2frac(v127) * (scale.hi - scale.lo);
   }
 
   // ── Per-param encoders (DELAY) ──────────────────────────────────────
@@ -244,15 +243,22 @@
   // — mirrors eqSliderDb/eqDbToV127, ui.js).
   function twoSlopeDb(v127, lo, hi) { return (v127 < 64) ? (v127 - 64) * (-lo / 64) : (v127 - 64) * (hi / 63); }
   function twoSlopeV127(db, lo, hi) { if (db === 0) return 64; return (db < 0) ? 64 + db / (-lo / 64) : 64 + db / (hi / 63); }
+  // The rack's step grid is v/128 (127 pinned to max), NOT v/127 — same basis
+  // the knob readouts already use (fracFromV127, ui.js). The preset encoders
+  // use it too so a saved file matches what the panel shows and what the Avid
+  // Editor writes (build 214). eqsym/outgain-sym/bipolar already use the
+  // anchored /64,/63 form (= eqSliderDb), so they're unchanged.
+  function v2frac(v) { return v >= 127 ? 1 : v / 128; }
+  function frac2v(f) { return f >= 1 ? 127 : Math.max(0, Math.min(127, Math.round(f * 128))); }
   function encToFile(enc, v127) {
     switch (enc.kind) {
-      case 'frac':    return v127 / 127;
-      case 'linear':  return enc.lo + (v127 / 127) * (enc.hi - enc.lo);
-      case 'log':     return enc.lo * Math.pow(enc.hi / enc.lo, v127 / 127);
+      case 'frac':    return v2frac(v127);
+      case 'linear':  return enc.lo + v2frac(v127) * (enc.hi - enc.lo);
+      case 'log':     return enc.lo * Math.pow(enc.hi / enc.lo, v2frac(v127));
       case 'bipolar': { var sp = enc.span || 100; return (v127 < 64) ? (v127 - 64) * (sp / 64) : (v127 - 64) * (sp / 63); }
       case 'eqsym':   return twoSlopeDb(v127, enc.lo, enc.hi);                           // EQ gain, stored as dB
       case 'outgain': {                                                                  // EQ Output, stored as a unity-at-0dB linear gain
-        var dB = (enc.slope === 'sym') ? twoSlopeDb(v127, enc.lo, enc.hi) : enc.lo + (v127 / 127) * (enc.hi - enc.lo);
+        var dB = (enc.slope === 'sym') ? twoSlopeDb(v127, enc.lo, enc.hi) : enc.lo + v2frac(v127) * (enc.hi - enc.lo);
         return Math.pow(10, dB / 20);
       }
       case 'sync':    return (typeof syncIndexFromV127 === 'function') ? syncIndexFromV127(v127) : 0;
@@ -271,8 +277,8 @@
       case 'eqsym':   return Math.max(0, Math.min(127, Math.round(twoSlopeV127(fv, enc.lo, enc.hi))));
       case 'outgain': {
         var dB = 20 * Math.log(fv > 0 ? fv : 1e-6) / Math.LN10;
-        var vv = (enc.slope === 'sym') ? twoSlopeV127(dB, enc.lo, enc.hi) : ((dB - enc.lo) / (enc.hi - enc.lo)) * 127;
-        return Math.max(0, Math.min(127, Math.round(vv)));
+        if (enc.slope === 'sym') return Math.max(0, Math.min(127, Math.round(twoSlopeV127(dB, enc.lo, enc.hi))));
+        return frac2v((dB - enc.lo) / (enc.hi - enc.lo));
       }
       case 'sync':    return (typeof syncV127FromIndex === 'function') ? syncV127FromIndex(fv | 0) : 0;
       case 'select':  { var i = Math.max(0, Math.min(enc.options.length - 1, fv | 0)); return enc.options[i].v127; }
@@ -280,7 +286,7 @@
       default:        frac = fv;
     }
     if (isNaN(frac)) return 0;
-    return Math.max(0, Math.min(127, Math.round(frac * 127)));
+    return frac2v(frac);
   }
 
   // ── Low-level byte helpers ─────────────────────────────────────────
