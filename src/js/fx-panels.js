@@ -2764,7 +2764,6 @@ function fxHostFracNow(val, paramLo) {
     var blk = currentChain.find(function (b) { return b.slotId === openFxHostSlot; });
     if (blk) {
       var raw = paramFullRawGet(blk.handle, paramLo, val);
-      if (typeof appLog === 'function') appLog('DIAG fxHostFracNow lo=0x' + paramLo.toString(16) + ' val=' + val + ' handle=0x' + blk.handle.toString(16) + ' cacheRaw=' + raw + ' lastFull=' + lastParamFullRaw);
       if (raw !== null) return fracFor(val, raw);
     }
   }
@@ -2772,8 +2771,17 @@ function fxHostFracNow(val, paramLo) {
 }
 function fxHostSetFrac(wrap, fr) { if (fr === null) delete wrap.dataset.frac; else wrap.dataset.frac = String(fr); }
 function fxHostCellText(cell, val, fr) {
+  // build 220: the per-knob display fns compute from fracFromV127(v) and ignore
+  // a separate fraction arg, so passing `f` alone never reached the readout
+  // (the ±0.1/0.2 drift: the cache HAD the exact value, the formatter threw it
+  // away). Feed them a sub-step "effective v" whose fracFromV127 equals the
+  // rack's exact fraction, so every existing formula yields the precise value
+  // with no per-model rewrite. Integer `val` still drives the pointer, baseline
+  // and dataset elsewhere — only this text path uses the sub-step v.
+  var vEff = val;
+  if (fr !== null && fr !== undefined) vEff = (fr >= 1) ? 127 : Math.min(fr * 128, 126.9999);
   const f = (fr === null) ? undefined : fr;
-  return (cell && typeof cell.display === 'function') ? cell.display(val, f) : valDisplay(val, f);
+  return (cell && typeof cell.display === 'function') ? cell.display(vEff, f) : valDisplay(vEff, f);
 }
 function paintFxHostCellIntoRefs(entry, cell, model, loHex, val) {
   const fr = fxHostFracNow(val, parseInt(loHex, 16));
