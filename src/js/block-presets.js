@@ -107,7 +107,7 @@
     0x28: { family: 'Rvrb', code: 'SR2', verified: true,   // Eleven SR
             params: { 0x02: {name:'d_Dcay', type:'d'}, 0x03: {name:'d_Tone', type:'d'}, 0x04: {name:'d_RMix', type:'d'},
                       0x05: {name:'l_Type', type:'l'},                                        // enum index into REVERB_TYPE_LIST
-                      0x06: {name:'d_PDly', type:'d', scale:{lo:0, hi:200}} } }                // whole ms, 0–200
+                      0x06: {name:'d_PDly', type:'d', scale:{lo:0, hi:0.2}} } }                // Pre-Delay stored in SECONDS (0–0.2 s = 0–200 ms); cal sample ≈0.0266 s = 27 ms
   };
 
   // DELAY models — THREE file families, one per model (samples verified
@@ -152,8 +152,8 @@
               0x09: {name:'d_HiCt', type:'d', enc:{kind:'log', lo:1000, hi:20000}}, // High Cut Hz (verify HW)
               0x0A: {name:'d_LoCt', type:'d', enc:{kind:'log', lo:20, hi:1000}},    // Low Cut Hz (verify HW)
               0x0B: {name:'d_EnRt', type:'d', enc:{kind:'log', lo:0.01, hi:1}},     // Env Rate s (verify HW)
-              0x0C: {name:'d_EnFb', type:'d', enc:{kind:'bipolar'}},                // Env FBK ±% (verify HW)
-              0x0D: {name:'d_EnMx', type:'d', enc:{kind:'bipolar'}} } }            // Env Mix ±% (verify HW)
+              0x0C: {name:'d_EnFb', type:'d', enc:{kind:'bipolar', span:1}},        // Env FBK — stored ±1 fraction (cal samples)
+              0x0D: {name:'d_EnMx', type:'d', enc:{kind:'bipolar', span:1}} } }     // Env Mix — stored ±1 fraction (cal samples)
   };
 
   // FX-host (FX1/FX2/MOD) models — 10 models, 10 families, samples verified
@@ -249,7 +249,7 @@
       case 'frac':    return v127 / 127;
       case 'linear':  return enc.lo + (v127 / 127) * (enc.hi - enc.lo);
       case 'log':     return enc.lo * Math.pow(enc.hi / enc.lo, v127 / 127);
-      case 'bipolar': return (v127 < 64) ? (v127 - 64) * (100 / 64) : (v127 - 64) * (100 / 63);
+      case 'bipolar': { var sp = enc.span || 100; return (v127 < 64) ? (v127 - 64) * (sp / 64) : (v127 - 64) * (sp / 63); }
       case 'eqsym':   return twoSlopeDb(v127, enc.lo, enc.hi);                           // EQ gain, stored as dB
       case 'outgain': {                                                                  // EQ Output, stored as a unity-at-0dB linear gain
         var dB = (enc.slope === 'sym') ? twoSlopeDb(v127, enc.lo, enc.hi) : enc.lo + (v127 / 127) * (enc.hi - enc.lo);
@@ -267,7 +267,7 @@
       case 'frac':    frac = fv; break;
       case 'linear':  frac = (fv - enc.lo) / (enc.hi - enc.lo); break;
       case 'log':     frac = Math.log(fv / enc.lo) / Math.log(enc.hi / enc.lo); break;
-      case 'bipolar': { var v = (fv < 0) ? Math.round(64 + fv * 64 / 100) : Math.round(64 + fv * 63 / 100); return Math.max(0, Math.min(127, v)); }
+      case 'bipolar': { var sp = enc.span || 100; var v = (fv < 0) ? Math.round(64 + fv * 64 / sp) : Math.round(64 + fv * 63 / sp); return Math.max(0, Math.min(127, v)); }
       case 'eqsym':   return Math.max(0, Math.min(127, Math.round(twoSlopeV127(fv, enc.lo, enc.hi))));
       case 'outgain': {
         var dB = 20 * Math.log(fv > 0 ? fv : 1e-6) / Math.LN10;
