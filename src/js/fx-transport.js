@@ -586,3 +586,12 @@ function bpProbeFullRes(frac, slotId, paramLo) {
   return sendPatchWrite(hex);
 }
 if (typeof window !== 'undefined') window.bpProbeFullRes = bpProbeFullRes;
+// Temporary dev button (build 215 — REMOVE at finalize). Fires the probe at
+// FX1 Dyn3 Threshold = exactly -18.0 dB (frac 0.7). Open FX1/Dyn3 first.
+document.addEventListener('DOMContentLoaded', function () {
+  var b = document.getElementById('btn-fullres-probe');
+  if (b) b.addEventListener('click', function () {
+    var ok = bpProbeFullRes(0.7);
+    appLog('PROBE button: full-res Threshold -18.0 dB sent=' + ok);
+  });
+});
