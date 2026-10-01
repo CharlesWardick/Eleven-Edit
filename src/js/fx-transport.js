@@ -568,22 +568,33 @@ function sendFxHostParamWrite(slotId, paramLo, v127) {
 //   frac : exact position 0..1 in the param's range.
 //   defaults target FX1 Dyn3 Threshold (paramLo 0x02, range -60..0 dB).
 // Console use (DevTools):  bpProbeFullRes(0.7)   // = -18.0 dB on Threshold
-function bpProbeFullRes(frac, slotId, paramLo) {
-  if (slotId === undefined)  slotId  = (typeof SLOT_FX1 !== 'undefined') ? SLOT_FX1 : 0x08;
-  if (paramLo === undefined) paramLo = 0x02;
-  if (frac === undefined)    frac    = 0.7;
+// Generic full-precision CMD 0x11 knob write for ANY block (DIST/REVERB/DELAY/
+// FX1/FX2/MOD — all share this exact hex shape, differing only by the block
+// handle). `frac` is the exact 0..1 position; packed to the full 5 bytes via
+// encodeFull32Hex so the rack lands between its 128 grid steps (build 217).
+function sendBlockParamWriteFull(slotId, paramLo, frac) {
+  if (!bridgeMidiReady) { appLog('sendBlockParamWriteFull: bridge not ready'); return false; }
+  var blk = (typeof currentChain !== 'undefined')
+    ? currentChain.find(function (b) { return b.slotId === slotId; }) : null;
+  if (!blk) { appLog('sendBlockParamWriteFull: no block for slot=0x' + slotId.toString(16)); return false; }
   frac = Math.max(0, Math.min(1, frac));
-  if (!bridgeMidiReady) { appLog('bpProbeFullRes: bridge not ready'); return false; }
-  var blk = currentChain.find(function (b) { return b.slotId === slotId; });
-  if (!blk) { appLog('bpProbeFullRes: no block for slot=0x' + slotId.toString(16)); return false; }
   var raw = Math.round(frac * 4294967296) - 2147483648;
   raw = Math.max(-2147483648, Math.min(2147483647, raw));
   var hex = 'F0 13 0B 0F 00 11 '
     + blk.handle.toString(16).padStart(2, '0').toUpperCase() + ' '
     + paramLo.toString(16).padStart(2, '0').toUpperCase() + ' '
     + encodeFull32Hex(raw) + ' F7';
-  appLog('bpProbeFullRes: frac=' + frac + ' raw=' + raw + ' -> ' + hex);
   return sendPatchWrite(hex);
+}
+if (typeof window !== 'undefined') window.sendBlockParamWriteFull = sendBlockParamWriteFull;
+
+// Probe wrapper (build 215) — now a thin call onto the generic full-res sender.
+function bpProbeFullRes(frac, slotId, paramLo) {
+  if (slotId === undefined)  slotId  = (typeof SLOT_FX1 !== 'undefined') ? SLOT_FX1 : 0x08;
+  if (paramLo === undefined) paramLo = 0x02;
+  if (frac === undefined)    frac    = 0.7;
+  appLog('bpProbeFullRes: slot=0x' + slotId.toString(16) + ' lo=0x' + paramLo.toString(16) + ' frac=' + frac);
+  return sendBlockParamWriteFull(slotId, paramLo, frac);
 }
 if (typeof window !== 'undefined') window.bpProbeFullRes = bpProbeFullRes;
 // Temporary dev button (build 215 — REMOVE at finalize). Fires the probe at

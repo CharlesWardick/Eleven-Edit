@@ -289,6 +289,32 @@
     return frac2v(frac);
   }
 
+  // Exact 0..1 rack position for a stored file value — the SAME curve as
+  // encFromFile but WITHOUT rounding to the 128-step grid, so preset load can
+  // write full precision (build 217). Returns null for discrete params
+  // (sync/select/toggle) — those have no sub-step and use the normal write.
+  // Continuous pin at the very top mirrors v2frac/frac2v (127 → 1).
+  function clamp01(f) { return f >= 1 ? 1 : (f <= 0 ? 0 : f); }
+  function v127fToFrac(v) { return v >= 127 ? 1 : (v <= 0 ? 0 : v / 128); }
+  function encFracFromFile(enc, fv) {
+    var frac;
+    switch (enc.kind) {
+      case 'frac':    frac = fv; break;
+      case 'linear':  frac = (fv - enc.lo) / (enc.hi - enc.lo); break;
+      case 'log':     frac = Math.log(fv / enc.lo) / Math.log(enc.hi / enc.lo); break;
+      case 'bipolar': { var sp = enc.span || 100; var v = (fv < 0) ? (64 + fv * 64 / sp) : (64 + fv * 63 / sp); return v127fToFrac(v); }
+      case 'eqsym':   return v127fToFrac(twoSlopeV127(fv, enc.lo, enc.hi));
+      case 'outgain': {
+        var dB = 20 * Math.log(fv > 0 ? fv : 1e-6) / Math.LN10;
+        if (enc.slope === 'sym') return v127fToFrac(twoSlopeV127(dB, enc.lo, enc.hi));
+        frac = (dB - enc.lo) / (enc.hi - enc.lo); break;
+      }
+      case 'sync': case 'select': case 'toggle': return null;  // discrete
+      default:        frac = fv;
+    }
+    return isNaN(frac) ? null : clamp01(frac);
+  }
+
   // ── Low-level byte helpers ─────────────────────────────────────────
   function beDouble(bytes, off) {
     return new DataView(new Uint8Array(bytes.slice(off, off + 8)).buffer).getFloat64(0, false);
@@ -574,11 +600,15 @@
         posIdx++;
         if (lo === undefined) return;
         var field = entry.params[lo];
-        var v127;
-        if (field && field.enc) v127 = encFromFile(field.enc, pm.value);
+        var v127, frac = null;
+        if (field && field.enc) { v127 = encFromFile(field.enc, pm.value); frac = encFracFromFile(field.enc, pm.value); }
         else if (pm.type === 'l' || (field && field.type === 'l')) v127 = cfg.enumLoadV127(lo, pm.value | 0);
-        else v127 = bpFloatToV127(paramScale(cfg.map, bmid, lo), pm.value);
-        applied.push({ lo: lo, v127: v127 });
+        else {
+          var sc = paramScale(cfg.map, bmid, lo);
+          v127 = bpFloatToV127(sc, pm.value);
+          frac = clamp01((pm.value - sc.lo) / (sc.hi - sc.lo));
+        }
+        applied.push({ lo: lo, v127: v127, frac: frac });
       });
       // Block-specific apply order (REVERB: Type control first, so the knob
       // cells settle under the loaded Type — see cfg.applyOrder).
@@ -586,7 +616,19 @@
 
       st.presetRef = {};
       applied.forEach(function (a) { st.presetRef[hex(a.lo)] = a.v127; });
-      applied.forEach(function (a) { cfg.updateKnob(a.lo, a.v127); cfg.sendParamWrite(a.lo, a.v127); });
+      var blkNow = block();
+      var slotNow = blkNow ? blkNow.slotId : null;
+      applied.forEach(function (a) {
+        cfg.updateKnob(a.lo, a.v127);
+        // Full-resolution send for continuous params (build 217) so EE-loaded
+        // presets land byte-for-byte where Avid's do; discrete params (frac
+        // null) and any missing slot/sender fall back to the step write. The
+        // rack echoes the exact value back, so the readout self-corrects.
+        if (a.frac !== null && a.frac !== undefined && slotNow !== null &&
+            typeof sendBlockParamWriteFull === 'function' &&
+            sendBlockParamWriteFull(slotNow, a.lo, a.frac)) { return; }
+        cfg.sendParamWrite(a.lo, a.v127);
+      });
       st.onOrigin = false;
       setLoadedName(stripExt(filename));
       setStatusSafe('Loaded "' + stripExt(filename) + '"' + (applied.length ? '' : ' (no matching parameters).'));
