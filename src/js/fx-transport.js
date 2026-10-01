@@ -557,3 +557,32 @@ function sendFxHostParamWrite(slotId, paramLo, v127) {
     + tail + ' F7';
   return sendPatchWrite(hex);
 }
+
+// ── FULL-RESOLUTION PROBE (build 215, option-B go/no-go test). ──────────
+// sendFxHostParamWrite (and sendParamWrite) only ever set the top byte (v0)
+// and zero the four sub-step bytes, so every continuous knob lands at the
+// BOTTOM of its 128-step cell — that is the ±1-step gap vs Avid/hardware.
+// This writes the SAME CMD 0x11 but packs the full 5-byte value from an exact
+// fraction (0..1) using encodeFull32Hex, the inverse of the decoder the rack
+// readback already uses. If the rack honours it, sub-step parity is possible.
+//   frac : exact position 0..1 in the param's range.
+//   defaults target FX1 Dyn3 Threshold (paramLo 0x02, range -60..0 dB).
+// Console use (DevTools):  bpProbeFullRes(0.7)   // = -18.0 dB on Threshold
+function bpProbeFullRes(frac, slotId, paramLo) {
+  if (slotId === undefined)  slotId  = (typeof SLOT_FX1 !== 'undefined') ? SLOT_FX1 : 0x08;
+  if (paramLo === undefined) paramLo = 0x02;
+  if (frac === undefined)    frac    = 0.7;
+  frac = Math.max(0, Math.min(1, frac));
+  if (!bridgeMidiReady) { appLog('bpProbeFullRes: bridge not ready'); return false; }
+  var blk = currentChain.find(function (b) { return b.slotId === slotId; });
+  if (!blk) { appLog('bpProbeFullRes: no block for slot=0x' + slotId.toString(16)); return false; }
+  var raw = Math.round(frac * 4294967296) - 2147483648;
+  raw = Math.max(-2147483648, Math.min(2147483647, raw));
+  var hex = 'F0 13 0B 0F 00 11 '
+    + blk.handle.toString(16).padStart(2, '0').toUpperCase() + ' '
+    + paramLo.toString(16).padStart(2, '0').toUpperCase() + ' '
+    + encodeFull32Hex(raw) + ' F7';
+  appLog('bpProbeFullRes: frac=' + frac + ' raw=' + raw + ' -> ' + hex);
+  return sendPatchWrite(hex);
+}
+if (typeof window !== 'undefined') window.bpProbeFullRes = bpProbeFullRes;
