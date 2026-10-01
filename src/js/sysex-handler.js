@@ -1113,33 +1113,63 @@ function paramFullRawGet(instId, pLo, v127arg) {
 if (typeof window !== 'undefined') { window.paramFullRawGet = paramFullRawGet; }
 // build 85: set only for the duration of routing ONE reply, so cache-apply and
 // other non-reply paints never pick up a stale value.
-// ── Amp Out guard (build 223) — see rcAmpOutGuardActive (rack-catalog.js).
-// ampOutTruth = the last Amp Out value we trust for the live patch (rack replies,
-// accepted broadcasts, EE's own writes). An unsolicited change during the guard
-// window is NOT painted; after the rack's short ramp settles, EE writes the
-// trusted value back at full precision so rack + screen return to it.
-var ampOutTruth = { handle: null, raw: null };
-var ampOutRestoreTimer = null;
-function ampOutTruthSetFromV127(v127) {
-  ampOutTruth = { handle: currentParamHi, raw: Math.round(fracFromV127(v127) * 4294967296) - 2147483648 };
+// ── Param guard (build 224; Amp-Out-only in 223) — see rcAmpOutGuardActive
+// (rack-catalog.js). While the Rig Cache reads slots in the background, the
+// rack sometimes changes LIVE-patch settings by itself (confirmed: Amp Out,
+// WAH Position). paramTruth holds the last trusted value of every (handle,
+// paramLo) EE has learned for the live patch: rack replies/broadcasts outside
+// the guard window, and every write EE sends (hooked in sendHex). Inside the
+// window, a change whose 128-step differs from the trusted value is NOT
+// painted; after the rack's short ramp settles EE writes the trusted value
+// back at full precision (plain sendHex — no dirty mark). Cleared on patch
+// change (handles are reassigned per patch).
+var paramTruth = {}, paramTruthSlot = null, paramRestoreTimers = {};
+function paramTruthSyncSlot() {
+  if (paramTruthSlot !== currentSlot) { paramTruth = {}; paramTruthSlot = currentSlot; }
 }
-function ampOutGuardCheck(data) {
-  if (data.length < 13 || data[6] !== currentParamHi || data[7] !== 0x03) return false;
-  var raw = decodeFull32(data, 8);
+function paramTruthKey(h, lo) { return h + ':' + lo; }
+function paramStep(raw) { return Math.min(127, Math.floor(fracFromRaw(raw) * 128)); }
+function paramGuardLabel(h, lo) {
+  var blk = (typeof currentChain !== 'undefined') ? currentChain.find(function(b) { return b.handle === h; }) : null;
+  return (blk ? blk.name : 'handle 0x' + h.toString(16)) + ' lo=0x' + lo.toString(16);
+}
+function paramGuardText(h, lo, raw) {
+  return (h === currentParamHi && lo === 0x03) ? ampOutTextFromFrac(fracFromRaw(raw))
+    : (fracFromRaw(raw) * 100).toFixed(1) + '%';
+}
+// Called from sendHex for every outgoing CMD 0x11 write: EE's own value is truth.
+function paramTruthNoteWrite(hex) {
+  var b = hex.trim().split(/\s+/).map(function(x) { return parseInt(x, 16); });
+  if (b.length < 14 || b[4] !== 0x00 || b[5] !== 0x11) return;
+  var raw = decodeFull32(b, 8);
+  if (raw === null) return;
+  paramTruthSyncSlot();
+  paramTruth[paramTruthKey(b[6], b[7])] = raw;
+}
+function paramGuardCheck(data) {
+  if (data.length < 13) return false;
+  var h = data[6], lo = data[7], raw = decodeFull32(data, 8);
   if (raw === null) return false;
-  var glitch = data[4] === 0x02 && typeof rcAmpOutGuardActive === 'function' && rcAmpOutGuardActive()
-    && ampOutTruth.handle === currentParamHi && ampOutTruth.raw !== null && raw !== ampOutTruth.raw;
-  if (!glitch) { ampOutTruth = { handle: currentParamHi, raw: raw }; return false; }
-  appLog('Amp Out guard: rack self-changed Amp Out to ' + ampOutTextFromFrac(fracFromRaw(raw)) +
-    ' during cache read — ignored, restoring ' + ampOutTextFromFrac(fracFromRaw(ampOutTruth.raw)));
-  if (ampOutRestoreTimer) clearTimeout(ampOutRestoreTimer);
-  ampOutRestoreTimer = setTimeout(function() {
-    ampOutRestoreTimer = null;
-    if (ampOutTruth.handle !== currentParamHi || ampOutTruth.raw === null) return;
-    // Plain sendHex (not sendPatchWrite): restoring the loaded value must not
-    // mark the patch dirty in EE.
-    sendHex('F0 13 0B 0F 00 11 ' + currentParamHi.toString(16).padStart(2, '0').toUpperCase() +
-      ' 03 ' + encodeFull32Hex(ampOutTruth.raw) + ' F7');
+  paramTruthSyncSlot();
+  var key = paramTruthKey(h, lo), truth = paramTruth[key];
+  var inWindow = typeof rcAmpOutGuardActive === 'function' && rcAmpOutGuardActive();
+  if (!inWindow) { paramTruth[key] = raw; return false; }
+  if (truth === undefined) {
+    // A reply to EE's own read (dir 0x12, e.g. the patch-load readback) seeds truth.
+    if (data[4] === 0x12) { paramTruth[key] = raw; return false; }
+    if (data[4] === 0x02) appLog('Guard: no trusted value for ' + paramGuardLabel(h, lo) + ' (rack sent ' + paramGuardText(h, lo, raw) + ' during cache read) — not restored');
+    return false;
+  }
+  if (paramStep(raw) === paramStep(truth)) return false;
+  appLog('Guard: rack self-changed ' + paramGuardLabel(h, lo) + ' to ' + paramGuardText(h, lo, raw) +
+    ' during cache read — ignored, restoring ' + paramGuardText(h, lo, truth));
+  if (paramRestoreTimers[key]) clearTimeout(paramRestoreTimers[key]);
+  paramRestoreTimers[key] = setTimeout(function() {
+    delete paramRestoreTimers[key];
+    var t = paramTruth[key];
+    if (t === undefined) return;
+    sendHex('F0 13 0B 0F 00 11 ' + h.toString(16).padStart(2, '0').toUpperCase() + ' ' +
+      lo.toString(16).padStart(2, '0').toUpperCase() + ' ' + encodeFull32Hex(t) + ' F7');
   }, 400);
   return true;
 }
@@ -1153,7 +1183,7 @@ function handleParamReadback(data) {
     appLog('DIAG unsolicited 0x11 inst=0x' + data[6].toString(16) + ' lo=0x' + data[7].toString(16) +
       ' cur=' + slotLabel(currentSlot) + dTxt + ' | recent reads: ' + (rcDiagSummary() || 'none'));
   }
-  if (ampOutGuardCheck(data)) return;
+  if (paramGuardCheck(data)) return;
   lastParamFullRaw = (data.length >= 13) ? decodeFull32(data, data.length - 6) : null;
   try { return handleParamReadbackInner(data); }
   finally { lastParamFullRaw = null; }
@@ -1342,6 +1372,10 @@ function handleParamReadbackInner(data) {
 
   // instId matches currentParamHi (runtime handle from chain map)
   if (instId !== currentParamHi || currentParamHi < 0) {
+    // build 224: a block in the live chain (e.g. WAH with its panel closed) is
+    // KNOWN — not a reason to self-heal. Only a truly unknown handle counts.
+    if (currentParamHi >= 0 && typeof currentChain !== 'undefined' &&
+        currentChain.some(function(b) { return b.handle === instId; })) return;
     appLog('CMD 0x11 instId=0x' + instId.toString(16).padStart(2,'0') +
       ' — does not match currentParamHi=0x' + (currentParamHi<0?'(none)':currentParamHi.toString(16).padStart(2,'0')) + ', ignored');
     // SELF-HEAL (item, 7/26): a run of mismatches means the rack reassigned the

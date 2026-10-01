@@ -364,6 +364,7 @@ function sendHex(hex) {
     return false;
   }
   bridgeWs.send(JSON.stringify({ cmd: 'send', hex: hex }));
+  if (typeof paramTruthNoteWrite === 'function' && hex.indexOf('F0 13 0B 0F 00 11') === 0) paramTruthNoteWrite(hex);   // build 224 guard
   return true;
 }
 
@@ -461,7 +462,6 @@ function sendGateParamWrite(instId, paramId, v127) {
 var READ_ONLY_PARAM_LOS = [];
 
 function sendParamWrite(paramLo, v127) {
-  if (paramLo === 0x03 && typeof ampOutTruthSetFromV127 === 'function') ampOutTruthSetFromV127(v127);   // build 223
   if (READ_ONLY_PARAM_LOS.indexOf(paramLo) !== -1) {
     appLog('sendParamWrite: paramLo 0x' +
            paramLo.toString(16).padStart(2,'0').toUpperCase() +
@@ -1029,6 +1029,13 @@ async function requestAllBypassImpl() {
       sendHex('F0 13 0B 0F 01 11 ' + hh + ' 01 F7');   // block bypass
       await sleep(NAV_QUERY_GAP);
       n += 1;
+      if (blk.slotId === SLOT_WAH) {
+        // build 224: WAH Position (lo 0x02) was never read, so the Rig-Cache
+        // guard had no trusted value to restore when the rack zeroed it.
+        sendHex('F0 13 0B 0F 01 11 ' + hh + ' 02 F7');
+        await sleep(NAV_QUERY_GAP);
+        n += 1;
+      }
     }
   }
   appLog('requestAllBypass: queried ' + n + ' bypass flags across ' + currentChain.length + ' blocks');
