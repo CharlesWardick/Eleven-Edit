@@ -106,6 +106,7 @@ function rcBusy() {
 // few catalog reads + each slot's own Amp Out, so an unsolicited rack change
 // can be compared against the slot just read. REMOVE once root-caused. ──
 var rcDiagReads = [];
+var rcLastReadEnd = 0;   // build 223: end time of the last catalog read (Amp Out guard)
 function rcDiagAmpOutDb(body) {
   try {
     var b = body instanceof Uint8Array ? body : new Uint8Array(body);
@@ -126,6 +127,20 @@ function rcDiagSummary() {
   }).join(' | ');
 }
 
+// ── Amp Out guard window (build 223). The rack, while answering background
+// catalog reads, sometimes changes the LIVE patch's Amp Out by itself (log-
+// proven: unsolicited 0x11 lo=0x03 only ever during the cache build; rack front
+// panel moves too; Avid Editor, which never reads in the background, never sees
+// it). True while a read is in flight or just finished AND the user has not
+// touched EE recently — an Amp Out change then is the rack glitch, not a person.
+var RC_GUARD_MS = 3000;
+function rcAmpOutGuardActive() {
+  if (rcDoneLogged) return false;
+  var now = performance.now();
+  if (rcMouseDown || now - rcLastInput < RC_IDLE_MS) return false;
+  return rcReading || (rcLastReadEnd && now - rcLastReadEnd < RC_GUARD_MS);
+}
+
 async function rcTick() {
   rcTimer = null;
   if (!rcReading && !rcBusy()) {
@@ -142,6 +157,7 @@ async function rcTick() {
       else { rcFresh[slot] = true; if (typeof rigBrowserRefresh === 'function') rigBrowserRefresh(); appLog('Rack catalog: ' + slotLabel(slot) + ' — no response, skipped this session'); }
     } catch (e) { appLog('Rack catalog read error: ' + e.message); }
     rcReading = false;
+    rcLastReadEnd = performance.now();
     await new Promise(function(r) { setTimeout(r, EXPORT_SLOT_GAP_MS); });
   }
   rcTimer = setTimeout(rcTick, RC_TICK_MS);

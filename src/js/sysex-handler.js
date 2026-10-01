@@ -1113,6 +1113,37 @@ function paramFullRawGet(instId, pLo, v127arg) {
 if (typeof window !== 'undefined') { window.paramFullRawGet = paramFullRawGet; }
 // build 85: set only for the duration of routing ONE reply, so cache-apply and
 // other non-reply paints never pick up a stale value.
+// ── Amp Out guard (build 223) — see rcAmpOutGuardActive (rack-catalog.js).
+// ampOutTruth = the last Amp Out value we trust for the live patch (rack replies,
+// accepted broadcasts, EE's own writes). An unsolicited change during the guard
+// window is NOT painted; after the rack's short ramp settles, EE writes the
+// trusted value back at full precision so rack + screen return to it.
+var ampOutTruth = { handle: null, raw: null };
+var ampOutRestoreTimer = null;
+function ampOutTruthSetFromV127(v127) {
+  ampOutTruth = { handle: currentParamHi, raw: Math.round(fracFromV127(v127) * 4294967296) - 2147483648 };
+}
+function ampOutGuardCheck(data) {
+  if (data.length < 13 || data[6] !== currentParamHi || data[7] !== 0x03) return false;
+  var raw = decodeFull32(data, 8);
+  if (raw === null) return false;
+  var glitch = data[4] === 0x02 && typeof rcAmpOutGuardActive === 'function' && rcAmpOutGuardActive()
+    && ampOutTruth.handle === currentParamHi && ampOutTruth.raw !== null && raw !== ampOutTruth.raw;
+  if (!glitch) { ampOutTruth = { handle: currentParamHi, raw: raw }; return false; }
+  appLog('Amp Out guard: rack self-changed Amp Out to ' + ampOutTextFromFrac(fracFromRaw(raw)) +
+    ' during cache read — ignored, restoring ' + ampOutTextFromFrac(fracFromRaw(ampOutTruth.raw)));
+  if (ampOutRestoreTimer) clearTimeout(ampOutRestoreTimer);
+  ampOutRestoreTimer = setTimeout(function() {
+    ampOutRestoreTimer = null;
+    if (ampOutTruth.handle !== currentParamHi || ampOutTruth.raw === null) return;
+    // Plain sendHex (not sendPatchWrite): restoring the loaded value must not
+    // mark the patch dirty in EE.
+    sendHex('F0 13 0B 0F 00 11 ' + currentParamHi.toString(16).padStart(2, '0').toUpperCase() +
+      ' 03 ' + encodeFull32Hex(ampOutTruth.raw) + ' F7');
+  }, 400);
+  return true;
+}
+
 function handleParamReadback(data) {
   // TEMP DIAG (build 222): log every unsolicited rack param change with the
   // recent catalog reads, to prove/disprove the Amp Out leak. REMOVE later.
@@ -1122,6 +1153,7 @@ function handleParamReadback(data) {
     appLog('DIAG unsolicited 0x11 inst=0x' + data[6].toString(16) + ' lo=0x' + data[7].toString(16) +
       ' cur=' + slotLabel(currentSlot) + dTxt + ' | recent reads: ' + (rcDiagSummary() || 'none'));
   }
+  if (ampOutGuardCheck(data)) return;
   lastParamFullRaw = (data.length >= 13) ? decodeFull32(data, data.length - 6) : null;
   try { return handleParamReadbackInner(data); }
   finally { lastParamFullRaw = null; }

@@ -461,6 +461,7 @@ function sendGateParamWrite(instId, paramId, v127) {
 var READ_ONLY_PARAM_LOS = [];
 
 function sendParamWrite(paramLo, v127) {
+  if (paramLo === 0x03 && typeof ampOutTruthSetFromV127 === 'function') ampOutTruthSetFromV127(v127);   // build 223
   if (READ_ONLY_PARAM_LOS.indexOf(paramLo) !== -1) {
     appLog('sendParamWrite: paramLo 0x' +
            paramLo.toString(16).padStart(2,'0').toUpperCase() +
