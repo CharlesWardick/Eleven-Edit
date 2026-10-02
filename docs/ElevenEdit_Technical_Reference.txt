@@ -1047,6 +1047,28 @@ NOT RESO — RESO has its own read, CMD 0x3F.)
 7. VALUE ENCODINGS
 ===================================================================
 
+READOUT PRECISION — CURRENT RULES (builds 214–229, 2026-10-02; SUPERSEDES the
+older single-byte / v/127 / "scope warning" notes further down this section):
+  - Every value reply carries the rack's full int32 in the 5 value bytes
+    (decodeFull32). The DISPLAY now uses it: readouts match the rack screen.
+  - The 0-127 step grid is v/128 (127 pinned to full scale), not v/127.
+    Raw 3F 7F 7F 7F = full scale (shows max, e.g. 10.0 / 200 ms).
+  - Bipolar controls (dB +/-, % +/-, L/R ratio) are LINEAR in that fraction,
+    centre at 64. The old /64-below, /63-above split was wrong.
+  - The rack accepts full-resolution WRITES (sub-step values) too.
+  - A knob dragged in EE sends a 128-step value, so it reads that step.
+
+FIRMWARE GAPS — CONFIRMED 2026-10-02 (author, on hardware):
+  Many rack controls do not have a value at every tenth. The rack's own dial
+  skips some (e.g. Graphic EQ +/-12 bands: EE can show 2.3 or 3.8, the rack
+  dial never lands there). Avid's Editor hides this: most of its controls show
+  no number at all — only a silkscreen-style dial scale, so every setting is
+  set by eye. Avid shows exact numbers in only a few places, and those fields
+  accept typed values. EE shows a number on every knob, so the gaps are now
+  visible. This is NOT a bug: the difference (e.g. 3.1 vs 3.3) is inaudible.
+  Decision: EE does NOT try to mimic the firmware gaps by hiding values.
+  A fork is free to map the gaps and do so.
+
 CONTINUOUS KNOBS (CMD 0x11, 0x07, 0x36) — single-byte offset binary:
   DECODE: if v0 >= 0x40 -> val = v0 - 0x40   (range 0–63)
           if v0 <  0x40 -> val = v0 + 64     (range 64–127)
