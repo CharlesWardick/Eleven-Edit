@@ -3360,6 +3360,7 @@ function panelHoldEnd() {
   var h = panelHold; panelHold = null;
   if (h.raf) cancelAnimationFrame(h.raf);
   if (h.snap && h.snap.parentNode) h.snap.parentNode.removeChild(h.snap);
+  if (h.hideOld && h.old && h.old !== h.el && h.el && h.el.style.display !== 'none') h.old.style.display = 'none';
   if (h.el) { h.el.style.visibility = ''; h.el.style.position = ''; h.el.style.left = ''; h.el.style.right = ''; h.el.style.top = ''; }
   var q = panelHoldAfter; panelHoldAfter = [];
   q.forEach(function (fn) { try { fn(); } catch (e) {} });
@@ -3395,7 +3396,7 @@ function panelHoldBegin(oldEl) {
   var snap = panelSnapshot(oldEl);
   oldEl.parentNode.insertBefore(snap, oldEl);
   if (oldEl.style.minHeight) snap.style.minHeight = oldEl.style.minHeight;
-  panelHold = { snap: snap, el: null, t0: Date.now(), raf: 0 };
+  panelHold = { snap: snap, el: null, t0: Date.now(), raf: 0, old: oldEl };
   // build 242: the hidden new panel still counts toward the area's scroll
   // height — no scroll bar may flash while it builds underneath.
   var pa = document.getElementById('panel-area'); if (pa) pa.style.overflowY = 'hidden';
@@ -3408,6 +3409,16 @@ function panelHoldWatch(newEl, maxMs, requireDip) {
   if (!panelHold) return;
   if (!newEl || newEl.style.display === 'none') { panelHoldEnd(); return; }
   panelHold.el = newEl;
+  // build 243: a DIFFERENT panel is leaving — keep the real one up instead of
+  // the picture (the AMP/CAB clone lost its id-based layout styles and read as
+  // a blank flash). The picture is only needed when the same panel rebuilds.
+  var old = panelHold.old;
+  if (old && old !== newEl) {
+    if (panelHold.snap && panelHold.snap.parentNode) panelHold.snap.parentNode.removeChild(panelHold.snap);
+    panelHold.snap = null;
+    old.style.display = '';
+    panelHold.hideOld = true;
+  }
   newEl.style.visibility = 'hidden'; newEl.style.position = 'absolute';
   newEl.style.left = '0'; newEl.style.right = '0'; newEl.style.top = '0';
   var limit = maxMs || 1200, sawBusy = !requireDip;
