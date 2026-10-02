@@ -85,15 +85,15 @@
   var DIST_MAP = {
     0x19: { family: 'Dstr', code: 'TS8', verified: true,   // Green JRC Overdrive (Tube Screamer)
             params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Tone', type:'d'}, 0x04: {name:'d_Levl', type:'d'} } },
-    // ── UNVERIFIED below: codes/names are best-effort; confirm from an Avid export. ──
-    0x17: { family: 'Dstr', code: 'TKF', verified: false,  // Tri-Knob Fuzz
-            params: { 0x02: {name:'d_Volu', type:'d'}, 0x03: {name:'d_Sust', type:'d'}, 0x04: {name:'d_Tone', type:'d'} } },
-    0x18: { family: 'Dstr', code: 'BOD', verified: false,  // Black Op Distortion
-            params: { 0x02: {name:'d_Dist', type:'d'}, 0x03: {name:'d_Cut ', type:'d'}, 0x04: {name:'d_Volu', type:'d'} } },
-    0x1A: { family: 'Dstr', code: 'WBO', verified: false,  // White Boost
-            params: { 0x02: {name:'d_Gain', type:'d'}, 0x03: {name:'d_Treb', type:'d'}, 0x04: {name:'d_Bass', type:'d'}, 0x05: {name:'d_Volu', type:'d'} } },
-    0x1B: { family: 'Dstr', code: 'DCD', verified: false,  // DC Distortion
-            params: { 0x02: {name:'d_Dist', type:'d'}, 0x03: {name:'d_Treb', type:'d'}, 0x04: {name:'d_Bass', type:'d'}, 0x05: {name:'d_Levl', type:'d'} } }
+    // build 231: VERIFIED from Avid exports 2026-10-02 (codes/families were wrong guesses before).
+    0x17: { family: 'Dstr', code: 'MUF', verified: true,   // Tri-Knob Fuzz (Big Muff)
+            params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Tone', type:'d'}, 0x04: {name:'d_Levl', type:'d'} } },
+    0x18: { family: 'Dstr', code: 'RAT', verified: true,   // Black Op Distortion (Rat)
+            params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Tone', type:'d'}, 0x04: {name:'d_Levl', type:'d'} } },
+    0x1A: { family: 'Xotc', code: 'RCB', verified: true,   // White Boost (RC Booster) — Treb/Bass order assumed = panel
+            params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Treb', type:'d'}, 0x04: {name:'d_Bass', type:'d'}, 0x05: {name:'d_Levl', type:'d'} } },
+    0x1B: { family: 'DCDs', code: 'DCD', verified: true,   // DC Distortion — order assumed = panel
+            params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Treb', type:'d'}, 0x04: {name:'d_Bass', type:'d'}, 0x05: {name:'d_Levl', type:'d'} } }
   };
 
   // REVERB models (base mids 0x26 Blackpanel Spring, 0x28 Eleven SR). Both
@@ -211,6 +211,8 @@
   // own `scale` (see d_PDly) wins over the family scale. ────────────────
   var BP_SCALE = {
     Dstr: { lo: 0.0, hi: 10.0 },
+    Xotc: { lo: 0.0, hi: 10.0 },
+    DCDs: { lo: 0.0, hi: 10.0 },
     Rvrb: { lo: 0.0, hi: 10.0 },
     Sprn: { lo: 0.0, hi: 10.0 }
   };
@@ -884,7 +886,7 @@
   // ════════════════════════════════════════════════════════════════════
   var dist = makeBlock({
     key: 'dist', label: 'DIST', lower: 'distortion',
-    familyFolder: 'Distortion', families: ['Dstr'],
+    familyFolder: 'Distortion', families: ['Dstr', 'Xotc', 'DCDs'],
     rejectMsg: "That's not a distortion preset — DIST can't host it.",
     map: DIST_MAP,
     modelByMid: (typeof DIST_MODEL_BY_MID !== 'undefined') ? DIST_MODEL_BY_MID : {},
