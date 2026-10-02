@@ -181,8 +181,12 @@ function peqGraphRefresh() {
         var el = document.getElementById(id);
         if (el) { peqgHidden.push([el, el.style.display]); el.style.display = 'none'; }
       });
+      // build 234: the graph also covers the audio bar (class, so the audio
+      // engine's own show/hide can't fight it) — frees room, no scroll bar.
+      var as = document.getElementById('audiostrip'); if (as) as.classList.add('peqg-cover');
     } else {
       peqgHidden.forEach(function(p) { p[0].style.display = p[1]; });
+      var as2 = document.getElementById('audiostrip'); if (as2) as2.classList.remove('peqg-cover');
       peqgHidden = [];
       peqgDrag = null;
     }
