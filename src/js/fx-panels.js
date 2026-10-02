@@ -3341,6 +3341,8 @@ function peqCurveDraw() {
 // underneath, and swap only when its values have painted — or after a safety
 // timeout so it can never stick. Same total time, one visible change.
 var panelHold = null;   // { snap, el, t0, raf }
+var panelHoldAfter = [];   // build 241: work to run at the swap moment (PEQ graph bar hide/show)
+function panelHoldDefer(fn) { if (panelHold) panelHoldAfter.push(fn); else fn(); }
 function panelSnapshot(el) {
   var snap = el.cloneNode(true);
   snap.removeAttribute('id');
@@ -3359,6 +3361,8 @@ function panelHoldEnd() {
   if (h.raf) cancelAnimationFrame(h.raf);
   if (h.snap && h.snap.parentNode) h.snap.parentNode.removeChild(h.snap);
   if (h.el) { h.el.style.visibility = ''; h.el.style.position = ''; h.el.style.left = ''; h.el.style.right = ''; h.el.style.top = ''; }
+  var q = panelHoldAfter; panelHoldAfter = [];
+  q.forEach(function (fn) { try { fn(); } catch (e) {} });
 }
 function panelPaintPending(el) {
   var id = el && el.id;

@@ -177,17 +177,26 @@ function peqGraphRefresh() {
     if (graph) {
       peqgBuild();
       peqgHidden = [];
-      ['roller-strip', 'btoolbar'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) { peqgHidden.push([el, el.style.display]); el.style.display = 'none'; }
-      });
-      // build 234: the graph also covers the audio bar (class, so the audio
-      // engine's own show/hide can't fight it) — frees room, no scroll bar.
-      var as = document.getElementById('audiostrip'); if (as) as.classList.add('peqg-cover');
+      // build 241: hide/show the bars at the panel swap, not before (panelHoldDefer)
+      var hideBars = function() {
+        if (!peqgActive || peqgHidden.length) return;
+        ['roller-strip', 'btoolbar'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) { peqgHidden.push([el, el.style.display]); el.style.display = 'none'; }
+        });
+        // build 234: the graph also covers the audio bar (class, so the audio
+        // engine's own show/hide can't fight it) — frees room, no scroll bar.
+        var as = document.getElementById('audiostrip'); if (as) as.classList.add('peqg-cover');
+      };
+      if (typeof panelHoldDefer === 'function') panelHoldDefer(hideBars); else hideBars();
     } else {
-      peqgHidden.forEach(function(p) { p[0].style.display = p[1]; });
-      var as2 = document.getElementById('audiostrip'); if (as2) as2.classList.remove('peqg-cover');
-      peqgHidden = [];
+      var showBars = function() {
+        if (peqgActive) return;
+        peqgHidden.forEach(function(p) { p[0].style.display = p[1]; });
+        var as2 = document.getElementById('audiostrip'); if (as2) as2.classList.remove('peqg-cover');
+        peqgHidden = [];
+      };
+      if (typeof panelHoldDefer === 'function') panelHoldDefer(showBars); else showBars();
       peqgDrag = null;
     }
     kr.style.display = graph ? 'none' : 'flex';
