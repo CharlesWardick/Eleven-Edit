@@ -2100,6 +2100,8 @@
   .tn-cents { font-family: Consolas, monospace; font-size: 18px; color: #bbb; min-height: 22px; }
   #panel-tuner:not(.ts-meter) .tn-meter, #panel-tuner:not(.ts-leds) .tn-leds { display: none; }
   #panel-tuner.ts-big .tn-note { font-size: 110px; width: 220px; line-height: 140px; }
+/* build 238: drawn pause glyph (the ⏸ emoji rendered blue) — takes the button's own colour */
+.pause-ico { display:inline-block; width:8px; height:9px; margin-right:6px; vertical-align:-1px; border-left:3px solid currentColor; border-right:3px solid currentColor; box-sizing:border-box; }
 #audiostrip.peqg-cover { display: none !important; }   /* build 234: PEQ graph covers the audio bar */
 </style>
 </head>
@@ -3258,7 +3260,7 @@
       <select id="range-to" style="background:#2a2a2a;border:1px solid #666;color:var(--accent);font-family:'Consolas',monospace;font-size:inherit;padding:3px 8px;border-radius:4px;min-width:64px;"></select>
       <div class="bt-sep"></div>
       <button id="btn-start" class="auto-btn">▶ START</button>
-      <button id="btn-pause" class="auto-btn" disabled>⏸ PAUSE</button>
+      <button id="btn-pause" class="auto-btn" disabled><span class="pause-ico"></span>PAUSE</button>
       <button id="btn-stop"  class="auto-btn" disabled>■ STOP</button>
       <div class="bt-sep"></div>
       <span style="font-size:inherit;color:#999;">EVERY</span>

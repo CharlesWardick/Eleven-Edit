@@ -211,7 +211,7 @@ function togglePause() {
   if (autoPaused) {
     autoPaused = false; autoStartTime = performance.now();
     scheduleNext(); startProgressRAF();
-    document.getElementById('btn-pause').textContent = '⏸ PAUSE';
+    document.getElementById('btn-pause').innerHTML = '<span class="pause-ico"></span>PAUSE';
     document.getElementById('btn-pause').classList.remove('paused');
     setStatus('Resumed');
   } else {
@@ -232,7 +232,7 @@ function stopAuto() {
   document.getElementById('btn-start').textContent = '▶ START';
   document.getElementById('btn-pause').disabled = true;
   document.getElementById('btn-pause').classList.remove('paused');
-  document.getElementById('btn-pause').textContent = '⏸ PAUSE';
+  document.getElementById('btn-pause').innerHTML = '<span class="pause-ico"></span>PAUSE';
   document.getElementById('btn-stop').disabled  = true;
   document.getElementById('progress-bar').style.width = '0%';
   document.getElementById('progress-label').textContent = '—';
