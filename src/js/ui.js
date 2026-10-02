@@ -142,7 +142,8 @@ function makePaintBuffer() {
       });
     },
     defer: function(fn) { if (deferred) queue.push(fn); else fn(); },
-    markSeen: function(lo) { if (gate) gate.markSeen(lo); }
+    markSeen: function(lo) { if (gate) gate.markSeen(lo); },
+    isPending: function() { return deferred; }   // build 240: panel hold
   };
 }
 

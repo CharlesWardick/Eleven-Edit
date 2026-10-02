@@ -3331,3 +3331,90 @@ function peqCurveDraw() {
     x.fillStyle = off ? '#555' : cssColor(b.col); x.beginPath(); x.arc(fx(f), dyc(dotDb), 3.5, 0, Math.PI * 2); x.fill();
   });
 }
+
+// ── Panel hold: old → new in one step (build 240, Charlie) ───────────────
+// FX panels used to show in three states: the old panel, then the new frame
+// with blank knobs, then the values once the rack replied. The AMP/CAB panel
+// lands in one step because its values come with the patch. Fix: freeze a
+// picture of the panel being left (a clone with its canvas pixels copied and
+// every id stripped, so lookups never hit it), build the new panel hidden
+// underneath, and swap only when its values have painted — or after a safety
+// timeout so it can never stick. Same total time, one visible change.
+var panelHold = null;   // { snap, el, t0, raf }
+function panelSnapshot(el) {
+  var snap = el.cloneNode(true);
+  snap.removeAttribute('id');
+  snap.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+  var src = el.querySelectorAll('canvas'), dst = snap.querySelectorAll('canvas');
+  for (var i = 0; i < src.length && i < dst.length; i++) {
+    try { dst[i].getContext('2d').drawImage(src[i], 0, 0); } catch (e) {}
+  }
+  snap.style.pointerEvents = 'none';
+  snap.classList.add('panel-hold-snap');
+  return snap;
+}
+function panelHoldEnd() {
+  if (!panelHold) return;
+  var h = panelHold; panelHold = null;
+  if (h.raf) cancelAnimationFrame(h.raf);
+  if (h.snap && h.snap.parentNode) h.snap.parentNode.removeChild(h.snap);
+  if (h.el) { h.el.style.visibility = ''; h.el.style.position = ''; h.el.style.left = ''; h.el.style.right = ''; h.el.style.top = ''; }
+}
+function panelPaintPending(el) {
+  var id = el && el.id;
+  if (id === 'panel-dist')   return typeof distPaint !== 'undefined' && distPaint.isPending();
+  if (id === 'panel-reverb') return typeof reverbPaint !== 'undefined' && reverbPaint.isPending();
+  if (id === 'panel-wah')    return typeof wahPaint !== 'undefined' && wahPaint.isPending();
+  if (id === 'panel-vol')    return typeof volPaint !== 'undefined' && volPaint.isPending();
+  if (id === 'panel-fxloop') return typeof fxloopPaint !== 'undefined' && fxloopPaint.isPending();
+  if (id === 'panel-delay')  return !!delayPaintDeferred;
+  if (id === 'panel-fxhost') return !!fxHostPaintDeferred || !!fxHostPendingBuild;
+  return false;
+}
+function panelLooksReady(el) {
+  if (panelPaintPending(el)) return false;
+  var vals = el.querySelectorAll('.knob-val');
+  for (var i = 0; i < vals.length; i++) {
+    if (vals[i].offsetParent !== null && vals[i].textContent.trim() === '--') return false;
+  }
+  return true;
+}
+// Call BEFORE the switch: oldEl = the panel currently showing.
+function panelHoldBegin(oldEl) {
+  panelHoldEnd();
+  if (!oldEl || oldEl.style.display === 'none') return;
+  var snap = panelSnapshot(oldEl);
+  oldEl.parentNode.insertBefore(snap, oldEl);
+  if (oldEl.style.minHeight) snap.style.minHeight = oldEl.style.minHeight;
+  panelHold = { snap: snap, el: null, t0: Date.now(), raf: 0 };
+}
+// Call AFTER the switch: newEl = the panel now opening (built hidden).
+// requireDip (model change): the panel is the same element and still shows
+// the old model at first, so wait to see it go "not ready" (rebuilt) before
+// accepting "ready"; if it never dips within 500 ms there was nothing to hide.
+function panelHoldWatch(newEl, maxMs, requireDip) {
+  if (!panelHold) return;
+  if (!newEl || newEl.style.display === 'none') { panelHoldEnd(); return; }
+  panelHold.el = newEl;
+  newEl.style.visibility = 'hidden'; newEl.style.position = 'absolute';
+  newEl.style.left = '0'; newEl.style.right = '0'; newEl.style.top = '0';
+  var limit = maxMs || 1200, sawBusy = !requireDip;
+  (function tick() {
+    if (!panelHold || panelHold.el !== newEl) return;
+    if (newEl.style.display === 'none') { panelHoldEnd(); return; }   // closed meanwhile
+    var age = Date.now() - panelHold.t0, ready = panelLooksReady(newEl);
+    if (!sawBusy) { if (!ready) sawBusy = true; else if (age > 500) { panelHoldEnd(); return; } }
+    if (age > limit || (sawBusy && ready)) { panelHoldEnd(); return; }
+    panelHold.raf = requestAnimationFrame(tick);
+  })();
+}
+// Model dropdown change inside an open panel: hold the current picture until
+// the new model's knobs have their values (capture phase = before the handler).
+document.addEventListener('change', function (e) {
+  var sel = e.target;
+  if (!sel || !sel.id || !/-model-select$/.test(sel.id)) return;
+  var panel = sel.closest('#panel-dist, #panel-reverb, #panel-wah, #panel-vol, #panel-fxloop, #panel-delay, #panel-fxhost');
+  if (!panel || panel.style.display === 'none') return;
+  panelHoldBegin(panel);
+  setTimeout(function () { panelHoldWatch(panel, 1500, true); }, 0);
+}, true);
