@@ -21,7 +21,9 @@ var PEQG_PAD = { l: 44, r: 12, t: 12, b: 26 };
 var peqgBuilt = false, peqgActive = false, peqgRaf = 0, peqgDrag = null, peqgHidden = [];
 var peqgTables = {};   // lo -> [128 numbers] from cell.display
 
-function peqgRange() { try { return localStorage.getItem('peqRange') || '24'; } catch (e) { return '24'; } }
+// build 247: range per FX slot too ('peqRange:<slotId>', falls back to the old shared key).
+function peqgRangeKey() { return 'peqRange:' + (typeof openFxHostSlot !== 'undefined' && openFxHostSlot !== null ? openFxHostSlot : 'x'); }
+function peqgRange() { try { return localStorage.getItem(peqgRangeKey()) || localStorage.getItem('peqRange') || '24'; } catch (e) { return '24'; } }
 // Range selector (build 120): fixed ±12/±24/±48, or Fit = symmetric range just covering the
 // combined curve (notch/pass nulls ignored — bottomless). Fit is frozen during a dot drag.
 function peqgApplyRange(cur, out) {
@@ -214,7 +216,7 @@ function peqGraphRefresh() {
     if (!graph && typeof panelHoldDefer === 'function') panelHoldDefer(swapView); else swapView();
     var cm = document.getElementById('peqg-menu'); if (cm) cm.style.display = 'none';
   }
-  if (graph) peqgSchedule();
+  if (graph) { var rsel = document.getElementById('peqg-range'); if (rsel) rsel.value = peqgRange(); peqgSchedule(); }   // build 247: this slot's range
   peqgSpecSync();
 }
 function peqgSchedule() {
@@ -379,7 +381,7 @@ function peqgBuild() {
 
   var rs = document.getElementById('peqg-range');
   rs.value = peqgRange();
-  rs.addEventListener('change', function() { try { localStorage.setItem('peqRange', rs.value); } catch (e) {} peqgSchedule(); });
+  rs.addEventListener('change', function() { try { localStorage.setItem(peqgRangeKey(), rs.value); } catch (e) {} peqgSchedule(); });
   var cv = document.getElementById('peqg-canvas');
   cv.addEventListener('mousedown', function(e) {
     if (e.button !== 0) return;
