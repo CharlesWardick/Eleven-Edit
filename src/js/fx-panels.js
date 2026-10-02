@@ -3363,6 +3363,7 @@ function panelHoldEnd() {
   if (h.el) { h.el.style.visibility = ''; h.el.style.position = ''; h.el.style.left = ''; h.el.style.right = ''; h.el.style.top = ''; }
   var q = panelHoldAfter; panelHoldAfter = [];
   q.forEach(function (fn) { try { fn(); } catch (e) {} });
+  var pa = document.getElementById('panel-area'); if (pa) pa.style.overflowY = '';
 }
 function panelPaintPending(el) {
   var id = el && el.id;
@@ -3377,6 +3378,10 @@ function panelPaintPending(el) {
 }
 function panelLooksReady(el) {
   if (panelPaintPending(el)) return false;
+  // build 242: PEQ in GRAPH view is ready only once the graph has taken over
+  // (bars hidden with it in the same step).
+  if (el.id === 'panel-fxhost' && typeof peqgIsPeqOpen === 'function' && typeof peqgView === 'function'
+      && peqgIsPeqOpen() && peqgView() === 'graph' && typeof peqgActive !== 'undefined' && !peqgActive) return false;
   var vals = el.querySelectorAll('.knob-val');
   for (var i = 0; i < vals.length; i++) {
     if (vals[i].offsetParent !== null && vals[i].textContent.trim() === '--') return false;
@@ -3391,6 +3396,9 @@ function panelHoldBegin(oldEl) {
   oldEl.parentNode.insertBefore(snap, oldEl);
   if (oldEl.style.minHeight) snap.style.minHeight = oldEl.style.minHeight;
   panelHold = { snap: snap, el: null, t0: Date.now(), raf: 0 };
+  // build 242: the hidden new panel still counts toward the area's scroll
+  // height — no scroll bar may flash while it builds underneath.
+  var pa = document.getElementById('panel-area'); if (pa) pa.style.overflowY = 'hidden';
 }
 // Call AFTER the switch: newEl = the panel now opening (built hidden).
 // requireDip (model change): the panel is the same element and still shows
