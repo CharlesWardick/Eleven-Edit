@@ -2271,7 +2271,7 @@ const FX1_MODELS = [
   //   own min/max — SEE 2026-07-30 DYN3 RATIO entry for why this shape was
   //   trusted generally; here it is independently re-confirmed by a
   //   13-point sweep, not just assumed from family resemblance.
-  // LOW CUT (24.4 Hz .. 1 kHz) — INFERRED to use the SAME exponential shape
+  // LOW CUT (20 Hz (build 229; was 24.4) .. 1 kHz) — INFERRED to use the SAME exponential shape
   // (log-scaled Hz is the standard convention for a filter cutoff control,
   // and Rate — the other log-scaled quantity on this model — confirmed
   // exponential), but UNLIKE Rate this one has no independent multi-point
@@ -2320,7 +2320,7 @@ const FX1_MODELS = [
       },
       { group:'CHORUS', rows: [
           [ {label:'Low Cut', lo:0x08,
-              display: function(v) { return (24.4 * Math.pow(1000 / 24.4, fracFromV127(v))).toFixed(1) + ' Hz'; }},
+              display: function(v) { return (20 * Math.pow(1000 / 20, fracFromV127(v))).toFixed(1) + ' Hz'; }},
             {label:'Width', lo:0x09,
               display: function(v) { return Math.round(fracFromV127(v) * 100) + '%'; }} ]
         ]
