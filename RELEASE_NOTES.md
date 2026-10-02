@@ -28,13 +28,14 @@ cab and mic. Search by any of them (e.g. "800", "Green 25W", "121") or pick from
 the amp / cab / mic lists; CLEAR brings everything back. 🎧 plays a patch while the
 browser stays open, so you can audition several in a row, and Back (or CLOSE / Esc)
 returns you to where you started; ➜ or a click goes to the patch. After startup
-Eleven Edit quietly reads your user patches in the background whenever you are idle
-(about two minutes in all) and keeps the list up to date as you save or import; the
-buttons stay dimmed until it is done. Factory patches are built in.
+The first time you open it in a session, Eleven Edit reads your 104 user patches from
+the rack (well under a minute, with a progress box and Cancel — leave the rack alone
+meanwhile); after that it opens instantly and stays up to date as you save, import or
+export. Factory patches are built in.
 
-**Rig Balancing opens instantly.** It uses the same background read, so all 104
-rig volumes are already known when you open it — no front-panel flicker and no
-waiting (the button is dimmed until the read has finished after startup).
+**Rig Balancing reads silently.** It shares the Rig Browser's patch read, so all 104
+rig volumes are read without stepping through patches on the rack's front panel —
+and if either one has already been opened this session, it opens instantly.
 
 **Parametric EQ graph view.** The Parametric EQ panel has a KNOBS | GRAPH switch.
 GRAPH opens a large response graph across the full panel width: drag a band's dot
@@ -43,8 +44,9 @@ the patch's saved values, and right-click the LF or HF dot to change the filter
 type. Under the graph, each band has Freq / Gain / Q sliders with type-in value
 boxes and a tick marking the saved value. A dashed line shows the patch as saved,
 a Range selector (±12 / ±24 / ±48 dB, or Fit to size the view tightly to the curve) rescales it, and GRAPH is the
-default (your last choice is remembered). While the graph is open it uses the
-space of the Auto Advance and Preset / Bank rows. KNOBS view keeps the small
+default. FX1, FX2 and MOD each remember their own view and range. While the graph is
+open it uses the space of the Auto Advance, Preset / Bank and audio rows (audio keeps
+playing). KNOBS view keeps the small
 curve. When the LF or HF band is set to Notch, Hipass or Lowpass its Gain has no
 effect on the rack's sound, so Gain is greyed out and locked in both views.
 (Curves are a close approximation of the rack's EQ, not a lab measurement.)
@@ -103,7 +105,7 @@ longer moves anything on screen; a panel taller than the window scrolls inside
 its own frame.
 
 **Redesigned Settings.** Settings is now five columns: Folders, Rig-Wide Hardware,
-Audio Configuration, Chain Row and Colors. The long path lines are gone — Captures, Logs
+Audio Configuration (with Other Configuration under it), Chain Row and Colors. The long path lines are gone — Captures, Logs
 and Avid Graphics are buttons with a status light; click one to see its path and
 change or open it. The Logs folder can now be changed. The Avid Graphics light
 shows how many of the 39 chain-row images a scan found: green = all, amber = some
@@ -123,7 +125,8 @@ About box; the Avid-editor warning in the status bar stays on one line. Knobs
 show faint end-stop marks in their ring at minimum and maximum. The tone-knob
 lock button is gone — drag a knob's name to reorder any time. The TFX / BANK row
 is now labelled PRESET / BANK and lines up with the AUTO ADVANCE row. New installs
-start with the Modern 4 (Glow) chain row, and in Modern views the INPUT label sits
+start with the Modern 2 (Lens) chain row and Quick Mix off; updating from v1.1
+keeps the Classic row and Quick Mix as you had them, and in Modern views the INPUT label sits
 on a raised band matching the chosen look. The "rack not found" startup screen has
 a shorter message and the new button style.
 
@@ -132,10 +135,31 @@ a shorter message and the new button style.
 column with Built-in Audio Passthrough, and Audio Setup's button is Restart Audio.
 Nothing about how it works has changed.
 
-**Preset / Bank waits for the catalog too.** SAVE, Load TFX, Export All Rigs and
-Import Rigs — and dragging a .tfx onto a slot — now stay dimmed alongside Rig
-Browser and Rig Balancing during the ~2-minute background read after startup, so
-nothing competes with it. They re-enable automatically when the read finishes.
+**Panel presets (optional, off by default).** Save and load the settings of a single
+effect block — Distortion, Reverb, Delay, FX1, FX2 and MOD — as small preset files,
+compatible with the Avid Eleven Rack Editor's own block presets. Turn it on in
+Settings → Other Configuration → Panel presets. Each of those panels then gets a
+PRESET bar (SAVE, LOAD, step through a folder with − / +, or auto-step with ▶) and a
+↺ RELOAD button that puts the block back the way the patch was saved. With the
+setting off, the panels look and work exactly as before.
+
+**Bypassed blocks look bypassed.** When an effect block is off, its open panel is
+dimmed and marked BYPASSED (you can still edit it). On the AMP / CAB panel the amp and
+cab halves dim separately.
+
+**Smoother panel switching.** Opening an effect panel, or changing its model, now goes
+straight from the old panel to the new one with every value in place — no blank-knob
+step in between.
+
+**More exact readouts.** FX Loop, Graphic EQ, Dyn Delay and MultiChorus readouts now
+match the rack's screen too, and saved block presets keep the rack's exact values.
+Note: the rack itself can't land on every tenth for some controls (its own dial skips
+a few), while Eleven Edit shows a number for every knob position. A value the rack
+doesn't have is still a valid setting — the difference is far too small to hear.
+
+**Fixes.** Tri-Knob Fuzz knob labels now match the rack (Volume, Sustain, Tone). The
+MultiChorus Low Cut range now starts at 20 Hz like the rack. The Auto Advance PAUSE
+button has a proper amber pause symbol.
 
 **Status messages are visible again.** Short notes (patch changes, loads, saves,
 errors and the like) now appear in the bottom status bar and clear after a few

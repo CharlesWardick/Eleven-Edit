@@ -179,14 +179,12 @@ TOP BAR
       Back (or CLOSE / Esc) returns you to the patch you started on. If
       that patch has unsaved changes you are asked first.
     - ➜ or a click on the row — goes to that patch and closes the browser.
-  While it is open the rest of the app is locked. After Eleven Edit
-  starts it quietly reads your user patches in the background whenever
-  you are idle (about two minutes in all). Until that read is done the
-  whole Preset / Bank row waits — RIG BROWSER, Rig Balancing, SAVE, Load
-  TFX, Export All Rigs and Import Rigs (and dragging a .tfx onto a slot)
-  stay dimmed so nothing competes with it, and re-enable on their own when
-  it finishes. Saves and imports keep the list up to date. Factory patches
-  are built in.
+  While it is open the rest of the app is locked. The first time you
+  open it (or Rig Balancing) in a session, Eleven Edit reads your 104 user
+  patches from the rack — a progress box shows the count and has Cancel;
+  leave the rack's controls alone until it finishes. After that it opens
+  instantly. Saves, imports and Export All Rigs keep the list up to date.
+  Factory patches are built in.
 
   Drag and drop a .tfx: drop ONE .tfx file from Windows onto a USER slot
   in the Jump List and choose Write (saves it to that slot), Try (loads
@@ -232,7 +230,8 @@ CHAIN ROW
   and Mono.
 
   VIEW: CLASSIC OR MODERN (Settings → Chain Row → View)
-  New installs start in Modern 4 (Glow); your choice is remembered.
+  New installs start in Modern 2 (Lens); updating from v1.1 keeps
+  Classic. Your choice is remembered.
   Classic is the layout described above. Modern shows each block as a
   single button:
     - Click the button to open that block's controls (amber ring = open).
@@ -261,7 +260,8 @@ QUICK MIX (per-block wet sliders)
   marks that saved value, so you can see when you've moved away from it. A
   bypassed block shows its slider dimmed; a model with no wet control
   shows no slider. Turn the whole feature on or off in Settings → Chain
-  Row → "Quick Mix Sliders / Show".
+  Row → "Quick Mix Sliders / Show" (off on a new install; updating from
+  v1.1 keeps it as it was).
 
 AMP PANEL
   Amp Model, Cab and Mic dropdowns, the ON AXIS button (on/off-axis mic
@@ -290,8 +290,13 @@ EFFECT PANELS
   Auto Advance row, so nothing else moves when you switch panels. Press
   Esc (or the panel's ✕) to go back to the amp panel.
 
+  When a block is bypassed, its open panel is dimmed and marked BYPASSED;
+  you can still edit it. On AMP / CAB the amp and cab halves dim
+  separately.
+
   Parametric EQ has two views, switched with KNOBS | GRAPH in its header.
-  GRAPH is the default; Eleven Edit remembers the one you used last.
+  GRAPH is the default; FX1, FX2 and MOD each remember their own view
+  and Range.
 
   GRAPH view: a large response graph. The white line is the overall
   result, each band has its own faint curve and a dot in its colour, and
@@ -310,9 +315,9 @@ EFFECT PANELS
   Type a value (e.g. 2.5k) and press Enter; the mouse wheel works on the
   sliders; the white tick marks the saved value and double-clicking a
   slider returns to it. The saved filter type shows bold in the Type list.
-  While GRAPH is open it uses the space of the Auto Advance and
-  Preset / Bank rows; switch to KNOBS or close the panel to get them back
-  (for example, to SAVE).
+  While GRAPH is open it uses the space of the Auto Advance, Preset /
+  Bank and audio rows (audio keeps playing); switch to KNOBS or close the
+  panel to get them back (for example, to SAVE or MUTE).
 
   SPECTRUM: with audio passthrough on, a live spectrum is drawn behind the
   curves; the SPECTRUM button turns it off. It shows the rack's final
@@ -335,6 +340,27 @@ EFFECT PANELS
   The curves are a close approximation of the rack's EQ, not a lab
   measurement. Graphic EQ faders show two small marks where each fader
   started; double-click a fader to return to that point.
+
+  KNOB READOUTS show the rack's exact value. Some rack controls can't
+  land on every tenth (the rack's own dial skips a few), while Eleven Edit
+  shows a number for every knob position — so you may see a value the
+  rack's screen never shows. It is still a valid setting; the difference
+  is far too small to hear.
+
+  PANEL PRESETS (optional — Settings → Other Configuration → Panel
+  presets, off by default). Distortion, Reverb, Delay, FX1, FX2 and MOD
+  get a PRESET bar under their header:
+    - SAVE writes the block's current settings to a preset file; LOAD
+      opens one. Files are compatible with the Avid Eleven Rack Editor's
+      block presets, and are kept in Presets\<effect>\<model> under the
+      Presets folder (Settings → Folders).
+    - The list picks which presets − / + step through: this model's
+      folder, or ALL. "Original" (the patch as saved) is always first.
+    - ▶ steps through them automatically every 5–30 seconds; any other
+      click stops it.
+    - ↺ RELOAD (beside the model) puts the block back the way the patch
+      was saved.
+  Nothing is written to the rack's memory until you save the patch.
 
 AUTO ADVANCE
   A patch-stepping tool: pick a FROM/TO range, an interval in seconds,
@@ -435,9 +461,9 @@ BACKUP AND SAFETY
   if uploads fail across the board.
 
   Rig Balancing... — a dedicated screen for leveling output volume
-  across all 104 user rigs. It opens instantly with every rig's volume
-  already known (from the same background read the Rig Browser uses; the
-  button is dimmed until that has finished after startup). Turn
+  across all 104 user rigs. It reads every rig's volume silently (no
+  patch stepping on the rack) using the same read as the Rig Browser; if
+  either has been opened this session it opens instantly. Turn
   the app's knob or the rack's own Rig Vol knob — both edit the selected
   row. Changes are buffered until you commit them with Save Changed, so
   you can Discard All and back out cleanly if you change your mind.
@@ -448,11 +474,12 @@ ABOUT / SETTINGS
 
   The gear icon (bottom right) opens Settings, laid out in five columns:
 
-    - Folders — three buttons, each with a status light (green = set,
+    - Folders — four buttons, each with a status light (green = set,
       dim = not set). Click one to see its full path, with Change... and
       Open Folder (or Scan Folder for Avid); click Close or anywhere
       outside to dismiss.
         Captures — where exported rigs/patches are saved.
+        Presets — where panel presets are kept (see EFFECT PANELS).
         Logs — where session logs go (only written when started with
           /LOGS; a new folder applies from the next launch).
         Avid Graphics — optional. If you have the Avid Eleven Rack
@@ -463,8 +490,9 @@ ABOUT / SETTINGS
     - Rig-Wide Hardware Settings — Hardware Loop Global Routing and
       Digital Output Mode, two global (not per-patch) settings that
       live here rather than in the amp/effect panels.
-    - Audio — Audio Setup... opens the built-in audio passthrough
-      configuration (see BUILT-IN AUDIO above).
+    - Audio Configuration — Audio Setup... opens the built-in audio
+      passthrough configuration (see BUILT-IN AUDIO above). Under it,
+      Other Configuration: Panel presets Enable (see EFFECT PANELS).
     - Chain Row — View (Classic or Modern 1–5, see CHAIN ROW) and the
       Quick Mix sliders Show checkbox.
     - Colors — Green, Red and Amber intensity. Each slider brightens or
