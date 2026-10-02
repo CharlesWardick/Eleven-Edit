@@ -239,80 +239,58 @@
   //   select(options) option index, v127 = options[i].v127  (l_)
   //   toggle          0/1 ↔ off/on                           (l_)
   // encToFile: v127 → stored value. encFromFile: stored value → v127.
-  // Two-slope dB anchored at v127=64 (Graphic EQ symmetric bands / PEQ Output
-  // — mirrors eqSliderDb/eqDbToV127, ui.js).
-  function twoSlopeDb(v127, lo, hi) { return (v127 < 64) ? (v127 - 64) * (-lo / 64) : (v127 - 64) * (hi / 63); }
-  function twoSlopeV127(db, lo, hi) { if (db === 0) return 64; return (db < 0) ? 64 + db / (-lo / 64) : 64 + db / (hi / 63); }
-  // The rack's step grid is v/128 (127 pinned to max), NOT v/127 — same basis
-  // the knob readouts already use (fracFromV127, ui.js). The preset encoders
-  // use it too so a saved file matches what the panel shows and what the Avid
-  // Editor writes (build 214). eqsym/outgain-sym/bipolar already use the
-  // anchored /64,/63 form (= eqSliderDb), so they're unchanged.
+  // build 230: every continuous encoder is LINEAR (or log) in the rack's exact
+  // fraction — the same rule the live readouts use (builds 220–229). Bipolar,
+  // EQ-gain and EQ-Output dB are linear across lo..hi with centre at 0.5; the
+  // old /64,/63 two-slope form is gone. Step grid v/128, 127 pinned to max.
   function v2frac(v) { return v >= 127 ? 1 : v / 128; }
   function frac2v(f) { return f >= 1 ? 127 : Math.max(0, Math.min(127, Math.round(f * 128))); }
-  function encToFile(enc, v127) {
-    switch (enc.kind) {
-      case 'frac':    return v2frac(v127);
-      case 'linear':  return enc.lo + v2frac(v127) * (enc.hi - enc.lo);
-      case 'log':     return enc.lo * Math.pow(enc.hi / enc.lo, v2frac(v127));
-      case 'bipolar': { var sp = enc.span || 100; return (v127 < 64) ? (v127 - 64) * (sp / 64) : (v127 - 64) * (sp / 63); }
-      case 'eqsym':   return twoSlopeDb(v127, enc.lo, enc.hi);                           // EQ gain, stored as dB
-      case 'outgain': {                                                                  // EQ Output, stored as a unity-at-0dB linear gain
-        var dB = (enc.slope === 'sym') ? twoSlopeDb(v127, enc.lo, enc.hi) : enc.lo + v2frac(v127) * (enc.hi - enc.lo);
-        return Math.pow(10, dB / 20);
-      }
-      case 'sync':    return (typeof syncIndexFromV127 === 'function') ? syncIndexFromV127(v127) : 0;
-      case 'select':  { var b = 0, bd = Infinity; enc.options.forEach(function (o, i) { var d = Math.abs(o.v127 - v127); if (d < bd) { bd = d; b = i; } }); return b; }
-      case 'toggle':  return v127 >= 64 ? 1 : 0;
-    }
-    return v127;
-  }
-  function encFromFile(enc, fv) {
-    var frac;
-    switch (enc.kind) {
-      case 'frac':    frac = fv; break;
-      case 'linear':  frac = (fv - enc.lo) / (enc.hi - enc.lo); break;
-      case 'log':     frac = Math.log(fv / enc.lo) / Math.log(enc.hi / enc.lo); break;
-      case 'bipolar': { var sp = enc.span || 100; var v = (fv < 0) ? Math.round(64 + fv * 64 / sp) : Math.round(64 + fv * 63 / sp); return Math.max(0, Math.min(127, v)); }
-      case 'eqsym':   return Math.max(0, Math.min(127, Math.round(twoSlopeV127(fv, enc.lo, enc.hi))));
-      case 'outgain': {
-        var dB = 20 * Math.log(fv > 0 ? fv : 1e-6) / Math.LN10;
-        if (enc.slope === 'sym') return Math.max(0, Math.min(127, Math.round(twoSlopeV127(dB, enc.lo, enc.hi))));
-        return frac2v((dB - enc.lo) / (enc.hi - enc.lo));
-      }
-      case 'sync':    return (typeof syncV127FromIndex === 'function') ? syncV127FromIndex(fv | 0) : 0;
-      case 'select':  { var i = Math.max(0, Math.min(enc.options.length - 1, fv | 0)); return enc.options[i].v127; }
-      case 'toggle':  return (fv | 0) > 0 ? 127 : 0;
-      default:        frac = fv;
-    }
-    if (isNaN(frac)) return 0;
-    return frac2v(frac);
-  }
-
-  // Exact 0..1 rack position for a stored file value — the SAME curve as
-  // encFromFile but WITHOUT rounding to the 128-step grid, so preset load can
-  // write full precision (build 217). Returns null for discrete params
-  // (sync/select/toggle) — those have no sub-step and use the normal write.
-  // Continuous pin at the very top mirrors v2frac/frac2v (127 → 1).
   function clamp01(f) { return f >= 1 ? 1 : (f <= 0 ? 0 : f); }
-  function v127fToFrac(v) { return v >= 127 ? 1 : (v <= 0 ? 0 : v / 128); }
+  // Exact fraction (0..1) → stored file value. Continuous kinds only.
+  function encFracToFile(enc, f) {
+    switch (enc.kind) {
+      case 'frac':    return f;
+      case 'linear':  return enc.lo + f * (enc.hi - enc.lo);
+      case 'log':     return enc.lo * Math.pow(enc.hi / enc.lo, f);
+      case 'bipolar': { var sp = enc.span || 100; return -sp + f * 2 * sp; }
+      case 'eqsym':   return enc.lo + f * (enc.hi - enc.lo);                              // EQ gain, stored as dB
+      case 'outgain': return Math.pow(10, (enc.lo + f * (enc.hi - enc.lo)) / 20);        // EQ Output, unity-at-0dB linear gain
+    }
+    return f;
+  }
+  // Stored file value → exact fraction (no 128-step rounding). null = discrete.
   function encFracFromFile(enc, fv) {
     var frac;
     switch (enc.kind) {
       case 'frac':    frac = fv; break;
       case 'linear':  frac = (fv - enc.lo) / (enc.hi - enc.lo); break;
       case 'log':     frac = Math.log(fv / enc.lo) / Math.log(enc.hi / enc.lo); break;
-      case 'bipolar': { var sp = enc.span || 100; var v = (fv < 0) ? (64 + fv * 64 / sp) : (64 + fv * 63 / sp); return v127fToFrac(v); }
-      case 'eqsym':   return v127fToFrac(twoSlopeV127(fv, enc.lo, enc.hi));
-      case 'outgain': {
-        var dB = 20 * Math.log(fv > 0 ? fv : 1e-6) / Math.LN10;
-        if (enc.slope === 'sym') return v127fToFrac(twoSlopeV127(dB, enc.lo, enc.hi));
-        frac = (dB - enc.lo) / (enc.hi - enc.lo); break;
-      }
-      case 'sync': case 'select': case 'toggle': return null;  // discrete
+      case 'bipolar': { var sp = enc.span || 100; frac = (fv + sp) / (2 * sp); break; }
+      case 'eqsym':   frac = (fv - enc.lo) / (enc.hi - enc.lo); break;
+      case 'outgain': { var dB = 20 * Math.log(fv > 0 ? fv : 1e-6) / Math.LN10; frac = (dB - enc.lo) / (enc.hi - enc.lo); break; }
+      case 'sync': case 'select': case 'toggle': return null;
       default:        frac = fv;
     }
     return isNaN(frac) ? null : clamp01(frac);
+  }
+  // Save: v127 (+ the knob's exact rack fraction when EE holds it) → file value.
+  function encToFile(enc, v127, exactFrac) {
+    switch (enc.kind) {
+      case 'sync':    return (typeof syncIndexFromV127 === 'function') ? syncIndexFromV127(v127) : 0;
+      case 'select':  { var b = 0, bd = Infinity; enc.options.forEach(function (o, i) { var d = Math.abs(o.v127 - v127); if (d < bd) { bd = d; b = i; } }); return b; }
+      case 'toggle':  return v127 >= 64 ? 1 : 0;
+    }
+    return encFracToFile(enc, (exactFrac !== null && exactFrac !== undefined) ? exactFrac : v2frac(v127));
+  }
+  // Load: file value → 128-step v127 (pointer/baseline; the send uses the exact fraction).
+  function encFromFile(enc, fv) {
+    switch (enc.kind) {
+      case 'sync':    return (typeof syncV127FromIndex === 'function') ? syncV127FromIndex(fv | 0) : 0;
+      case 'select':  { var i = Math.max(0, Math.min(enc.options.length - 1, fv | 0)); return enc.options[i].v127; }
+      case 'toggle':  return (fv | 0) > 0 ? 127 : 0;
+    }
+    var f = encFracFromFile(enc, fv);
+    return f === null ? 0 : frac2v(f);
   }
 
   // ── Low-level byte helpers ─────────────────────────────────────────
@@ -540,9 +518,12 @@
         if (!field) return;
         var v127 = cfg.knobV127(hex(lo));
         if (v127 === undefined || isNaN(v127)) return;
-        if (field.enc) params.push({ name: field.name, type: field.type, value: encToFile(field.enc, v127) });
+        // build 230: save the rack's exact value when EE holds it (else the step).
+        var xf = (typeof blockKnobFrac === 'function') ? blockKnobFrac(blk.slotId, lo, v127) : null;
+        if (field.enc) params.push({ name: field.name, type: field.type, value: encToFile(field.enc, v127, xf) });
         else if (field.type === 'l') params.push({ name: field.name, type: 'l', value: cfg.enumSave(lo, v127) });
-        else params.push({ name: field.name, type: 'd', value: bpV127ToFloat(paramScale(cfg.map, bmid, lo), v127) });
+        else { var sc = paramScale(cfg.map, bmid, lo);
+          params.push({ name: field.name, type: 'd', value: (xf !== null) ? sc.lo + xf * (sc.hi - sc.lo) : bpV127ToFloat(sc, v127) }); }
       });
       if (!params.length) { setStatusSafe('No values to save (open the panel first).'); return; }
 
