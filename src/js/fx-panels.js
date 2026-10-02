@@ -3351,6 +3351,15 @@ function panelSnapshot(el) {
   for (var i = 0; i < src.length && i < dst.length; i++) {
     try { dst[i].getContext('2d').drawImage(src[i], 0, 0); } catch (e) {}
   }
+  // build 244: a clone does not carry JS-set form state — a <select> fell back
+  // to its first option (FX host showed "C1 Chorus/Vibrato" for a moment).
+  var fs = el.querySelectorAll('select, input'), fd = snap.querySelectorAll('select, input');
+  for (var j = 0; j < fs.length && j < fd.length; j++) {
+    try {
+      if (fs[j].tagName === 'SELECT') fd[j].selectedIndex = fs[j].selectedIndex;
+      else { fd[j].value = fs[j].value; fd[j].checked = fs[j].checked; }
+    } catch (e) {}
+  }
   snap.style.pointerEvents = 'none';
   snap.classList.add('panel-hold-snap');
   return snap;
