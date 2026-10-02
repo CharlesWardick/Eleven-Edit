@@ -1649,6 +1649,7 @@ function createWindow() {
         var a = [];
         if (startupTimeoutSec) a.push('--ee-startup-timeout-sec=' + startupTimeoutSec);
         if (audioAutoStart)    a.push('--ee-audio-on');
+        a.push('--ee-install=' + installKind);   // build 235
         return a;
       })(),
     }
@@ -1701,7 +1702,17 @@ function createWindow() {
 app.commandLine.appendSwitch('enable-web-midi');
 app.commandLine.appendSwitch('enable-blink-features', 'MIDIGetSupportedExtensions');
 
+// build 235: new install vs upgrade, decided ONCE on the first v1.2+ launch.
+// v1.0/v1.1 always left settings.json behind (window bounds on close), so its
+// presence = upgrade. Sticky in the store; storage error -> treat as upgrade
+// (the conservative side: no new defaults forced on anyone).
+let installKind = 'upgrade';
 app.whenReady().then(function() {
+  try {
+    installKind = storeGet('installKind', null)
+      || (fs.existsSync(getStorePath()) ? 'upgrade' : 'new');
+    storeSet('installKind', installKind);
+  } catch (e) { installKind = 'upgrade'; }
   initLog();
   logWrite('Launch argv: [' + process.argv.join('] [') + ']  /AUDIOON=' + audioAutoStart);
   launchBridge();

@@ -124,6 +124,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // if a device is already configured.
   audioAutoStart: process.argv.some(function (x) { return x === '--ee-audio-on'; }),
 
+  // build 235: 'new' (fresh install) or 'upgrade' (settings from v1.0/v1.1
+  // existed). New features default ON only for 'new' where noted.
+  installKind: (function () {
+    var a = process.argv.find(function (x) { return x.indexOf('--ee-install=') === 0; });
+    return a ? a.split('=')[1] : 'upgrade';
+  })(),
+
   platform:   process.platform,
   isElectron: true,
 });

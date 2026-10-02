@@ -73,11 +73,13 @@ var qmDragSlot = null;
 // Show/hide preference — per-viewer, localStorage (a pure display pref; not
 // hardware state, so it doesn't need the electron-store IPC the rig settings
 // use). Defaults ON. Wrapped in try/catch per storage rules.
-var qmShown = true;
+// build 235: fresh install defaults OFF; an upgrade from v1.1 keeps ON (what it had).
+var qmShown = !(window.electronAPI && window.electronAPI.installKind === 'new');
 function qmLoadPref() {
   try {
     var v = window.localStorage.getItem('quickMixShown');
     if (v === '0') qmShown = false;
+    else if (v === '1') qmShown = true;
   } catch (e) { /* storage blocked — default on */ }
 }
 function qmSavePref() {

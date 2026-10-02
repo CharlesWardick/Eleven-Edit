@@ -13,7 +13,9 @@
 // Values: 'classic' | 'modern' (Modern 1, lit bar) | 'modern2'..'modern5' (skins, build 106:
 // 2 lens, 3 LED strip, 4 glow text, 5 lit face). All Moderns share one layout + wiring.
 var CHAIN_VIEWS = ['classic', 'modern', 'modern2', 'modern3', 'modern4', 'modern5'];
-var chainView = 'modern4';   // build 140: fresh-install default = Modern 4 (Glow); saved choice wins
+// build 235: no saved choice -> fresh install gets Modern 4 (Glow), an upgrade
+// from v1.0/v1.1 keeps the Classic look it had. Saved choice always wins.
+var chainView = (window.electronAPI && window.electronAPI.installKind === 'new') ? 'modern4' : 'classic';
 try {
   var cvSaved = window.localStorage.getItem('chainView');
   if (CHAIN_VIEWS.indexOf(cvSaved) !== -1) chainView = cvSaved;
