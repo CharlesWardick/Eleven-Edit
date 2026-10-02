@@ -75,8 +75,13 @@ function peqgSpecIn(b) {
   peqgSpecAt = Date.now();
   if (peqgActive) peqgSchedule();
 }
-function peqgView() { try { return localStorage.getItem('peqView') || 'graph'; } catch (e) { return 'graph'; } }
-function peqgSetView(v) { try { localStorage.setItem('peqView', v); } catch (e) {} peqGraphRefresh(); }
+// build 246: one view per FX slot (FX1/FX2/MOD keep their own KNOBS|GRAPH).
+// Key 'peqView:<slotId>'; falls back to the old shared 'peqView', then graph.
+function peqgViewKey() { return 'peqView:' + (typeof openFxHostSlot !== 'undefined' && openFxHostSlot !== null ? openFxHostSlot : 'x'); }
+function peqgView() {
+  try { return localStorage.getItem(peqgViewKey()) || localStorage.getItem('peqView') || 'graph'; } catch (e) { return 'graph'; }
+}
+function peqgSetView(v) { try { localStorage.setItem(peqgViewKey(), v); } catch (e) {} peqGraphRefresh(); }
 
 function peqgHex(lo) { return lo.toString(16).padStart(2, '0'); }
 // build 121: the PEQ model is looked up by name, not via the chain map (which
