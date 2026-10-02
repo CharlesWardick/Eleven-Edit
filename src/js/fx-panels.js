@@ -3345,8 +3345,9 @@ var panelHoldAfter = [];   // build 241: work to run at the swap moment (PEQ gra
 function panelHoldDefer(fn) { if (panelHold) panelHoldAfter.push(fn); else fn(); }
 function panelSnapshot(el) {
   var snap = el.cloneNode(true);
-  snap.removeAttribute('id');
-  snap.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+  // build 245: ids are KEPT (id-based styles — PEQ KNOBS|GRAPH, range menu —
+  // fell back to plain browser look when stripped). The picture goes AFTER
+  // the real panel, so getElementById still finds the real one first.
   var src = el.querySelectorAll('canvas'), dst = snap.querySelectorAll('canvas');
   for (var i = 0; i < src.length && i < dst.length; i++) {
     try { dst[i].getContext('2d').drawImage(src[i], 0, 0); } catch (e) {}
@@ -3403,7 +3404,7 @@ function panelHoldBegin(oldEl) {
   panelHoldEnd();
   if (!oldEl || oldEl.style.display === 'none') return;
   var snap = panelSnapshot(oldEl);
-  oldEl.parentNode.insertBefore(snap, oldEl);
+  oldEl.parentNode.insertBefore(snap, oldEl.nextSibling);
   if (oldEl.style.minHeight) snap.style.minHeight = oldEl.style.minHeight;
   panelHold = { snap: snap, el: null, t0: Date.now(), raf: 0, old: oldEl };
   // build 242: the hidden new panel still counts toward the area's scroll

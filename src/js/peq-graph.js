@@ -199,8 +199,14 @@ function peqGraphRefresh() {
       if (typeof panelHoldDefer === 'function') panelHoldDefer(showBars); else showBars();
       peqgDrag = null;
     }
-    kr.style.display = graph ? 'none' : 'flex';
-    g.style.display = graph ? '' : 'none';
+    // build 245: swap knob row / graph at the panel-hold swap too — leaving the
+    // graph used to pop the knob row into the still-visible outgoing panel.
+    var swapView = function() {
+      if (peqgActive !== graph) return;
+      kr.style.display = graph ? 'none' : 'flex';
+      g.style.display = graph ? '' : 'none';
+    };
+    if (!graph && typeof panelHoldDefer === 'function') panelHoldDefer(swapView); else swapView();
     var cm = document.getElementById('peqg-menu'); if (cm) cm.style.display = 'none';
   }
   if (graph) peqgSchedule();
