@@ -87,7 +87,9 @@
             params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Tone', type:'d'}, 0x04: {name:'d_Levl', type:'d'} } },
     // build 231: VERIFIED from Avid exports 2026-10-02 (codes/families were wrong guesses before).
     0x17: { family: 'Dstr', code: 'MUF', verified: true,   // Tri-Knob Fuzz (Big Muff)
-            params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Tone', type:'d'}, 0x04: {name:'d_Levl', type:'d'} } },
+            // build 232: Avid names Sustain=Driv, Volume=Levl; file order Driv/Tone/Levl ≠ paramLo order.
+            order: [0x03, 0x04, 0x02],
+            params: { 0x02: {name:'d_Levl', type:'d'}, 0x03: {name:'d_Driv', type:'d'}, 0x04: {name:'d_Tone', type:'d'} } },
     0x18: { family: 'Dstr', code: 'RAT', verified: true,   // Black Op Distortion (Rat)
             params: { 0x02: {name:'d_Driv', type:'d'}, 0x03: {name:'d_Tone', type:'d'}, 0x04: {name:'d_Levl', type:'d'} } },
     0x1A: { family: 'Xotc', code: 'RCB', verified: true,   // White Boost (RC Booster) — Treb/Bass order assumed = panel
@@ -515,7 +517,7 @@
       if (!cfg.baselineReady()) { setStatusSafe('Still reading the patch — try Save again in a moment.'); return; }
 
       var params = [];
-      model.paramLos.forEach(function (lo) {
+      (entry.order || model.paramLos).forEach(function (lo) {   // build 232: Avid record order when it differs
         var field = entry.params[lo];
         if (!field) return;
         var v127 = cfg.knobV127(hex(lo));
@@ -574,7 +576,7 @@
       if (!entry) { setStatusSafe('No mapping for this ' + cfg.lower + ' model.'); return; }
       var nameToLo = {};
       Object.keys(entry.params).forEach(function (lo) { nameToLo[entry.params[lo].name] = parseInt(lo, 10); });
-      var orderedLos = Object.keys(entry.params).map(function (x) { return parseInt(x, 10); }).sort(function (a, b) { return a - b; });
+      var orderedLos = entry.order ? entry.order.slice() : Object.keys(entry.params).map(function (x) { return parseInt(x, 10); }).sort(function (a, b) { return a - b; });
 
       var applied = [], posIdx = 0;
       parsed.params.forEach(function (pm) {
