@@ -1321,12 +1321,12 @@ function fxLoopKnobDisplay(paramLo, val) {
       const cell = row[c];
       if (!cell || cell.lo !== paramLo) continue;
       if (cell.display === 'loopDb') {
-        const db = (val < 64) ? (val - 64) * (12 / 64) : (val - 64) * (12 / 63);
+        const db = -12 + 24 * fracFromV127(val);   // build 228: linear in the rack's fraction (v/128 grid; 0 dB at 64)
         const t = db.toFixed(1);
         return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
       }
       if (cell.display === 'loopPct') {
-        return (val / 127 * 100).toFixed(0) + '%';
+        return (fracFromV127(val) * 100).toFixed(0) + '%';   // build 228: v/128 grid
       }
     }
   }
@@ -1343,7 +1343,8 @@ function updateFxLoopKnob(paramLo, val) {
     wrap.dataset.value = val;
     fxloopPaint.defer(function() { drawKnob(wrap.querySelector('canvas'), val); });
   }
-  if (valEl) fxloopPaint.defer(function() { valEl.textContent = fxLoopKnobDisplay(paramLo, val); });
+  if (valEl) { var flVEff = bpVEff(val, blockKnobFrac(SLOT_LOOP, paramLo, val));   // build 228: full precision
+    fxloopPaint.defer(function() { valEl.textContent = fxLoopKnobDisplay(paramLo, flVEff); }); }
   fxloopPaint.markSeen(paramLo);
 }
 

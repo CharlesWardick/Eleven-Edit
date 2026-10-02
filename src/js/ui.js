@@ -263,10 +263,8 @@ function eqSliderColor(wrap, value127) {
 // matches that tick. `linear` selects the same shape eqSliderDb used (see
 // its header comment for why Output needs the plain-proportional variant).
 function eqDbToV127(db, minDb, maxDb, linear) {
-  if (linear) return ((db - minDb) / (maxDb - minDb)) * 127;
-  if (db === 0) return 64;
-  if (db < 0) { const below = -minDb / 64; return 64 + db / below; }
-  const above = maxDb / 63; return 64 + db / above;
+  if (db >= maxDb) return 127;   // build 228: inverse of the v/128 linear shape
+  return ((db - minDb) / (maxDb - minDb)) * 128;
 }
 
 function drawEqSlider(canvas, value127, wrap, minDb, maxDb, ticks, linear) {
@@ -486,14 +484,10 @@ function valDisplay(v127, f) { return ((f === undefined ? fracFromV127(v127) : f
 //   genuinely unreachable at this resolution — a real hardware granularity
 //   limit, not a display bug to paper over.
 function eqSliderDb(v127, minDb, maxDb, linear) {
-  var db;
-  if (linear) {
-    db = minDb + (v127 / 127) * (maxDb - minDb);
-  } else {
-    const below = -minDb / 64;
-    const above = maxDb / 63;
-    db = (v127 < 64) ? (v127 - 64) * below : (v127 - 64) * above;
-  }
+  // build 228: both shapes are linear in the rack's fraction on the v/128
+  // grid (symmetric bands land 0.0 dB exactly at 64). The old /64,/63 split
+  // and Output's v/127 drifted ±0.1 between steps. `linear` kept for callers.
+  var db = minDb + fracFromV127(v127) * (maxDb - minDb);
   const t = db.toFixed(1);
   return (parseFloat(t) > 0 ? '+' : '') + t + ' dB';
 }

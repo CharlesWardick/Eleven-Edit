@@ -1911,8 +1911,9 @@ const DELAY_MODELS = [
       { group:'DELAY', rows: [
           [ {label:'L/R Ratio', lo:0x07,
               display: function(v) {
-                var l = (v < 64) ? Math.round(50 + (v / 64) * 50) : 100;
-                var r = (v < 64) ? 100 : Math.round(100 - ((v - 64) / 63) * 50);
+                var f = fracFromV127(v);   // build 228: linear in the rack's fraction (100:100 at 64)
+                var l = (f < 0.5) ? Math.round(50 + f * 100) : 100;
+                var r = (f < 0.5) ? 100 : Math.round(100 - (f - 0.5) * 100);
                 return l + ':' + r;
               }},
             {label:'Stereo Width', lo:0x08,
@@ -1937,12 +1938,12 @@ const DELAY_MODELS = [
               }},
             {label:'FBK', lo:0x0C,
               display: function(v) {
-                var pct = (v < 64) ? (v - 64) * (100 / 64) : (v - 64) * (100 / 63);
+                var pct = -100 + 200 * fracFromV127(v);   // build 228: linear in the rack's fraction (0 at 64)
                 return (pct > 0 ? '+' : '') + pct.toFixed(0) + '%';
               }},
             {label:'Mix', lo:0x0D,
               display: function(v) {
-                var pct = (v < 64) ? (v - 64) * (100 / 64) : (v - 64) * (100 / 63);
+                var pct = -100 + 200 * fracFromV127(v);   // build 228: linear in the rack's fraction (0 at 64)
                 return (pct > 0 ? '+' : '') + pct.toFixed(0) + '%';
               }} ]
         ]
